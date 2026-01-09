@@ -3,8 +3,7 @@ import { coaches, eloHistory, seasonCoaches, matches, matchPokemon, divisions, s
 import { eq, desc, and } from "drizzle-orm";
 import { LeaderboardsClient } from "./leaderboards-client";
 
-// Cache page for 5 minutes
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
 
 async function getTopEloCoach() {
   // Find the coach with the highest ELO rating
