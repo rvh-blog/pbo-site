@@ -105,11 +105,13 @@ export function DraftBoardGrid({
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
 
   // Filter Pokemon based on availability
+  // Complex bans are included in allPokemon and shown in their price tiers
   const filteredPokemon = useMemo(() => {
     if (!showAvailableOnly) return allPokemon;
     return allPokemon.filter((poke) => !ownership[poke.id]);
   }, [allPokemon, ownership, showAvailableOnly]);
 
+  // Complex bans also shown separately as a warning column
   const filteredComplexBans = useMemo(() => {
     if (!showAvailableOnly) return complexBans;
     return complexBans.filter((poke) => !ownership[poke.id]);
@@ -206,6 +208,11 @@ export function DraftBoardGrid({
             {poke.teraCaptainCost}
           </span>
         )}
+        {poke.complexBanReason && (
+          <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-[var(--warning)]/20 text-[var(--warning)] border border-[var(--warning)]/30 flex-shrink-0" title={`No ${poke.complexBanReason}`}>
+            !
+          </span>
+        )}
         {isTaken && (
           <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-[var(--primary)] text-white flex-shrink-0" title={owner.teamName}>
             {owner.teamAbbr}
@@ -230,12 +237,22 @@ export function DraftBoardGrid({
         {poke.spriteUrl && (
           <img src={poke.spriteUrl} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
         )}
-        <span className="font-medium text-xs leading-tight" title={poke.displayName || poke.name}>
-          {poke.displayName || poke.name}
+        <div className="flex-1 min-w-0">
+          <span className="font-medium text-xs leading-tight block" title={poke.displayName || poke.name}>
+            {poke.displayName || poke.name}
+          </span>
+          {poke.complexBanReason && (
+            <span className="text-[var(--warning)] text-[10px] font-medium">
+              No {poke.complexBanReason}
+            </span>
+          )}
+        </div>
+        <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-[var(--secondary)]/20 text-[var(--secondary)] flex-shrink-0">
+          {poke.price}
         </span>
-        {poke.complexBanReason && (
-          <span className="text-[var(--warning)] text-xs font-medium flex-shrink-0 ml-auto">
-            {poke.complexBanReason}
+        {poke.teraCaptainCost !== null && (
+          <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-[var(--accent)]/20 text-[var(--accent)] flex-shrink-0">
+            {poke.teraCaptainCost}
           </span>
         )}
         {isTaken && (

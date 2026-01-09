@@ -106,9 +106,9 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
   const selectedDivision = season.divisions.find((d) => d.id === selectedDivisionId);
   const ownership = rostersByDivision[selectedDivisionId] || {};
 
-  // Separate complex bans (price = -1) from regular Pokemon
-  const complexBans = pokemonList.filter((p) => p.price === -1);
-  const regularPokemon = pokemonList.filter((p) => p.price >= 0);
+  // Complex bans shown separately as a warning, but also appear in regular tiers
+  const complexBans = pokemonList.filter((p) => p.complexBanReason);
+  const regularPokemon = pokemonList; // All Pokemon appear in price tiers
 
   // Group Pokemon by price tier
   const priceTiers = new Map<number, typeof pokemonList>();
