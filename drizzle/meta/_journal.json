@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1767805074623,
+      "tag": "0000_mysterious_ultimo",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1767818314734,
+      "tag": "0001_nostalgic_scream",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1767880281014,
+      "tag": "0002_nosy_joystick",
+      "breakpoints": true
+    }
+  ]
+}

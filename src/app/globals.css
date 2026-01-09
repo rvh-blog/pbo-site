@@ -1,26 +1,801 @@
+/* Import Retro Fonts - must come before tailwindcss */
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Press+Start+2P&display=swap');
+
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Retro Dark Theme - Slate-based */
+  --background: #020617;
+  --background-secondary: #0f172a;
+  --background-tertiary: #1e293b;
+
+  /* Glass effect backgrounds */
+  --glass: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-hover: rgba(255, 255, 255, 0.06);
+
+  /* Card colors */
+  --card: rgba(15, 23, 42, 0.9);
+  --card-hover: rgba(30, 41, 59, 0.9);
+  --card-border: rgba(51, 65, 85, 0.8);
+
+  /* Text colors */
+  --foreground: #f8fafc;
+  --foreground-muted: #94a3b8;
+  --foreground-subtle: #64748b;
+
+  /* Brand colors - Pokeball inspired */
+  --primary: #dc2626;
+  --primary-light: #ef4444;
+  --primary-dark: #991b1b;
+  --primary-glow: rgba(220, 38, 38, 0.4);
+
+  --secondary: #2563eb;
+  --secondary-light: #3b82f6;
+  --secondary-dark: #1d4ed8;
+  --secondary-glow: rgba(37, 99, 235, 0.4);
+
+  --accent: #facc15;
+  --accent-light: #fde047;
+  --accent-glow: rgba(250, 204, 21, 0.4);
+
+  /* Gradient stops */
+  --gradient-start: #dc2626;
+  --gradient-mid: #ec4899;
+  --gradient-end: #8b5cf6;
+
+  /* Pokemon type colors */
+  --type-normal: #9CA3AF;
+  --type-fire: #F97316;
+  --type-water: #3B82F6;
+  --type-electric: #EAB308;
+  --type-grass: #22C55E;
+  --type-ice: #06B6D4;
+  --type-fighting: #DC2626;
+  --type-poison: #A855F7;
+  --type-ground: #D97706;
+  --type-flying: #8B5CF6;
+  --type-psychic: #EC4899;
+  --type-bug: #84CC16;
+  --type-rock: #A8A29E;
+  --type-ghost: #7C3AED;
+  --type-dragon: #6366F1;
+  --type-dark: #57534E;
+  --type-steel: #64748B;
+  --type-fairy: #F472B6;
+
+  /* Status colors */
+  --success: #22c55e;
+  --success-glow: rgba(34, 197, 94, 0.3);
+  --warning: #eab308;
+  --error: #ef4444;
+  --error-glow: rgba(239, 68, 68, 0.3);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-background-secondary: var(--background-secondary);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-primary: var(--primary);
+  --font-sans: 'Chakra Petch', var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Base styles */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Chakra Petch', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Retro pixel font class */
+.font-pixel {
+  font-family: 'Press Start 2P', monospace;
+}
+
+/* Pokeball dot pattern background */
+.pokeball-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(#334155 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.03;
+}
+
+/* Giant rotating Pokeball wireframe */
+.pokeball-wireframe {
+  position: fixed;
+  right: -16rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 800px;
+  height: 800px;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+  animation: spin-slow 60s linear infinite;
+}
+
+@keyframes spin-slow {
+  from { transform: translateY(-50%) rotate(0deg); }
+  to { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* Retro Card - Game text box style with corner accents */
+.poke-card {
+  position: relative;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 4px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.poke-card:hover {
+  border-color: #475569;
+}
+
+/* Corner accents for poke-card */
+.poke-card::before,
+.poke-card::after,
+.poke-card-corners::before,
+.poke-card-corners::after {
+  content: '';
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-color: #475569;
+  border-width: 4px;
+  pointer-events: none;
+}
+
+.poke-card::before {
+  top: 0;
+  left: 0;
+  border-right: none;
+  border-bottom: none;
+  border-top-left-radius: 8px;
+}
+
+.poke-card::after {
+  top: 0;
+  right: 0;
+  border-left: none;
+  border-bottom: none;
+  border-top-right-radius: 8px;
+}
+
+/* Glass morphism card (legacy support) */
+.glass-card {
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  background: var(--glass-hover);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Premium card with glow */
+.premium-card {
+  background: linear-gradient(135deg, var(--background-secondary) 0%, var(--background-tertiary) 100%);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.premium-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--primary-glow) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.premium-card:hover {
+  border-color: rgba(220, 38, 38, 0.3);
+  transform: translateY(-4px);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 60px var(--primary-glow);
+}
+
+.premium-card:hover::before {
+  opacity: 1;
+}
+
+/* League Pass Card - Special hero card */
+.league-pass {
+  background: #e2e8f0;
+  border-radius: 16px;
+  padding: 8px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+  border: 4px solid #cbd5e1;
+}
+
+.league-pass-inner {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  color: white;
+  min-height: 220px;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Stat card with shine effect */
+.stat-card {
+  background: var(--background-secondary);
+  border: 2px solid #334155;
+  border-radius: 12px;
+  padding: 1rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  border-color: #475569;
+}
+
+/* Retro 3D Button - Primary (Pokeball Red) */
+.btn-retro {
+  position: relative;
+  background: #dc2626;
+  color: white;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  font-weight: normal;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  border-bottom: 4px solid #991b1b;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.1s ease;
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+}
+
+.btn-retro:hover {
+  background: #ef4444;
+}
+
+.btn-retro:active {
+  border-bottom-width: 0;
+  transform: translateY(4px);
+}
+
+/* Retro Button - Secondary (Blue) */
+.btn-retro-secondary {
+  position: relative;
+  background: #2563eb;
+  color: white;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  font-weight: normal;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  border-bottom: 4px solid #1d4ed8;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.1s ease;
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+}
+
+.btn-retro-secondary:hover {
+  background: #3b82f6;
+}
+
+.btn-retro-secondary:active {
+  border-bottom-width: 0;
+  transform: translateY(4px);
+}
+
+/* Retro Button - Dark */
+.btn-retro-dark {
+  position: relative;
+  background: #1e293b;
+  color: white;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  font-weight: normal;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  border-bottom: 4px solid #0f172a;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.1s ease;
+}
+
+.btn-retro-dark:hover {
+  background: #334155;
+}
+
+.btn-retro-dark:active {
+  border-bottom-width: 0;
+  transform: translateY(4px);
+}
+
+/* Premium button (legacy support) */
+.btn-premium {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px var(--primary-glow);
+}
+
+.btn-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px var(--primary-glow);
+}
+
+/* Ghost button */
+.btn-ghost {
+  background: transparent;
+  color: var(--foreground);
+  font-weight: 500;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-ghost:hover {
+  background: var(--glass);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Retro Section Title */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.section-title-icon {
+  padding: 8px;
+  background: #dc2626;
+  border-radius: 8px;
+  box-shadow: 0 4px 0 #991b1b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-title h2, .section-title h3 {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Battle Log Item */
+.battle-log-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  background: #1e293b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border-left: 4px solid #475569;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.battle-log-item:hover {
+  border-left-color: #dc2626;
+}
+
+/* Week Badge */
+.week-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 48px;
+  background: var(--background);
+  border-radius: 8px;
+  border: 1px solid #334155;
+  flex-shrink: 0;
+}
+
+.week-badge span:first-child {
+  font-size: 9px;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.week-badge span:last-child {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  color: white;
+}
+
+.week-badge.playoff {
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  border-color: var(--primary);
+}
+
+.week-badge.playoff span:first-child {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Score Display */
+.score-display {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  color: white;
+  background: var(--background);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #334155;
+}
+
+/* Table styles */
+.premium-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.premium-table th {
+  text-align: left;
+  padding: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--foreground-muted);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.premium-table td {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(63, 63, 70, 0.3);
+  transition: background 0.2s ease;
+}
+
+.premium-table tbody tr:hover td {
+  background: var(--glass);
+}
+
+.premium-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Rank badges */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+}
+
+.rank-1 {
+  background: linear-gradient(135deg, #facc15, #eab308);
+  color: #000;
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.4);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+}
+
+.rank-2 {
+  background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+  color: #000;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+.rank-3 {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff;
+  border: 1px solid rgba(249, 115, 22, 0.5);
+}
+
+/* Trainer Card in leaderboard */
+.trainer-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.trainer-card:hover {
+  border-color: #475569;
+  background: #1e293b;
+}
+
+/* ELO display */
+.elo-display {
+  font-family: 'Press Start 2P', monospace;
+  font-weight: normal;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.elo-high {
+  color: var(--success);
+  text-shadow: 0 0 20px var(--success-glow);
+}
+
+.elo-low {
+  color: var(--error);
+  text-shadow: 0 0 20px var(--error-glow);
+}
+
+/* Pokemon type badges */
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+}
+
+.type-badge:hover {
+  transform: scale(1.05);
+}
+
+.type-normal { background: linear-gradient(135deg, #9CA3AF, #6B7280); color: #fff; }
+.type-fire { background: linear-gradient(135deg, #F97316, #EA580C); color: #fff; box-shadow: 0 0 10px rgba(249, 115, 22, 0.4); }
+.type-water { background: linear-gradient(135deg, #3B82F6, #2563EB); color: #fff; box-shadow: 0 0 10px rgba(59, 130, 246, 0.4); }
+.type-electric { background: linear-gradient(135deg, #EAB308, #CA8A04); color: #000; box-shadow: 0 0 10px rgba(234, 179, 8, 0.4); }
+.type-grass { background: linear-gradient(135deg, #22C55E, #16A34A); color: #fff; box-shadow: 0 0 10px rgba(34, 197, 94, 0.4); }
+.type-ice { background: linear-gradient(135deg, #06B6D4, #0891B2); color: #fff; box-shadow: 0 0 10px rgba(6, 182, 212, 0.4); }
+.type-fighting { background: linear-gradient(135deg, #DC2626, #B91C1C); color: #fff; }
+.type-poison { background: linear-gradient(135deg, #A855F7, #9333EA); color: #fff; box-shadow: 0 0 10px rgba(168, 85, 247, 0.4); }
+.type-ground { background: linear-gradient(135deg, #D97706, #B45309); color: #fff; }
+.type-flying { background: linear-gradient(135deg, #8B5CF6, #7C3AED); color: #fff; box-shadow: 0 0 10px rgba(139, 92, 246, 0.4); }
+.type-psychic { background: linear-gradient(135deg, #EC4899, #DB2777); color: #fff; box-shadow: 0 0 10px rgba(236, 72, 153, 0.4); }
+.type-bug { background: linear-gradient(135deg, #84CC16, #65A30D); color: #fff; }
+.type-rock { background: linear-gradient(135deg, #A8A29E, #78716C); color: #fff; }
+.type-ghost { background: linear-gradient(135deg, #7C3AED, #6D28D9); color: #fff; box-shadow: 0 0 10px rgba(124, 58, 237, 0.4); }
+.type-dragon { background: linear-gradient(135deg, #6366F1, #4F46E5); color: #fff; box-shadow: 0 0 10px rgba(99, 102, 241, 0.4); }
+.type-dark { background: linear-gradient(135deg, #57534E, #44403C); color: #fff; }
+.type-steel { background: linear-gradient(135deg, #64748B, #475569); color: #fff; }
+.type-fairy { background: linear-gradient(135deg, #F472B6, #EC4899); color: #fff; box-shadow: 0 0 10px rgba(244, 114, 182, 0.4); }
+
+/* Quick Link Cards */
+.quick-link-card {
+  background: rgba(79, 70, 229, 0.1);
+  border: 2px solid rgba(79, 70, 229, 0.3);
+  padding: 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.quick-link-card:hover {
+  border-color: rgba(79, 70, 229, 0.6);
+}
+
+.quick-link-card.emerald {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.quick-link-card.emerald:hover {
+  border-color: rgba(16, 185, 129, 0.6);
+}
+
+/* Live Badge */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #dc2626;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #f87171;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--background-tertiary);
+  border-radius: 5px;
+  border: 2px solid var(--background);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-subtle);
+}
+
+/* Visible thin scrollbar for horizontal scroll areas */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--foreground-subtle) var(--background-secondary);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 12px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: var(--background-secondary);
+  border-radius: 6px;
+  margin: 0 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: linear-gradient(to right, var(--primary), var(--primary-light));
+  border-radius: 6px;
+  border: 2px solid var(--background-secondary);
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to right, var(--primary-light), var(--accent));
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes bounce-x {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+.animate-bounce-x {
+  animation: bounce-x 1s ease-in-out infinite;
+}
+
+/* Selection */
+::selection {
+  background: var(--primary);
+  color: white;
+}
+
+/* Focus states */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Container max-width override */
+.container {
+  max-width: 1400px;
+}
+
+/* Glow effects */
+.glow-primary {
+  box-shadow: 0 0 20px var(--primary-glow), 0 0 40px var(--primary-glow);
+}
+
+.glow-success {
+  box-shadow: 0 0 15px var(--success-glow);
+}
+
+.glow-error {
+  box-shadow: 0 0 15px var(--error-glow);
+}
+
+/* Noise texture overlay */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.02;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* Animated gradient background (legacy support) */
+.gradient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(220, 38, 38, 0.12), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(139, 92, 246, 0.08), transparent),
+    radial-gradient(ellipse 50% 30% at 0% 100%, rgba(37, 99, 235, 0.08), transparent);
 }
