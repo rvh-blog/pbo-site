@@ -3,6 +3,9 @@ import { db } from "@/lib/db";
 import { seasonCoaches } from "@/lib/schema";
 import { eq, count } from "drizzle-orm";
 
+// Cache page for 5 minutes
+export const revalidate = 300;
+
 async function getSeasons() {
   const allSeasons = await db.query.seasons.findMany({
     with: {

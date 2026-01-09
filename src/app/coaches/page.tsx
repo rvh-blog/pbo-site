@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { coaches, eloHistory, seasonCoaches, matches, seasons } from "@/lib/schema";
 import { eq, desc, count } from "drizzle-orm";
 
+// Cache page for 5 minutes
+export const revalidate = 300;
+
 async function getCoachesWithStats() {
   const allCoaches = await db.query.coaches.findMany();
 

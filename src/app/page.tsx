@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches } from "@/lib/schema";
 import { eq, desc, count, and, isNotNull, lte } from "drizzle-orm";
 
+// Cache page for 5 minutes
+export const revalidate = 300;
+
 async function getCurrentSeason() {
   const result = await db.query.seasons.findFirst({
     where: eq(seasons.isCurrent, true),
