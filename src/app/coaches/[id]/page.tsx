@@ -196,7 +196,10 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
   const matchIds = coachMatches.map((m) => m.id);
   const opponentMatchPokemon = await getOpponentMatchPokemon(matchIds, seasonCoachIds);
 
-  // Get current season entry (for header display)
+  // Get most recent season entry (for header display - logo, team name)
+  const mostRecentSeasonEntry = coachSeasons[0];
+
+  // Also check if they're in the current season specifically
   const currentSeasonEntry = coachSeasons.find(
     (sc) => sc.division?.season?.isCurrent
   );
@@ -335,11 +338,11 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
           {/* Team Logo / Avatar */}
           <div className="relative">
-            {currentSeasonEntry?.teamLogoUrl ? (
+            {mostRecentSeasonEntry?.teamLogoUrl ? (
               <div className="w-24 h-24 rounded-lg bg-[var(--background-secondary)] flex items-center justify-center border-2 border-[var(--background-tertiary)] overflow-hidden">
                 <Image
-                  src={currentSeasonEntry.teamLogoUrl}
-                  alt={currentSeasonEntry.teamName}
+                  src={mostRecentSeasonEntry.teamLogoUrl}
+                  alt={mostRecentSeasonEntry.teamName}
                   width={96}
                   height={96}
                   className="object-contain"
@@ -348,7 +351,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
             ) : (
               <div className="w-24 h-24 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--gradient-end)] flex items-center justify-center border-2 border-[var(--background-tertiary)]">
                 <span className="text-white text-3xl font-black">
-                  {currentSeasonEntry?.teamAbbreviation || currentSeasonEntry?.teamName?.substring(0, 2).toUpperCase() || coach.name.charAt(0).toUpperCase()}
+                  {mostRecentSeasonEntry?.teamAbbreviation || mostRecentSeasonEntry?.teamName?.substring(0, 2).toUpperCase() || coach.name.charAt(0).toUpperCase()}
                 </span>
               </div>
             )}
@@ -374,10 +377,10 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
               </Link>
               <span className="text-[var(--foreground-subtle)]">/</span>
             </div>
-            {currentSeasonEntry ? (
+            {mostRecentSeasonEntry ? (
               <>
                 <h1 className="text-xl md:text-2xl font-bold text-white">
-                  {currentSeasonEntry.teamName}
+                  {mostRecentSeasonEntry.teamName}
                 </h1>
                 <p className="text-[var(--foreground-muted)]">
                   {coach.name}
@@ -822,8 +825,8 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                 {/* Header Row */}
                 <div className="flex items-center gap-2 px-3 pb-2 mb-2 border-b border-[var(--background-tertiary)] text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wide">
                   <div className="w-6 shrink-0"></div>
-                  <div className="flex items-center gap-2 flex-1 min-w-0">Pokemon</div>
-                  <div className="w-10 text-center shrink-0">KO</div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">Opponent Pokemon</div>
+                  <div className="w-10 text-center shrink-0">KO's</div>
                 </div>
                 <div className="space-y-1">
                   {nemesisPokemon.map((pkmn, index) => (
