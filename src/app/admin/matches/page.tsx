@@ -42,6 +42,7 @@ interface Season {
   id: number;
   name: string;
   isCurrent: boolean;
+  isSchedulePublic?: boolean;
   divisions: Division[];
 }
 
@@ -91,6 +92,11 @@ interface PokemonEntry {
   pokemonId: string;
   kills: string;
   deaths: string;
+  damageDealt?: number;
+  damageDealtIndirect?: number;
+  damageTaken?: number;
+  damageTakenIndirect?: number;
+  hpRestored?: number;
 }
 
 type TabType = "schedule" | "results" | "playoffs";
@@ -132,6 +138,21 @@ export default function AdminMatchesPage() {
   const [scraping, setScraping] = useState(false);
   const [scrapeError, setScrapeError] = useState("");
 
+  // Scraped data state
+  const [zoroarkInvolved, setZoroarkInvolved] = useState(false);
+  const [matchTimingData, setMatchTimingData] = useState<{ startedAt: string | null; endedAt: string | null }>({
+    startedAt: null,
+    endedAt: null,
+  });
+  const [matchEventData, setMatchEventData] = useState<{ turnSnapshots: unknown[] | null; keyEvents: unknown[] | null }>({
+    turnSnapshots: null,
+    keyEvents: null,
+  });
+
+  // Time-synced rosters for accurate matching
+  const [timeSyncedRosters1, setTimeSyncedRosters1] = useState<RosterEntry[] | null>(null);
+  const [timeSyncedRosters2, setTimeSyncedRosters2] = useState<RosterEntry[] | null>(null);
+
   // Playoff entry
   const [playoffForm, setPlayoffForm] = useState({
     round: "1",
@@ -139,6 +160,11 @@ export default function AdminMatchesPage() {
     higherSeedId: "",
     lowerSeedId: "",
   });
+
+  // ELO recalculation
+  const [needsFullRecalc, setNeedsFullRecalc] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcMessage, setRecalcMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSeasons();
@@ -151,6 +177,25 @@ export default function AdminMatchesPage() {
       fetchPlayoffMatches();
     }
   }, [selectedSeason, selectedDivision]);
+
+  // Auto-select next available bracket position
+  useEffect(() => {
+    if (!selectedDivision) return;
+    const round = parseInt(playoffForm.round);
+    const takenPositions = playoffMatches
+      .filter((pm) => pm.round === round && pm.divisionId === selectedDivision.id)
+      .map((pm) => pm.bracketPosition);
+    const currentPos = parseInt(playoffForm.bracketPosition);
+    if (takenPositions.includes(currentPos)) {
+      const maxPositions = round === 1 ? 4 : round === 2 ? 2 : 1;
+      const available = Array.from({ length: maxPositions }, (_, i) => i + 1).find(
+        (p) => !takenPositions.includes(p)
+      );
+      if (available) {
+        setPlayoffForm((prev) => ({ ...prev, bracketPosition: available.toString() }));
+      }
+    }
+  }, [playoffMatches, selectedDivision, playoffForm.round]);
 
   async function fetchSeasons() {
     const res = await fetch("/api/seasons");
@@ -177,8 +222,7 @@ export default function AdminMatchesPage() {
       url += `&divisionId=${selectedDivision.id}`;
     }
     const res = await fetch(url);
-    const data = await res.json();
-    setMatches(data);
+    setMatches(await res.json());
   }
 
   async function fetchPlayoffMatches() {
@@ -190,6 +234,43 @@ export default function AdminMatchesPage() {
     const res = await fetch(url);
     const data = await res.json();
     setPlayoffMatches(Array.isArray(data) ? data : []);
+  }
+
+  async function fetchTimeSyncedRosters(coach1Id: number, coach2Id: number, week: number) {
+    try {
+      const [res1, res2] = await Promise.all([
+        fetch(`/api/rosters/time-synced?seasonCoachId=${coach1Id}&week=${week}`),
+        fetch(`/api/rosters/time-synced?seasonCoachId=${coach2Id}&week=${week}`),
+      ]);
+      const [data1, data2] = await Promise.all([res1.json(), res2.json()]);
+      setTimeSyncedRosters1([...(data1.roster || []), ...(data1.dropped || [])]);
+      setTimeSyncedRosters2([...(data2.roster || []), ...(data2.dropped || [])]);
+    } catch (err) {
+      console.error("Failed to fetch time-synced rosters:", err);
+      setTimeSyncedRosters1(null);
+      setTimeSyncedRosters2(null);
+    }
+  }
+
+  async function handleRecalculateElo() {
+    if (!confirm("This will recalculate ELO ratings for all coaches based on match history. Continue?")) return;
+    setRecalculating(true);
+    setRecalcMessage(null);
+    try {
+      const res = await fetch("/api/elo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "recalculateAll" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to recalculate ELO");
+      setRecalcMessage(data.message);
+      setNeedsFullRecalc(false);
+    } catch (err: unknown) {
+      setRecalcMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRecalculating(false);
+    }
   }
 
   // Schedule CSV parsing
@@ -250,7 +331,6 @@ export default function AdminMatchesPage() {
   async function handleUploadSchedule() {
     if (!selectedSeason || !selectedDivision || schedulePreview.length === 0) return;
 
-    // Map team names to season coach IDs
     const coachesInDiv = seasonCoaches.filter((sc) => sc.divisionId === selectedDivision.id);
     const scheduleData = schedulePreview.map((entry) => {
       const coach1 = coachesInDiv.find(
@@ -266,7 +346,6 @@ export default function AdminMatchesPage() {
       };
     });
 
-    // Filter out entries where teams weren't found
     const validSchedule = scheduleData.filter((s) => s.coach1SeasonId && s.coach2SeasonId);
 
     if (validSchedule.length === 0) {
@@ -274,7 +353,6 @@ export default function AdminMatchesPage() {
       return;
     }
 
-    // Create matches without results
     for (const match of validSchedule) {
       await fetch("/api/matches", {
         method: "POST",
@@ -304,22 +382,19 @@ export default function AdminMatchesPage() {
     }
   };
 
-  // Get unique weeks from matches + playoff rounds
   const regularWeeks = [...new Set(matches.map((m) => m.week))].sort((a, b) => a - b);
   const playoffRounds = [...new Set(playoffMatches.map((pm) => pm.round))].sort((a, b) => a - b);
 
-  // Week options include regular weeks and playoff rounds
   const weekOptions = [
     ...regularWeeks.map((w) => ({ value: `week-${w}`, label: `Week ${w}` })),
     ...playoffRounds.map((r) => ({ value: `playoff-${r}`, label: getRoundName(r) })),
   ];
 
-  // Get fixtures for selected week/round
   const isPlayoffRound = selectedWeek.startsWith("playoff-");
   const selectedValue = parseInt(selectedWeek.split("-")[1]) || 0;
 
   const fixturesForWeek = isPlayoffRound
-    ? [] // Will use playoffFixturesForRound instead
+    ? []
     : matches.filter(
         (m) => m.week === selectedValue && (!selectedDivision || m.divisionId === selectedDivision.id)
       );
@@ -330,7 +405,6 @@ export default function AdminMatchesPage() {
       )
     : [];
 
-  // Find existing match for a playoff fixture (matches playoff round by using week = 100 + round)
   function findMatchForPlayoff(playoffMatch: PlayoffMatch): Match | undefined {
     const playoffWeek = 100 + playoffMatch.round;
     return matches.find(
@@ -351,7 +425,6 @@ export default function AdminMatchesPage() {
       replayUrl: match.replayUrl || "",
     });
 
-    // Load existing Pokemon data
     const coach1Pokemon = match.matchPokemon?.filter((mp) => mp.seasonCoachId === match.coach1SeasonId) || [];
     const coach2Pokemon = match.matchPokemon?.filter((mp) => mp.seasonCoachId === match.coach2SeasonId) || [];
 
@@ -371,41 +444,6 @@ export default function AdminMatchesPage() {
     );
   }
 
-  function selectFixture(match: Match) {
-    setSelectedFixture(match);
-    setEditingMatch(null);
-    setSelectedPlayoffFixture(null);
-    loadMatchForm(match);
-  }
-
-  function selectPlayoffFixture(pm: PlayoffMatch) {
-    if (!pm.higherSeedId || !pm.lowerSeedId) {
-      alert("Both teams must be set in the playoff bracket before entering results.");
-      return;
-    }
-
-    setSelectedPlayoffFixture(pm);
-    setSelectedFixture(null);
-    setEditingMatch(null);
-
-    // Check if there's an existing match for this playoff
-    const existingMatch = findMatchForPlayoff(pm);
-    if (existingMatch) {
-      loadMatchForm(existingMatch);
-    } else {
-      resetForm();
-    }
-  }
-
-  function startEditMatch(match: Match) {
-    setEditingMatch(match);
-    setSelectedFixture(null);
-    setSelectedPlayoffFixture(null);
-    setSelectedWeek(`week-${match.week}`);
-    loadMatchForm(match);
-  }
-
-  // Helper to get Pokemon name from roster
   function getPokemonName(rosters: RosterEntry[] | undefined, pokemonId: string): string {
     if (!pokemonId || !rosters) return "";
     const entry = rosters.find((r) => r.pokemonId.toString() === pokemonId);
@@ -416,18 +454,11 @@ export default function AdminMatchesPage() {
     const match = selectedFixture || editingMatch;
     const playoffMatch = selectedPlayoffFixture;
 
-    // Handle playoff match
     if (playoffMatch && !match) {
-      // Create or update a regular match for this playoff
       const existingMatch = findMatchForPlayoff(playoffMatch);
       const playoffWeek = 100 + playoffMatch.round;
 
-      // Get rosters for the playoff teams
-      const higherSeedCoach = seasonCoaches.find((sc) => sc.id === playoffMatch.higherSeedId);
-      const lowerSeedCoach = seasonCoaches.find((sc) => sc.id === playoffMatch.lowerSeedId);
-
-      // Collect Pokemon data
-      const pokemonData: Array<{ seasonCoachId: number; pokemonId: number; kills: number; deaths: number }> = [];
+      const pokemonData: Array<{ seasonCoachId: number; pokemonId: number; kills: number; deaths: number; damageDealt?: number; damageDealtIndirect?: number; damageTaken?: number; damageTakenIndirect?: number; hpRestored?: number }> = [];
 
       team1Pokemon.forEach((p) => {
         if (p.pokemonId && playoffMatch.higherSeedId) {
@@ -436,6 +467,11 @@ export default function AdminMatchesPage() {
             pokemonId: parseInt(p.pokemonId),
             kills: parseInt(p.kills) || 0,
             deaths: parseInt(p.deaths) || 0,
+            damageDealt: p.damageDealt,
+            damageDealtIndirect: p.damageDealtIndirect,
+            damageTaken: p.damageTaken,
+            damageTakenIndirect: p.damageTakenIndirect,
+            hpRestored: p.hpRestored,
           });
         }
       });
@@ -447,12 +483,16 @@ export default function AdminMatchesPage() {
             pokemonId: parseInt(p.pokemonId),
             kills: parseInt(p.kills) || 0,
             deaths: parseInt(p.deaths) || 0,
+            damageDealt: p.damageDealt,
+            damageDealtIndirect: p.damageDealtIndirect,
+            damageTaken: p.damageTaken,
+            damageTakenIndirect: p.damageTakenIndirect,
+            hpRestored: p.hpRestored,
           });
         }
       });
 
       if (existingMatch) {
-        // Update existing match
         await fetch("/api/matches", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -464,10 +504,14 @@ export default function AdminMatchesPage() {
             isForfeit: matchForm.isForfeit,
             replayUrl: matchForm.replayUrl || null,
             pokemonData,
+            startedAt: matchTimingData.startedAt,
+            endedAt: matchTimingData.endedAt,
+            turnSnapshots: matchEventData.turnSnapshots,
+            keyEvents: matchEventData.keyEvents,
+            zoroarkInvolved,
           }),
         });
       } else {
-        // Create new match for playoff
         await fetch("/api/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -483,14 +527,17 @@ export default function AdminMatchesPage() {
             isForfeit: matchForm.isForfeit,
             replayUrl: matchForm.replayUrl || null,
             pokemonData,
+            startedAt: matchTimingData.startedAt,
+            endedAt: matchTimingData.endedAt,
+            turnSnapshots: matchEventData.turnSnapshots,
+            keyEvents: matchEventData.keyEvents,
+            zoroarkInvolved,
           }),
         });
       }
 
-      // Also update the playoff bracket with the winner
       if (matchForm.winnerId) {
         const winnerId = parseInt(matchForm.winnerId);
-        // Store actual match differential, not just 0/1
         const higherSeedWins = winnerId === playoffMatch.higherSeedId
           ? Math.abs(parseInt(matchForm.coach1Differential))
           : 0;
@@ -509,7 +556,6 @@ export default function AdminMatchesPage() {
           }),
         });
 
-        // Auto-propagate winner to the next round
         await propagatePlayoffWinner(playoffMatch, winnerId);
       }
 
@@ -522,8 +568,7 @@ export default function AdminMatchesPage() {
 
     if (!match) return;
 
-    // Collect Pokemon data
-    const pokemonData: Array<{ seasonCoachId: number; pokemonId: number; kills: number; deaths: number }> = [];
+    const pokemonData: Array<{ seasonCoachId: number; pokemonId: number; kills: number; deaths: number; damageDealt?: number; damageDealtIndirect?: number; damageTaken?: number; damageTakenIndirect?: number; hpRestored?: number }> = [];
 
     team1Pokemon.forEach((p) => {
       if (p.pokemonId) {
@@ -532,6 +577,11 @@ export default function AdminMatchesPage() {
           pokemonId: parseInt(p.pokemonId),
           kills: parseInt(p.kills) || 0,
           deaths: parseInt(p.deaths) || 0,
+          damageDealt: p.damageDealt,
+          damageDealtIndirect: p.damageDealtIndirect,
+          damageTaken: p.damageTaken,
+          damageTakenIndirect: p.damageTakenIndirect,
+          hpRestored: p.hpRestored,
         });
       }
     });
@@ -543,11 +593,16 @@ export default function AdminMatchesPage() {
           pokemonId: parseInt(p.pokemonId),
           kills: parseInt(p.kills) || 0,
           deaths: parseInt(p.deaths) || 0,
+          damageDealt: p.damageDealt,
+          damageDealtIndirect: p.damageDealtIndirect,
+          damageTaken: p.damageTaken,
+          damageTakenIndirect: p.damageTakenIndirect,
+          hpRestored: p.hpRestored,
         });
       }
     });
 
-    await fetch("/api/matches", {
+    const res = await fetch("/api/matches", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -558,18 +613,23 @@ export default function AdminMatchesPage() {
         isForfeit: matchForm.isForfeit,
         replayUrl: matchForm.replayUrl || null,
         pokemonData,
+        startedAt: matchTimingData.startedAt,
+        endedAt: matchTimingData.endedAt,
+        turnSnapshots: matchEventData.turnSnapshots,
+        keyEvents: matchEventData.keyEvents,
+        zoroarkInvolved,
       }),
     });
 
-    // If this is a playoff match (week >= 101), also update the playoff bracket
+    const result = await res.json();
+    if (result.needsFullRecalc) setNeedsFullRecalc(true);
+
     if (match.week >= 101) {
       const playoffRound = match.week - 100;
 
-      // Fetch fresh playoff data
       const playoffRes = await fetch(`/api/playoffs?seasonId=${match.seasonId}&divisionId=${match.divisionId}`);
       const freshPlayoffs: PlayoffMatch[] = await playoffRes.json();
 
-      // Find the matching playoff entry
       const playoffEntry = freshPlayoffs.find(
         (pm) =>
           pm.round === playoffRound &&
@@ -579,9 +639,6 @@ export default function AdminMatchesPage() {
 
       if (playoffEntry && matchForm.winnerId) {
         const winnerId = parseInt(matchForm.winnerId);
-
-        // Determine scores based on which coach is higher/lower seed
-        // Winner gets their differential as score, loser gets 0
         const isCoach1HigherSeed = playoffEntry.higherSeedId === match.coach1SeasonId;
         const higherSeedWins = winnerId === playoffEntry.higherSeedId
           ? Math.abs(parseInt(isCoach1HigherSeed ? matchForm.coach1Differential : matchForm.coach2Differential))
@@ -590,7 +647,6 @@ export default function AdminMatchesPage() {
           ? Math.abs(parseInt(isCoach1HigherSeed ? matchForm.coach2Differential : matchForm.coach1Differential))
           : 0;
 
-        // Update the playoff bracket entry
         await fetch("/api/playoffs", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -602,7 +658,6 @@ export default function AdminMatchesPage() {
           }),
         });
 
-        // Auto-propagate winner to next round
         await propagatePlayoffWinner(playoffEntry, winnerId);
       }
 
@@ -626,60 +681,67 @@ export default function AdminMatchesPage() {
     setTeam1Pokemon(Array(6).fill(null).map(() => ({ pokemonId: "", kills: "0", deaths: "0" })));
     setTeam2Pokemon(Array(6).fill(null).map(() => ({ pokemonId: "", kills: "0", deaths: "0" })));
     setScrapeError("");
+    setMatchTimingData({ startedAt: null, endedAt: null });
+    setMatchEventData({ turnSnapshots: null, keyEvents: null });
+    setZoroarkInvolved(false);
+    setTimeSyncedRosters1(null);
+    setTimeSyncedRosters2(null);
   }
 
-  // Helper to normalize Pokemon names for matching
   function normalizeName(name: string): string {
     let normalized = name.toLowerCase()
       .replace(/[-\s]/g, "")
       .replace(/therian$/, "therian")
       .replace(/incarnate$/, "incarnate");
 
-    // Handle Showdown naming variations
-    // Keldeo-Ordinary and Keldeo-Resolute both match to just "keldeo"
-    if (normalized.startsWith("keldeo")) {
-      normalized = "keldeo";
-    }
-    // Greninja-* (Battle Bond) matches to just "greninja"
-    if (normalized.startsWith("greninja")) {
-      normalized = "greninja";
-    }
-    // Mimikyu forms all match to just "mimikyu"
-    if (normalized.startsWith("mimikyu")) {
-      normalized = "mimikyu";
-    }
-    // Palafin forms (Hero/Zero) match to just "palafin"
-    if (normalized.startsWith("palafin")) {
-      normalized = "palafin";
-    }
-    // Shaymin-Land shows as just "Shaymin" on Showdown, but Shaymin-Sky stays separate
-    if (normalized === "shaymin" || normalized === "shayminland") {
-      normalized = "shaymin";
-    }
-    // Urshifu forms - "Urshifu" or "Urshifu*" could be either form
-    // The asterisk indicates form change during battle
-    // We normalize to base "urshifu" and match against any Urshifu on the roster
-    if (normalized.startsWith("urshifu")) {
-      normalized = normalized.replace(/\*/g, "");
-      normalized = "urshifu";
-    }
-    // Enamorus/Landorus/Tornadus/Thundurus - base names should match incarnate forms
-    if (normalized === "enamorus" || normalized === "enamorusincarnate") {
-      normalized = "enamorus";
-    }
-    if (normalized === "landorus" || normalized === "landorusincarnate") {
-      normalized = "landorus";
-    }
-    if (normalized === "tornadus" || normalized === "tornadusincarnate") {
-      normalized = "tornadus";
-    }
-    if (normalized === "thundurus" || normalized === "thundurusincarnate") {
-      normalized = "thundurus";
-    }
-    // Squawkabilly forms (Green/Blue/Yellow/White Plumage) all match to just "squawkabilly"
-    if (normalized.startsWith("squawkabilly")) {
-      normalized = "squawkabilly";
-    }
+    if (normalized.startsWith("keldeo")) normalized = "keldeo";
+    if (normalized.startsWith("greninja")) normalized = "greninja";
+    if (normalized.startsWith("mimikyu")) normalized = "mimikyu";
+    if (normalized.startsWith("palafin")) normalized = "palafin";
+    if (normalized === "shaymin" || normalized === "shayminland") normalized = "shaymin";
+    if (normalized.startsWith("urshifu")) { normalized = normalized.replace(/\*/g, ""); normalized = "urshifu"; }
+    if (normalized === "enamorus" || normalized === "enamorusincarnate") normalized = "enamorus";
+    if (normalized === "landorus" || normalized === "landorusincarnate") normalized = "landorus";
+    if (normalized === "tornadus" || normalized === "tornadusincarnate") normalized = "tornadus";
+    if (normalized === "thundurus" || normalized === "thundurusincarnate") normalized = "thundurus";
+    if (normalized.startsWith("squawkabilly")) normalized = "squawkabilly";
+    if (normalized.startsWith("zarude")) normalized = "zarude";
+    if (normalized.startsWith("florges")) normalized = "florges";
+    if (normalized.startsWith("dudunsparce")) normalized = "dudunsparce";
+    if (normalized.startsWith("alcremie") && normalized !== "alcremiegmax") normalized = "alcremie";
+    if (normalized.startsWith("sinistcha")) normalized = "sinistcha";
+    if (normalized.startsWith("aegislash")) normalized = "aegislash";
+    if (normalized.startsWith("darmanitan") && !normalized.includes("galar")) normalized = "darmanitan";
+    if (normalized.startsWith("darmanitangalar")) normalized = "darmanitangalar";
+    if (normalized.startsWith("wishiwashi")) normalized = "wishiwashi";
+    if (normalized.startsWith("morpeko")) normalized = "morpeko";
+    if (normalized.startsWith("eiscue")) normalized = "eiscue";
+    if (normalized.startsWith("cramorant")) normalized = "cramorant";
+    if (normalized.startsWith("minior")) normalized = "minior";
+    if (normalized.startsWith("zygarde")) normalized = "zygarde";
+    if (normalized.startsWith("terapagos")) normalized = "terapagos";
+    if (normalized.startsWith("tatsugiri")) normalized = "tatsugiri";
+    if (normalized.startsWith("basculegion")) normalized = "basculegion";
+    if (normalized.startsWith("castform")) normalized = "castform";
+    if (normalized.startsWith("cherrim")) normalized = "cherrim";
+    if (normalized.startsWith("maushold")) normalized = "maushold";
+    if (normalized.startsWith("sinistea")) normalized = "sinistea";
+    if (normalized.startsWith("polteageist")) normalized = "polteageist";
+    if (normalized.startsWith("poltchageist")) normalized = "poltchageist";
+    if (normalized.startsWith("gastrodon")) normalized = "gastrodon";
+    if (normalized.startsWith("shellos")) normalized = "shellos";
+    if (normalized.startsWith("vivillon")) normalized = "vivillon";
+    if (normalized.startsWith("furfrou")) normalized = "furfrou";
+    if (normalized.startsWith("floette") && normalized !== "floetteeternal") normalized = "floette";
+    if (normalized.startsWith("flabebe")) normalized = "flabebe";
+    if (normalized.startsWith("xerneas")) normalized = "xerneas";
+    if (normalized.startsWith("pikachu") && normalized !== "pikachugmax" && normalized !== "pikachustarter") normalized = "pikachu";
+    if (normalized.startsWith("unown")) normalized = "unown";
+    if (normalized.startsWith("deerling")) normalized = "deerling";
+    if (normalized.startsWith("sawsbuck")) normalized = "sawsbuck";
+    if (normalized.startsWith("burmy")) normalized = "burmy";
+    if (normalized.startsWith("indeedee")) normalized = "indeedee";
+    if (normalized.startsWith("meowstic") && normalized !== "meowsticmega") normalized = "meowstic";
 
     return normalized;
   }
@@ -693,10 +755,9 @@ export default function AdminMatchesPage() {
     const currentMatch = selectedFixture || editingMatch;
     const playoffMatch = selectedPlayoffFixture;
 
-    // Get the rosters for both teams
-    const team1Rosters = currentMatch?.coach1?.rosters ||
+    const team1Rosters = timeSyncedRosters1 || currentMatch?.coach1?.rosters ||
       seasonCoaches.find((sc) => sc.id === playoffMatch?.higherSeedId)?.rosters || [];
-    const team2Rosters = currentMatch?.coach2?.rosters ||
+    const team2Rosters = timeSyncedRosters2 || currentMatch?.coach2?.rosters ||
       seasonCoaches.find((sc) => sc.id === playoffMatch?.lowerSeedId)?.rosters || [];
 
     if (team1Rosters.length === 0 && team2Rosters.length === 0) {
@@ -706,6 +767,7 @@ export default function AdminMatchesPage() {
 
     setScraping(true);
     setScrapeError("");
+    setZoroarkInvolved(false);
 
     try {
       const res = await fetch("/api/replay-scrape", {
@@ -721,8 +783,6 @@ export default function AdminMatchesPage() {
 
       const data = await res.json();
 
-      // Try to match replay teams to our teams based on Pokemon
-      // Count how many Pokemon from each replay team match each roster
       let p1MatchesTeam1 = 0;
       let p1MatchesTeam2 = 0;
       let p2MatchesTeam1 = 0;
@@ -730,27 +790,16 @@ export default function AdminMatchesPage() {
 
       for (const replayPoke of data.p1Team) {
         const normalizedReplayName = normalizeName(replayPoke.name);
-        // Match against displayName (Showdown-style) first, fall back to internal name
-        if (team1Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) {
-          p1MatchesTeam1++;
-        }
-        if (team2Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) {
-          p1MatchesTeam2++;
-        }
+        if (team1Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) p1MatchesTeam1++;
+        if (team2Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) p1MatchesTeam2++;
       }
 
       for (const replayPoke of data.p2Team) {
         const normalizedReplayName = normalizeName(replayPoke.name);
-        // Match against displayName (Showdown-style) first, fall back to internal name
-        if (team1Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) {
-          p2MatchesTeam1++;
-        }
-        if (team2Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) {
-          p2MatchesTeam2++;
-        }
+        if (team1Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) p2MatchesTeam1++;
+        if (team2Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) p2MatchesTeam2++;
       }
 
-      // Determine mapping: does replay p1 = our team1 or team2?
       const replayP1IsTeam1 = (p1MatchesTeam1 + p2MatchesTeam2) >= (p1MatchesTeam2 + p2MatchesTeam1);
 
       const team1ReplayData = replayP1IsTeam1 ? data.p1Team : data.p2Team;
@@ -758,7 +807,6 @@ export default function AdminMatchesPage() {
       const team1Remaining = replayP1IsTeam1 ? data.p1Remaining : data.p2Remaining;
       const team2Remaining = replayP1IsTeam1 ? data.p2Remaining : data.p1Remaining;
 
-      // Populate team 1 Pokemon
       const newTeam1Pokemon: PokemonEntry[] = [];
       for (const replayPoke of team1ReplayData) {
         const normalizedReplayName = normalizeName(replayPoke.name);
@@ -770,16 +818,19 @@ export default function AdminMatchesPage() {
             pokemonId: matchingRoster.pokemonId.toString(),
             kills: replayPoke.kills.toString(),
             deaths: replayPoke.deaths.toString(),
+            damageDealt: replayPoke.damageDealt,
+            damageDealtIndirect: replayPoke.damageDealtIndirect,
+            damageTaken: replayPoke.damageTaken,
+            damageTakenIndirect: replayPoke.damageTakenIndirect,
+            hpRestored: replayPoke.hpRestored,
           });
         }
       }
-      // Fill remaining slots
       while (newTeam1Pokemon.length < 6) {
         newTeam1Pokemon.push({ pokemonId: "", kills: "0", deaths: "0" });
       }
       setTeam1Pokemon(newTeam1Pokemon);
 
-      // Populate team 2 Pokemon
       const newTeam2Pokemon: PokemonEntry[] = [];
       for (const replayPoke of team2ReplayData) {
         const normalizedReplayName = normalizeName(replayPoke.name);
@@ -791,16 +842,19 @@ export default function AdminMatchesPage() {
             pokemonId: matchingRoster.pokemonId.toString(),
             kills: replayPoke.kills.toString(),
             deaths: replayPoke.deaths.toString(),
+            damageDealt: replayPoke.damageDealt,
+            damageDealtIndirect: replayPoke.damageDealtIndirect,
+            damageTaken: replayPoke.damageTaken,
+            damageTakenIndirect: replayPoke.damageTakenIndirect,
+            hpRestored: replayPoke.hpRestored,
           });
         }
       }
-      // Fill remaining slots
       while (newTeam2Pokemon.length < 6) {
         newTeam2Pokemon.push({ pokemonId: "", kills: "0", deaths: "0" });
       }
       setTeam2Pokemon(newTeam2Pokemon);
 
-      // Determine winner
       const team1Id = currentMatch?.coach1SeasonId || playoffMatch?.higherSeedId;
       const team2Id = currentMatch?.coach2SeasonId || playoffMatch?.lowerSeedId;
 
@@ -811,13 +865,8 @@ export default function AdminMatchesPage() {
         winnerId = data.winner === "p1" ? (team2Id?.toString() || "") : (team1Id?.toString() || "");
       }
 
-      // Calculate differentials (remaining Pokemon)
-      const team1Diff = team1Remaining;
-      const team2Diff = team2Remaining;
-
-      // Winner has positive diff, loser has negative
-      const team1FinalDiff = winnerId === team1Id?.toString() ? team1Diff : -team2Diff;
-      const team2FinalDiff = winnerId === team2Id?.toString() ? team2Diff : -team1Diff;
+      const team1FinalDiff = winnerId === team1Id?.toString() ? team1Remaining : -team2Remaining;
+      const team2FinalDiff = winnerId === team2Id?.toString() ? team2Remaining : -team1Remaining;
 
       setMatchForm({
         ...matchForm,
@@ -827,6 +876,18 @@ export default function AdminMatchesPage() {
         isForfeit: false,
       });
 
+      setMatchTimingData({
+        startedAt: data.startedAt || null,
+        endedAt: data.endedAt || null,
+      });
+
+      setMatchEventData({
+        turnSnapshots: data.turnSnapshots || null,
+        keyEvents: data.keyEvents || null,
+      });
+
+      if (data.zoroarkInvolved) setZoroarkInvolved(true);
+
     } catch (error) {
       console.error("Scrape error:", error);
       setScrapeError(error instanceof Error ? error.message : "Failed to scrape replay");
@@ -835,74 +896,57 @@ export default function AdminMatchesPage() {
     }
   }
 
-  // Propagate playoff winner to the next round
   async function propagatePlayoffWinner(playoffMatch: PlayoffMatch, winnerId: number) {
     const { round, bracketPosition, divisionId, seasonId } = playoffMatch;
 
-    // Determine next round and position
     let nextRound: number;
     let nextPosition: number;
     let isHigherSeedSlot: boolean;
 
     if (round === 1) {
-      // QF -> SF
-      // QF positions 1,2 -> SF position 1
-      // QF positions 3,4 -> SF position 2
       nextRound = 2;
       nextPosition = bracketPosition <= 2 ? 1 : 2;
-      // Position 1 or 3 fills higherSeed, position 2 or 4 fills lowerSeed
       isHigherSeedSlot = bracketPosition === 1 || bracketPosition === 3;
     } else if (round === 2) {
-      // SF -> Finals
       nextRound = 3;
       nextPosition = 1;
-      // SF position 1 fills higherSeed, position 2 fills lowerSeed
       isHigherSeedSlot = bracketPosition === 1;
     } else {
-      // Finals - no next round
       return;
     }
 
-    // Fetch fresh playoff data from API to avoid stale state issues
     const res = await fetch(`/api/playoffs?seasonId=${seasonId}&divisionId=${divisionId}`);
     const freshPlayoffs: PlayoffMatch[] = await res.json();
 
-    // Find the next round match from fresh data
     const divisionPlayoffs = freshPlayoffs.filter(
       (pm) => pm.round === nextRound && pm.bracketPosition === nextPosition
     );
 
     if (divisionPlayoffs.length > 0) {
-      // Update existing next round match
       const nextMatch = divisionPlayoffs[0];
       const updateData: Record<string, unknown> = { id: nextMatch.id };
-
       if (isHigherSeedSlot) {
         updateData.higherSeedId = winnerId;
       } else {
         updateData.lowerSeedId = winnerId;
       }
-
       await fetch("/api/playoffs", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
       });
     } else {
-      // Create new next round match
       const createData: Record<string, unknown> = {
         seasonId,
         divisionId,
         round: nextRound,
         bracketPosition: nextPosition,
       };
-
       if (isHigherSeedSlot) {
         createData.higherSeedId = winnerId;
       } else {
         createData.lowerSeedId = winnerId;
       }
-
       await fetch("/api/playoffs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -920,6 +964,8 @@ export default function AdminMatchesPage() {
         alert(`Failed to delete: ${text || 'Unknown error'}`);
         return;
       }
+      const result = await res.json();
+      if (result.needsFullRecalc) setNeedsFullRecalc(true);
       await fetchMatches();
       await fetchPlayoffMatches();
     } catch (err) {
@@ -927,7 +973,6 @@ export default function AdminMatchesPage() {
     }
   }
 
-  // Playoff functions
   async function handleAddPlayoffMatch(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedSeason || !selectedDivision) return;
@@ -947,12 +992,21 @@ export default function AdminMatchesPage() {
 
     setPlayoffForm({ round: "1", bracketPosition: "1", higherSeedId: "", lowerSeedId: "" });
     fetchPlayoffMatches();
+    fetchMatches();
   }
 
   async function handleDeletePlayoffMatch(id: number) {
     if (!confirm("Delete this playoff match?")) return;
-    await fetch(`/api/playoffs?id=${id}`, { method: "DELETE" });
-    fetchPlayoffMatches();
+    const res = await fetch(`/api/playoffs?id=${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const text = await res.text();
+      alert(`Failed to delete: ${text || 'Unknown error'}`);
+      return;
+    }
+    const result = await res.json();
+    if (result.needsFullRecalc) setNeedsFullRecalc(true);
+    setPlayoffMatches((prev) => prev.filter((pm) => pm.id !== id));
+    await Promise.all([fetchPlayoffMatches(), fetchMatches()]);
   }
 
   const coachesInDivision = selectedDivision
@@ -971,6 +1025,31 @@ export default function AdminMatchesPage() {
           Upload schedules, enter results, and manage playoffs
         </p>
       </div>
+
+      {needsFullRecalc && (
+        <div className="sticky top-20 z-40 flex items-center justify-between gap-4 rounded-lg border border-yellow-500/50 bg-yellow-900/95 p-4 shadow-lg backdrop-blur">
+          <div>
+            <p className="font-medium text-yellow-200">Historical data modified</p>
+            <p className="text-sm text-yellow-200/70">
+              Click &quot;Recalculate ELO&quot; when you&apos;re done editing to update all ratings.
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              onClick={handleRecalculateElo}
+              disabled={recalculating}
+              className="bg-yellow-600 hover:bg-yellow-700 shrink-0"
+            >
+              {recalculating ? "Recalculating..." : "Recalculate ELO"}
+            </Button>
+            {recalcMessage && (
+              <p className={`text-xs ${recalcMessage.startsWith("Error") ? "text-red-400" : "text-green-400"}`}>
+                {recalcMessage}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-[var(--card)]">
@@ -1028,6 +1107,30 @@ export default function AdminMatchesPage() {
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </Select>
+              </div>
+            )}
+            {selectedSeason && (
+              <div className="ml-auto">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const newValue = !(selectedSeason.isSchedulePublic ?? true);
+                    setSeasons(seasons.map((s) => s.id === selectedSeason.id ? { ...s, isSchedulePublic: newValue } : s));
+                    setSelectedSeason({ ...selectedSeason, isSchedulePublic: newValue });
+                    await fetch("/api/seasons", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ id: selectedSeason.id, isSchedulePublic: newValue }),
+                    });
+                  }}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    (selectedSeason.isSchedulePublic ?? true)
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : "bg-red-600 hover:bg-red-700 text-white"
+                  }`}
+                >
+                  {(selectedSeason.isSchedulePublic ?? true) ? "Schedule Visible" : "Schedule Hidden"}
+                </button>
               </div>
             )}
           </div>
@@ -1094,7 +1197,6 @@ export default function AdminMatchesPage() {
           {/* Results Tab */}
           {activeTab === "results" && (
             <>
-              {/* Enter/Edit Result */}
               <Card>
                 <CardHeader>
                   <CardTitle>
@@ -1126,7 +1228,21 @@ export default function AdminMatchesPage() {
                             value={selectedPlayoffFixture?.id || ""}
                             onChange={(e) => {
                               const pm = playoffFixturesForRound.find((p) => p.id === parseInt(e.target.value));
-                              if (pm) selectPlayoffFixture(pm);
+                              if (pm) {
+                                if (!pm.higherSeedId || !pm.lowerSeedId) {
+                                  return alert("Both teams must be set in the playoff bracket before entering results.");
+                                }
+                                setSelectedPlayoffFixture(pm);
+                                setSelectedFixture(null);
+                                setEditingMatch(null);
+                                const existingMatch = findMatchForPlayoff(pm);
+                                if (existingMatch) {
+                                  loadMatchForm(existingMatch);
+                                } else {
+                                  resetForm();
+                                }
+                                fetchTimeSyncedRosters(pm.higherSeedId, pm.lowerSeedId, 100 + pm.round);
+                              }
                             }}
                             disabled={!selectedWeek}
                           >
@@ -1146,7 +1262,13 @@ export default function AdminMatchesPage() {
                             value={selectedFixture?.id || ""}
                             onChange={(e) => {
                               const match = fixturesForWeek.find((m) => m.id === parseInt(e.target.value));
-                              if (match) selectFixture(match);
+                              if (match) {
+                                setSelectedFixture(match);
+                                setEditingMatch(null);
+                                setSelectedPlayoffFixture(null);
+                                loadMatchForm(match);
+                                fetchTimeSyncedRosters(match.coach1SeasonId, match.coach2SeasonId, match.week);
+                              }
                             }}
                             disabled={!selectedWeek}
                           >
@@ -1203,11 +1325,20 @@ export default function AdminMatchesPage() {
                         {scrapeError && (
                           <p className="text-sm text-[var(--error)] mt-2">{scrapeError}</p>
                         )}
+                        {zoroarkInvolved && (
+                          <p className="text-sm text-[var(--warning)] mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                            Warning: Zoroark detected in this match. Due to Illusion, K/D stats may be inaccurate. Please verify manually.
+                          </p>
+                        )}
+                        {matchTimingData.startedAt && (
+                          <p className="text-xs text-[var(--success)] mt-2">
+                            Match timing captured: {new Date(matchTimingData.startedAt).toLocaleString()}
+                          </p>
+                        )}
                       </div>
 
                       {/* Result Fields */}
                       {(() => {
-                        // Get team info for either regular match or playoff
                         const currentMatch = selectedFixture || editingMatch;
                         const team1Id = currentMatch?.coach1SeasonId || selectedPlayoffFixture?.higherSeedId || "";
                         const team2Id = currentMatch?.coach2SeasonId || selectedPlayoffFixture?.lowerSeedId || "";
@@ -1258,15 +1389,14 @@ export default function AdminMatchesPage() {
                         );
                       })()}
 
-                      {/* Pokemon K/D - Team 1 */}
+                      {/* Pokemon K/D */}
                       {!matchForm.isForfeit && (
                         <>
                           {(() => {
                             const currentMatch = selectedFixture || editingMatch;
-                            // For playoff fixtures, look up rosters from seasonCoaches
-                            const team1Rosters = currentMatch?.coach1?.rosters ||
+                            const team1Rosters = timeSyncedRosters1 || currentMatch?.coach1?.rosters ||
                               seasonCoaches.find((sc) => sc.id === selectedPlayoffFixture?.higherSeedId)?.rosters;
-                            const team2Rosters = currentMatch?.coach2?.rosters ||
+                            const team2Rosters = timeSyncedRosters2 || currentMatch?.coach2?.rosters ||
                               seasonCoaches.find((sc) => sc.id === selectedPlayoffFixture?.lowerSeedId)?.rosters;
                             const team1Name = currentMatch?.coach1?.teamName || selectedPlayoffFixture?.higherSeed?.teamName;
                             const team2Name = currentMatch?.coach2?.teamName || selectedPlayoffFixture?.lowerSeed?.teamName;
@@ -1338,7 +1468,6 @@ export default function AdminMatchesPage() {
                                   </div>
                                 </div>
 
-                                {/* Pokemon K/D - Team 2 */}
                                 <div>
                                   <div className="flex items-center justify-between mb-2">
                                     <Label className="text-[var(--secondary)]">
@@ -1485,7 +1614,19 @@ export default function AdminMatchesPage() {
                             )}
                           </div>
                           <div className="flex gap-2">
-                            <Button type="button" size="sm" variant="outline" onClick={() => startEditMatch(match)}>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingMatch(match);
+                                setSelectedFixture(null);
+                                setSelectedPlayoffFixture(null);
+                                setSelectedWeek(`week-${match.week}`);
+                                loadMatchForm(match);
+                                fetchTimeSyncedRosters(match.coach1SeasonId, match.coach2SeasonId, match.week);
+                              }}
+                            >
                               Edit
                             </Button>
                             <Button type="button" size="sm" variant="destructive" onClick={() => handleDeleteMatch(match.id)}>
@@ -1518,7 +1659,21 @@ export default function AdminMatchesPage() {
                           <Label>Round</Label>
                           <Select
                             value={playoffForm.round}
-                            onChange={(e) => setPlayoffForm({ ...playoffForm, round: e.target.value })}
+                            onChange={(e) => {
+                              const newRound = parseInt(e.target.value);
+                              const takenPositions = playoffMatches
+                                .filter((pm) => pm.round === newRound && pm.divisionId === selectedDivision?.id)
+                                .map((pm) => pm.bracketPosition);
+                              const maxPositions = newRound === 1 ? 4 : newRound === 2 ? 2 : 1;
+                              const available = Array.from({ length: maxPositions }, (_, i) => i + 1).find(
+                                (p) => !takenPositions.includes(p)
+                              );
+                              setPlayoffForm({
+                                ...playoffForm,
+                                round: e.target.value,
+                                bracketPosition: available?.toString() || "1",
+                              });
+                            }}
                           >
                             <option value="1">Quarterfinals</option>
                             <option value="2">Semifinals</option>
@@ -1527,11 +1682,23 @@ export default function AdminMatchesPage() {
                         </div>
                         <div>
                           <Label>Bracket Position</Label>
-                          <Input
-                            type="number"
+                          <Select
                             value={playoffForm.bracketPosition}
                             onChange={(e) => setPlayoffForm({ ...playoffForm, bracketPosition: e.target.value })}
-                          />
+                          >
+                            {(() => {
+                              const round = parseInt(playoffForm.round);
+                              const takenPositions = playoffMatches
+                                .filter((pm) => pm.round === round && pm.divisionId === selectedDivision?.id)
+                                .map((pm) => pm.bracketPosition);
+                              const maxPositions = round === 1 ? 4 : round === 2 ? 2 : 1;
+                              return Array.from({ length: maxPositions }, (_, i) => i + 1)
+                                .filter((p) => !takenPositions.includes(p))
+                                .map((p) => (
+                                  <option key={p} value={p}>{p}</option>
+                                ));
+                            })()}
+                          </Select>
                         </div>
                         <div>
                           <Label>Higher Seed</Label>
