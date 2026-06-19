@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // Coaches table - persistent identity across seasons
@@ -7,6 +7,12 @@ export const coaches = sqliteTable("coaches", {
   name: text("name").notNull(),
   eloRating: real("elo_rating").notNull().default(1000),
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  // Auth fields
+  passwordHash: text("password_hash"), // null = unclaimed account
+  isMod: integer("is_mod", { mode: "boolean" }).default(false),
+  claimedAt: text("claimed_at"), // when the account was claimed
+  // Currency
+  pboCoin: integer("pbo_coin").notNull().default(0),
 });
 
 // Seasons table
@@ -18,6 +24,7 @@ export const seasons = sqliteTable("seasons", {
   endDate: text("end_date"),
   isCurrent: integer("is_current", { mode: "boolean" }).default(false),
   isPublic: integer("is_public", { mode: "boolean" }).default(true),
+  isSchedulePublic: integer("is_schedule_public", { mode: "boolean" }).default(true),
   draftBudget: integer("draft_budget").default(100),
 });
 
@@ -30,7 +37,9 @@ export const divisions = sqliteTable("divisions", {
   name: text("name").notNull(),
   logoUrl: text("logo_url"),
   displayOrder: integer("display_order").default(0),
-});
+}, (table) => [
+  index("idx_divisions_season_id").on(table.seasonId),
+]);
 
 // Season Coaches - links coaches to divisions per season
 export const seasonCoaches = sqliteTable("season_coaches", {
@@ -47,7 +56,10 @@ export const seasonCoaches = sqliteTable("season_coaches", {
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   replacedById: integer("replaced_by_id"),
   remainingBudget: integer("remaining_budget"),
-});
+}, (table) => [
+  index("idx_season_coaches_coach_id").on(table.coachId),
+  index("idx_season_coaches_division_id").on(table.divisionId),
+]);
 
 // Pokemon table
 export const pokemon = sqliteTable("pokemon", {
@@ -58,6 +70,8 @@ export const pokemon = sqliteTable("pokemon", {
   spriteUrl: text("sprite_url"),
   artworkUrl: text("artwork_url"),
   types: text("types", { mode: "json" }).$type<string[]>(),
+  moves: text("moves", { mode: "json" }).$type<string[]>(), // Gen 9 learnable moves (includes pre-evo moves)
+  abilities: text("abilities", { mode: "json" }).$type<{ name: string; isHidden: boolean }[]>(),
   // Base stats
   hp: integer("hp"),
   attack: integer("attack"),
@@ -66,6 +80,35 @@ export const pokemon = sqliteTable("pokemon", {
   specialDefense: integer("special_defense"),
   speed: integer("speed"),
   baseStatTotal: integer("base_stat_total"),
+});
+
+// Moves table - all Pokemon moves from PokeAPI
+export const moves = sqliteTable("moves", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pokeapiId: integer("pokeapi_id").notNull().unique(),
+  name: text("name").notNull().unique(), // Internal name (e.g., "thunder-wave")
+  displayName: text("display_name"), // Display name (e.g., "Thunder Wave")
+  type: text("type"), // Move type (e.g., "electric")
+  damageClass: text("damage_class"), // "physical", "special", "status"
+  power: integer("power"), // null for status moves
+  accuracy: integer("accuracy"), // null for moves that can't miss
+  pp: integer("pp"),
+  priority: integer("priority").default(0),
+  effectChance: integer("effect_chance"), // Chance for secondary effect
+  effectDescription: text("effect_description"), // Short effect text
+  target: text("target"), // "selected-pokemon", "all-opponents", etc.
+  generation: integer("generation"), // Gen introduced
+});
+
+// Abilities table - all Pokemon abilities from PokeAPI
+export const abilities = sqliteTable("abilities", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pokeapiId: integer("pokeapi_id").notNull().unique(),
+  name: text("name").notNull().unique(), // Internal name (e.g., "levitate")
+  displayName: text("display_name"), // Display name (e.g., "Levitate")
+  shortEffect: text("short_effect"), // Brief description
+  fullEffect: text("full_effect"), // Detailed description
+  generation: integer("generation"), // Gen introduced
 });
 
 // Season Pokemon Prices - prices can vary per season
@@ -81,7 +124,10 @@ export const seasonPokemonPrices = sqliteTable("season_pokemon_prices", {
   teraBanned: integer("tera_banned", { mode: "boolean" }).default(false),
   teraCaptainCost: integer("tera_captain_cost"), // null = not available as captain, 0+ = cost
   complexBanReason: text("complex_ban_reason"), // e.g., "Arena Trap" or "Shed Tail" for complex bans
-});
+}, (table) => [
+  index("idx_season_pokemon_prices_season_id").on(table.seasonId),
+  index("idx_season_pokemon_prices_pokemon_id").on(table.pokemonId),
+]);
 
 // Rosters - pokemon owned by coaches per season
 export const rosters = sqliteTable("rosters", {
@@ -99,7 +145,10 @@ export const rosters = sqliteTable("rosters", {
   acquiredWeek: integer("acquired_week"), // null = draft, otherwise week acquired via trade/FA
   acquiredVia: text("acquired_via"), // "DRAFT", "FA_PICKUP", "P2P_TRADE", or null
   acquiredTransactionId: integer("acquired_transaction_id"), // Link to transaction record
-});
+}, (table) => [
+  index("idx_rosters_season_coach_id").on(table.seasonCoachId),
+  index("idx_rosters_pokemon_id").on(table.pokemonId),
+]);
 
 // Matches table
 export const matches = sqliteTable("matches", {
@@ -123,7 +172,21 @@ export const matches = sqliteTable("matches", {
   isForfeit: integer("is_forfeit", { mode: "boolean" }).default(false),
   playedAt: text("played_at"),
   replayUrl: text("replay_url"),
-});
+  scheduledAt: text("scheduled_at"), // ISO datetime for when match is scheduled to be played
+  // Match timing from replay (for anti-cheat betting)
+  startedAt: text("started_at"), // When the match started (first |t:| in replay)
+  endedAt: text("ended_at"), // When the match ended (last |t:| in replay)
+  // Damage tracking data from replay scraper (optional - only present when scraped)
+  turnSnapshots: text("turn_snapshots"), // JSON array of {turn, p1TotalHp, p2TotalHp}
+  keyEvents: text("key_events"), // JSON array of {turn, type, description}
+  zoroarkInvolved: integer("zoroark_involved", { mode: "boolean" }), // Warning flag for Illusion inaccuracy
+  // Game of the Week - featured match for pick-ems bonus
+  isGameOfTheWeek: integer("is_game_of_the_week", { mode: "boolean" }).default(false),
+}, (table) => [
+  index("idx_matches_season_id").on(table.seasonId),
+  index("idx_matches_division_id").on(table.divisionId),
+  index("idx_matches_winner_id").on(table.winnerId),
+]);
 
 // Playoff Matches - bracket structure for playoffs
 // Top 8 make playoffs, top seeds choose opponents
@@ -160,7 +223,47 @@ export const matchPokemon = sqliteTable("match_pokemon", {
     .references(() => pokemon.id),
   kills: integer("kills").default(0),
   deaths: integer("deaths").default(0),
-});
+  // Damage tracking (optional - only present when scraped from replay)
+  damageDealt: integer("damage_dealt"), // Direct damage dealt (percentage points)
+  damageDealtIndirect: integer("damage_dealt_indirect"), // Hazards, status, weather damage
+  damageTaken: integer("damage_taken"), // Direct damage taken
+  damageTakenIndirect: integer("damage_taken_indirect"), // Indirect damage taken
+  hpRestored: integer("hp_restored"), // HP healed
+}, (table) => [
+  index("idx_match_pokemon_match_id").on(table.matchId),
+  index("idx_match_pokemon_season_coach_id").on(table.seasonCoachId),
+]);
+
+// Kill Events - normalized table for individual kills
+export const killEvents = sqliteTable("kill_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  matchId: integer("match_id")
+    .notNull()
+    .references(() => matches.id),
+  turn: integer("turn").notNull(),
+  // Killer info
+  killerPokemonId: integer("killer_pokemon_id")
+    .references(() => pokemon.id), // null for hazard/weather/status kills without clear owner
+  killerSeasonCoachId: integer("killer_season_coach_id")
+    .references(() => seasonCoaches.id),
+  // Victim info
+  victimPokemonId: integer("victim_pokemon_id")
+    .notNull()
+    .references(() => pokemon.id),
+  victimSeasonCoachId: integer("victim_season_coach_id")
+    .notNull()
+    .references(() => seasonCoaches.id),
+  // Kill details
+  moveId: integer("move_id")
+    .references(() => moves.id), // null for hazard/weather/status kills or unknown moves
+  moveName: text("move_name"), // Fallback text when moveId can't be resolved
+  cause: text("cause").notNull(), // 'move', 'hazard', 'weather', 'status', 'recoil', 'item', etc.
+}, (table) => [
+  index("idx_kill_events_match_id").on(table.matchId),
+  index("idx_kill_events_killer_pokemon_id").on(table.killerPokemonId),
+  index("idx_kill_events_victim_pokemon_id").on(table.victimPokemonId),
+  index("idx_kill_events_move_id").on(table.moveId),
+]);
 
 // ELO History - tracks ELO changes over time
 export const eloHistory = sqliteTable("elo_history", {
@@ -171,7 +274,10 @@ export const eloHistory = sqliteTable("elo_history", {
   eloRating: real("elo_rating").notNull(),
   matchId: integer("match_id").references(() => matches.id),
   recordedAt: text("recorded_at").default("CURRENT_TIMESTAMP"),
-});
+}, (table) => [
+  index("idx_elo_history_coach_id").on(table.coachId),
+  index("idx_elo_history_match_id").on(table.matchId),
+]);
 
 // Transactions - tracks mid-season roster changes (FA swaps, P2P trades, tera swaps)
 export const transactions = sqliteTable("transactions", {
@@ -208,12 +314,59 @@ export const transactions = sqliteTable("transactions", {
   countsAgainstLimit: integer("counts_against_limit", { mode: "boolean" }).default(true),
   notes: text("notes"),
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-});
+}, (table) => [
+  index("idx_transactions_season_coach_id").on(table.seasonCoachId),
+  index("idx_transactions_season_id").on(table.seasonId),
+]);
+
+// Division Sheet Sync - links divisions to Google Sheets for backup sync
+export const divisionSheetSync = sqliteTable("division_sheet_sync", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  divisionId: integer("division_id")
+    .notNull()
+    .references(() => divisions.id)
+    .unique(),
+  spreadsheetId: text("spreadsheet_id").notNull(),
+  syncEnabled: integer("sync_enabled", { mode: "boolean" }).default(true),
+  syncMatchResultsEnabled: integer("sync_match_results_enabled", { mode: "boolean" }).default(true),
+  syncRostersTransactionsEnabled: integer("sync_rosters_transactions_enabled", { mode: "boolean" }).default(true),
+  lastSyncAt: text("last_sync_at"),
+  lastSyncStatus: text("last_sync_status"), // "success", "error", "disabled"
+  lastSyncError: text("last_sync_error"),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+}, (table) => [
+  index("idx_division_sheet_sync_division_id").on(table.divisionId),
+]);
+
+// Wiglett webhook/event audit log for idempotent external integration writes
+export const wiglettEvents = sqliteTable("wiglett_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  eventId: text("event_id").notNull().unique(),
+  eventType: text("event_type").notNull(),
+  divisionId: integer("division_id").references(() => divisions.id),
+  status: text("status").notNull().default("processing"), // processing, success, error
+  payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>(),
+  result: text("result", { mode: "json" }).$type<Record<string, unknown>>(),
+  error: text("error"),
+  receivedAt: text("received_at").default("CURRENT_TIMESTAMP"),
+  processedAt: text("processed_at"),
+}, (table) => [
+  index("idx_wiglett_events_event_type").on(table.eventType),
+  index("idx_wiglett_events_division_id").on(table.divisionId),
+  index("idx_wiglett_events_status").on(table.status),
+]);
 
 // Relations
 export const coachesRelations = relations(coaches, ({ many }) => ({
   seasonCoaches: many(seasonCoaches),
   eloHistory: many(eloHistory),
+  sessions: many(userSessions),
+  bets: many(bets),
+  killBets: many(killBets),
+  deathBets: many(deathBets),
+  purchases: many(coachPurchases),
+  triviaRewards: many(triviaRewards),
 }));
 
 export const seasonsRelations = relations(seasons, ({ many }) => ({
@@ -232,6 +385,14 @@ export const divisionsRelations = relations(divisions, ({ one, many }) => ({
   seasonCoaches: many(seasonCoaches),
   matches: many(matches),
   playoffMatches: many(playoffMatches),
+  sheetSync: one(divisionSheetSync),
+}));
+
+export const divisionSheetSyncRelations = relations(divisionSheetSync, ({ one }) => ({
+  division: one(divisions, {
+    fields: [divisionSheetSync.divisionId],
+    references: [divisions.id],
+  }),
 }));
 
 export const seasonCoachesRelations = relations(
@@ -325,6 +486,37 @@ export const matchPokemonRelations = relations(matchPokemon, ({ one }) => ({
   }),
 }));
 
+export const killEventsRelations = relations(killEvents, ({ one }) => ({
+  match: one(matches, {
+    fields: [killEvents.matchId],
+    references: [matches.id],
+  }),
+  killerPokemon: one(pokemon, {
+    fields: [killEvents.killerPokemonId],
+    references: [pokemon.id],
+    relationName: "killerPokemon",
+  }),
+  killerSeasonCoach: one(seasonCoaches, {
+    fields: [killEvents.killerSeasonCoachId],
+    references: [seasonCoaches.id],
+    relationName: "killerSeasonCoach",
+  }),
+  victimPokemon: one(pokemon, {
+    fields: [killEvents.victimPokemonId],
+    references: [pokemon.id],
+    relationName: "victimPokemon",
+  }),
+  victimSeasonCoach: one(seasonCoaches, {
+    fields: [killEvents.victimSeasonCoachId],
+    references: [seasonCoaches.id],
+    relationName: "victimSeasonCoach",
+  }),
+  move: one(moves, {
+    fields: [killEvents.moveId],
+    references: [moves.id],
+  }),
+}));
+
 export const eloHistoryRelations = relations(eloHistory, ({ one }) => ({
   coach: one(coaches, {
     fields: [eloHistory.coachId],
@@ -366,6 +558,109 @@ export const playoffMatchesRelations = relations(playoffMatches, ({ one }) => ({
   }),
 }));
 
+// Pick-Em Participants - anyone who makes predictions
+export const pickEmParticipants = sqliteTable("pick_em_participants", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  coachId: integer("coach_id").references(() => coaches.id), // nullable, linked if they're a coach
+  userId: integer("user_id").references(() => users.id), // nullable, linked if they're a spectator
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+}, (table) => [
+  index("idx_pick_em_participants_season_id").on(table.seasonId),
+  index("idx_pick_em_participants_coach_id").on(table.coachId),
+  index("idx_pick_em_participants_user_id").on(table.userId),
+]);
+
+// Pick-Em Picks - individual predictions
+export const pickEmPicks = sqliteTable("pick_em_picks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  participantId: integer("participant_id")
+    .notNull()
+    .references(() => pickEmParticipants.id),
+  matchId: integer("match_id")
+    .notNull()
+    .references(() => matches.id),
+  predictedWinnerId: integer("predicted_winner_id")
+    .notNull()
+    .references(() => seasonCoaches.id),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+}, (table) => [
+  index("idx_pick_em_picks_participant_id").on(table.participantId),
+  index("idx_pick_em_picks_match_id").on(table.matchId),
+]);
+
+// Pick-Em Rewards - tracks awarded coins for pick-em performance
+export const pickEmRewards = sqliteTable("pick_em_rewards", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  participantId: integer("participant_id")
+    .notNull()
+    .references(() => pickEmParticipants.id),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  week: integer("week").notNull(),
+  divisionId: integer("division_id").references(() => divisions.id), // null for overall prizes
+  matchId: integer("match_id").references(() => matches.id), // for GOTW bonuses - tracks which match
+  amount: integer("amount").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+}, (table) => [
+  index("idx_pick_em_rewards_season_week").on(table.seasonId, table.week),
+  index("idx_pick_em_rewards_participant").on(table.participantId),
+  index("idx_pick_em_rewards_match").on(table.matchId),
+]);
+
+export const pickEmRewardsRelations = relations(pickEmRewards, ({ one }) => ({
+  participant: one(pickEmParticipants, {
+    fields: [pickEmRewards.participantId],
+    references: [pickEmParticipants.id],
+  }),
+  season: one(seasons, {
+    fields: [pickEmRewards.seasonId],
+    references: [seasons.id],
+  }),
+  division: one(divisions, {
+    fields: [pickEmRewards.divisionId],
+    references: [divisions.id],
+  }),
+  match: one(matches, {
+    fields: [pickEmRewards.matchId],
+    references: [matches.id],
+  }),
+}));
+
+// Trivia Rewards - tracks coins awarded for trivia/minigame participation
+export const triviaRewards = sqliteTable("trivia_rewards", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  coachId: integer("coach_id")
+    .notNull()
+    .references(() => coaches.id),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  amount: integer("amount").notNull(),
+  reason: text("reason").notNull(),
+  awardedBy: text("awarded_by"), // Name of the mod who awarded it
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+}, (table) => [
+  index("idx_trivia_rewards_coach").on(table.coachId),
+  index("idx_trivia_rewards_season").on(table.seasonId),
+]);
+
+export const triviaRewardsRelations = relations(triviaRewards, ({ one }) => ({
+  coach: one(coaches, {
+    fields: [triviaRewards.coachId],
+    references: [coaches.id],
+  }),
+  season: one(seasons, {
+    fields: [triviaRewards.seasonId],
+    references: [seasons.id],
+  }),
+}));
+
 export const transactionsRelations = relations(transactions, ({ one }) => ({
   season: one(seasons, {
     fields: [transactions.seasonId],
@@ -392,3 +687,354 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
     relationName: "oldTC",
   }),
 }));
+
+export const pickEmParticipantsRelations = relations(pickEmParticipants, ({ one, many }) => ({
+  season: one(seasons, {
+    fields: [pickEmParticipants.seasonId],
+    references: [seasons.id],
+  }),
+  coach: one(coaches, {
+    fields: [pickEmParticipants.coachId],
+    references: [coaches.id],
+  }),
+  user: one(users, {
+    fields: [pickEmParticipants.userId],
+    references: [users.id],
+  }),
+  picks: many(pickEmPicks),
+  rewards: many(pickEmRewards),
+}));
+
+export const pickEmPicksRelations = relations(pickEmPicks, ({ one }) => ({
+  participant: one(pickEmParticipants, {
+    fields: [pickEmPicks.participantId],
+    references: [pickEmParticipants.id],
+  }),
+  match: one(matches, {
+    fields: [pickEmPicks.matchId],
+    references: [matches.id],
+  }),
+  predictedWinner: one(seasonCoaches, {
+    fields: [pickEmPicks.predictedWinnerId],
+    references: [seasonCoaches.id],
+  }),
+}));
+
+// Discord Guild Configuration
+export const discordGuilds = sqliteTable("discord_guilds", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  guildId: text("guild_id").notNull().unique(), // Discord server ID (snowflake)
+  name: text("name").notNull(), // Server name for reference
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+});
+
+// Discord Channel to Division Mapping
+export const discordChannels = sqliteTable("discord_channels", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  guildId: integer("guild_id")
+    .notNull()
+    .references(() => discordGuilds.id),
+  channelId: text("channel_id").notNull(), // Discord channel ID (snowflake)
+  channelName: text("channel_name"), // Channel name for reference
+  divisionId: integer("division_id")
+    .notNull()
+    .references(() => divisions.id),
+  isDraftEnabled: integer("is_draft_enabled", { mode: "boolean" }).default(false),
+  isMatchReportEnabled: integer("is_match_report_enabled", { mode: "boolean" }).default(true),
+  isScheduleEnabled: integer("is_schedule_enabled", { mode: "boolean" }).default(true),
+}, (table) => [
+  index("idx_discord_channels_channel_id").on(table.channelId),
+  index("idx_discord_channels_division_id").on(table.divisionId),
+]);
+
+export const discordGuildsRelations = relations(discordGuilds, ({ many }) => ({
+  channels: many(discordChannels),
+}));
+
+export const discordChannelsRelations = relations(discordChannels, ({ one }) => ({
+  guild: one(discordGuilds, {
+    fields: [discordChannels.guildId],
+    references: [discordGuilds.id],
+  }),
+  division: one(divisions, {
+    fields: [discordChannels.divisionId],
+    references: [divisions.id],
+  }),
+}));
+
+// Users table - for spectators (non-coaches) who want to participate in pick-ems
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  username: text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  isMod: integer("is_mod", { mode: "boolean" }).default(false),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  // Currency (same as coaches)
+  pboCoin: integer("pbo_coin").notNull().default(0),
+});
+
+// User Sessions - unified session management for coaches and spectators
+export const userSessions = sqliteTable("user_sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  token: text("token").notNull().unique(),
+  coachId: integer("coach_id").references(() => coaches.id), // null for spectators
+  userId: integer("user_id").references(() => users.id), // null for coaches
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+}, (table) => [
+  index("idx_user_sessions_token").on(table.token),
+  index("idx_user_sessions_coach_id").on(table.coachId),
+  index("idx_user_sessions_user_id").on(table.userId),
+]);
+
+export const usersRelations = relations(users, ({ many }) => ({
+  sessions: many(userSessions),
+  bets: many(bets),
+  killBets: many(killBets),
+  deathBets: many(deathBets),
+}));
+
+export const userSessionsRelations = relations(userSessions, ({ one }) => ({
+  coach: one(coaches, {
+    fields: [userSessions.coachId],
+    references: [coaches.id],
+  }),
+  user: one(users, {
+    fields: [userSessions.userId],
+    references: [users.id],
+  }),
+}));
+
+// Bets - PBOcoin wagers on match outcomes
+export const bets = sqliteTable("bets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  coachId: integer("coach_id")
+    .references(() => coaches.id), // nullable - set for coach bets
+  userId: integer("user_id")
+    .references(() => users.id), // nullable - set for spectator bets
+  matchId: integer("match_id")
+    .notNull()
+    .references(() => matches.id),
+  predictedWinnerId: integer("predicted_winner_id")
+    .notNull()
+    .references(() => seasonCoaches.id),
+  amount: integer("amount").notNull(), // coins wagered
+  odds: real("odds").notNull(), // decimal odds at time of bet (e.g., 1.5 = +50%)
+  status: text("status").notNull().default("pending"), // pending, won, lost, refunded
+  payout: integer("payout"), // coins returned if won (includes original stake)
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  resolvedAt: text("resolved_at"),
+}, (table) => [
+  index("idx_bets_coach_id").on(table.coachId),
+  index("idx_bets_user_id").on(table.userId),
+  index("idx_bets_match_id").on(table.matchId),
+  index("idx_bets_status").on(table.status),
+]);
+
+export const betsRelations = relations(bets, ({ one }) => ({
+  coach: one(coaches, {
+    fields: [bets.coachId],
+    references: [coaches.id],
+  }),
+  user: one(users, {
+    fields: [bets.userId],
+    references: [users.id],
+  }),
+  match: one(matches, {
+    fields: [bets.matchId],
+    references: [matches.id],
+  }),
+  predictedWinner: one(seasonCoaches, {
+    fields: [bets.predictedWinnerId],
+    references: [seasonCoaches.id],
+  }),
+}));
+
+// Store Items - catalog of purchasable items
+export const storeItems = sqliteTable("store_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  slug: text("slug").notNull().unique(), // e.g., "showcase-slot"
+  name: text("name").notNull(), // e.g., "Showcase Slot"
+  description: text("description").notNull(),
+  price: integer("price").notNull(), // PBOcoin cost
+  category: text("category").notNull(), // e.g., "visibility", "cosmetic"
+  isActive: integer("is_active", { mode: "boolean" }).default(true), // Can be purchased
+  maxPerUser: integer("max_per_user"), // NULL = unlimited
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+});
+
+// Coach Purchases - user inventory of purchased items
+export const coachPurchases = sqliteTable("coach_purchases", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  coachId: integer("coach_id")
+    .notNull()
+    .references(() => coaches.id),
+  itemId: integer("item_id")
+    .notNull()
+    .references(() => storeItems.id),
+  purchasedAt: text("purchased_at").notNull(),
+  expiresAt: text("expires_at"), // NULL = permanent
+  isActive: integer("is_active", { mode: "boolean" }).default(true), // Can be toggled off
+  bonusReason: text("bonus_reason"), // NULL = paid with coins, otherwise free with reason shown
+  glowColor: text("glow_color"), // For team-name-glow: selected color key (e.g., "stargazer", "gold")
+  bgColor: text("bg_color"), // For row-background: selected color key
+  borderColor: text("border_color"), // For row-border: selected color key
+}, (table) => [
+  index("idx_coach_purchases_coach_id").on(table.coachId),
+  index("idx_coach_purchases_item_id").on(table.itemId),
+]);
+
+export const storeItemsRelations = relations(storeItems, ({ many }) => ({
+  purchases: many(coachPurchases),
+}));
+
+export const coachPurchasesRelations = relations(coachPurchases, ({ one }) => ({
+  coach: one(coaches, {
+    fields: [coachPurchases.coachId],
+    references: [coaches.id],
+  }),
+  item: one(storeItems, {
+    fields: [coachPurchases.itemId],
+    references: [storeItems.id],
+  }),
+}));
+
+// User Preferences - saves page settings for logged-in users
+export const userPreferences = sqliteTable("user_preferences", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  coachId: integer("coach_id").references(() => coaches.id),
+  userId: integer("user_id").references(() => users.id),
+  page: text("page").notNull(), // 'draft-planner' or 'matchup-prep'
+  preferences: text("preferences").notNull(), // JSON blob
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_user_prefs_coach").on(table.coachId, table.page),
+  index("idx_user_prefs_user").on(table.userId, table.page),
+]);
+
+export const userPreferencesRelations = relations(userPreferences, ({ one }) => ({
+  coach: one(coaches, {
+    fields: [userPreferences.coachId],
+    references: [coaches.id],
+  }),
+  user: one(users, {
+    fields: [userPreferences.userId],
+    references: [users.id],
+  }),
+}));
+
+// Kill Bets - wagers on Pokemon kill counts in matches
+export const killBets = sqliteTable("kill_bets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  coachId: integer("coach_id").references(() => coaches.id), // nullable - set for coach bets
+  userId: integer("user_id").references(() => users.id), // nullable - set for spectator bets
+  matchId: integer("match_id")
+    .notNull()
+    .references(() => matches.id),
+  pokemonId: integer("pokemon_id")
+    .notNull()
+    .references(() => pokemon.id),
+  seasonCoachId: integer("season_coach_id")
+    .notNull()
+    .references(() => seasonCoaches.id), // Which team's Pokemon
+  killThreshold: integer("kill_threshold").notNull(), // e.g., 3 means "3+ kills"
+  betType: text("bet_type").notNull().default("over"), // "over" (3+) or "under" (<3)
+  amount: integer("amount").notNull(), // coins wagered
+  odds: real("odds").notNull(), // decimal odds at time of bet
+  status: text("status").notNull().default("pending"), // pending, won, lost, refunded
+  payout: integer("payout"), // coins returned if won
+  actualKills: integer("actual_kills"), // recorded after match for audit
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  resolvedAt: text("resolved_at"),
+}, (table) => [
+  index("idx_kill_bets_coach_id").on(table.coachId),
+  index("idx_kill_bets_user_id").on(table.userId),
+  index("idx_kill_bets_match_id").on(table.matchId),
+  index("idx_kill_bets_pokemon_id").on(table.pokemonId),
+  index("idx_kill_bets_status").on(table.status),
+]);
+
+export const killBetsRelations = relations(killBets, ({ one }) => ({
+  coach: one(coaches, {
+    fields: [killBets.coachId],
+    references: [coaches.id],
+  }),
+  user: one(users, {
+    fields: [killBets.userId],
+    references: [users.id],
+  }),
+  match: one(matches, {
+    fields: [killBets.matchId],
+    references: [matches.id],
+  }),
+  pokemon: one(pokemon, {
+    fields: [killBets.pokemonId],
+    references: [pokemon.id],
+  }),
+  seasonCoach: one(seasonCoaches, {
+    fields: [killBets.seasonCoachId],
+    references: [seasonCoaches.id],
+  }),
+}));
+
+// Death Bets - wagers on whether Pokemon will die or survive in matches
+export const deathBets = sqliteTable("death_bets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  coachId: integer("coach_id").references(() => coaches.id), // nullable - set for coach bets
+  userId: integer("user_id").references(() => users.id), // nullable - set for spectator bets
+  matchId: integer("match_id")
+    .notNull()
+    .references(() => matches.id),
+  pokemonId: integer("pokemon_id")
+    .notNull()
+    .references(() => pokemon.id),
+  seasonCoachId: integer("season_coach_id")
+    .notNull()
+    .references(() => seasonCoaches.id), // Which team's Pokemon
+  betType: text("bet_type").notNull(), // "dies" or "survives"
+  amount: integer("amount").notNull(), // coins wagered
+  odds: real("odds").notNull(), // decimal odds at time of bet
+  status: text("status").notNull().default("pending"), // pending, won, lost, refunded
+  payout: integer("payout"), // coins returned if won
+  actualDied: integer("actual_died"), // 1 = died, 0 = survived, null = not brought
+  wasBrought: integer("was_brought"), // 1 = brought to match, 0 = not brought
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  resolvedAt: text("resolved_at"),
+}, (table) => [
+  index("idx_death_bets_coach_id").on(table.coachId),
+  index("idx_death_bets_user_id").on(table.userId),
+  index("idx_death_bets_match_id").on(table.matchId),
+  index("idx_death_bets_pokemon_id").on(table.pokemonId),
+  index("idx_death_bets_status").on(table.status),
+]);
+
+export const deathBetsRelations = relations(deathBets, ({ one }) => ({
+  coach: one(coaches, {
+    fields: [deathBets.coachId],
+    references: [coaches.id],
+  }),
+  user: one(users, {
+    fields: [deathBets.userId],
+    references: [users.id],
+  }),
+  match: one(matches, {
+    fields: [deathBets.matchId],
+    references: [matches.id],
+  }),
+  pokemon: one(pokemon, {
+    fields: [deathBets.pokemonId],
+    references: [pokemon.id],
+  }),
+  seasonCoach: one(seasonCoaches, {
+    fields: [deathBets.seasonCoachId],
+    references: [seasonCoaches.id],
+  }),
+}));
+
+// Site-wide settings (key-value store for global config)
+export const siteSettings = sqliteTable("site_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+});

@@ -1,0 +1,13 @@
+Dockerfile
+.dockerignore
+node_modules
+npm-debug.log
+.next
+.git
+.gitignore
+*.md
+.env*
+pbo.db
+data/
+pbo-discord-worker/
+scripts/pokeapi-cache.json

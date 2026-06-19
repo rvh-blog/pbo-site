@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import * as schema from "./schema";
 import * as fs from "fs";
 
-const sqlite = new Database("./data/pbo.db");
+const sqlite = new Database("./pbo.db");
 
 // Proper CSV parser that handles quoted fields with newlines
 function parseCSV(content: string): string[][] {
@@ -225,10 +225,134 @@ interface TeamWeekResult {
   pokemonStats: PokemonMatchStat[]; // Pokemon brought to this match with K/D
 }
 
+interface BattleRecordMatch {
+  teamName: string;
+  opponentName: string;
+  week: number;
+  result: "W" | "L";
+  differential: number;
+}
+
 // Known coach mappings for teams with missing data
 const MISSING_COACH_MAPPINGS: Record<string, string> = {
   "Caborca Gengars": "holiss77",
 };
+
+// Team name mappings from xlsx sheet names/typos to actual team names
+const XLSX_TEAM_NAME_MAPPINGS: Record<string, string> = {
+  "Sunnyside Suicunes": "Sunnyside Screamtails",
+  "Carolina Cetitans": "Asheville Azumarills",
+  "Edinburgh Enamorus": "Hong Kong Heatrans",
+  "Inianapolis Incineroar": "Indianapolis Incineroars",
+  "Charleston Chestnaughts": "Charleston Chesnaughts",
+  "Uncertain Unowns": "Uncertain Unknowns",
+  "Munchen Emboars": "München Emboars",
+  "Boston Banettes": "Boston Babettes",
+  // Typos/abbreviations in xlsx opponent cells
+  "NCC": "Nevada County Caterpies",
+  "Helsinki Jellicent Kluib": "Helsinki Jellicent Klub",
+  "Manila Manectric": "Manila Manectrics",
+  // Mid-season replacement - Santa Cruz was replaced by Sunnyside
+  "Santa Cruz Swadloons": "Sunnyside Screamtails",
+  // Neon division mismatches
+  "Boston Banettes ": "Boston Babettes",  // Extra space in xlsx sheet name
+  "New York Nickits (Kalib)": "New York Nickits",
+  "Indianapolis Inicineroars": "Indianapolis Incineroars",  // Typo
+  "Icirrus City Infernapes": "Indianapolis Incineroars",  // Wrong team name in xlsx
+  // Sheet names with trailing spaces (Sunset division)
+  "Cherry Hill Bellsprouts ": "Cherry Hill Bellsprouts",
+  "Worcester Woopers ": "Worcester Woopers",
+  "Sin City Sableye ": "Sin City Sableye",
+  // Typos in xlsx opponent cells
+  "Golden State Durans": "Golden State Durants",  // Missing 't'
+  "Adelaide Arbolives": "Adelaide Arbolivas",  // Typo
+};
+
+// Parse battle record xlsx to get accurate match pairings
+function parseBattleRecordXLSX(divisionName: string): BattleRecordMatch[] {
+  const XLSX = require("xlsx");
+  const xlsxPath = "./data/Copy of PBO Battle Record .xlsx";
+
+  if (!fs.existsSync(xlsxPath)) {
+    console.log("Battle Record xlsx not found, falling back to differential matching");
+    return [];
+  }
+
+  const workbook = XLSX.readFile(xlsxPath);
+  const matches: BattleRecordMatch[] = [];
+
+  // Division abbreviation mapping (xlsx uses "S6 Star", "S6 Sun", "S6 N")
+  const divAbbrev: Record<string, string> = {
+    "Stargazer": "Star",
+    "Sunset": "Sun",
+    "Neon": " N ",  // Note: space before and after to avoid matching "Sun"
+  };
+  const divCode = divAbbrev[divisionName] || divisionName;
+
+  for (const sheetName of workbook.SheetNames) {
+    const ws = workbook.Sheets[sheetName];
+    if (!ws) continue;
+
+    // Convert to array of arrays
+    const data: (string | number | null)[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+    for (let row = 0; row < data.length; row++) {
+      const rowData = data[row];
+      if (!rowData || rowData.length < 10) continue;
+
+      // Column E (index 4) has Season/Week like "S6 Sun Week 1"
+      const seasonWeek = String(rowData[4] || "").trim();
+      if (!seasonWeek.startsWith("S6") || !seasonWeek.includes(divCode)) continue;
+      if (seasonWeek.includes("Quarterfinal") || seasonWeek.includes("Semi") || seasonWeek.includes("Final")) continue;
+
+      // Extract week number
+      const weekMatch = seasonWeek.match(/Week\s*(\d+)/i);
+      if (!weekMatch) continue;
+      const week = parseInt(weekMatch[1]);
+
+      // Column F (index 5) has opponent like "Team A VS Team B"
+      const opponentCell = String(rowData[5] || "").trim();
+      const vsMatch = opponentCell.match(/(.+?)\s+VS\s+(.+)/i);
+      if (!vsMatch) continue;
+
+      let team1 = vsMatch[1].trim();
+      let team2 = vsMatch[2].trim();
+
+      // Map xlsx team names to actual team names (try with and without trailing space)
+      team1 = XLSX_TEAM_NAME_MAPPINGS[team1] || XLSX_TEAM_NAME_MAPPINGS[team1 + " "] || team1;
+      team2 = XLSX_TEAM_NAME_MAPPINGS[team2] || XLSX_TEAM_NAME_MAPPINGS[team2 + " "] || team2;
+      team1 = team1.trim();
+      team2 = team2.trim();
+
+      // Also map sheet name (try with and without trailing space)
+      let sheetTeamName = XLSX_TEAM_NAME_MAPPINGS[sheetName] || XLSX_TEAM_NAME_MAPPINGS[sheetName.trim()] || sheetName;
+      sheetTeamName = sheetTeamName.trim();
+
+      // Column I (index 8) has result
+      const resultCell = String(rowData[8] || "").trim();
+      const result = resultCell === "Win" ? "W" : resultCell === "Loss" ? "L" : null;
+      if (!result) continue;
+
+      // Column J (index 9) has differential
+      const diffCell = rowData[9];
+      const differential = typeof diffCell === "number" ? diffCell : parseFloat(String(diffCell)) || 0;
+
+      // Determine which team is from this sheet
+      const teamName = sheetTeamName;
+      const opponentName = team1.toLowerCase() === teamName.toLowerCase() ? team2 : team1;
+
+      matches.push({
+        teamName,
+        opponentName,
+        week,
+        result,
+        differential: Math.round(differential),
+      });
+    }
+  }
+
+  return matches;
+}
 
 // Parse S6 Rosters CSV format
 function parseRostersCSV(divisionName: string): TeamData[] {
@@ -542,29 +666,108 @@ function parseMatchStatsCSV(divisionName: string): Map<string, TeamWeekResult[]>
   return teamResults;
 }
 
-// Reconstruct matches from team results
+// Reconstruct matches from battle record xlsx (accurate) or fall back to differential matching
 function reconstructMatches(
   teamResults: Map<string, TeamWeekResult[]>,
-  teamRosters: Map<string, string[]>
+  teamRosters: Map<string, string[]>,
+  divisionName: string,
+  extraTeams: string[] = []  // Teams with season_coach entries but no CSV data
 ): MatchData[] {
   const matches: MatchData[] = [];
   const teams = Array.from(teamResults.keys());
-  const matchedPairs = new Set<string>();
+  const allTeams = [...teams, ...extraTeams];  // Include extra teams for lookup
+
+  // Try to get accurate matchups from xlsx first
+  const battleRecordMatches = parseBattleRecordXLSX(divisionName);
+
+  if (battleRecordMatches.length > 0) {
+    console.log(`  Using battle record xlsx for accurate matchups (${battleRecordMatches.length} entries)`);
+
+    // Build lookup for team results by normalized name
+    const normalizeTeamName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const teamResultsNormalized = new Map<string, TeamWeekResult[]>();
+    for (const [teamName, results] of teamResults) {
+      teamResultsNormalized.set(normalizeTeamName(teamName), results);
+    }
+
+    // Track matched pairs to avoid duplicates
+    const matchedPairs = new Set<string>();
+
+    for (const brMatch of battleRecordMatches) {
+      const pairKey = [brMatch.teamName, brMatch.opponentName].sort().join("|") + `|${brMatch.week}`;
+      if (matchedPairs.has(pairKey)) continue;
+      matchedPairs.add(pairKey);
+
+      // Find team1 (from battle record)
+      const team1Normalized = normalizeTeamName(brMatch.teamName);
+      const team1Name = allTeams.find(t => normalizeTeamName(t) === team1Normalized);
+      if (!team1Name) {
+        console.log(`    Warning: Team not found: ${brMatch.teamName}`);
+        continue;
+      }
+
+      // Find team2 (opponent)
+      const team2Normalized = normalizeTeamName(brMatch.opponentName);
+      const team2Name = allTeams.find(t => normalizeTeamName(t) === team2Normalized);
+      if (!team2Name) {
+        console.log(`    Warning: Opponent not found: ${brMatch.opponentName}`);
+        continue;
+      }
+
+      const team1Results = teamResults.get(team1Name);
+      const team2Results = teamResults.get(team2Name);
+
+      // Get week data - for teams without CSV data, use xlsx differential
+      const week = brMatch.week;
+      const team1Week = team1Results?.[week - 1];
+      const team2Week = team2Results?.[week - 1];
+
+      // Skip if primary team (the one with xlsx entry) has no data
+      if (!team1Week) continue;
+
+      // For opponent, use xlsx differential if no CSV data (inverse of team1's)
+      const team1Diff = team1Week.differential;
+      const team2Diff = team2Week?.differential ?? -team1Diff;
+
+      const winner = brMatch.result === "W" ? "team1" : "team2";
+
+      matches.push({
+        week,
+        team1Name,
+        team2Name,
+        team1Diff,
+        team2Diff,
+        winner,
+        team1Pokemon: team1Week.pokemonStats,
+        team2Pokemon: team2Week?.pokemonStats ?? [],
+      });
+    }
+
+    return matches;
+  }
+
+  // Fallback: differential matching (less accurate)
+  console.log("  Falling back to differential matching (xlsx not available)");
+  const matchedTeamsPerWeek = new Map<number, Set<string>>();
 
   for (let week = 0; week < 8; week++) {
+    matchedTeamsPerWeek.set(week, new Set());
+
     for (let i = 0; i < teams.length; i++) {
       const team1 = teams[i];
+
+      if (matchedTeamsPerWeek.get(week)!.has(team1)) continue;
+
       const team1Results = teamResults.get(team1);
       if (!team1Results || !team1Results[week]) continue;
 
       const team1Week = team1Results[week];
       if (!team1Week.result) continue;
 
-      // Find opponent by matching differential
       for (let j = i + 1; j < teams.length; j++) {
         const team2 = teams[j];
-        const pairKey = `${week}-${team1}-${team2}`;
-        if (matchedPairs.has(pairKey)) continue;
+
+        if (matchedTeamsPerWeek.get(week)!.has(team2)) continue;
 
         const team2Results = teamResults.get(team2);
         if (!team2Results || !team2Results[week]) continue;
@@ -572,13 +775,13 @@ function reconstructMatches(
         const team2Week = team2Results[week];
         if (!team2Week.result) continue;
 
-        // Check if differentials are opposite
         const diffMatch =
           (team1Week.result === "W" && team2Week.result === "L" && team1Week.differential === -team2Week.differential) ||
           (team1Week.result === "L" && team2Week.result === "W" && team1Week.differential === -team2Week.differential);
 
         if (diffMatch) {
-          matchedPairs.add(pairKey);
+          matchedTeamsPerWeek.get(week)!.add(team1);
+          matchedTeamsPerWeek.get(week)!.add(team2);
 
           const winner = team1Week.result === "W" ? "team1" : "team2";
 
@@ -740,7 +943,9 @@ async function seedS6() {
       where: eq(schema.matches.divisionId, division.id),
     });
 
+    // Delete eloHistory entries that reference these matches
     for (const m of existingMatches) {
+      await db.delete(schema.eloHistory).where(eq(schema.eloHistory.matchId, m.id));
       await db.delete(schema.matchPokemon).where(eq(schema.matchPokemon.matchId, m.id));
     }
     await db.delete(schema.matches).where(eq(schema.matches.divisionId, division.id));
@@ -856,12 +1061,52 @@ async function seedS6() {
     console.log(`\nTeams processed: ${teamsProcessed}`);
     console.log(`Roster entries added: ${rosterEntriesAdded}`);
 
+    // Special case: Sunnyside Screamtails played in Stargazer before dropping out
+    // and joining Sunset as a replacement. Add them to Stargazer without roster data.
+    if (divisionName === "Stargazer") {
+      const sunnysideCoachName = "Iammug";
+      let sunnysideCoach = await db.query.coaches.findFirst({
+        where: eq(schema.coaches.name, sunnysideCoachName),
+      });
+
+      if (!sunnysideCoach) {
+        const [newCoach] = await db
+          .insert(schema.coaches)
+          .values({ name: sunnysideCoachName })
+          .returning();
+        sunnysideCoach = newCoach;
+        console.log(`\nCreated coach for Sunnyside: ${sunnysideCoachName}`);
+      }
+
+      const [sunnysideSeasonCoach] = await db
+        .insert(schema.seasonCoaches)
+        .values({
+          coachId: sunnysideCoach.id,
+          divisionId: division.id,
+          teamName: "Sunnyside Screamtails",
+          teamAbbreviation: "SUN",
+          remainingBudget: 0,
+          teamLogoUrl: teamLogos.get("sunnyside screamtails") || null,
+          isActive: false, // Dropped out mid-season
+        })
+        .returning();
+
+      teamToSeasonCoachId.set("Sunnyside Screamtails", sunnysideSeasonCoach.id);
+      console.log(`\nAdded Sunnyside Screamtails to Stargazer (dropped out mid-season)`);
+    }
+
     // Parse match stats and reconstruct matches
     console.log("\nParsing match stats...");
     const teamResults = parseMatchStatsCSV(divisionName);
     console.log(`Found stats for ${teamResults.size} teams`);
 
-    const matches = reconstructMatches(teamResults, teamRosters);
+    // Extra teams that have season_coach entries but no CSV data (e.g., dropped out mid-season)
+    const extraTeams: string[] = [];
+    if (divisionName === "Stargazer") {
+      extraTeams.push("Sunnyside Screamtails");
+    }
+
+    const matches = reconstructMatches(teamResults, teamRosters, divisionName, extraTeams);
     console.log(`Reconstructed ${matches.length} matches`);
 
     // Insert matches with Pokemon stats

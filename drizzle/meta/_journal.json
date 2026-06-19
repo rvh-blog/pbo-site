@@ -22,6 +22,48 @@
       "when": 1767880281014,
       "tag": "0002_nosy_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1769270549900,
+      "tag": "0003_lumpy_morgan_stark",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1769696115679,
+      "tag": "0004_needy_anthem",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1769955600000,
+      "tag": "0005_add_game_of_the_week",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1770000000000,
+      "tag": "0006_add_trivia_rewards",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1770100000000,
+      "tag": "0007_add_wiglett_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1770200000000,
+      "tag": "0008_add_sheet_sync_category_flags",
+      "breakpoints": true
     }
   ]
 }

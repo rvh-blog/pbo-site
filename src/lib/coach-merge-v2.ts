@@ -5,69 +5,88 @@ import { eq, sql, inArray } from "drizzle-orm";
 // Based on battle record sheets - each array represents ONE coach across seasons
 // Format: [primaryId, ...duplicateIds, "reason"]
 // The first ID will be kept, others will be merged into it
+// Updated after S6 reseed (January 2026)
 const COACH_MERGES: (number | string)[][] = [
-  // Abbotsford Aggrons sheet: Nightmare (S5) = Nightmarehall (S6-7)
-  [88, 140, "Nightmarehall <- Nightmare (Abbotsford Aggrons)"],
+  // === S6 Stargazer duplicates (IDs 160-165) ===
 
-  // Blasphemous Blacephalons sheet: b33pb00p (S6) = beeboop (S8)
-  [17, 118, "beeboop <- b33pb00p (Blasphemous Blacephalons)"],
+  // Clonbrook Kyogres sheet: smergleee (S6) -> clonbrookkyogres (S7-9)
+  [55, 160, "clonbrookkyogres <- smergleee (Clonbrook Kyogres)"],
 
-  // Boston Banettes sheet: WhiteRaven (S5) = whitestraven (S6) = Raven (S7-8)
-  [29, 156, 138, "Raven <- WhiteRaven, whitestraven (Boston Banettes)"],
+  // Frederick Klefkis sheet: Going Forward (S6) -> Orange (S5,S7,S9)
+  [28, 161, "Orange <- Going Forward (Frederick Klefkis)"],
 
-  // Caborca Gengars sheet: H7795 (S5) = holiss7795 (S6-8)
-  [84, 150, "holiss7795 <- H7795 (Caborca Gengars)"],
+  // Luscious Lopunnies sheet: Hisato Noromi (S6) -> Merry (S5,S7-9)
+  [38, 162, "Merry <- Hisato Noromi (Luscious Lopunnies)"],
 
-  // Carolina Cetitans sheet: GuyoShiMaa (S6) = Gage (S7-8)
-  [67, 136, "Gage <- GuyoShiMaa (Carolina Cetitans)"],
+  // Pittsburgh Scizors sheet: IntoTheVoid13 (S6) -> IntoTheVoid (S5,S7-9)
+  [48, 163, "IntoTheVoid <- IntoTheVoid13 (Pittsburgh Scizors)"],
 
-  // Charleston Chesnaughts sheet: Doncolbus (S5,S6,S8) = Don (S7)
-  [142, 92, "Doncolbus <- Don (Charleston Chesnaughts)"],
+  // Charleston Chesnaughts sheet: doncolbus (S6) -> Doncolbus (S5,S7-9)
+  [142, 164, "Doncolbus <- doncolbus (Charleston Chesnaughts)"],
 
-  // Clonbrook Kyogres sheet: smergleee (S6) = clonbrookkyogres (S7-8)
-  [55, 120, "clonbrookkyogres <- smergleee (Clonbrook Kyogres)"],
+  // Adelaide Arbolivas sheet: FireAnt78 (S6) -> FireAnt (S5,S7-8)
+  [72, 165, "FireAnt <- FireAnt78 (Adelaide Arbolivas)"],
 
-  // Edinburgh Enamorus sheet: Geotarou (S6) = Geo (S7-8)
-  [13, 129, "Geo <- Geotarou (Edinburgh Enamorus/Scarborough Sceptiles)"],
+  // === S6 Sunset duplicates (IDs 166-176) ===
 
-  // Frederick Klefkis sheet: Orange (S5,S7) = Going Forward (S6)
-  [28, 121, "Orange <- Going Forward (Frederick Klefkis)"],
+  // Sin City Sableye sheet: Drew876 (S6) -> Drew (S5)
+  [145, 166, "Drew <- Drew876 (Sin City Sableye)"],
 
-  // Gholdengo Champions sheet: demon nub (S6) = Nigthamarish (S7-8 Boston Bulbasaurs)
-  [81, 114, "Nigthamarish <- demon nub (Gholdengo Champions/Boston Bulbasaurs)"],
+  // Sunnyside Suicunes/Screamtails sheet: Iammug (S6 both divisions) -> Mug (S5,S7)
+  [90, 167, "Mug <- Iammug (Sunnyside Screamtails)"],
 
-  // Luscious Lopunnies sheet: Merry (S5,S7-8) = Hisato Noromi (S6)
-  [38, 123, "Merry <- Hisato Noromi (Luscious Lopunnies)"],
+  // Tokyo Teddiursas sheet: VI Tokens (S6) -> Kuma (S5,S7-9)
+  [151, 168, "Kuma <- VI Tokens (Tokyo Teddiursas)"],
 
-  // Orlando Magikarps sheet: Libraries (S6) = Shhnico (S7-8)
-  [39, 133, "Shhnico <- Libraries (Orlando Magikarps)"],
+  // Phoenix Sandshrews sheet: Hotpepper22 (S6) -> hotpepper22 (S7-9) - case difference
+  [14, 169, "hotpepper22 <- Hotpepper22 (Phoenix Sandshrews)"],
 
-  // Pittsburgh Scizors sheet: Void (S5) = IntoTheVoid (S6-8)
-  [48, 144, "IntoTheVoid <- Void (Pittsburgh Scizors)"],
+  // Gholdengo Champions sheet: demon nub (S6) -> Nigthamarish (S7-8)
+  [81, 170, "Nigthamarish <- demon nub (Gholdengo Champions)"],
 
-  // Syracuse Snorlax sheet: KingFrankTank (S6) = TheITB (S7-8)
-  [15, 132, "TheITB <- KingFrankTank (Syracuse Snorlax)"],
+  // Edinburgh Enamorus sheet: Geotarou (S6) -> Geo (S7-9)
+  [13, 171, "Geo <- Geotarou (Edinburgh Enamorus/Scarborough Sceptiles)"],
 
-  // Tokyo Teddiursas sheet: Kuma (S5,S7) = VI Tokens (S6) = kumabe4r (S8)
-  [151, 112, 78, "Kuma <- VI Tokens, kumabe4r (Tokyo Teddiursas)"],
+  // Swindon Swamperts sheet: platanopower420 (S6) -> platano_power_420 (S7-9)
+  [68, 172, "platano_power_420 <- platanopower420 (Swindon Swamperts)"],
 
-  // Sin City Sableye sheet: Drew (S5) = Drew876 (S6)
-  [145, 110, "Drew <- Drew876 (Sin City Sableye)"],
+  // Syracuse Snorlax sheet: KingFrankTank (S6) -> TheITB (S7-9)
+  [15, 173, "TheITB <- KingFrankTank (Syracuse Snorlax)"],
 
-  // Sunnyside Suicunes sheet: Mug (S5,S7) = Iammug (S6)
-  [90, 111, "Mug <- Iammug (Sunnyside Suicunes)"],
+  // Orlando Magikarps sheet: Libraries (S6) -> Shhnico (S7-9)
+  [39, 174, "Shhnico <- Libraries (Orlando Magikarps)"],
 
-  // Sydney Sylveons sheet: WASDShiftlock (S6) = Mystic Mew (S7)
-  [41, 135, "Mystic Mew <- WASDShiftlock (Sydney Sylveons)"],
+  // Canberra Cacturnes sheet: carlsht (S6) -> CarlSHT (S7)
+  [96, 175, "CarlSHT <- carlsht (Canberra Cacturnes)"],
 
-  // Tottenham Hoothoots sheet: Trainerblack (S5) = TripleStarHunter (S7-8)
-  [31, 149, "TripleStarHunter <- Trainerblack (Tottenham Hoothoots)"],
+  // Worcester Woopers sheet: nattii (S6) -> Lemon (S5,S7-9)
+  [33, 176, "Lemon <- nattii (Worcester Woopers)"],
 
-  // Uncertain Unowns sheet: SoupBoiRex (S6) = Rexx (S7-8)
-  [61, 137, "Rexx <- SoupBoiRex (Uncertain Unowns)"],
+  // === S6 Neon duplicates (IDs 177-184) ===
 
-  // Worcester Woopers sheet: Natty (S5) = nattii (S6) = Lemon (S7-8)
-  [33, 143, 105, "Lemon <- Natty, nattii (Worcester Woopers)"],
+  // Milwaukee Beedrills sheet: apointlessbee (S6) -> BumbleZ (S5-7)
+  [101, 177, "BumbleZ <- apointlessbee (Milwaukee Beedrills)"],
+
+  // Blasphemous Blacephalons sheet: b33pb00p (S6) -> beeboop (S8-9)
+  [17, 178, "beeboop <- b33pb00p (Blasphemous Blacephalons)"],
+
+  // Derby Drednaws sheet: Dayx2 (S6) -> DayX (S5)
+  [157, 179, "DayX <- Dayx2 (Derby Drednaws)"],
+
+  // Sydney Sylveons sheet: WASDShiftlock (S6) -> Mystic Mew (S7,S9)
+  [41, 180, "Mystic Mew <- WASDShiftlock (Sydney Sylveons)"],
+
+  // Carolina Cetitans sheet: GuyoShiMaa (S6) -> Gage (S7-9)
+  [67, 181, "Gage <- GuyoShiMaa (Carolina Cetitans)"],
+
+  // Caborca Gengars sheet: holiss77 (S6) -> holiss7795 (S5,S7-9)
+  [84, 182, "holiss7795 <- holiss77 (Caborca Gengars)"],
+
+  // Uncertain Unowns sheet: SoupBoiRex (S6) -> Rexx (S7-9)
+  [61, 183, "Rexx <- SoupBoiRex (Uncertain Unowns)"],
+
+  // Boston Banettes sheet: whitestraven (S6) -> Raven (S5,S7-9)
+  [29, 184, "Raven <- whitestraven (Boston Banettes)"],
 ];
 
 export async function mergeCoachesV2(dryRun = true) {
@@ -155,15 +174,25 @@ export async function mergeCoachesV2(dryRun = true) {
   }
 }
 
-// Also need to handle Philadelphia Flygons case - different coaches in different seasons
-// Dr.Rizz (S5) might be different from Rizzadelphia (S6) and sam610 (S8)
-// Need user input on this one
+// Note: Philadelphia Flygons has different coaches in different seasons:
+// Dr.Rizz (S5), Rizzadelphia (S6), sam610 (S8-9) - these are DIFFERENT people
 
 export async function runMergeV2(dryRun = true) {
   await mergeCoachesV2(dryRun);
 
   if (!dryRun) {
     console.log("\nRecalculating ELO ratings...");
-    // ELO recalculation would happen here
+    const { recalculateAllElo } = await import("./elo-service");
+    const result = await recalculateAllElo();
+    console.log(`Processed ${result.matchesProcessed} matches, updated ${result.coachesUpdated} coaches`);
   }
+}
+
+// Run directly: npx tsx src/lib/coach-merge-v2.ts [--apply]
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const dryRun = !process.argv.includes("--apply");
+  runMergeV2(dryRun).then(() => process.exit(0)).catch(e => {
+    console.error(e);
+    process.exit(1);
+  });
 }

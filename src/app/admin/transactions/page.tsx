@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
+import { BulkTransactionEditor } from "@/components/admin/bulk-transaction-editor";
 
 interface Coach {
   id: number;
@@ -90,27 +91,32 @@ interface Transaction {
   oldTeraCaptainDetails?: Pokemon | null;
 }
 
+// Season-specific Pokemon pricing (for TC costs)
+interface SeasonPokemonPrice {
+  pokemonId: number;
+  price: number;
+  teraCaptainCost: number | null;
+  teraBanned: boolean;
+}
+
 export default function AdminTransactionsPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
+  const [selectedDivision, setSelectedDivision] = useState<Division | null>(null);
   const [seasonCoaches, setSeasonCoaches] = useState<SeasonCoach[]>([]);
   const [freeAgents, setFreeAgents] = useState<Pokemon[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [seasonPrices, setSeasonPrices] = useState<Map<number, SeasonPokemonPrice>>(new Map());
   const [loading, setLoading] = useState(true);
 
   // Transaction counts per team
   const [teamCounts, setTeamCounts] = useState<Record<number, TransactionCounts>>({});
 
-  // FA Transaction form (combined pickup and drop)
-  const [faForm, setFaForm] = useState({
-    seasonCoachId: "",
-    pickupPokemonId: "", // Pokemon to pick up from FA
-    dropRosterId: "", // Roster entry to drop
-    isTeraCaptain: false,
-    week: "1",
-    countsAgainstLimit: true,
-    notes: "",
-  });
+  // Bulk editor state
+  const [showBulkEditor, setShowBulkEditor] = useState(false);
+
+  // Team selector for bulk editor
+  const [selectedTeamId, setSelectedTeamId] = useState("");
 
   // P2P Trade form
   const [p2pForm, setP2pForm] = useState({
@@ -118,20 +124,13 @@ export default function AdminTransactionsPage() {
     team1RosterIds: [] as number[],
     team2SeasonCoachId: "",
     team2RosterIds: [] as number[],
+    team1IncomingTC: {} as Record<number, boolean>,  // TC for Pokemon arriving at Team 1 (keyed by team2 rosterId)
+    team2IncomingTC: {} as Record<number, boolean>,  // TC for Pokemon arriving at Team 2 (keyed by team1 rosterId)
     week: "1",
     countsAgainstLimit: true,
     notes: "",
   });
 
-  // Tera Swap form
-  const [teraForm, setTeraForm] = useState({
-    seasonCoachId: "",
-    newTeraCaptainRosterId: "",
-    oldTeraCaptainRosterId: "",
-    week: "1",
-    countsAgainstLimit: true,
-    notes: "",
-  });
 
   useEffect(() => {
     fetchSeasons();
@@ -142,6 +141,16 @@ export default function AdminTransactionsPage() {
       fetchSeasonData(selectedSeason.id);
     }
   }, [selectedSeason]);
+
+  // Refetch free agents when division changes (FA pool is division-specific)
+  useEffect(() => {
+    if (selectedSeason && selectedDivision) {
+      fetchFreeAgents(selectedSeason.id, selectedDivision.id);
+    } else if (selectedSeason) {
+      // No division selected - fetch all (for display purposes, but require division for transactions)
+      fetchFreeAgents(selectedSeason.id);
+    }
+  }, [selectedDivision, selectedSeason]);
 
   async function fetchSeasons() {
     const res = await fetch("/api/seasons");
@@ -154,24 +163,45 @@ export default function AdminTransactionsPage() {
     setLoading(false);
   }
 
+  async function fetchFreeAgents(seasonId: number, divisionId?: number) {
+    const url = divisionId
+      ? `/api/transactions?action=freeAgents&seasonId=${seasonId}&divisionId=${divisionId}`
+      : `/api/transactions?action=freeAgents&seasonId=${seasonId}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    setFreeAgents(data);
+  }
+
   async function fetchSeasonData(seasonId: number) {
-    // Fetch season coaches, free agents, and transactions in parallel
-    const [coachesRes, faRes, txRes] = await Promise.all([
+    // Fetch season coaches, transactions, and season prices in parallel
+    // Free agents will be fetched separately based on division selection
+    const [coachesRes, txRes, pricesRes] = await Promise.all([
       fetch(`/api/rosters?seasonId=${seasonId}`),
-      fetch(`/api/transactions?action=freeAgents&seasonId=${seasonId}`),
       fetch(`/api/transactions?seasonId=${seasonId}`),
+      fetch(`/api/transactions?action=seasonPrices&seasonId=${seasonId}`),
     ]);
 
     const coachesData = await coachesRes.json();
-    const faData = await faRes.json();
     const txData = await txRes.json();
+    const pricesData = await pricesRes.json();
+
+    // Build a map of pokemonId -> season price data for quick lookups
+    const priceMap = new Map<number, SeasonPokemonPrice>();
+    for (const p of pricesData) {
+      priceMap.set(p.pokemonId, {
+        pokemonId: p.pokemonId,
+        price: p.price,
+        teraCaptainCost: p.teraCaptainCost,
+        teraBanned: p.teraBanned,
+      });
+    }
+    setSeasonPrices(priceMap);
 
     // Filter active coaches only
     const activeCoaches = Array.isArray(coachesData)
       ? coachesData.filter((sc: SeasonCoach) => sc.isActive)
       : [];
     setSeasonCoaches(activeCoaches);
-    setFreeAgents(faData);
     setTransactions(txData);
 
     // Fetch transaction counts for each team
@@ -185,25 +215,6 @@ export default function AdminTransactionsPage() {
     setTeamCounts(counts);
   }
 
-  // Get selected team's roster (sorted alphabetically)
-  const selectedTeamRoster = useMemo(() => {
-    if (!faForm.seasonCoachId) return [];
-    const team = seasonCoaches.find((sc) => sc.id === parseInt(faForm.seasonCoachId));
-    return [...(team?.rosters || [])].sort((a, b) => {
-      const nameA = a.pokemon?.displayName || a.pokemon?.name || "";
-      const nameB = b.pokemon?.displayName || b.pokemon?.name || "";
-      return nameA.localeCompare(nameB);
-    });
-  }, [faForm.seasonCoachId, seasonCoaches]);
-
-  // Get sorted free agents
-  const sortedFreeAgents = useMemo(() => {
-    return [...freeAgents].sort((a, b) => {
-      const nameA = a.displayName || a.name || "";
-      const nameB = b.displayName || b.name || "";
-      return nameA.localeCompare(nameB);
-    });
-  }, [freeAgents]);
 
   // Get teams for P2P (sorted alphabetically)
   const team1Roster = useMemo(() => {
@@ -226,65 +237,72 @@ export default function AdminTransactionsPage() {
     });
   }, [p2pForm.team2SeasonCoachId, seasonCoaches]);
 
-  // Get tera swap team roster (sorted alphabetically)
-  const teraTeamRoster = useMemo(() => {
-    if (!teraForm.seasonCoachId) return [];
-    const team = seasonCoaches.find((sc) => sc.id === parseInt(teraForm.seasonCoachId));
-    return [...(team?.rosters || [])].sort((a, b) => {
-      const nameA = a.pokemon?.displayName || a.pokemon?.name || "";
-      const nameB = b.pokemon?.displayName || b.pokemon?.name || "";
-      return nameA.localeCompare(nameB);
-    });
-  }, [teraForm.seasonCoachId, seasonCoaches]);
+  // Budget preview for P2P trades
+  const p2pBudgetPreview = useMemo(() => {
+    const team1SC = seasonCoaches.find((sc) => sc.id === parseInt(p2pForm.team1SeasonCoachId));
+    const team2SC = seasonCoaches.find((sc) => sc.id === parseInt(p2pForm.team2SeasonCoachId));
+    if (!team1SC || !team2SC) return null;
 
-  // Current tera captain
-  const currentTeraCaptain = useMemo(() => {
-    return teraTeamRoster.find((r) => r.isTeraCaptain);
-  }, [teraTeamRoster]);
+    const team1OutValue = team1Roster.filter((r) => p2pForm.team1RosterIds.includes(r.id)).reduce((sum, r) => sum + r.price, 0);
+    const team2OutValue = team2Roster.filter((r) => p2pForm.team2RosterIds.includes(r.id)).reduce((sum, r) => sum + r.price, 0);
 
-  // Handle FA Transaction (combined pickup and drop)
-  async function handleFATransaction(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedSeason) return;
+    // TC adjustments for team 1 (receiving team2's Pokemon)
+    const team1TCAdj = p2pForm.team2RosterIds.reduce((sum, rid) => {
+      const roster = team2Roster.find((r) => r.id === rid);
+      if (!roster) return sum;
+      const newTC = p2pForm.team1IncomingTC[rid] ?? roster.isTeraCaptain;
+      if (newTC === roster.isTeraCaptain) return sum;
+      const priceInfo = seasonPrices.get(roster.pokemonId);
+      const tcCost = priceInfo?.teraCaptainCost ?? 0;
+      return sum + (newTC ? -tcCost : tcCost);
+    }, 0);
 
-    try {
-      const payload = {
-        action: "faSwap",
-        seasonId: selectedSeason.id,
-        seasonCoachId: parseInt(faForm.seasonCoachId),
-        pickupPokemonId: faForm.pickupPokemonId ? parseInt(faForm.pickupPokemonId) : undefined,
-        pickupIsTeraCaptain: faForm.isTeraCaptain,
-        dropRosterId: faForm.dropRosterId ? parseInt(faForm.dropRosterId) : undefined,
-        week: parseInt(faForm.week),
-        countsAgainstLimit: faForm.countsAgainstLimit,
-        notes: faForm.notes || undefined,
-      };
+    // TC adjustments for team 2 (receiving team1's Pokemon)
+    const team2TCAdj = p2pForm.team1RosterIds.reduce((sum, rid) => {
+      const roster = team1Roster.find((r) => r.id === rid);
+      if (!roster) return sum;
+      const newTC = p2pForm.team2IncomingTC[rid] ?? roster.isTeraCaptain;
+      if (newTC === roster.isTeraCaptain) return sum;
+      const priceInfo = seasonPrices.get(roster.pokemonId);
+      const tcCost = priceInfo?.teraCaptainCost ?? 0;
+      return sum + (newTC ? -tcCost : tcCost);
+    }, 0);
 
-      const res = await fetch("/api/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    const team1Net = team1OutValue - team2OutValue + team1TCAdj;
+    const team2Net = team2OutValue - team1OutValue + team2TCAdj;
 
-      const result = await res.json();
-      if (result.error) {
-        alert(`Error: ${result.error}`);
-        return;
-      }
+    const team1Current = team1SC.remainingBudget;
+    const team2Current = team2SC.remainingBudget;
+    const team1After = team1Current + team1Net;
+    const team2After = team2Current + team2Net;
 
-      // Reset form and refresh data
-      setFaForm({
-        ...faForm,
-        pickupPokemonId: "",
-        dropRosterId: "",
-        isTeraCaptain: false,
-        notes: "",
-      });
-      fetchSeasonData(selectedSeason.id);
-    } catch (error) {
-      alert("Transaction failed");
+    return {
+      team1: { current: team1Current, net: team1Net, after: team1After },
+      team2: { current: team2Current, net: team2Net, after: team2After },
+    };
+  }, [p2pForm, team1Roster, team2Roster, seasonCoaches, seasonPrices]);
+
+  // Filter coaches by selected division
+  const filteredCoaches = useMemo(() => {
+    if (!selectedDivision) return seasonCoaches;
+    return seasonCoaches.filter((sc) => sc.divisionId === selectedDivision.id);
+  }, [seasonCoaches, selectedDivision]);
+
+  // Filter and sort transactions (descending by id, filtered by division)
+  const filteredTransactions = useMemo(() => {
+    let filtered = transactions;
+    if (selectedDivision) {
+      // Get season coach IDs in the selected division
+      const divisionCoachIds = new Set(
+        seasonCoaches
+          .filter((sc) => sc.divisionId === selectedDivision.id)
+          .map((sc) => sc.id)
+      );
+      filtered = transactions.filter((tx) => divisionCoachIds.has(tx.seasonCoachId));
     }
-  }
+    // Sort by id descending (latest first)
+    return [...filtered].sort((a, b) => b.id - a.id);
+  }, [transactions, selectedDivision, seasonCoaches]);
 
   // Handle P2P Trade
   async function handleP2PTrade(e: React.FormEvent) {
@@ -307,6 +325,8 @@ export default function AdminTransactionsPage() {
           team1RosterIds: p2pForm.team1RosterIds,
           team2SeasonCoachId: parseInt(p2pForm.team2SeasonCoachId),
           team2RosterIds: p2pForm.team2RosterIds,
+          team1IncomingTC: p2pForm.team1IncomingTC,
+          team2IncomingTC: p2pForm.team2IncomingTC,
           week: parseInt(p2pForm.week),
           countsAgainstLimit: p2pForm.countsAgainstLimit,
           notes: p2pForm.notes || undefined,
@@ -324,6 +344,8 @@ export default function AdminTransactionsPage() {
         ...p2pForm,
         team1RosterIds: [],
         team2RosterIds: [],
+        team1IncomingTC: {},
+        team2IncomingTC: {},
         notes: "",
       });
       fetchSeasonData(selectedSeason.id);
@@ -332,47 +354,6 @@ export default function AdminTransactionsPage() {
     }
   }
 
-  // Handle Tera Swap
-  async function handleTeraSwap(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedSeason) return;
-
-    try {
-      const res = await fetch("/api/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "teraSwap",
-          seasonId: selectedSeason.id,
-          seasonCoachId: parseInt(teraForm.seasonCoachId),
-          newTeraCaptainRosterId: parseInt(teraForm.newTeraCaptainRosterId),
-          oldTeraCaptainRosterId: teraForm.oldTeraCaptainRosterId
-            ? parseInt(teraForm.oldTeraCaptainRosterId)
-            : undefined,
-          week: parseInt(teraForm.week),
-          countsAgainstLimit: teraForm.countsAgainstLimit,
-          notes: teraForm.notes || undefined,
-        }),
-      });
-
-      const result = await res.json();
-      if (result.error) {
-        alert(`Error: ${result.error}`);
-        return;
-      }
-
-      // Reset form and refresh
-      setTeraForm({
-        ...teraForm,
-        newTeraCaptainRosterId: "",
-        oldTeraCaptainRosterId: "",
-        notes: "",
-      });
-      fetchSeasonData(selectedSeason.id);
-    } catch (error) {
-      alert("Tera swap failed");
-    }
-  }
 
   // Handle undo transaction
   async function handleUndo(txId: number) {
@@ -402,24 +383,65 @@ export default function AdminTransactionsPage() {
   // Toggle Pokemon selection for P2P
   function toggleP2pPokemon(team: 1 | 2, rosterId: number) {
     if (team === 1) {
-      setP2pForm((prev) => ({
-        ...prev,
-        team1RosterIds: prev.team1RosterIds.includes(rosterId)
+      setP2pForm((prev) => {
+        const isDeselecting = prev.team1RosterIds.includes(rosterId);
+        const newRosterIds = isDeselecting
           ? prev.team1RosterIds.filter((id) => id !== rosterId)
           : prev.team1RosterIds.length < 3
           ? [...prev.team1RosterIds, rosterId]
-          : prev.team1RosterIds,
-      }));
+          : prev.team1RosterIds;
+        // Update team2IncomingTC: team1 Pokemon go to team2
+        const newTeam2IncomingTC = { ...prev.team2IncomingTC };
+        if (isDeselecting) {
+          delete newTeam2IncomingTC[rosterId];
+        } else if (newRosterIds.includes(rosterId)) {
+          const roster = team1Roster.find((r) => r.id === rosterId);
+          if (roster) newTeam2IncomingTC[rosterId] = roster.isTeraCaptain;
+        }
+        return { ...prev, team1RosterIds: newRosterIds, team2IncomingTC: newTeam2IncomingTC };
+      });
     } else {
-      setP2pForm((prev) => ({
-        ...prev,
-        team2RosterIds: prev.team2RosterIds.includes(rosterId)
+      setP2pForm((prev) => {
+        const isDeselecting = prev.team2RosterIds.includes(rosterId);
+        const newRosterIds = isDeselecting
           ? prev.team2RosterIds.filter((id) => id !== rosterId)
           : prev.team2RosterIds.length < 3
           ? [...prev.team2RosterIds, rosterId]
-          : prev.team2RosterIds,
-      }));
+          : prev.team2RosterIds;
+        // Update team1IncomingTC: team2 Pokemon go to team1
+        const newTeam1IncomingTC = { ...prev.team1IncomingTC };
+        if (isDeselecting) {
+          delete newTeam1IncomingTC[rosterId];
+        } else if (newRosterIds.includes(rosterId)) {
+          const roster = team2Roster.find((r) => r.id === rosterId);
+          if (roster) newTeam1IncomingTC[rosterId] = roster.isTeraCaptain;
+        }
+        return { ...prev, team2RosterIds: newRosterIds, team1IncomingTC: newTeam1IncomingTC };
+      });
     }
+  }
+
+  // Toggle TC status for incoming Pokemon in a P2P trade
+  function toggleP2pIncomingTC(receivingTeam: 1 | 2, rosterId: number) {
+    setP2pForm((prev) => {
+      if (receivingTeam === 1) {
+        return {
+          ...prev,
+          team1IncomingTC: {
+            ...prev.team1IncomingTC,
+            [rosterId]: !prev.team1IncomingTC[rosterId],
+          },
+        };
+      } else {
+        return {
+          ...prev,
+          team2IncomingTC: {
+            ...prev.team2IncomingTC,
+            [rosterId]: !prev.team2IncomingTC[rosterId],
+          },
+        };
+      }
+    });
   }
 
   // Format team name with counts
@@ -478,213 +500,91 @@ export default function AdminTransactionsPage() {
         </p>
       </div>
 
-      {/* Season Selector */}
+      {/* Season & Division Selector */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <Label>Select Season:</Label>
-            <Select
-              value={selectedSeason?.id || ""}
-              onChange={(e) => {
-                const season = seasons.find((s) => s.id === parseInt(e.target.value));
-                setSelectedSeason(season || null);
-              }}
-              className="w-64"
-            >
-              <option value="">Select a season</option>
-              {seasons.map((season) => (
-                <option key={season.id} value={season.id}>
-                  {season.name}
-                  {season.isCurrent ? " (Current)" : ""}
-                </option>
-              ))}
-            </Select>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label>Season:</Label>
+              <Select
+                value={selectedSeason?.id || ""}
+                onChange={(e) => {
+                  const season = seasons.find((s) => s.id === parseInt(e.target.value));
+                  setSelectedSeason(season || null);
+                  setSelectedDivision(null); // Reset division when season changes
+                }}
+                className="w-48"
+              >
+                <option value="">Select a season</option>
+                {seasons.map((season) => (
+                  <option key={season.id} value={season.id}>
+                    {season.name}
+                    {season.isCurrent ? " (Current)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {selectedSeason && selectedSeason.divisions?.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Label>Division:</Label>
+                <Select
+                  value={selectedDivision?.id || ""}
+                  onChange={(e) => {
+                    const div = selectedSeason.divisions.find(
+                      (d) => d.id === parseInt(e.target.value)
+                    );
+                    setSelectedDivision(div || null);
+                  }}
+                  className="w-48"
+                >
+                  <option value="">All Divisions</option>
+                  {selectedSeason.divisions.map((div) => (
+                    <option key={div.id} value={div.id}>
+                      {div.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            {selectedDivision && (
+              <span className="text-sm text-[var(--foreground-muted)]">
+                Showing {filteredCoaches.length} teams
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {selectedSeason && (
         <>
-          {/* FA Transaction */}
+          {/* Free Agent Transactions */}
           <Card>
             <CardHeader>
-              <CardTitle>Free Agent Transaction</CardTitle>
+              <CardTitle>Free Agent Transactions</CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleFATransaction} className="space-y-4">
-                <div>
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex-1 min-w-[200px]">
                   <Label>Team</Label>
                   <Select
-                    value={faForm.seasonCoachId}
-                    onChange={(e) =>
-                      setFaForm({ ...faForm, seasonCoachId: e.target.value, dropRosterId: "", pickupPokemonId: "" })
-                    }
+                    value={selectedTeamId}
+                    onChange={(e) => setSelectedTeamId(e.target.value)}
                   >
                     <option value="">Select team</option>
-                    {seasonCoaches.map((sc) => (
+                    {filteredCoaches.map((sc) => (
                       <option key={sc.id} value={sc.id}>
                         {formatTeamWithCounts(sc)}
                       </option>
                     ))}
                   </Select>
                 </div>
-
-                {faForm.seasonCoachId && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Drop Pokemon */}
-                    <div className="space-y-2">
-                      <Label className="text-lg font-semibold text-[var(--error)]">Drop to FA</Label>
-                      <Select
-                        value={faForm.dropRosterId}
-                        onChange={(e) => setFaForm({ ...faForm, dropRosterId: e.target.value })}
-                      >
-                        <option value="">None (pickup only)</option>
-                        {selectedTeamRoster.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.pokemon?.displayName || r.pokemon?.name} ({r.price} pts)
-                            {r.isTeraCaptain ? " [TC]" : ""}
-                            {r.acquiredVia && r.acquiredVia !== "DRAFT" ? ` [${r.acquiredVia}]` : ""}
-                          </option>
-                        ))}
-                      </Select>
-                      {faForm.dropRosterId && (() => {
-                        const selectedRoster = selectedTeamRoster.find(r => r.id === parseInt(faForm.dropRosterId));
-                        const refund = selectedRoster?.price || 0;
-                        return (
-                          <p className="text-sm font-medium">
-                            Refund: <span className="text-[var(--success)]">+{refund} pts</span>
-                            {selectedRoster?.isTeraCaptain && (
-                              <span className="text-[var(--foreground-muted)] ml-1">(includes TC)</span>
-                            )}
-                          </p>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Pickup Pokemon */}
-                    <div className="space-y-2">
-                      <Label className="text-lg font-semibold text-[var(--success)]">Pickup from FA</Label>
-                      <Select
-                        value={faForm.pickupPokemonId}
-                        onChange={(e) => setFaForm({ ...faForm, pickupPokemonId: e.target.value, isTeraCaptain: false })}
-                      >
-                        <option value="">None (drop only)</option>
-                        {sortedFreeAgents.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.displayName || p.name} ({p.price} pts)
-                            {p.teraCaptainCost ? ` [+${p.teraCaptainCost} TC]` : ""}
-                            {p.teraBanned ? " [Tera Banned]" : ""}
-                          </option>
-                        ))}
-                      </Select>
-                      {faForm.pickupPokemonId && (() => {
-                        const selectedPokemon = sortedFreeAgents.find(p => p.id === parseInt(faForm.pickupPokemonId));
-                        const basePrice = selectedPokemon?.price || 0;
-                        const tcCost = selectedPokemon?.teraCaptainCost || 0;
-                        const totalCost = faForm.isTeraCaptain ? basePrice + tcCost : basePrice;
-                        const isTeraBanned = selectedPokemon?.teraBanned;
-                        return (
-                          <div className="space-y-2">
-                            {!isTeraBanned && tcCost > 0 && (
-                              <Label className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={faForm.isTeraCaptain}
-                                  onChange={(e) => setFaForm({ ...faForm, isTeraCaptain: e.target.checked })}
-                                  className="w-4 h-4"
-                                />
-                                <span>Tera Captain (+{tcCost} pts)</span>
-                              </Label>
-                            )}
-                            <p className="text-sm font-medium">
-                              Cost: <span className="text-[var(--error)]">-{totalCost} pts</span>
-                              {faForm.isTeraCaptain && (
-                                <span className="text-[var(--foreground-muted)] ml-1">
-                                  ({basePrice} + {tcCost} TC)
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
-
-                {/* Net Budget Summary */}
-                {faForm.seasonCoachId && (faForm.dropRosterId || faForm.pickupPokemonId) && (() => {
-                  const dropRoster = faForm.dropRosterId ? selectedTeamRoster.find(r => r.id === parseInt(faForm.dropRosterId)) : null;
-                  const pickupPokemon = faForm.pickupPokemonId ? sortedFreeAgents.find(p => p.id === parseInt(faForm.pickupPokemonId)) : null;
-                  const refund = dropRoster?.price || 0;
-                  const basePrice = pickupPokemon?.price || 0;
-                  const tcCost = (faForm.isTeraCaptain && pickupPokemon?.teraCaptainCost) || 0;
-                  const totalCost = basePrice + tcCost;
-                  const netChange = refund - totalCost;
-                  const team = seasonCoaches.find(sc => sc.id === parseInt(faForm.seasonCoachId));
-                  const currentBudget = team?.remainingBudget || 0;
-                  const newBudget = currentBudget + netChange;
-                  return (
-                    <div className="p-4 rounded-lg bg-[var(--background-secondary)] border border-[var(--glass-border)]">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <p className="text-sm text-[var(--foreground-muted)]">Net Budget Change</p>
-                          <p className={`text-2xl font-bold ${netChange > 0 ? "text-[var(--success)]" : netChange < 0 ? "text-[var(--error)]" : ""}`}>
-                            {netChange > 0 ? "+" : ""}{netChange} pts
-                          </p>
-                        </div>
-                        <div className="text-right space-y-1">
-                          <p className="text-sm text-[var(--foreground-muted)]">New Budget</p>
-                          <p className={`text-2xl font-bold ${newBudget < 0 ? "text-[var(--error)]" : ""}`}>
-                            {newBudget} pts
-                          </p>
-                        </div>
-                      </div>
-                      {newBudget < 0 && (
-                        <p className="text-sm text-[var(--error)] mt-2">Insufficient budget!</p>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label>Week</Label>
-                    <Select
-                      value={faForm.week}
-                      onChange={(e) => setFaForm({ ...faForm, week: e.target.value })}
-                    >
-                      {[1, 2, 3, 4, 5, 6].map((w) => (
-                        <option key={w} value={w}>
-                          Week {w}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="flex items-center gap-2 mt-6">
-                      <input
-                        type="checkbox"
-                        checked={faForm.countsAgainstLimit}
-                        onChange={(e) => setFaForm({ ...faForm, countsAgainstLimit: e.target.checked })}
-                        className="w-4 h-4"
-                      />
-                      <span>Counts Against Limit</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <Label>Notes (optional)</Label>
-                    <Input
-                      value={faForm.notes}
-                      onChange={(e) => setFaForm({ ...faForm, notes: e.target.value })}
-                      placeholder="Transaction notes"
-                    />
-                  </div>
-                </div>
-
-                <Button type="submit" disabled={!faForm.seasonCoachId || (!faForm.pickupPokemonId && !faForm.dropRosterId)}>
-                  Execute FA Transaction
+                <Button
+                  onClick={() => setShowBulkEditor(true)}
+                  disabled={!selectedTeamId || !selectedDivision}
+                >
+                  Add Transactions
                 </Button>
-              </form>
+              </div>
             </CardContent>
           </Card>
 
@@ -702,11 +602,11 @@ export default function AdminTransactionsPage() {
                     <Select
                       value={p2pForm.team1SeasonCoachId}
                       onChange={(e) =>
-                        setP2pForm({ ...p2pForm, team1SeasonCoachId: e.target.value, team1RosterIds: [] })
+                        setP2pForm({ ...p2pForm, team1SeasonCoachId: e.target.value, team1RosterIds: [], team2IncomingTC: {} })
                       }
                     >
                       <option value="">Select team</option>
-                      {seasonCoaches
+                      {filteredCoaches
                         .filter((sc) => sc.id !== parseInt(p2pForm.team2SeasonCoachId))
                         .map((sc) => (
                           <option key={sc.id} value={sc.id}>
@@ -741,7 +641,91 @@ export default function AdminTransactionsPage() {
                         <p className="text-xs text-[var(--foreground-muted)]">
                           Selected: {p2pForm.team1RosterIds.length}/3 |{" "}
                           Value: {team1Roster.filter((r) => p2pForm.team1RosterIds.includes(r.id)).reduce((sum, r) => sum + r.price, 0)} pts
+                          {(() => {
+                            const tcAdj = p2pForm.team2RosterIds.reduce((sum, rid) => {
+                              const roster = team2Roster.find((r) => r.id === rid);
+                              if (!roster) return sum;
+                              const newTC = p2pForm.team1IncomingTC[rid] ?? roster.isTeraCaptain;
+                              if (newTC === roster.isTeraCaptain) return sum;
+                              const priceInfo = seasonPrices.get(roster.pokemonId);
+                              const tcCost = priceInfo?.teraCaptainCost ?? 0;
+                              return sum + (newTC ? -tcCost : tcCost);
+                            }, 0);
+                            return tcAdj !== 0 ? ` | TC adj: ${tcAdj > 0 ? "+" : ""}${tcAdj} pts` : "";
+                          })()}
                         </p>
+                      </div>
+                    )}
+                    {/* Incoming Pokemon (from Team 2) with TC toggles */}
+                    {p2pForm.team2RosterIds.length > 0 && (
+                      <div className="space-y-1 mt-2">
+                        <Label className="text-sm text-[var(--accent)]">Incoming from Team 2:</Label>
+                        <div className="flex flex-wrap gap-2 p-2 bg-[var(--background-secondary)] rounded">
+                          {p2pForm.team2RosterIds.map((rid) => {
+                            const roster = team2Roster.find((r) => r.id === rid);
+                            if (!roster) return null;
+                            const currentTC = p2pForm.team1IncomingTC[rid] ?? roster.isTeraCaptain;
+                            const tcChanged = currentTC !== roster.isTeraCaptain;
+                            const priceInfo = seasonPrices.get(roster.pokemonId);
+                            const canToggleTC = priceInfo && !priceInfo.teraBanned && priceInfo.teraCaptainCost != null;
+                            const tcCost = priceInfo?.teraCaptainCost ?? 0;
+                            const adjustedPrice = currentTC
+                              ? (roster.isTeraCaptain ? roster.price : roster.price + tcCost)
+                              : (roster.isTeraCaptain ? roster.price - tcCost : roster.price);
+                            return (
+                              <div key={rid} className="flex items-center gap-1 px-2 py-1 rounded text-sm bg-[var(--card)]">
+                                {roster.pokemon?.spriteUrl && (
+                                  <img src={roster.pokemon.spriteUrl} alt="" className="w-5 h-5" />
+                                )}
+                                <span>{roster.pokemon?.displayName || roster.pokemon?.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleP2pIncomingTC(1, rid)}
+                                  disabled={!canToggleTC}
+                                  className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                                    currentTC
+                                      ? "bg-[var(--accent)] text-black"
+                                      : "bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
+                                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                                  title={currentTC ? "Remove TC" : "Make TC"}
+                                >
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2L2 12l10 10 10-10L12 2z" />
+                                  </svg>
+                                </button>
+                                <span className={`text-xs ${tcChanged ? "text-[var(--warning)] font-bold" : "opacity-70"}`}>
+                                  ({adjustedPrice})
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {/* Budget preview for Team 1 */}
+                    {p2pBudgetPreview && (p2pForm.team1RosterIds.length > 0 || p2pForm.team2RosterIds.length > 0) && (
+                      <div className={`mt-2 p-2 rounded text-sm border ${
+                        p2pBudgetPreview.team1.after < 0
+                          ? "border-[var(--error)] bg-[var(--error)]/10"
+                          : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[var(--foreground-muted)]">Budget:</span>
+                          <span>
+                            {p2pBudgetPreview.team1.current}
+                            {p2pBudgetPreview.team1.net !== 0 && (
+                              <>
+                                <span className={`mx-1 ${p2pBudgetPreview.team1.net > 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                                  {p2pBudgetPreview.team1.net > 0 ? "+" : ""}{p2pBudgetPreview.team1.net}
+                                </span>
+                                <span className="mx-1">=</span>
+                                <span className={`font-bold ${p2pBudgetPreview.team1.after < 0 ? "text-[var(--error)]" : "text-[var(--success)]"}`}>
+                                  {p2pBudgetPreview.team1.after}
+                                </span>
+                              </>
+                            )}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -752,11 +736,11 @@ export default function AdminTransactionsPage() {
                     <Select
                       value={p2pForm.team2SeasonCoachId}
                       onChange={(e) =>
-                        setP2pForm({ ...p2pForm, team2SeasonCoachId: e.target.value, team2RosterIds: [] })
+                        setP2pForm({ ...p2pForm, team2SeasonCoachId: e.target.value, team2RosterIds: [], team1IncomingTC: {} })
                       }
                     >
                       <option value="">Select team</option>
-                      {seasonCoaches
+                      {filteredCoaches
                         .filter((sc) => sc.id !== parseInt(p2pForm.team1SeasonCoachId))
                         .map((sc) => (
                           <option key={sc.id} value={sc.id}>
@@ -791,7 +775,91 @@ export default function AdminTransactionsPage() {
                         <p className="text-xs text-[var(--foreground-muted)]">
                           Selected: {p2pForm.team2RosterIds.length}/3 |{" "}
                           Value: {team2Roster.filter((r) => p2pForm.team2RosterIds.includes(r.id)).reduce((sum, r) => sum + r.price, 0)} pts
+                          {(() => {
+                            const tcAdj = p2pForm.team1RosterIds.reduce((sum, rid) => {
+                              const roster = team1Roster.find((r) => r.id === rid);
+                              if (!roster) return sum;
+                              const newTC = p2pForm.team2IncomingTC[rid] ?? roster.isTeraCaptain;
+                              if (newTC === roster.isTeraCaptain) return sum;
+                              const priceInfo = seasonPrices.get(roster.pokemonId);
+                              const tcCost = priceInfo?.teraCaptainCost ?? 0;
+                              return sum + (newTC ? -tcCost : tcCost);
+                            }, 0);
+                            return tcAdj !== 0 ? ` | TC adj: ${tcAdj > 0 ? "+" : ""}${tcAdj} pts` : "";
+                          })()}
                         </p>
+                      </div>
+                    )}
+                    {/* Incoming Pokemon (from Team 1) with TC toggles */}
+                    {p2pForm.team1RosterIds.length > 0 && (
+                      <div className="space-y-1 mt-2">
+                        <Label className="text-sm text-[var(--accent)]">Incoming from Team 1:</Label>
+                        <div className="flex flex-wrap gap-2 p-2 bg-[var(--background-secondary)] rounded">
+                          {p2pForm.team1RosterIds.map((rid) => {
+                            const roster = team1Roster.find((r) => r.id === rid);
+                            if (!roster) return null;
+                            const currentTC = p2pForm.team2IncomingTC[rid] ?? roster.isTeraCaptain;
+                            const tcChanged = currentTC !== roster.isTeraCaptain;
+                            const priceInfo = seasonPrices.get(roster.pokemonId);
+                            const canToggleTC = priceInfo && !priceInfo.teraBanned && priceInfo.teraCaptainCost != null;
+                            const tcCost = priceInfo?.teraCaptainCost ?? 0;
+                            const adjustedPrice = currentTC
+                              ? (roster.isTeraCaptain ? roster.price : roster.price + tcCost)
+                              : (roster.isTeraCaptain ? roster.price - tcCost : roster.price);
+                            return (
+                              <div key={rid} className="flex items-center gap-1 px-2 py-1 rounded text-sm bg-[var(--card)]">
+                                {roster.pokemon?.spriteUrl && (
+                                  <img src={roster.pokemon.spriteUrl} alt="" className="w-5 h-5" />
+                                )}
+                                <span>{roster.pokemon?.displayName || roster.pokemon?.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleP2pIncomingTC(2, rid)}
+                                  disabled={!canToggleTC}
+                                  className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                                    currentTC
+                                      ? "bg-[var(--accent)] text-black"
+                                      : "bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
+                                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                                  title={currentTC ? "Remove TC" : "Make TC"}
+                                >
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2L2 12l10 10 10-10L12 2z" />
+                                  </svg>
+                                </button>
+                                <span className={`text-xs ${tcChanged ? "text-[var(--warning)] font-bold" : "opacity-70"}`}>
+                                  ({adjustedPrice})
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {/* Budget preview for Team 2 */}
+                    {p2pBudgetPreview && (p2pForm.team1RosterIds.length > 0 || p2pForm.team2RosterIds.length > 0) && (
+                      <div className={`mt-2 p-2 rounded text-sm border ${
+                        p2pBudgetPreview.team2.after < 0
+                          ? "border-[var(--error)] bg-[var(--error)]/10"
+                          : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[var(--foreground-muted)]">Budget:</span>
+                          <span>
+                            {p2pBudgetPreview.team2.current}
+                            {p2pBudgetPreview.team2.net !== 0 && (
+                              <>
+                                <span className={`mx-1 ${p2pBudgetPreview.team2.net > 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                                  {p2pBudgetPreview.team2.net > 0 ? "+" : ""}{p2pBudgetPreview.team2.net}
+                                </span>
+                                <span className="mx-1">=</span>
+                                <span className={`font-bold ${p2pBudgetPreview.team2.after < 0 ? "text-[var(--error)]" : "text-[var(--success)]"}`}>
+                                  {p2pBudgetPreview.team2.after}
+                                </span>
+                              </>
+                            )}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -804,7 +872,7 @@ export default function AdminTransactionsPage() {
                       value={p2pForm.week}
                       onChange={(e) => setP2pForm({ ...p2pForm, week: e.target.value })}
                     >
-                      {[1, 2, 3, 4, 5, 6].map((w) => (
+                      {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((w) => (
                         <option key={w} value={w}>
                           Week {w}
                         </option>
@@ -847,157 +915,13 @@ export default function AdminTransactionsPage() {
             </CardContent>
           </Card>
 
-          {/* Tera Swap */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tera Captain Swap</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleTeraSwap} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Team</Label>
-                    <Select
-                      value={teraForm.seasonCoachId}
-                      onChange={(e) =>
-                        setTeraForm({
-                          ...teraForm,
-                          seasonCoachId: e.target.value,
-                          newTeraCaptainRosterId: "",
-                          oldTeraCaptainRosterId: "",
-                        })
-                      }
-                    >
-                      <option value="">Select team</option>
-                      {seasonCoaches.map((sc) => (
-                        <option key={sc.id} value={sc.id}>
-                          {formatTeamWithCounts(sc)}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  {teraForm.seasonCoachId && currentTeraCaptain && (
-                    <div className="flex items-center gap-2 mt-6">
-                      <span className="text-sm text-[var(--foreground-muted)]">Current TC:</span>
-                      {currentTeraCaptain.pokemon?.spriteUrl && (
-                        <img src={currentTeraCaptain.pokemon.spriteUrl} alt="" className="w-6 h-6" />
-                      )}
-                      <span className="font-medium">
-                        {currentTeraCaptain.pokemon?.displayName || currentTeraCaptain.pokemon?.name}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {teraForm.seasonCoachId && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label>New Tera Captain</Label>
-                        <Select
-                          value={teraForm.newTeraCaptainRosterId}
-                          onChange={(e) => setTeraForm({ ...teraForm, newTeraCaptainRosterId: e.target.value })}
-                        >
-                          <option value="">Select new TC</option>
-                          {teraTeamRoster
-                            .filter((r) => !r.isTeraCaptain && !r.pokemon?.teraBanned)
-                            .map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.pokemon?.displayName || r.pokemon?.name} ({r.price} pts)
-                                {r.pokemon?.teraCaptainCost ? ` [+${r.pokemon.teraCaptainCost} TC]` : ""}
-                              </option>
-                            ))}
-                        </Select>
-                        {teraForm.newTeraCaptainRosterId && (() => {
-                          const selectedRoster = teraTeamRoster.find(r => r.id === parseInt(teraForm.newTeraCaptainRosterId));
-                          const tcCost = selectedRoster?.pokemon?.teraCaptainCost || 0;
-                          const team = seasonCoaches.find(sc => sc.id === parseInt(teraForm.seasonCoachId));
-                          const currentBudget = team?.remainingBudget || 0;
-                          return tcCost > 0 ? (
-                            <div className="mt-2 space-y-1">
-                              <p className="text-sm font-medium">
-                                TC Cost: <span className="text-[var(--error)]">-{tcCost} pts</span>
-                              </p>
-                              <p className="text-xs text-[var(--foreground-muted)]">
-                                New budget: {currentBudget - tcCost} pts
-                              </p>
-                            </div>
-                          ) : null;
-                        })()}
-                      </div>
-                      {currentTeraCaptain && (
-                        <div>
-                          <Label className="flex items-center gap-2 mt-6">
-                            <input
-                              type="checkbox"
-                              checked={!!teraForm.oldTeraCaptainRosterId}
-                              onChange={(e) =>
-                                setTeraForm({
-                                  ...teraForm,
-                                  oldTeraCaptainRosterId: e.target.checked
-                                    ? String(currentTeraCaptain.id)
-                                    : "",
-                                })
-                              }
-                              className="w-4 h-4"
-                            />
-                            <span>Remove current TC status</span>
-                          </Label>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label>Week</Label>
-                    <Select
-                      value={teraForm.week}
-                      onChange={(e) => setTeraForm({ ...teraForm, week: e.target.value })}
-                    >
-                      {[1, 2, 3, 4, 5, 6].map((w) => (
-                        <option key={w} value={w}>
-                          Week {w}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="flex items-center gap-2 mt-6">
-                      <input
-                        type="checkbox"
-                        checked={teraForm.countsAgainstLimit}
-                        onChange={(e) => setTeraForm({ ...teraForm, countsAgainstLimit: e.target.checked })}
-                        className="w-4 h-4"
-                      />
-                      <span>Counts Against Limit (1 FA point)</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <Label>Notes (optional)</Label>
-                    <Input
-                      value={teraForm.notes}
-                      onChange={(e) => setTeraForm({ ...teraForm, notes: e.target.value })}
-                      placeholder="Tera swap notes"
-                    />
-                  </div>
-                </div>
-
-                <Button type="submit" disabled={!teraForm.seasonCoachId || !teraForm.newTeraCaptainRosterId}>
-                  Execute Tera Swap
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
           {/* Transaction History */}
           <Card>
             <CardHeader>
-              <CardTitle>Transaction History ({transactions.length})</CardTitle>
+              <CardTitle>Transaction History ({filteredTransactions.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              {transactions.length === 0 ? (
+              {filteredTransactions.length === 0 ? (
                 <p className="text-[var(--foreground-muted)] text-center py-4">
                   No transactions recorded yet.
                 </p>
@@ -1015,7 +939,7 @@ export default function AdminTransactionsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.map((tx) => (
+                      {filteredTransactions.map((tx) => (
                         <tr key={tx.id} className="border-b border-[var(--card-hover)]/50 hover:bg-[var(--card-hover)]/30">
                           <td className="p-2">
                             <span className="font-mono">{tx.week}</span>
@@ -1107,6 +1031,39 @@ export default function AdminTransactionsPage() {
           </Card>
         </>
       )}
+
+      {/* Bulk Transaction Editor Modal */}
+      {showBulkEditor && selectedTeamId && selectedSeason && selectedDivision && (() => {
+        const selectedTeam = seasonCoaches.find(sc => sc.id === parseInt(selectedTeamId));
+        if (!selectedTeam) return null;
+
+        return (
+          <BulkTransactionEditor
+            isOpen={showBulkEditor}
+            onClose={() => setShowBulkEditor(false)}
+            seasonId={selectedSeason.id}
+            divisionId={selectedDivision.id}
+            seasonCoachId={selectedTeam.id}
+            teamName={selectedTeam.teamName}
+            remainingBudget={selectedTeam.remainingBudget}
+            faRemaining={teamCounts[selectedTeam.id]?.faRemaining ?? 6}
+            currentRoster={selectedTeam.rosters || []}
+            freeAgents={freeAgents.map(fa => ({
+              ...fa,
+              price: fa.price || 0,
+              teraCaptainCost: fa.teraCaptainCost || null,
+              teraBanned: fa.teraBanned || false,
+            }))}
+            seasonPrices={seasonPrices}
+            onSave={() => {
+              fetchSeasonData(selectedSeason.id);
+              if (selectedDivision) {
+                fetchFreeAgents(selectedSeason.id, selectedDivision.id);
+              }
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

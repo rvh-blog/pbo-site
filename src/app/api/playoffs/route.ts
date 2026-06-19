@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { playoffMatches, matches, divisions, eloHistory, matchPokemon } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
+import { updateEloForMatch } from "@/lib/elo-service";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -102,17 +103,41 @@ export async function POST(request: NextRequest) {
   // If both teams are assigned, also create a matches entry for the fixture
   if (higherSeedId && lowerSeedId) {
     const week = 100 + actualRound;
-    const [newMatch] = await db
-      .insert(matches)
-      .values({
-        seasonId,
-        divisionId,
-        week,
-        coach1SeasonId: higherSeedId,
-        coach2SeasonId: lowerSeedId,
-      })
-      .returning();
-    matchId = newMatch.id;
+
+    // First check if a match already exists (prevents duplicates)
+    const existingMatch = await db.query.matches.findFirst({
+      where: and(
+        eq(matches.seasonId, seasonId),
+        eq(matches.divisionId, divisionId),
+        eq(matches.week, week),
+        or(
+          and(
+            eq(matches.coach1SeasonId, higherSeedId),
+            eq(matches.coach2SeasonId, lowerSeedId)
+          ),
+          and(
+            eq(matches.coach1SeasonId, lowerSeedId),
+            eq(matches.coach2SeasonId, higherSeedId)
+          )
+        )
+      ),
+    });
+
+    if (existingMatch) {
+      matchId = existingMatch.id;
+    } else {
+      const [newMatch] = await db
+        .insert(matches)
+        .values({
+          seasonId,
+          divisionId,
+          week,
+          coach1SeasonId: higherSeedId,
+          coach2SeasonId: lowerSeedId,
+        })
+        .returning();
+      matchId = newMatch.id;
+    }
   }
 
   const [playoffMatch] = await db
@@ -226,18 +251,42 @@ export async function PUT(request: NextRequest) {
     // Week is 100 + round (101 = QF, 102 = SF, 103 = Finals)
     const week = 100 + currentMatch.round;
 
-    const [newMatch] = await db
-      .insert(matches)
-      .values({
-        seasonId: currentMatch.seasonId,
-        divisionId: currentMatch.divisionId,
-        week,
-        coach1SeasonId: finalHigherSeedId,
-        coach2SeasonId: finalLowerSeedId,
-      })
-      .returning();
+    // First check if a match already exists for this playoff (could have been created by frontend)
+    const existingMatch = await db.query.matches.findFirst({
+      where: and(
+        eq(matches.seasonId, currentMatch.seasonId),
+        eq(matches.divisionId, currentMatch.divisionId),
+        eq(matches.week, week),
+        or(
+          and(
+            eq(matches.coach1SeasonId, finalHigherSeedId),
+            eq(matches.coach2SeasonId, finalLowerSeedId)
+          ),
+          and(
+            eq(matches.coach1SeasonId, finalLowerSeedId),
+            eq(matches.coach2SeasonId, finalHigherSeedId)
+          )
+        )
+      ),
+    });
 
-    updateData.matchId = newMatch.id;
+    if (existingMatch) {
+      // Link to existing match instead of creating duplicate
+      updateData.matchId = existingMatch.id;
+    } else {
+      const [newMatch] = await db
+        .insert(matches)
+        .values({
+          seasonId: currentMatch.seasonId,
+          divisionId: currentMatch.divisionId,
+          week,
+          coach1SeasonId: finalHigherSeedId,
+          coach2SeasonId: finalLowerSeedId,
+        })
+        .returning();
+
+      updateData.matchId = newMatch.id;
+    }
   }
 
   // If winner is being set, also update the corresponding match
@@ -266,7 +315,17 @@ export async function PUT(request: NextRequest) {
   // Ensure SF and Finals placeholders exist (fixes existing data)
   await ensurePlayoffBracketStructure(currentMatch.seasonId, currentMatch.divisionId);
 
-  return NextResponse.json(updated);
+  // Update ELO if winner changed (uses optimized calculation when possible)
+  let needsFullRecalc = false;
+  if (winnerId !== undefined) {
+    const matchIdForElo = updated.matchId || currentMatch.matchId;
+    if (matchIdForElo) {
+      const eloResult = await updateEloForMatch(matchIdForElo);
+      needsFullRecalc = eloResult.needsFullRecalc;
+    }
+  }
+
+  return NextResponse.json({ ...updated, needsFullRecalc });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -277,23 +336,48 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "ID is required" }, { status: 400 });
   }
 
-  // First, get the playoff match to find the associated match
-  const playoffMatch = await db.query.playoffMatches.findFirst({
-    where: eq(playoffMatches.id, parseInt(id)),
-  });
+  try {
+    const playoffId = parseInt(id);
 
-  // Delete the playoff match entry
-  await db.delete(playoffMatches).where(eq(playoffMatches.id, parseInt(id)));
+    // First, get the playoff match to find the associated match
+    const playoffMatch = await db.query.playoffMatches.findFirst({
+      where: eq(playoffMatches.id, playoffId),
+    });
 
-  // If there was an associated match, clean it up too
-  if (playoffMatch?.matchId) {
-    // Delete elo_history for this match
-    await db.delete(eloHistory).where(eq(eloHistory.matchId, playoffMatch.matchId));
-    // Delete match_pokemon for this match
-    await db.delete(matchPokemon).where(eq(matchPokemon.matchId, playoffMatch.matchId));
-    // Delete the match itself
-    await db.delete(matches).where(eq(matches.id, playoffMatch.matchId));
+    if (!playoffMatch) {
+      return NextResponse.json({ error: "Playoff match not found" }, { status: 404 });
+    }
+
+    const matchIdToDelete = playoffMatch.matchId;
+
+    // Check if this match had ELO impact (had a winner)
+    const hadEloImpact = playoffMatch.winnerId !== null;
+
+    // Delete the playoff match entry first (due to FK constraint)
+    await db.delete(playoffMatches).where(eq(playoffMatches.id, playoffId));
+
+    // If there was an associated match (Week 101/102/103 fixture), clean it up too
+    if (matchIdToDelete) {
+      // Delete elo_history for this match
+      await db.delete(eloHistory).where(eq(eloHistory.matchId, matchIdToDelete));
+      // Delete match_pokemon for this match
+      await db.delete(matchPokemon).where(eq(matchPokemon.matchId, matchIdToDelete));
+      // Delete the match itself
+      await db.delete(matches).where(eq(matches.id, matchIdToDelete));
+    }
+
+    // Don't auto-recalculate - let UI handle showing recalc prompt
+    // Only flag needsFullRecalc if the deleted match had ELO impact
+    return NextResponse.json({
+      success: true,
+      deletedMatchId: matchIdToDelete,
+      needsFullRecalc: hadEloImpact,
+    });
+  } catch (error) {
+    console.error("Error deleting playoff match:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete playoff match" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ success: true });
 }

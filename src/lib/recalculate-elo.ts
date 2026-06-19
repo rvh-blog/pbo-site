@@ -2,16 +2,24 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import { eq, asc } from "drizzle-orm";
 import * as schema from "./schema";
-import { calculateMatchElo, getPlacementElo } from "./elo";
+import { calculateMatchElo, calculateDoubleForfeitElo, getPlacementElo, getDivisionStartingElo, getMatchStartingElo } from "./elo";
 import * as dotenv from "dotenv";
 
 // Load environment variables
 dotenv.config({ path: ".env.local" });
 
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
+// Use local SQLite by default, Turso only if USE_TURSO=true
+const useTurso = process.env.USE_TURSO === "true";
+const client = createClient(
+  useTurso
+    ? {
+        url: process.env.TURSO_DATABASE_URL!,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      }
+    : { url: "file:pbo.db" }
+);
+
+console.log(`Using ${useTurso ? "Turso" : "local SQLite"} database`);
 
 const db = drizzle(client, { schema });
 
@@ -37,9 +45,12 @@ async function recalculateElo() {
     return a.id - b.id;
   });
 
-  // Filter to only completed matches (have a winner)
-  const completedMatches = allMatches.filter((m) => m.winnerId !== null);
-  console.log(`Found ${completedMatches.length} completed matches\n`);
+  // Filter to completed matches (have a winner) OR double forfeits (winnerId null but isForfeit true)
+  const completedMatches = allMatches.filter((m) => {
+    const isDoubleForfeit = m.winnerId === null && m.isForfeit === true;
+    return m.winnerId !== null || isDoubleForfeit;
+  });
+  console.log(`Found ${completedMatches.length} completed matches (including double forfeits)\n`);
 
   // Get all coaches
   const allCoaches = await db.query.coaches.findMany();
@@ -57,6 +68,9 @@ async function recalculateElo() {
   // Track placement info for logging
   const coachPlacements = new Map<number, { elo: number; season: number; division: string }>();
 
+  // Track which divisions each coach has played in (for division-specific overrides)
+  const coachDivisions = new Map<number, Set<number>>();
+
   // Process each match chronologically
   let matchesProcessed = 0;
   for (const match of completedMatches) {
@@ -73,32 +87,86 @@ async function recalculateElo() {
 
     // Assign placement ELO if this is coach's first match
     if (coachElo.get(coach1Id) === null) {
-      const placementElo = getPlacementElo(seasonNumber, divisionName);
+      const placementElo = getPlacementElo(seasonNumber, divisionName, coach1Id);
       coachElo.set(coach1Id, placementElo);
       coachPlacements.set(coach1Id, { elo: placementElo, season: seasonNumber, division: divisionName });
+      // Record placement ELO in history (match_id = null indicates placement)
+      await db.insert(schema.eloHistory).values({
+        coachId: coach1Id,
+        eloRating: placementElo,
+        matchId: null,
+        recordedAt: new Date().toISOString(),
+      });
     }
     if (coachElo.get(coach2Id) === null) {
-      const placementElo = getPlacementElo(seasonNumber, divisionName);
+      const placementElo = getPlacementElo(seasonNumber, divisionName, coach2Id);
       coachElo.set(coach2Id, placementElo);
       coachPlacements.set(coach2Id, { elo: placementElo, season: seasonNumber, division: divisionName });
+      // Record placement ELO in history (match_id = null indicates placement)
+      await db.insert(schema.eloHistory).values({
+        coachId: coach2Id,
+        eloRating: placementElo,
+        matchId: null,
+        recordedAt: new Date().toISOString(),
+      });
     }
 
-    const coach1CurrentElo = coachElo.get(coach1Id)!;
-    const coach2CurrentElo = coachElo.get(coach2Id)!;
+    // Check for division-specific overrides (for coaches in multiple divisions per season)
+    const divisionId = match.divisionId;
+    for (const coachId of [coach1Id, coach2Id]) {
+      if (!coachDivisions.has(coachId)) {
+        coachDivisions.set(coachId, new Set());
+      }
+      const playedDivisions = coachDivisions.get(coachId)!;
 
-    // Determine winner's coach ID
-    const winnerSeasonCoachId = match.winnerId;
-    const isCoach1Winner = winnerSeasonCoachId === match.coach1SeasonId;
+      // If this is the coach's first match in this division, check for override
+      if (!playedDivisions.has(divisionId)) {
+        const divisionOverride = getDivisionStartingElo(coachId, divisionId);
+        if (divisionOverride !== undefined) {
+          coachElo.set(coachId, divisionOverride);
+        }
+        playedDivisions.add(divisionId);
+      }
+    }
 
-    // Calculate new ELO ratings
-    const { newWinnerRating, newLoserRating } = calculateMatchElo(
-      isCoach1Winner ? coach1CurrentElo : coach2CurrentElo,
-      isCoach1Winner ? coach2CurrentElo : coach1CurrentElo
-    );
+    // Check for match-specific starting ELO overrides
+    const match1Override = getMatchStartingElo(match.id, coach1Id);
+    const match2Override = getMatchStartingElo(match.id, coach2Id);
 
-    // Update tracked ELO
-    const newCoach1Elo = isCoach1Winner ? newWinnerRating : newLoserRating;
-    const newCoach2Elo = isCoach1Winner ? newLoserRating : newWinnerRating;
+    const coach1CurrentElo = match1Override ?? coachElo.get(coach1Id)!;
+    const coach2CurrentElo = match2Override ?? coachElo.get(coach2Id)!;
+
+    let newCoach1Elo: number;
+    let newCoach2Elo: number;
+
+    // Check if this is a double forfeit (winnerId is null but isForfeit is true)
+    const isDoubleForfeit = match.winnerId === null && match.isForfeit === true;
+
+    if (isDoubleForfeit) {
+      // Double forfeit: both coaches get FFL (0.25 score), both lose ELO
+      const { newCoach1Rating, newCoach2Rating } = calculateDoubleForfeitElo(
+        coach1CurrentElo,
+        coach2CurrentElo,
+        100 // K-factor
+      );
+      newCoach1Elo = newCoach1Rating;
+      newCoach2Elo = newCoach2Rating;
+    } else {
+      // Regular match or single forfeit
+      const winnerSeasonCoachId = match.winnerId;
+      const isCoach1Winner = winnerSeasonCoachId === match.coach1SeasonId;
+
+      // Calculate new ELO ratings (forfeits use 0.75/0.25 instead of 1/0)
+      const { newWinnerRating, newLoserRating } = calculateMatchElo(
+        isCoach1Winner ? coach1CurrentElo : coach2CurrentElo,
+        isCoach1Winner ? coach2CurrentElo : coach1CurrentElo,
+        100, // K-factor
+        match.isForfeit === true
+      );
+
+      newCoach1Elo = isCoach1Winner ? newWinnerRating : newLoserRating;
+      newCoach2Elo = isCoach1Winner ? newLoserRating : newWinnerRating;
+    }
 
     coachElo.set(coach1Id, newCoach1Elo);
     coachElo.set(coach2Id, newCoach2Elo);
@@ -126,9 +194,54 @@ async function recalculateElo() {
     }
   }
 
+  // Set placement ELO for coaches who haven't played any matches yet
+  // (they are registered for a season but have 0 completed matches)
+  const allSeasonCoaches = await db.query.seasonCoaches.findMany({
+    with: {
+      coach: true,
+      division: { with: { season: true } },
+    },
+  });
+
+  // Group by coach, keeping the most recent season entry
+  const coachLatestSeason = new Map<number, typeof allSeasonCoaches[0]>();
+  for (const sc of allSeasonCoaches) {
+    if (!sc.coachId || !sc.division?.season) continue;
+    const existing = coachLatestSeason.get(sc.coachId);
+    const scSeasonNum = sc.division.season.seasonNumber ?? 0;
+    const existingSeasonNum = existing?.division?.season?.seasonNumber ?? 0;
+    if (!existing || scSeasonNum > existingSeasonNum) {
+      coachLatestSeason.set(sc.coachId, sc);
+    }
+  }
+
+  // For coaches with no ELO yet, set their placement ELO based on their latest season
+  let placementsAdded = 0;
+  for (const [coachId, sc] of coachLatestSeason.entries()) {
+    if (coachElo.get(coachId) === null && sc.division?.season) {
+      const seasonNumber = sc.division.season.seasonNumber ?? 0;
+      const divisionName = sc.division.name ?? "";
+      const placementElo = getPlacementElo(seasonNumber, divisionName, coachId);
+      coachElo.set(coachId, placementElo);
+      coachPlacements.set(coachId, { elo: placementElo, season: seasonNumber, division: divisionName });
+
+      // Record placement ELO in history
+      await db.insert(schema.eloHistory).values({
+        coachId: coachId,
+        eloRating: placementElo,
+        matchId: null,
+        recordedAt: new Date().toISOString(),
+      });
+      placementsAdded++;
+    }
+  }
+
+  if (placementsAdded > 0) {
+    console.log(`\n📌 Added placement ELO for ${placementsAdded} coaches with 0 matches played`);
+  }
+
   // Update final ELO ratings in coaches table
   for (const [coachId, elo] of coachElo.entries()) {
-    // Only update coaches who have played matches
     if (elo !== null) {
       await db
         .update(schema.coaches)

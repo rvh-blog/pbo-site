@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -28,6 +28,7 @@ interface Match {
   coach2Differential: number | null;
   coach1: {
     id: number;
+    coachId: number;
     teamName: string;
     teamAbbreviation: string | null;
     teamLogoUrl: string | null;
@@ -35,11 +36,14 @@ interface Match {
   };
   coach2: {
     id: number;
+    coachId: number;
     teamName: string;
     teamAbbreviation: string | null;
     teamLogoUrl: string | null;
     coach: { name: string } | null;
   };
+  isForfeit: boolean | null;
+  scheduledAt: string | null;
   matchPokemon: MatchPokemon[];
 }
 
@@ -56,9 +60,39 @@ function getWeekLabel(week: number): string {
   return `Week ${week}`;
 }
 
+// Find the earliest week that still has unplayed games
+function getInitialWeek(schedule: Record<number, Match[]>, maxWeek: number): number {
+  const allWeeks = Object.keys(schedule).map(Number).sort((a, b) => a - b);
+
+  // Find the earliest week with at least one unplayed match
+  for (const week of allWeeks) {
+    const matches = schedule[week] || [];
+    const hasUnplayedMatch = matches.some(m => m.winnerId === null);
+    if (hasUnplayedMatch) {
+      return week;
+    }
+  }
+
+  // All matches played, default to maxWeek or 1
+  return maxWeek || 1;
+}
+
+function formatSchedule(isoString: string): string {
+  return new Date(isoString).toLocaleString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
 export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
-  const [selectedWeek, setSelectedWeek] = useState(maxWeek || 1);
+  const [selectedWeek, setSelectedWeek] = useState(() => getInitialWeek(schedule, maxWeek));
   const [expandedMatches, setExpandedMatches] = useState<Set<number>>(new Set());
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Get all weeks from schedule (includes playoff weeks 101, 102, 103)
   const allWeeks = Object.keys(schedule).map(Number).sort((a, b) => a - b);
@@ -125,9 +159,16 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
           <div className="space-y-3">
             {matchesForWeek.map((match) => {
               const hasResult = match.winnerId !== null;
+              const isForfeit = match.isForfeit;
               const team1Won = match.winnerId === match.coach1.id;
               const team2Won = match.winnerId === match.coach2.id;
               const isExpanded = expandedMatches.has(match.id);
+              const ONE_HOUR = 60 * 60 * 1000;
+              const now = Date.now();
+              const isUnderway = !hasResult && !!match.scheduledAt && (() => {
+                const scheduledTime = new Date(match.scheduledAt!).getTime();
+                return scheduledTime <= now && scheduledTime > now - ONE_HOUR;
+              })();
 
               // Split Pokemon by team
               const team1Pokemon = match.matchPokemon.filter(
@@ -148,7 +189,7 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
                     <div className="flex items-center justify-between gap-2 md:gap-4">
                       {/* Team 1 */}
                       <div className={`flex-1 min-w-0 ${hasResult && !team1Won ? "opacity-50" : ""}`}>
-                        <div className="flex items-center gap-2">
+                        <Link href={`/coaches/${match.coach1.coachId}`} className="flex items-center gap-2 group">
                           {team1Won && (
                             <svg className="w-4 h-4 text-[var(--success)] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
@@ -172,40 +213,47 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
                             </div>
                           )}
                           <div className="min-w-0">
-                            <span className={`font-medium text-sm block truncate ${team1Won ? "text-[var(--success)]" : ""}`}>
+                            <span className={`font-medium text-sm block truncate group-hover:text-[var(--primary)] transition-colors ${team1Won ? "text-[var(--success)]" : ""}`}>
                               {match.coach1.teamName}
                             </span>
                             <span className="text-xs text-[var(--foreground-muted)] hidden sm:block">
                               {match.coach1.coach?.name}
                             </span>
                           </div>
-                        </div>
+                        </Link>
                       </div>
 
                       {/* Score / vs */}
-                      <div className="flex items-center gap-2 px-2 md:px-3 py-1 rounded bg-[var(--background-tertiary)] flex-shrink-0">
-                        {hasResult ? (
-                          <>
-                            <span className={`font-mono font-bold text-sm ${team1Won ? "text-[var(--success)]" : ""}`}>
-                              {(match.coach1Differential || 0) > 0 ? "+" : ""}
-                              {match.coach1Differential || 0}
-                            </span>
-                            <span className="text-[var(--foreground-subtle)] text-xs">vs</span>
-                            <span className={`font-mono font-bold text-sm ${team2Won ? "text-[var(--success)]" : ""}`}>
-                              {(match.coach2Differential || 0) > 0 ? "+" : ""}
-                              {match.coach2Differential || 0}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-[var(--foreground-muted)] text-sm">vs</span>
+                      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-2 px-2 md:px-3 py-1 rounded bg-[var(--background-tertiary)]">
+                          {hasResult ? (
+                            <>
+                              <span className={`font-mono font-bold text-sm ${team1Won ? "text-[var(--success)]" : ""}`}>
+                                {(match.coach1Differential || 0) > 0 ? "+" : ""}
+                                {match.coach1Differential || 0}
+                              </span>
+                              <span className="text-[var(--foreground-subtle)] text-xs">vs</span>
+                              <span className={`font-mono font-bold text-sm ${team2Won ? "text-[var(--success)]" : ""}`}>
+                                {(match.coach2Differential || 0) > 0 ? "+" : ""}
+                                {match.coach2Differential || 0}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-[var(--foreground-muted)] text-sm">vs</span>
+                          )}
+                        </div>
+                        {isForfeit && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--error)] opacity-80">
+                            Forfeit
+                          </span>
                         )}
                       </div>
 
                       {/* Team 2 */}
                       <div className={`flex-1 min-w-0 ${hasResult && !team2Won ? "opacity-50" : ""}`}>
-                        <div className="flex items-center justify-end gap-2">
+                        <Link href={`/coaches/${match.coach2.coachId}`} className="flex items-center justify-end gap-2 group">
                           <div className="min-w-0 text-right">
-                            <span className={`font-medium text-sm block truncate ${team2Won ? "text-[var(--success)]" : ""}`}>
+                            <span className={`font-medium text-sm block truncate group-hover:text-[var(--primary)] transition-colors ${team2Won ? "text-[var(--success)]" : ""}`}>
                               {match.coach2.teamName}
                             </span>
                             <span className="text-xs text-[var(--foreground-muted)] hidden sm:block">
@@ -234,9 +282,23 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
                               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
                             </svg>
                           )}
-                        </div>
+                        </Link>
                       </div>
                     </div>
+
+                    {/* Live indicator or scheduled time for upcoming matches */}
+                    {!hasResult && match.scheduledAt && mounted && (
+                      isUnderway ? (
+                        <div className="flex items-center justify-center gap-1.5 mt-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--error)] animate-pulse" />
+                          <span className="text-[10px] sm:text-xs font-bold text-[var(--error)] uppercase">LIVE RIGHT NOW</span>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] sm:text-xs text-[var(--foreground-muted)] text-center mt-2">
+                          {formatSchedule(match.scheduledAt)}
+                        </p>
+                      )
+                    )}
 
                     {/* Action buttons row */}
                     <div className="flex items-center justify-center gap-3 mt-3 pt-3 border-t-2 border-[var(--background-tertiary)]">

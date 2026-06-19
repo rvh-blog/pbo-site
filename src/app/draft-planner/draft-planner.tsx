@@ -1,0 +1,1285 @@
+"use client";
+
+import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
+import { PokemonAutocomplete, findPokemonMatch } from "@/components/admin/pokemon-autocomplete";
+
+// Type effectiveness chart
+const TYPE_CHART: Record<string, Record<string, number>> = {
+  normal: { rock: 0.5, ghost: 0, steel: 0.5 },
+  fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
+  water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
+  electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
+  grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
+  ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
+  fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
+  poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
+  ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
+  flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
+  psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
+  bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
+  rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
+  ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
+  dragon: { dragon: 2, steel: 0.5, fairy: 0 },
+  dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
+  steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
+  fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 },
+};
+
+const ALL_TYPES = ["normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"];
+
+// Type colors for headers (inline styles to avoid type-badge display issues)
+const TYPE_COLORS: Record<string, string> = {
+  normal: "#A8A77A", fire: "#EE8130", water: "#6390F0", electric: "#F7D02C",
+  grass: "#7AC74C", ice: "#96D9D6", fighting: "#C22E28", poison: "#A33EA1",
+  ground: "#E2BF65", flying: "#A98FF3", psychic: "#F95587", bug: "#A6B91A",
+  rock: "#B6A136", ghost: "#735797", dragon: "#6F35FC", dark: "#705746",
+  steel: "#B7B7CE", fairy: "#D685AD",
+};
+
+// Abilities that grant immunities (0x damage)
+// Sources: https://bulbapedia.bulbagarden.net/wiki/Category:Abilities_that_alter_damage_taken
+const IMMUNITY_ABILITIES: Record<string, string> = {
+  // Ground immunities
+  levitate: "ground",
+  "earth-eater": "ground",
+  // Electric immunities
+  "volt-absorb": "electric",
+  "lightning-rod": "electric",
+  "motor-drive": "electric",
+  // Water immunities
+  "water-absorb": "water",
+  "storm-drain": "water",
+  "dry-skin": "water",
+  // Fire immunities
+  "flash-fire": "fire",
+  "well-baked-body": "fire",
+  // Grass immunities
+  "sap-sipper": "grass",
+  // Note: Immunity & Pastel Veil prevent Poison STATUS, not Poison-type moves
+};
+
+// Abilities that grant resistances (0.5x damage)
+const RESISTANCE_ABILITIES: Record<string, string[]> = {
+  // Thick Fat halves Fire and Ice damage
+  "thick-fat": ["fire", "ice"],
+  // Heatproof halves Fire damage
+  heatproof: ["fire"],
+  // Water Bubble halves Fire damage
+  "water-bubble": ["fire"],
+  // Purifying Salt halves Ghost damage
+  "purifying-salt": ["ghost"],
+};
+
+// Abilities that increase weakness
+const WEAKNESS_ABILITIES: Record<string, { type: string; multiplier: number }> = {
+  "dry-skin": { type: "fire", multiplier: 1.25 },
+  fluffy: { type: "fire", multiplier: 2 },
+};
+
+
+interface Ability {
+  name: string;
+  isHidden: boolean;
+}
+
+interface RosterPokemon {
+  rosterId: number;
+  pokemonId: number;
+  name: string;
+  displayName: string;
+  spriteUrl: string | null;
+  artworkUrl: string | null;
+  types: string[];
+  abilities: Ability[];
+  moves: string[];
+  hp: number;
+  attack: number;
+  defense: number;
+  specialAttack: number;
+  specialDefense: number;
+  speed: number;
+  baseStatTotal: number;
+  price: number;
+  isTeraCaptain: boolean;
+  draftOrder: number | null;
+}
+
+interface SimplePokemon {
+  id: number;
+  name: string;
+  displayName: string | null;
+  spriteUrl: string | null;
+  artworkUrl?: string | null;
+  types: string[] | null;
+  abilities?: Ability[] | null;
+  moves?: string[] | null;
+  hp?: number | null;
+  attack?: number | null;
+  defense?: number | null;
+  specialAttack?: number | null;
+  specialDefense?: number | null;
+  speed?: number | null;
+  baseStatTotal?: number | null;
+}
+
+interface RosterSlot {
+  pokemonId: number | null;
+  pokemonName: string;
+  isTeraCaptain: boolean;
+  price: number;
+  teraCaptainCost: number | null; // Cost to make TC, null = not available
+  // Full Pokemon data for analysis
+  pokemon: RosterPokemon | null;
+}
+
+interface SeasonPriceInfo {
+  price: number;
+  teraCaptainCost: number | null;
+}
+
+interface Season {
+  id: number;
+  name: string;
+  draftBudget: number | null;
+}
+
+interface Props {
+  coach: { id: number; name: string } | null;
+  teamName: string;
+  teamLogo: string | null;
+  roster: RosterPokemon[];
+  draftBudget: number;
+  allPokemon: SimplePokemon[];
+  moveTypes: Record<string, string>;
+  abilityDescriptions: Record<string, string>;
+  seasonPrices: Record<number, SeasonPriceInfo>;
+  allSeasons: Season[];
+  currentSeasonId: number | null;
+}
+
+// Calculate defensive multiplier for a Pokemon against a type
+function getDefensiveMultiplier(
+  defenderTypes: string[],
+  attackType: string,
+  abilities: Ability[]
+): number {
+  // Check for immunity abilities first
+  for (const ability of abilities) {
+    const abilityName = ability.name.toLowerCase();
+    const immuneType = IMMUNITY_ABILITIES[abilityName];
+    if (immuneType === attackType) {
+      return 0;
+    }
+  }
+
+  // Calculate base type multiplier
+  let multiplier = 1;
+  for (const defType of defenderTypes) {
+    const effectiveness = TYPE_CHART[attackType]?.[defType.toLowerCase()];
+    if (effectiveness !== undefined) {
+      multiplier *= effectiveness;
+    }
+  }
+
+  // Apply resistance abilities (halves damage)
+  for (const ability of abilities) {
+    const abilityName = ability.name.toLowerCase();
+    const resistTypes = RESISTANCE_ABILITIES[abilityName];
+    if (resistTypes && resistTypes.includes(attackType)) {
+      multiplier *= 0.5;
+    }
+  }
+
+  // Apply weakness-boosting abilities
+  for (const ability of abilities) {
+    const abilityName = ability.name.toLowerCase();
+    const weaknessBoost = WEAKNESS_ABILITIES[abilityName];
+    if (weaknessBoost && weaknessBoost.type === attackType) {
+      multiplier *= weaknessBoost.multiplier;
+    }
+  }
+
+  return multiplier;
+}
+
+function formatMultiplier(value: number): string {
+  if (value === 0) return "0";
+  if (value === 0.25) return "1/4";
+  if (value === 0.5) return "1/2";
+  if (value === 1) return "1";
+  if (value === 2) return "2";
+  if (value === 4) return "4";
+  // Handle non-standard values from ability interactions
+  if (value === 0.125) return "1/8";
+  if (value === 2.5) return "2.5";
+  if (value === 8) return "8";
+  if (value < 1) return (Math.round(value * 100) / 100).toString();
+  return value.toString();
+}
+
+function getMultiplierColor(value: number): string {
+  if (value === 0) return "bg-black text-[#f9cb9c]"; // Immune - black bg, light orange 2 text
+  if (value <= 0.25) return "bg-[#38761d] text-[#d9ead3]"; // 1/4 - dark green 2 bg, light green 3 text
+  if (value < 1) return "bg-[#93c47d] text-[#132609]"; // 1/2 - light green 1 bg, dark green text
+  if (value === 1) return "bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"; // Neutral
+  if (value <= 2) return "bg-[#e06666] text-[#660000]"; // 2x weak - light red 1 bg, dark red 3 text
+  if (value > 2) return "bg-[#990000] text-[#f4cccc]"; // 4x+ weak - dark red 2 bg, light red 3 text
+  return "";
+}
+
+export function DraftPlanner({
+  coach,
+  teamName,
+  teamLogo,
+  roster: initialRoster,
+  draftBudget,
+  allPokemon,
+  moveTypes,
+  abilityDescriptions,
+  seasonPrices,
+  allSeasons,
+  currentSeasonId,
+}: Props) {
+  const [statSort, setStatSort] = useState<"speed" | "hp" | "attack" | "defense" | "specialAttack" | "specialDefense" | "baseStatTotal">("speed");
+  const [statSortAsc, setStatSortAsc] = useState(false);
+  const [moveSearch, setMoveSearch] = useState("");
+  const [expandedAbility, setExpandedAbility] = useState<{ slotIdx: number; abilityIdx: number } | null>(null);
+  const [trackedMoves, setTrackedMoves] = useState([
+    "stealth-rock", "spikes", "toxic-spikes", "sticky-web",
+    "nasty-plot", "swords-dance", "volt-switch", "u-turn", "flip-turn",
+    "defog", "rapid-spin", "toxic", "will-o-wisp", "thunder-wave", "taunt", "knock-off"
+  ]);
+  const [showMoveDropdown, setShowMoveDropdown] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  // Load preferences on mount
+  useEffect(() => {
+    async function loadPrefs() {
+      try {
+        const res = await fetch("/api/preferences?page=draft-planner");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.preferences) {
+            if (data.preferences.statSort) setStatSort(data.preferences.statSort);
+            if (data.preferences.statSortAsc !== undefined) setStatSortAsc(data.preferences.statSortAsc);
+            if (data.preferences.trackedMoves) setTrackedMoves(data.preferences.trackedMoves);
+          }
+        }
+      } catch (e) {
+        // Not logged in or error - ignore
+      } finally {
+        setPrefsLoaded(true);
+      }
+    }
+    loadPrefs();
+  }, []);
+
+  // Save preferences
+  const savePreferences = async () => {
+    setSaveStatus("saving");
+    try {
+      const res = await fetch("/api/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page: "draft-planner",
+          preferences: {
+            statSort,
+            statSortAsc,
+            trackedMoves,
+          },
+        }),
+      });
+      if (res.ok) {
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+      } else {
+        setSaveStatus("idle");
+      }
+    } catch (e) {
+      setSaveStatus("idle");
+    }
+  };
+
+  // Initialize slots from roster
+  const [slots, setSlots] = useState<RosterSlot[]>(() => {
+    const initialSlots: RosterSlot[] = Array(12).fill(null).map((_, i) => {
+      const p = initialRoster[i];
+      if (p) {
+        const priceInfo = seasonPrices[p.pokemonId];
+        return {
+          pokemonId: p.pokemonId,
+          pokemonName: p.displayName,
+          isTeraCaptain: p.isTeraCaptain,
+          price: p.price,
+          teraCaptainCost: priceInfo?.teraCaptainCost ?? null,
+          pokemon: p,
+        };
+      }
+      return { pokemonId: null, pokemonName: "", isTeraCaptain: false, price: 0, teraCaptainCost: null, pokemon: null };
+    });
+    return initialSlots;
+  });
+
+  // Convert slots to roster for calculations
+  const roster = useMemo(() => {
+    return slots.filter(s => s.pokemon !== null).map(s => s.pokemon!);
+  }, [slots]);
+
+  // Handle slot changes
+  function handleSlotChange(index: number, pokemonId: number | null, name: string) {
+    const newSlots = [...slots];
+    if (!pokemonId) {
+      newSlots[index] = { pokemonId: null, pokemonName: "", isTeraCaptain: false, price: 0, teraCaptainCost: null, pokemon: null };
+    } else {
+      // Check if this Pokemon is already on the team (from original roster)
+      const originalRoster = initialRoster.find(r => r.pokemonId === pokemonId);
+
+      // Build Pokemon data from allPokemon
+      const pData = allPokemon.find(p => p.id === pokemonId);
+
+      // Get price from season prices, fallback to original roster price, then 0
+      const priceInfo = seasonPrices[pokemonId];
+      const price = originalRoster?.price ?? priceInfo?.price ?? 0;
+      const teraCaptainCost = priceInfo?.teraCaptainCost ?? null;
+
+      newSlots[index] = {
+        pokemonId,
+        pokemonName: name,
+        isTeraCaptain: false,
+        price,
+        teraCaptainCost,
+        pokemon: originalRoster || (pData ? {
+          rosterId: 0,
+          pokemonId: pData.id,
+          name: pData.name,
+          displayName: pData.displayName || pData.name,
+          spriteUrl: pData.spriteUrl,
+          artworkUrl: pData.artworkUrl || null,
+          types: (pData.types || []) as string[],
+          abilities: (pData.abilities || []) as Ability[],
+          moves: (pData.moves || []) as string[],
+          hp: pData.hp || 0,
+          attack: pData.attack || 0,
+          defense: pData.defense || 0,
+          specialAttack: pData.specialAttack || 0,
+          specialDefense: pData.specialDefense || 0,
+          speed: pData.speed || 0,
+          baseStatTotal: pData.baseStatTotal || 0,
+          price,
+          isTeraCaptain: false,
+          draftOrder: null,
+        } : null),
+      };
+    }
+    setSlots(newSlots);
+  }
+
+  function handleTCToggle(index: number) {
+    const newSlots = [...slots];
+    const slot = newSlots[index];
+    if (slot.pokemon && slot.teraCaptainCost !== null) {
+      const isBecomingTC = !slot.isTeraCaptain;
+      const tcCost = slot.teraCaptainCost;
+
+      // Adjust price: add TC cost when becoming TC, subtract when removing
+      const newPrice = isBecomingTC ? slot.price + tcCost : slot.price - tcCost;
+
+      newSlots[index] = {
+        ...slot,
+        isTeraCaptain: isBecomingTC,
+        price: newPrice,
+        pokemon: {
+          ...slot.pokemon,
+          isTeraCaptain: isBecomingTC,
+          price: newPrice,
+        },
+      };
+      setSlots(newSlots);
+    }
+  }
+
+  function handleMultiLinePaste(startIndex: number, lines: string[]) {
+    setSlots(prevSlots => {
+      const newSlots = [...prevSlots];
+      for (let i = 0; i < lines.length && startIndex + i < 12; i++) {
+        const line = lines[i].trim();
+        const match = findPokemonMatch(line, allPokemon);
+        const slotIdx = startIndex + i;
+
+        if (match) {
+          const originalRoster = initialRoster.find(r => r.pokemonId === match.id);
+          const pData = allPokemon.find(p => p.id === match.id);
+
+          // Get price from season prices, fallback to original roster price, then 0
+          const priceInfo = seasonPrices[match.id];
+          const price = originalRoster?.price ?? priceInfo?.price ?? 0;
+          const teraCaptainCost = priceInfo?.teraCaptainCost ?? null;
+
+          newSlots[slotIdx] = {
+            pokemonId: match.id,
+            pokemonName: match.displayName || match.name,
+            isTeraCaptain: false,
+            price,
+            teraCaptainCost,
+            pokemon: originalRoster || (pData ? {
+              rosterId: 0,
+              pokemonId: pData.id,
+              name: pData.name,
+              displayName: pData.displayName || pData.name,
+              spriteUrl: pData.spriteUrl,
+              artworkUrl: pData.artworkUrl || null,
+              types: (pData.types || []) as string[],
+              abilities: (pData.abilities || []) as Ability[],
+              moves: (pData.moves || []) as string[],
+              hp: pData.hp || 0,
+              attack: pData.attack || 0,
+              defense: pData.defense || 0,
+              specialAttack: pData.specialAttack || 0,
+              specialDefense: pData.specialDefense || 0,
+              speed: pData.speed || 0,
+              baseStatTotal: pData.baseStatTotal || 0,
+              price,
+              isTeraCaptain: false,
+              draftOrder: null,
+            } : null),
+          };
+        } else {
+          newSlots[slotIdx] = { pokemonId: null, pokemonName: line, isTeraCaptain: false, price: 0, teraCaptainCost: null, pokemon: null };
+        }
+      }
+      return newSlots;
+    });
+  }
+
+  // Calculate total spent and remaining budget
+  const totalSpent = useMemo(() => slots.reduce((sum, s) => sum + s.price, 0), [slots]);
+  const remainingBudget = draftBudget - totalSpent;
+
+  // Calculate type chart for team
+  const typeChart = useMemo(() => {
+    const chart: Record<string, { multipliers: number[]; overall: string }> = {};
+
+    for (const attackType of ALL_TYPES) {
+      const multipliers = roster.map((p) =>
+        getDefensiveMultiplier(p.types.map(t => t.toLowerCase()), attackType, p.abilities)
+      );
+
+      // Calculate overall assessment
+      const resistCount = multipliers.filter((m) => m < 1 && m > 0).length;
+      const immuneCount = multipliers.filter((m) => m === 0).length;
+      const weakCount = multipliers.filter((m) => m > 1).length;
+      const veryWeakCount = multipliers.filter((m) => m > 2).length;
+      const veryResistCount = multipliers.filter((m) => m <= 0.25).length;
+
+      let overall = "ntrl";
+      const resistTotal = resistCount + immuneCount;
+      if (resistTotal > weakCount) {
+        overall = (veryResistCount > 0 || resistTotal - weakCount >= 3) ? "very_resist" : "resist";
+      } else if (weakCount > resistTotal) {
+        overall = (veryWeakCount > 0 || weakCount - resistTotal >= 3) ? "very_weak" : "weak";
+      }
+
+      chart[attackType] = { multipliers, overall };
+    }
+
+    return chart;
+  }, [roster]);
+
+  // Sort stats
+  const sortedForStats = useMemo(() => {
+    const sorted = [...roster].sort((a, b) => {
+      const aVal = a[statSort];
+      const bVal = b[statSort];
+      return statSortAsc ? aVal - bVal : bVal - aVal;
+    });
+    return sorted;
+  }, [roster, statSort, statSortAsc]);
+
+  // Average stats
+  const avgStats = useMemo(() => {
+    if (roster.length === 0) return { hp: 0, attack: 0, defense: 0, specialAttack: 0, specialDefense: 0, speed: 0, baseStatTotal: 0 };
+    return {
+      hp: Math.round(roster.reduce((s, p) => s + p.hp, 0) / roster.length),
+      attack: Math.round(roster.reduce((s, p) => s + p.attack, 0) / roster.length),
+      defense: Math.round(roster.reduce((s, p) => s + p.defense, 0) / roster.length),
+      specialAttack: Math.round(roster.reduce((s, p) => s + p.specialAttack, 0) / roster.length),
+      specialDefense: Math.round(roster.reduce((s, p) => s + p.specialDefense, 0) / roster.length),
+      speed: Math.round(roster.reduce((s, p) => s + p.speed, 0) / roster.length),
+      baseStatTotal: Math.round(roster.reduce((s, p) => s + p.baseStatTotal, 0) / roster.length),
+    };
+  }, [roster]);
+
+  // All moves available on the team
+  const allTeamMoves = useMemo(() => {
+    const moveSet = new Set<string>();
+    roster.forEach(p => p.moves.forEach(m => moveSet.add(m)));
+    return Array.from(moveSet).sort();
+  }, [roster]);
+
+  // All moves from database (for search)
+  const allMoveNames = useMemo(() => Object.keys(moveTypes).sort(), [moveTypes]);
+
+  // Filtered moves for search dropdown (searches all moves in database)
+  const filteredMoves = useMemo(() => {
+    if (!moveSearch.trim()) return [];
+    const search = moveSearch.toLowerCase().replace(/\s+/g, "-");
+    return allMoveNames
+      .filter(m => m.includes(search) && !trackedMoves.includes(m))
+      .slice(0, 8);
+  }, [moveSearch, allMoveNames, trackedMoves]);
+
+  // Move coverage calculation
+  const moveCoverage = useMemo(() => {
+    return trackedMoves.map((move) => ({
+      move,
+      pokemon: roster.filter((p) => p.moves.includes(move)),
+    }));
+  }, [roster, trackedMoves]);
+
+  function addMove(move: string) {
+    if (!trackedMoves.includes(move)) {
+      setTrackedMoves([move, ...trackedMoves]);
+    }
+    setMoveSearch("");
+    setShowMoveDropdown(false);
+  }
+
+  function removeMove(move: string) {
+    setTrackedMoves(trackedMoves.filter(m => m !== move));
+  }
+
+  const handleStatSort = (stat: typeof statSort) => {
+    if (statSort === stat) {
+      setStatSortAsc(!statSortAsc);
+    } else {
+      setStatSort(stat);
+      setStatSortAsc(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        width: '100vw',
+        position: 'relative',
+        left: '50%',
+        marginLeft: '-50vw',
+      }}
+    >
+      <div className="poke-card p-4 mx-4 sm:mx-6 mt-2">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[var(--background-tertiary)]">
+          <div className="flex items-center gap-3">
+            {coach ? (
+              <Link href={`/coaches/${coach.id}`} className="text-[var(--foreground-muted)] hover:text-white transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </Link>
+            ) : (
+              <Link href="/" className="text-[var(--foreground-muted)] hover:text-white transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </Link>
+            )}
+            {teamLogo && <img src={teamLogo} alt="" className="w-8 h-8 object-contain" />}
+            <div>
+              <h1 className="font-pixel text-base text-white">{teamName || "Draft Planner"}</h1>
+              <span className="text-xs text-[var(--foreground-muted)]">
+                {coach ? `${coach.name} • ` : ""}Plan your team
+              </span>
+            </div>
+          </div>
+          {/* Save button - desktop only */}
+          <button
+            onClick={savePreferences}
+            disabled={saveStatus === "saving"}
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--background-tertiary)] hover:bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white rounded transition-colors disabled:opacity-50"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            </svg>
+            {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Defaults"}
+          </button>
+        </div>
+
+        {/* Main Layout: Team List on left, everything else on right */}
+        <div className="flex flex-col lg:flex-row gap-3">
+          {/* Left: Team List + Budget - 18% of width on desktop */}
+          <div className="w-full lg:w-[18%] lg:min-w-[180px] lg:max-w-[280px] lg:shrink-0 flex flex-col">
+            <div className="p-3 border-b border-[var(--background-tertiary)] bg-[var(--card)] rounded-t">
+              <h3 className="font-bold text-sm">Team Roster</h3>
+              <p className="text-xs text-[var(--foreground-muted)]">Edit to plan trades or explore draft options</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              <div>
+                {slots.map((slot, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-1 py-0.5 px-1 rounded"
+                  >
+                    <span className="text-xs text-[var(--foreground-muted)] w-4 text-right">
+                      {i + 1}
+                    </span>
+                    <div className="flex-1">
+                      <PokemonAutocomplete
+                        value={slot.pokemonName}
+                        pokemonId={slot.pokemonId}
+                        allPokemon={allPokemon}
+                        onChange={(id, name) => handleSlotChange(i, id, name)}
+                        onMultiLinePaste={(lines) => handleMultiLinePaste(i, lines)}
+                        hasWarning={!slot.pokemonId && slot.pokemonName !== ""}
+                        warningText={!slot.pokemonId && slot.pokemonName ? `No match` : ""}
+                        placeholder="Type Pokemon name..."
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleTCToggle(i)}
+                      disabled={!slot.pokemonId || slot.teraCaptainCost === null}
+                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                        slot.isTeraCaptain
+                          ? "bg-[var(--accent)] text-black"
+                          : "bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
+                      } disabled:opacity-30 disabled:cursor-not-allowed`}
+                      title={
+                        slot.teraCaptainCost === null
+                          ? "TC not available"
+                          : slot.isTeraCaptain
+                          ? `Remove TC (-${slot.teraCaptainCost})`
+                          : `Make TC (+${slot.teraCaptainCost})`
+                      }
+                    >
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2L2 12l10 10 10-10L12 2z" />
+                      </svg>
+                    </button>
+                    <span className="text-xs text-[var(--foreground-muted)] w-8 text-right">
+                      {slot.price > 0 ? slot.price : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Budget */}
+            <div className="p-3 border-t border-[var(--background-tertiary)] bg-[var(--card)] rounded-b">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm text-[var(--foreground-muted)]">Budget:</span>
+                <span className="font-mono text-sm">{draftBudget} pts</span>
+              </div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm text-[var(--foreground-muted)]">Spent:</span>
+                <span className="font-mono text-sm text-[var(--error)]">{totalSpent} pts</span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-[var(--background-tertiary)]">
+                <span className="text-sm font-medium">Remaining:</span>
+                <span className={`font-mono font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                  {remainingBudget} pts
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Divider - mobile only */}
+          <div className="lg:hidden border-t border-[var(--background-tertiary)]" />
+
+          {/* Right: Sprite Overview + Type Chart | Stats | Moves */}
+          <div className="flex-1 min-w-0">
+            {/* Sprite Overview - responsive grid on mobile, dynamic columns on desktop */}
+            <div className="mb-4">
+              {/* Mobile grid (hidden on lg+) */}
+              {/* Click-away overlay to close tooltips */}
+              {expandedAbility && (
+                <div
+                  className="fixed inset-0 z-40 lg:hidden"
+                  onClick={() => setExpandedAbility(null)}
+                />
+              )}
+              <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:hidden overflow-visible">
+                {slots.filter(slot => slot.pokemon).map((slot, idx) => {
+                  // Determine column position for tooltip alignment (0=left, 1=middle, 2=right for 3-col)
+                  const col3 = idx % 3;
+                  const tooltipAlign = col3 === 0 ? "left-0" : col3 === 2 ? "right-0" : "left-1/2 -translate-x-1/2";
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`relative flex flex-col bg-[var(--card)] border rounded-lg p-2 overflow-visible ${
+                        slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
+                      }`}
+                    >
+                      {/* Tera Captain Badge */}
+                      {slot.isTeraCaptain && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
+                          <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2L2 12l10 10 10-10L12 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <img
+                        src={slot.pokemon!.spriteUrl || ""}
+                        alt=""
+                        className="w-12 h-12 object-contain mx-auto scale-[1.4]"
+                      />
+                      <div className="text-xs text-white text-center font-medium mt-1 truncate">
+                        {slot.pokemon!.displayName}
+                      </div>
+                      {/* Types - fixed height for consistency */}
+                      <div className="flex gap-0.5 justify-center mt-1 flex-wrap min-h-[28px] items-start content-start">
+                        {slot.pokemon!.types.map((t) => (
+                          <span key={t} className={`type-badge type-${t.toLowerCase()} text-[7px] px-1 py-0`}>{t}</span>
+                        ))}
+                      </div>
+                      {/* Abilities with tap tooltips */}
+                      <div className={`mt-1.5 pt-1.5 border-t overflow-visible ${
+                        slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
+                      }`}>
+                        {slot.pokemon!.abilities.map((a, abilityIdx) => {
+                          const description = abilityDescriptions[a.name];
+                          const isExpanded = expandedAbility?.slotIdx === idx && expandedAbility?.abilityIdx === abilityIdx;
+                          return (
+                            <div key={abilityIdx} className="relative overflow-visible">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedAbility(isExpanded ? null : { slotIdx: idx, abilityIdx });
+                                }}
+                                className={`w-full text-[9px] text-[var(--foreground-muted)] text-center capitalize py-0.5 truncate ${
+                                  abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
+                                } ${description ? "active:bg-[var(--background-tertiary)]" : ""}`}
+                              >
+                                {a.name.replace(/-/g, " ")}
+                              </button>
+                              {isExpanded && description && (
+                                <div className={`absolute bottom-full ${tooltipAlign} mb-1 z-50 w-44`}>
+                                  <div className="px-2 py-1.5 rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] shadow-lg">
+                                    <p className="text-[9px] font-bold text-white capitalize mb-0.5">{a.name.replace(/-/g, " ")}</p>
+                                    <p className="text-[10px] text-[var(--foreground-muted)] leading-tight">{description}</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Desktop grid (hidden below lg) */}
+              <div
+                className="hidden lg:grid gap-[clamp(4px,0.5vw,8px)]"
+                style={{ gridTemplateColumns: `repeat(${slots.filter(s => s.pokemon).length || 1}, 1fr)` }}
+              >
+                {slots.filter(slot => slot.pokemon).map((slot, idx) => (
+                  <div
+                    key={idx}
+                    className={`relative flex flex-col bg-[var(--card)] border rounded-lg ${
+                      slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
+                    }`}
+                    style={{ padding: "clamp(6px, 0.5vw, 12px)" }}
+                  >
+                    {/* Tera Captain Badge */}
+                    {slot.isTeraCaptain && (
+                      <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2L2 12l10 10 10-10L12 2z" />
+                        </svg>
+                      </div>
+                    )}
+                    <img
+                      src={slot.pokemon!.spriteUrl || ""}
+                      alt=""
+                      className="object-contain mx-auto"
+                      style={{ width: "clamp(40px, 4vw, 64px)", height: "clamp(40px, 4vw, 64px)", transform: "scale(1.4)" }}
+                    />
+                    <div className="text-white text-center font-medium mt-1 truncate" style={{ fontSize: "clamp(10px, 0.7vw, 14px)" }}>
+                      {slot.pokemon!.displayName}
+                    </div>
+                    <div className="flex gap-0.5 justify-center mt-1 flex-wrap">
+                      {slot.pokemon!.types.map((t) => (
+                        <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0.5`} style={{ fontSize: "clamp(6px, 0.45vw, 8px)" }}>{t}</span>
+                      ))}
+                    </div>
+                    <div className={`mt-1.5 pt-1.5 border-t ${
+                      slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
+                    }`}>
+                      {slot.pokemon!.abilities.map((a, abilityIdx) => {
+                        const description = abilityDescriptions[a.name];
+                        return (
+                          <div
+                            key={abilityIdx}
+                            className={`relative group/tooltip ${
+                              abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
+                            }`}
+                          >
+                            <div className="text-[var(--foreground-muted)] text-center capitalize py-0.5 cursor-help truncate" style={{ fontSize: "clamp(8px, 0.55vw, 11px)" }}>
+                              {a.name.replace(/-/g, " ")}
+                            </div>
+                            {description && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/tooltip:block z-50">
+                                <div className="px-2 py-1.5 rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] shadow-lg w-48">
+                                  <p className="text-[9px] font-bold text-white capitalize mb-1">{a.name.replace(/-/g, " ")}</p>
+                                  <p className="text-[10px] text-[var(--foreground-muted)]">{description}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Divider - mobile only */}
+            <div className="lg:hidden border-t border-[var(--background-tertiary)] mb-4" />
+
+            {/* Type Chart | Stats | Moves - stacked on mobile, side by side on desktop */}
+            {roster.length > 0 && (
+            <div className={`flex flex-col lg:flex-row gap-4 lg:gap-3 lg:items-stretch transition-opacity duration-200 ${prefsLoaded ? "opacity-100" : "opacity-0"}`}>
+          {/* Type Chart - Mobile (transposed: types as rows, Pokemon as columns) */}
+          <div className="w-full lg:hidden bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 overflow-hidden min-h-[400px]">
+            <table className="text-[9px] w-full table-fixed" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+              <colgroup>
+                <col style={{ width: "32px" }} />
+                {roster.map((_, idx) => (
+                  <col key={idx} />
+                ))}
+                <col style={{ width: "24px" }} />
+                <col style={{ width: "20px" }} />
+              </colgroup>
+              <tbody>
+                {/* Pokemon sprites header row */}
+                <tr>
+                  <td className="p-1"></td>
+                  {roster.map((p, idx) => (
+                    <td key={idx} className="p-0.5 bg-[var(--background-secondary)] rounded text-center">
+                      {p.spriteUrl && (
+                        <img src={p.spriteUrl} alt={p.displayName} title={p.displayName} className="w-5 h-5 object-contain mx-auto scale-[1.4]" />
+                      )}
+                    </td>
+                  ))}
+                  <td className="p-0.5 bg-[var(--background-secondary)] rounded text-[var(--foreground-muted)] text-[9px] text-center">+/-</td>
+                  <td className="p-0.5 bg-[var(--background-secondary)] rounded text-[var(--foreground-muted)] text-[9px] text-center">#</td>
+                </tr>
+                {/* Type rows */}
+                {ALL_TYPES.map((type) => {
+                  const { overall } = typeChart[type];
+                  const typeCount = roster.filter(p => p.types.map(t => t.toLowerCase()).includes(type)).length;
+                  return (
+                    <tr key={type}>
+                      <td
+                        className="px-0.5 py-1 text-[8px] font-bold text-white rounded text-center"
+                        style={{ backgroundColor: TYPE_COLORS[type] }}
+                      >
+                        {type.slice(0, 3).toUpperCase()}
+                      </td>
+                      {roster.map((p, idx) => {
+                        const mult = getDefensiveMultiplier(p.types.map(t => t.toLowerCase()), type, p.abilities);
+                        return (
+                          <td
+                            key={idx}
+                            className={`p-0.5 text-center font-mono font-bold rounded ${getMultiplierColor(mult)}`}
+                          >
+                            {mult !== 1 ? formatMultiplier(mult) : ""}
+                          </td>
+                        );
+                      })}
+                      <td
+                        className={`p-0.5 text-center text-[8px] font-bold rounded ${
+                          overall === "very_resist" || overall === "resist"
+                            ? "bg-[#38761d] text-[#d9ead3]"
+                            : overall === "very_weak" || overall === "weak"
+                            ? "bg-[#990000] text-[#f4cccc]"
+                            : "bg-[var(--background-secondary)]"
+                        }`}
+                      >
+                        {overall === "very_resist" ? "++" : overall === "resist" ? "+" : overall === "very_weak" ? "--" : overall === "weak" ? "-" : ""}
+                      </td>
+                      <td className="p-0.5 text-center text-[10px] font-medium bg-[var(--background-secondary)] rounded text-white">
+                        {typeCount > 0 ? typeCount : ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Type Chart - Desktop (original: Pokemon as rows, types as columns) - 45% of row */}
+          <div className="hidden lg:block lg:flex-[4.5] lg:min-w-0 overflow-hidden bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 lg:min-h-[280px]">
+            <table className="w-full table-fixed" style={{ borderSpacing: "1px", borderCollapse: "separate", fontSize: "clamp(8px, 0.6vw, 10px)" }}>
+              <colgroup>
+                <col style={{ width: "24px" }} />
+                {ALL_TYPES.map((_, i) => <col key={i} />)}
+              </colgroup>
+              <tbody>
+                {roster.map((p, idx) => (
+                  <tr key={idx}>
+                    <td className="p-0.5 bg-[var(--background-secondary)] rounded">
+                      {p.spriteUrl && (
+                        <img src={p.spriteUrl} alt={p.displayName} title={p.displayName} className="w-[clamp(16px,1.5vw,24px)] h-[clamp(16px,1.5vw,24px)] object-contain scale-[1.4]" />
+                      )}
+                    </td>
+                    {ALL_TYPES.map((type) => {
+                      const mult = getDefensiveMultiplier(p.types.map(t => t.toLowerCase()), type, p.abilities);
+                      return (
+                        <td
+                          key={type}
+                          className={`p-0.5 text-center font-mono font-bold rounded ${getMultiplierColor(mult)}`}
+                        >
+                          {mult !== 1 ? formatMultiplier(mult) : ""}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                {roster.length > 0 && (
+                  <>
+                    <tr>
+                      <td className="p-0.5 bg-[var(--background-secondary)] rounded text-[var(--foreground-muted)] text-center" style={{ fontSize: "clamp(7px, 0.55vw, 10px)" }}>+/-</td>
+                      {ALL_TYPES.map((type) => {
+                        const { overall } = typeChart[type];
+                        return (
+                          <td
+                            key={type}
+                            className={`p-0.5 text-center font-bold rounded ${
+                              overall === "very_resist" || overall === "resist"
+                                ? "bg-[#38761d] text-[#d9ead3]"
+                                : overall === "very_weak" || overall === "weak"
+                                ? "bg-[#990000] text-[#f4cccc]"
+                                : "bg-[var(--background-secondary)]"
+                            }`}
+                            style={{ fontSize: "clamp(7px, 0.55vw, 10px)" }}
+                          >
+                            {overall === "very_resist" ? "++" : overall === "resist" ? "+" : overall === "very_weak" ? "--" : overall === "weak" ? "-" : ""}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    <tr>
+                      <td className="p-0.5"></td>
+                      {ALL_TYPES.map((type) => (
+                        <td
+                          key={type}
+                          className="p-0.5 font-bold text-center text-white rounded"
+                          style={{ backgroundColor: TYPE_COLORS[type], fontSize: "clamp(7px, 0.55vw, 10px)" }}
+                        >
+                          {type.slice(0, 3).toUpperCase()}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="p-0.5 bg-[var(--background-secondary)] rounded text-[var(--foreground-muted)] text-center" style={{ fontSize: "clamp(8px, 0.7vw, 11px)" }}>#</td>
+                      {ALL_TYPES.map((type) => {
+                        const count = roster.filter(p => p.types.map(t => t.toLowerCase()).includes(type)).length;
+                        return (
+                          <td key={type} className="p-0.5 text-center font-medium bg-[var(--background-secondary)] rounded text-white" style={{ fontSize: "clamp(10px, 0.8vw, 14px)" }}>
+                            {count > 0 ? count : ""}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Divider - mobile only */}
+          <div className="lg:hidden border-t border-[var(--background-tertiary)]" />
+
+          {/* Stats Table - Mobile (compressed) */}
+          <div className="w-full lg:hidden bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 flex flex-col min-h-[200px]">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] text-[var(--foreground-muted)]">SORT:</span>
+              <select value={statSort} onChange={(e) => setStatSort(e.target.value as typeof statSort)} className="px-1.5 py-0.5 text-[11px] bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white">
+                <option value="speed">SPE</option>
+                <option value="hp">HP</option>
+                <option value="attack">ATK</option>
+                <option value="defense">DEF</option>
+                <option value="specialAttack">SPA</option>
+                <option value="specialDefense">SPD</option>
+                <option value="baseStatTotal">BST</option>
+              </select>
+              <button onClick={() => setStatSortAsc(!statSortAsc)} className="text-[14px] text-[var(--foreground-muted)] hover:text-white transition-colors px-1">{statSortAsc ? "↑" : "↓"}</button>
+            </div>
+            <table className="text-[9px] w-full" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+              <thead>
+                <tr className="text-[var(--foreground-muted)]">
+                  <th className="text-left px-1 py-1.5 font-normal bg-[var(--background-secondary)] rounded w-7"></th>
+                  <th className={`text-center px-1 py-1.5 rounded ${statSort === "hp" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>HP</th>
+                  <th className={`text-center px-1 py-1.5 rounded ${statSort === "attack" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>ATK</th>
+                  <th className={`text-center px-1 py-1.5 rounded ${statSort === "defense" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>DEF</th>
+                  <th className={`text-center px-1 py-1.5 rounded ${statSort === "specialAttack" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>SPA</th>
+                  <th className={`text-center px-1 py-1.5 rounded ${statSort === "specialDefense" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>SPD</th>
+                  <th className={`text-center px-1 py-1.5 rounded ${statSort === "speed" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>SPE</th>
+                  <th className={`text-center px-1 py-1.5 rounded ${statSort === "baseStatTotal" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>BST</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedForStats.map((p, idx) => (
+                  <tr key={idx}>
+                    <td className="px-0.5 py-1 text-white bg-[var(--background-tertiary)] rounded w-7">
+                      {p.spriteUrl && <img src={p.spriteUrl} alt={p.displayName} title={p.displayName} className="w-5 h-5 object-contain" />}
+                    </td>
+                    <td className={`text-center px-1 py-1.5 rounded ${statSort === "hp" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.hp}</td>
+                    <td className={`text-center px-1 py-1.5 rounded ${statSort === "attack" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.attack}</td>
+                    <td className={`text-center px-1 py-1.5 rounded ${statSort === "defense" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.defense}</td>
+                    <td className={`text-center px-1 py-1.5 rounded ${statSort === "specialAttack" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.specialAttack}</td>
+                    <td className={`text-center px-1 py-1.5 rounded ${statSort === "specialDefense" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.specialDefense}</td>
+                    <td className={`text-center px-1 py-1.5 rounded ${statSort === "speed" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.speed}</td>
+                    <td className={`text-center px-1 py-1.5 rounded ${statSort === "baseStatTotal" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.baseStatTotal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {roster.length > 0 && (
+              <table className="text-[9px] mt-2 pt-2 border-t border-[var(--background-tertiary)] w-full" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+                <tbody>
+                  <tr>
+                    <td className="px-0.5 py-1.5 text-[var(--foreground-muted)] bg-[var(--background-secondary)] rounded text-[8px] w-7">Avg</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.hp}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.attack}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.defense}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.specialAttack}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.specialDefense}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.speed}</td>
+                    <td className="text-center text-white px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.baseStatTotal}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Stats Table - Desktop - 30% of row */}
+          <div className="hidden lg:flex lg:flex-[3] lg:min-w-0 bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 flex-col overflow-hidden lg:min-h-[280px]">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[var(--foreground-muted)]" style={{ fontSize: "clamp(9px, 0.7vw, 12px)" }}>SORT:</span>
+              <select value={statSort} onChange={(e) => setStatSort(e.target.value as typeof statSort)} className="px-1.5 py-0.5 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white" style={{ fontSize: "clamp(9px, 0.7vw, 12px)" }}>
+                <option value="speed">SPE</option>
+                <option value="hp">HP</option>
+                <option value="attack">ATK</option>
+                <option value="defense">DEF</option>
+                <option value="specialAttack">SPA</option>
+                <option value="specialDefense">SPD</option>
+                <option value="baseStatTotal">BST</option>
+              </select>
+              <button onClick={() => setStatSortAsc(!statSortAsc)} className="text-[var(--foreground-muted)] hover:text-white transition-colors px-1" style={{ fontSize: "clamp(12px, 1vw, 16px)" }}>{statSortAsc ? "↑" : "↓"}</button>
+            </div>
+            <table className="w-full table-fixed" style={{ borderSpacing: "1px", borderCollapse: "separate", fontSize: "clamp(8px, 0.6vw, 11px)" }}>
+              <colgroup>
+                <col style={{ width: "30%" }} />
+                <col /><col /><col /><col /><col /><col /><col />
+              </colgroup>
+              <thead>
+                <tr className="text-[var(--foreground-muted)]">
+                  <th className="text-left px-1 py-1 font-normal bg-[var(--background-secondary)] rounded truncate">Pokemon</th>
+                  <th className={`text-center px-0.5 py-1 rounded ${statSort === "hp" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>HP</th>
+                  <th className={`text-center px-0.5 py-1 rounded ${statSort === "attack" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>ATK</th>
+                  <th className={`text-center px-0.5 py-1 rounded ${statSort === "defense" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>DEF</th>
+                  <th className={`text-center px-0.5 py-1 rounded ${statSort === "specialAttack" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>SPA</th>
+                  <th className={`text-center px-0.5 py-1 rounded ${statSort === "specialDefense" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>SPD</th>
+                  <th className={`text-center px-0.5 py-1 rounded ${statSort === "speed" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>SPE</th>
+                  <th className={`text-center px-0.5 py-1 rounded ${statSort === "baseStatTotal" ? "bg-emerald-500/20 text-emerald-300 font-bold" : "font-normal bg-[var(--background-secondary)]"}`}>BST</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedForStats.map((p, idx) => (
+                  <tr key={idx}>
+                    <td className="px-1 py-1 text-white bg-[var(--background-tertiary)] rounded truncate">{p.displayName}</td>
+                    <td className={`text-center px-0.5 py-1 rounded ${statSort === "hp" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.hp}</td>
+                    <td className={`text-center px-0.5 py-1 rounded ${statSort === "attack" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.attack}</td>
+                    <td className={`text-center px-0.5 py-1 rounded ${statSort === "defense" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.defense}</td>
+                    <td className={`text-center px-0.5 py-1 rounded ${statSort === "specialAttack" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.specialAttack}</td>
+                    <td className={`text-center px-0.5 py-1 rounded ${statSort === "specialDefense" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.specialDefense}</td>
+                    <td className={`text-center px-0.5 py-1 rounded ${statSort === "speed" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.speed}</td>
+                    <td className={`text-center px-0.5 py-1 rounded ${statSort === "baseStatTotal" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.baseStatTotal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {roster.length > 0 && (
+              <table className="w-full table-fixed mt-auto pt-1.5" style={{ borderSpacing: "1px", borderCollapse: "separate", fontSize: "clamp(8px, 0.6vw, 11px)" }}>
+                <colgroup>
+                  <col style={{ width: "30%" }} />
+                  <col /><col /><col /><col /><col /><col /><col />
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td className="px-1 py-1 text-[var(--foreground-muted)] bg-[var(--background-secondary)] rounded">Avg</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-0.5 py-1 bg-[var(--background-secondary)] rounded">{avgStats.hp}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-0.5 py-1 bg-[var(--background-secondary)] rounded">{avgStats.attack}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-0.5 py-1 bg-[var(--background-secondary)] rounded">{avgStats.defense}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-0.5 py-1 bg-[var(--background-secondary)] rounded">{avgStats.specialAttack}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-0.5 py-1 bg-[var(--background-secondary)] rounded">{avgStats.specialDefense}</td>
+                    <td className="text-center text-[var(--foreground-muted)] px-0.5 py-1 bg-[var(--background-secondary)] rounded">{avgStats.speed}</td>
+                    <td className="text-center text-white px-0.5 py-1 bg-[var(--background-secondary)] rounded">{avgStats.baseStatTotal}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Divider with Save button - mobile only */}
+          <div className="lg:hidden flex items-center gap-3 py-2">
+            <div className="flex-1 border-t border-[var(--background-tertiary)]" />
+            <button
+              onClick={savePreferences}
+              disabled={saveStatus === "saving"}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--background-tertiary)] hover:bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white rounded transition-colors disabled:opacity-50"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Defaults"}
+            </button>
+            <div className="flex-1 border-t border-[var(--background-tertiary)]" />
+          </div>
+
+          {/* Move Coverage - 25% of row on desktop - uses relative/absolute to not affect row height */}
+          <div className="w-full lg:flex-[2.5] lg:min-w-0 lg:relative bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] overflow-hidden min-h-[300px] lg:min-h-[280px]">
+            {/* Mobile: normal flow */}
+            <div className="lg:hidden p-1.5 flex flex-col">
+              {/* Search/Add Move */}
+              <div className="relative mb-1.5">
+                <input
+                  type="text"
+                  placeholder="Search to add move..."
+                  value={moveSearch}
+                  onChange={(e) => {
+                    setMoveSearch(e.target.value);
+                    setShowMoveDropdown(true);
+                  }}
+                  onFocus={() => setShowMoveDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowMoveDropdown(false), 150)}
+                  className="w-full px-2 py-1 text-[11px] bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white placeholder-[var(--foreground-subtle)]"
+                />
+                {showMoveDropdown && filteredMoves.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded shadow-lg max-h-48 overflow-y-auto">
+                    {filteredMoves.map((move) => {
+                      const moveType = moveTypes[move];
+                      return (
+                        <button
+                          key={move}
+                          type="button"
+                          onMouseDown={() => addMove(move)}
+                          className="w-full px-2 py-1.5 text-left text-[11px] hover:bg-[var(--background-tertiary)] flex items-center gap-2"
+                        >
+                          {moveType && (
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: TYPE_COLORS[moveType] }}
+                            />
+                          )}
+                          <span className="text-white capitalize">{move.replace(/-/g, " ")}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* Move List - Mobile */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1px" }}>
+                {moveCoverage.map(({ move, pokemon }) => {
+                  const moveType = moveTypes[move];
+                  return (
+                    <div key={move} className="flex" style={{ fontSize: "9px" }}>
+                      <span
+                        className="w-[38%] shrink-0 px-1 py-1 flex items-center justify-center text-white font-medium capitalize truncate rounded"
+                        style={{ backgroundColor: moveType ? TYPE_COLORS[moveType] : "var(--background-tertiary)" }}
+                      >
+                        {move.replace(/-/g, " ")}
+                      </span>
+                      <div className="flex flex-wrap gap-0.5 flex-1 items-center content-center bg-[var(--background-tertiary)] px-1 py-1 rounded-l">
+                        {pokemon.length > 0 ? pokemon.map((p) => (
+                          <img key={p.pokemonId} src={p.spriteUrl || ""} alt={p.displayName} title={p.displayName} className="w-5 h-5 object-contain scale-110" />
+                        )) : <span className="text-[var(--foreground-subtle)]">—</span>}
+                      </div>
+                      <button type="button" onClick={() => removeMove(move)} className="w-5 flex items-center justify-center text-[var(--foreground-muted)] hover:text-[var(--error)] bg-[var(--background-tertiary)] rounded-r transition-colors shrink-0" title="Remove move">
+                        <svg className="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Desktop: absolute positioned to fill parent height without affecting it */}
+            <div className="hidden lg:flex lg:absolute lg:inset-0 p-1.5 flex-col">
+              {/* Search/Add Move */}
+              <div className="relative mb-1.5 shrink-0">
+                <input
+                  type="text"
+                  placeholder="Search to add move..."
+                  value={moveSearch}
+                  onChange={(e) => {
+                    setMoveSearch(e.target.value);
+                    setShowMoveDropdown(true);
+                  }}
+                  onFocus={() => setShowMoveDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowMoveDropdown(false), 150)}
+                  className="w-full px-2 py-1 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white placeholder-[var(--foreground-subtle)]"
+                  style={{ fontSize: "clamp(9px, 0.6vw, 11px)" }}
+                />
+                {showMoveDropdown && filteredMoves.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded shadow-lg max-h-48 overflow-y-auto">
+                    {filteredMoves.map((move) => {
+                      const moveType = moveTypes[move];
+                      return (
+                        <button
+                          key={move}
+                          type="button"
+                          onMouseDown={() => addMove(move)}
+                          className="w-full px-2 py-1.5 text-left text-[11px] hover:bg-[var(--background-tertiary)] flex items-center gap-2"
+                        >
+                          {moveType && (
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: TYPE_COLORS[moveType] }} />
+                          )}
+                          <span className="text-white capitalize">{move.replace(/-/g, " ")}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* Move List - Desktop scrollable */}
+              <div className="flex-1 min-h-0 overflow-y-auto" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1px", alignContent: "start" }}>
+                {moveCoverage.map(({ move, pokemon }) => {
+                  const moveType = moveTypes[move];
+                  return (
+                    <div key={move} className="flex" style={{ fontSize: "clamp(8px, 0.6vw, 11px)" }}>
+                      <span
+                        className="w-[42%] shrink-0 px-1 py-1 flex items-center justify-center text-white font-medium capitalize truncate rounded"
+                        style={{ backgroundColor: moveType ? TYPE_COLORS[moveType] : "var(--background-tertiary)" }}
+                      >
+                        {move.replace(/-/g, " ")}
+                      </span>
+                      <div className="flex flex-wrap gap-0.5 flex-1 items-center content-center bg-[var(--background-tertiary)] px-1 py-1 rounded-l">
+                        {pokemon.length > 0 ? pokemon.map((p) => (
+                          <img key={p.pokemonId} src={p.spriteUrl || ""} alt={p.displayName} title={p.displayName} className="object-contain" style={{ width: "clamp(16px, 1.4vw, 24px)", height: "clamp(16px, 1.4vw, 24px)", transform: "scale(1.2)" }} />
+                        )) : <span className="text-[var(--foreground-subtle)]">—</span>}
+                      </div>
+                      <button type="button" onClick={() => removeMove(move)} className="w-4 flex items-center justify-center text-[var(--foreground-muted)] hover:text-[var(--error)] bg-[var(--background-tertiary)] rounded-r transition-colors shrink-0" title="Remove move">
+                        <svg className="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,25 @@
+app = "pbo-site"
+primary_region = "iad"
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  DATABASE_PATH = "/data/pbo.db"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[mounts]
+  source = "pbo_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "2gb"
+  cpu_kind = "performance"
+  cpus = 1

@@ -176,7 +176,7 @@ export function PlayoffBracket({ matches }: PlayoffBracketProps) {
 
   return (
     <div className="poke-card p-0 overflow-hidden">
-      <div className="p-6 border-b-2 border-[var(--background-tertiary)]">
+      <div className="p-4 sm:p-6 border-b-2 border-[var(--background-tertiary)]">
         <div className="section-title !mb-0">
           <div className="section-title-icon !bg-[var(--accent)]" style={{ boxShadow: '0 4px 0 #b45309' }}>
             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -187,7 +187,70 @@ export function PlayoffBracket({ matches }: PlayoffBracketProps) {
         </div>
       </div>
 
-      <div className="p-6 overflow-x-auto">
+      {/* Mobile Layout - Vertical Stacked */}
+      <div className="lg:hidden p-4 space-y-4">
+        {/* Quarterfinals */}
+        <div>
+          <div className="text-[10px] text-[var(--foreground-muted)] font-bold uppercase tracking-wide mb-2 text-center">
+            Quarterfinals
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {quarterfinals.map((match) => (
+              <MatchCard key={match.id} match={match} />
+            ))}
+          </div>
+        </div>
+
+        {/* Arrow */}
+        <div className="flex justify-center">
+          <svg className="w-5 h-5 text-[var(--foreground-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </div>
+
+        {/* Semifinals */}
+        <div>
+          <div className="text-[10px] text-[var(--foreground-muted)] font-bold uppercase tracking-wide mb-2 text-center">
+            Semifinals
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {leftSF && <MatchCard match={leftSF} />}
+            {rightSF && <MatchCard match={rightSF} />}
+          </div>
+        </div>
+
+        {/* Arrow */}
+        <div className="flex justify-center">
+          <svg className="w-5 h-5 text-[var(--foreground-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </div>
+
+        {/* Finals */}
+        <div>
+          <div className="text-[10px] text-[var(--accent)] font-bold uppercase tracking-wide mb-2 text-center">
+            Finals
+          </div>
+          <div className="max-w-xs mx-auto">
+            {finalMatch && <MatchCard match={finalMatch} />}
+          </div>
+        </div>
+
+        {/* Champion badge if winner exists */}
+        {finalMatch?.winnerId && (
+          <div className="flex justify-center pt-2">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--accent)]/20 border-2 border-[var(--accent)]">
+              <svg className="w-5 h-5 text-[var(--accent)]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+              </svg>
+              <span className="font-pixel text-xs text-[var(--accent)]">CHAMPION</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Layout - Horizontal Bracket */}
+      <div className="hidden lg:block p-6 overflow-x-auto">
         <div className="min-w-[800px]">
           {/* Bracket Grid */}
           <div className="grid grid-cols-5 gap-4 items-center">

@@ -15,6 +15,7 @@ interface Division {
 interface Season {
   id: number;
   name: string;
+  seasonNumber: number;
   draftBudget: number;
   isCurrent: boolean;
   isPublic: boolean;
@@ -37,6 +38,7 @@ export default function AdminSeasonsPage() {
   // New season form state
   const [newSeason, setNewSeason] = useState({
     name: "",
+    seasonNumber: 1,
     draftBudget: 100,
     isCurrent: false,
     isPublic: false,
@@ -49,6 +51,7 @@ export default function AdminSeasonsPage() {
 
   // Edit season state
   const [editSeason, setEditSeason] = useState<Season | null>(null);
+  const [editDivisions, setEditDivisions] = useState<Division[]>([]);
   const [editDraftBoard, setEditDraftBoard] = useState<DraftBoardEntry[]>([]);
   const [editCsvFileName, setEditCsvFileName] = useState("");
   const [editCsvError, setEditCsvError] = useState("");
@@ -63,6 +66,17 @@ export default function AdminSeasonsPage() {
     const data = await response.json();
     setSeasons(data);
     setLoading(false);
+
+    // Set default season number to highest + 1
+    if (data.length > 0) {
+      const maxSeasonNumber = Math.max(...data.map((s: Season) => s.seasonNumber));
+      setNewSeason(prev => ({ ...prev, seasonNumber: maxSeasonNumber + 1 }));
+    }
+  }
+
+  // Check if season number is already used (excluding current edit)
+  function isSeasonNumberTaken(num: number, excludeId?: number): boolean {
+    return seasons.some(s => s.seasonNumber === num && s.id !== excludeId);
   }
 
   function parseCSV(csvText: string): { entries: DraftBoardEntry[]; error: string | null } {
@@ -157,6 +171,10 @@ export default function AdminSeasonsPage() {
   async function handleAddSeason(e: React.FormEvent) {
     e.preventDefault();
     if (!newSeason.name.trim()) return;
+    if (isSeasonNumberTaken(newSeason.seasonNumber)) {
+      alert(`Season ${newSeason.seasonNumber} already exists. Please choose a different number.`);
+      return;
+    }
 
     await fetch("/api/seasons", {
       method: "POST",
@@ -170,6 +188,7 @@ export default function AdminSeasonsPage() {
 
     setNewSeason({
       name: "",
+      seasonNumber: 1,
       draftBudget: 100,
       isCurrent: false,
       isPublic: false,
@@ -185,6 +204,10 @@ export default function AdminSeasonsPage() {
   async function handleUpdateSeason(e: React.FormEvent) {
     e.preventDefault();
     if (!editSeason) return;
+    if (isSeasonNumberTaken(editSeason.seasonNumber, editSeason.id)) {
+      alert(`Season ${editSeason.seasonNumber} already exists. Please choose a different number.`);
+      return;
+    }
 
     await fetch("/api/seasons", {
       method: "PUT",
@@ -192,15 +215,22 @@ export default function AdminSeasonsPage() {
       body: JSON.stringify({
         id: editSeason.id,
         name: editSeason.name,
+        seasonNumber: editSeason.seasonNumber,
         draftBudget: editSeason.draftBudget,
         isCurrent: editSeason.isCurrent,
         isPublic: editSeason.isPublic,
+        divisions: editDivisions.map((d, i) => ({
+          id: d.id,
+          name: d.name,
+          displayOrder: i,
+        })),
         draftBoard: editDraftBoard.length > 0 ? editDraftBoard : undefined,
       }),
     });
 
     setEditingId(null);
     setEditSeason(null);
+    setEditDivisions([]);
     setEditDraftBoard([]);
     setEditCsvFileName("");
     setEditCsvError("");
@@ -243,6 +273,7 @@ export default function AdminSeasonsPage() {
   function startEdit(season: Season) {
     setEditingId(season.id);
     setEditSeason({ ...season });
+    setEditDivisions([...season.divisions]);
     setEditDraftBoard([]);
     setEditCsvFileName("");
     setEditCsvError("");
@@ -251,6 +282,7 @@ export default function AdminSeasonsPage() {
   function cancelEdit() {
     setEditingId(null);
     setEditSeason(null);
+    setEditDivisions([]);
     setEditDraftBoard([]);
     setEditCsvFileName("");
     setEditCsvError("");
@@ -277,6 +309,29 @@ export default function AdminSeasonsPage() {
     setNewSeason({ ...newSeason, divisionNames: newDivisions });
   }
 
+  function updateEditDivisionName(index: number, value: string) {
+    const newDivisions = [...editDivisions];
+    newDivisions[index] = { ...newDivisions[index], name: value };
+    setEditDivisions(newDivisions);
+  }
+
+  function addEditDivision() {
+    if (!editSeason) return;
+    setEditDivisions([
+      ...editDivisions,
+      {
+        id: -Date.now(), // Negative ID indicates new division
+        name: `Division ${String.fromCharCode(65 + editDivisions.length)}`,
+        logoUrl: null,
+        seasonId: editSeason.id,
+      },
+    ]);
+  }
+
+  function removeEditDivision(index: number) {
+    setEditDivisions(editDivisions.filter((_, i) => i !== index));
+  }
+
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
   }
@@ -297,7 +352,7 @@ export default function AdminSeasonsPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAddSeason} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="name">Season Name</Label>
                 <Input
@@ -308,6 +363,24 @@ export default function AdminSeasonsPage() {
                   }
                   placeholder="e.g., Season 10"
                 />
+              </div>
+              <div>
+                <Label htmlFor="seasonNumber">Season Number</Label>
+                <Input
+                  id="seasonNumber"
+                  type="number"
+                  value={newSeason.seasonNumber}
+                  onChange={(e) =>
+                    setNewSeason({
+                      ...newSeason,
+                      seasonNumber: parseInt(e.target.value) || 1,
+                    })
+                  }
+                  className={isSeasonNumberTaken(newSeason.seasonNumber) ? "border-[var(--error)]" : ""}
+                />
+                {isSeasonNumberTaken(newSeason.seasonNumber) && (
+                  <p className="text-xs text-[var(--error)] mt-1">Season {newSeason.seasonNumber} already exists</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="budget">Draft Budget</Label>
@@ -457,7 +530,7 @@ export default function AdminSeasonsPage() {
                   {editingId === season.id && editSeason ? (
                     /* Edit Mode */
                     <form onSubmit={handleUpdateSeason} className="p-4 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                           <Label>Season Name</Label>
                           <Input
@@ -466,6 +539,23 @@ export default function AdminSeasonsPage() {
                               setEditSeason({ ...editSeason, name: e.target.value })
                             }
                           />
+                        </div>
+                        <div>
+                          <Label>Season Number</Label>
+                          <Input
+                            type="number"
+                            value={editSeason.seasonNumber}
+                            onChange={(e) =>
+                              setEditSeason({
+                                ...editSeason,
+                                seasonNumber: parseInt(e.target.value) || 1,
+                              })
+                            }
+                            className={isSeasonNumberTaken(editSeason.seasonNumber, editSeason.id) ? "border-[var(--error)]" : ""}
+                          />
+                          {isSeasonNumberTaken(editSeason.seasonNumber, editSeason.id) && (
+                            <p className="text-xs text-[var(--error)] mt-1">Season {editSeason.seasonNumber} already exists</p>
+                          )}
                         </div>
                         <div>
                           <Label>Draft Budget</Label>
@@ -509,6 +599,38 @@ export default function AdminSeasonsPage() {
                             />
                             <span>Visible to public</span>
                           </label>
+                        </div>
+                      </div>
+
+                      {/* Division Editing */}
+                      <div>
+                        <Label>Divisions (in order of prestige)</Label>
+                        <div className="space-y-2 mt-2">
+                          {editDivisions.map((div, index) => (
+                            <div key={div.id} className="flex gap-2 items-center">
+                              <span className="text-sm text-[var(--foreground-muted)] w-6">
+                                {index + 1}.
+                              </span>
+                              <Input
+                                value={div.name}
+                                onChange={(e) => updateEditDivisionName(index, e.target.value)}
+                                placeholder={`Division ${index + 1}`}
+                              />
+                              {editDivisions.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => removeEditDivision(index)}
+                                >
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                          <Button type="button" variant="outline" size="sm" onClick={addEditDivision}>
+                            + Add Division
+                          </Button>
                         </div>
                       </div>
 

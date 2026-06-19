@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizePokemonName } from "@/lib/pokemon-name-utils";
 
 interface PokemonStats {
   name: string;
@@ -49,84 +50,58 @@ interface PlayerRef {
   move?: string;
 }
 
-function normalizePokemonName(name: string): string {
-  let normalized = name.split(",")[0].trim();
-  // Remove asterisk (shiny indicator) and tera indicator
-  normalized = normalized.replace(/^\*/, "").replace(/-\*$/, "");
-  normalized = normalized.replace(/-Tera$/, "");
+function buildReplayJsonCandidates(replayUrl: string): string[] {
+  const rawUrl = replayUrl.trim();
+  if (!rawUrl) return [];
 
-  const formMappings: Record<string, string> = {
-    "Palafin-Hero": "Palafin",
-    "Palafin-Zero": "Palafin",
-    "Sinistcha-Masterpiece": "Sinistcha",
-    "Sinistcha-Artisan": "Sinistcha",
-    "Aegislash-Blade": "Aegislash",
-    "Darmanitan-Zen": "Darmanitan",
-    "Darmanitan-Galar-Zen": "Darmanitan-Galar",
-    "Darmanitan-Standard": "Darmanitan",
-    "Darmanitan-Galar-Standard": "Darmanitan-Galar",
-    "Wishiwashi-School": "Wishiwashi",
-    "Morpeko-Hangry": "Morpeko",
-    "Eiscue-Noice": "Eiscue",
-    "Mimikyu-Busted": "Mimikyu",
-    "Mimikyu-Disguised": "Mimikyu",
-    "Cramorant-Gulping": "Cramorant",
-    "Cramorant-Gorging": "Cramorant",
-    "Minior-Meteor": "Minior",
-    "Zygarde-Complete": "Zygarde",
-    "Terapagos-Terastal": "Terapagos",
-    "Terapagos-Stellar": "Terapagos",
-    "Castform-Sunny": "Castform",
-    "Castform-Rainy": "Castform",
-    "Castform-Snowy": "Castform",
-    "Cherrim-Sunshine": "Cherrim",
-  };
+  const url = new URL(/^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`);
 
-  if (formMappings[normalized]) {
-    normalized = formMappings[normalized];
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error("Replay URL must be an HTTP or HTTPS link");
   }
 
-  // Cosmetic/variant forms
-  if (normalized.startsWith("Alcremie-") && normalized !== "Alcremie-Gmax") normalized = "Alcremie";
-  if (normalized.startsWith("Florges-")) normalized = "Florges";
-  if (normalized.startsWith("Dudunsparce-")) normalized = "Dudunsparce";
-  if (normalized.startsWith("Keldeo-")) normalized = "Keldeo";
-  if (normalized.startsWith("Greninja-")) normalized = "Greninja";
-  if (normalized === "Shaymin-Land") normalized = "Shaymin";
-  // Urshifu — Showdown hides form in team preview
-  if (normalized === "Urshifu-Single-Strike" || normalized === "Urshifu-Rapid-Strike") normalized = "Urshifu";
-  // Incarnate forms
-  if (normalized === "Enamorus-Incarnate") normalized = "Enamorus";
-  if (normalized === "Landorus-Incarnate") normalized = "Landorus";
-  if (normalized === "Tornadus-Incarnate") normalized = "Tornadus";
-  if (normalized === "Thundurus-Incarnate") normalized = "Thundurus";
-  if (normalized.startsWith("Squawkabilly-")) normalized = "Squawkabilly";
-  if (normalized.startsWith("Zarude-")) normalized = "Zarude";
-  if (normalized.startsWith("Minior-") && normalized !== "Minior-Meteor") normalized = "Minior";
-  if (normalized.startsWith("Tatsugiri-")) normalized = "Tatsugiri";
-  if (normalized.startsWith("Basculegion-")) normalized = "Basculegion";
-  if (normalized.startsWith("Maushold-")) normalized = "Maushold";
-  if (normalized.startsWith("Sinistea-")) normalized = "Sinistea";
-  if (normalized.startsWith("Polteageist-")) normalized = "Polteageist";
-  if (normalized.startsWith("Poltchageist-")) normalized = "Poltchageist";
-  if (normalized.startsWith("Gastrodon-")) normalized = "Gastrodon";
-  if (normalized.startsWith("Shellos-")) normalized = "Shellos";
-  if (normalized.startsWith("Vivillon-")) normalized = "Vivillon";
-  if (normalized.startsWith("Furfrou-")) normalized = "Furfrou";
-  if (normalized.startsWith("Floette-") && normalized !== "Floette-Eternal") normalized = "Floette";
-  if (normalized.startsWith("Flabebe-")) normalized = "Flabebe";
-  if (normalized.startsWith("Xerneas-")) normalized = "Xerneas";
-  if (normalized.startsWith("Pikachu-") && normalized !== "Pikachu-Gmax" && normalized !== "Pikachu-Starter") normalized = "Pikachu";
-  if (normalized.startsWith("Unown-")) normalized = "Unown";
-  if (normalized.startsWith("Deerling-")) normalized = "Deerling";
-  if (normalized.startsWith("Sawsbuck-")) normalized = "Sawsbuck";
-  if (normalized.startsWith("Burmy-")) normalized = "Burmy";
-  // Gender forms — normalize to base form for roster matching
-  if (normalized === "Indeedee-F" || normalized === "Indeedee-M") normalized = "Indeedee";
-  if (normalized === "Meowstic-F") normalized = "Meowstic";
-  if (normalized === "Oinkologne-F") normalized = "Oinkologne";
+  const hostname = url.hostname.toLowerCase();
+  if (hostname !== "replay.pokemonshowdown.com") {
+    throw new Error("Only Pokemon Showdown replay links are supported");
+  }
 
-  return normalized;
+  url.search = "";
+  url.hash = "";
+  url.pathname = url.pathname.replace(/\/+$/, "");
+
+  const candidates: string[] = [];
+  const addCandidate = (candidate: URL) => {
+    const href = candidate.toString();
+    if (!candidates.includes(href)) {
+      candidates.push(href);
+    }
+  };
+
+  const jsonUrl = new URL(url.toString());
+  if (jsonUrl.pathname.endsWith(".log")) {
+    jsonUrl.pathname = jsonUrl.pathname.replace(/\.log$/, ".json");
+  } else if (!jsonUrl.pathname.endsWith(".json")) {
+    jsonUrl.pathname = `${jsonUrl.pathname}.json`;
+  }
+  addCandidate(jsonUrl);
+
+  const pathParts = url.pathname.split("/");
+  const replayId = pathParts[pathParts.length - 1];
+  if (replayId?.startsWith("dl-")) {
+    const canonicalUrl = new URL(url.toString());
+    pathParts[pathParts.length - 1] = replayId.slice(3);
+    canonicalUrl.pathname = pathParts.join("/");
+    canonicalUrl.pathname = canonicalUrl.pathname.endsWith(".json")
+      ? canonicalUrl.pathname
+      : `${canonicalUrl.pathname.replace(/\.log$/, "")}.json`;
+    addCandidate(canonicalUrl);
+  }
+
+  return candidates;
+}
+
+function isMegaPokemonName(name: string): boolean {
+  return /-Mega(?:-|$)/.test(name);
 }
 
 function extractNicknameOwner(pokemonRef: string): { player: "p1" | "p2"; nickname: string } | null {
@@ -142,27 +117,33 @@ function extractNicknameOwner(pokemonRef: string): { player: "p1" | "p2"; nickna
 
 export async function POST(request: NextRequest) {
   try {
-    const { replayUrl } = await request.json();
+    const { replayUrl, preserveMegas = false } = await request.json();
 
     if (!replayUrl) {
       return NextResponse.json({ error: "Replay URL is required" }, { status: 400 });
     }
 
-    let jsonUrl = replayUrl.trim();
-    if (jsonUrl.endsWith("/")) {
-      jsonUrl = jsonUrl.slice(0, -1);
-    }
-    if (!jsonUrl.endsWith(".json")) {
-      jsonUrl = jsonUrl + ".json";
+    let replayJsonUrl = "";
+    let response: Response | null = null;
+    const replayJsonCandidates = buildReplayJsonCandidates(replayUrl);
+
+    for (const candidate of replayJsonCandidates) {
+      const candidateResponse = await fetch(candidate, {
+        headers: { "User-Agent": "PBO-Site/1.0" },
+      });
+
+      if (candidateResponse.ok) {
+        replayJsonUrl = candidate;
+        response = candidateResponse;
+        break;
+      }
+
+      response = candidateResponse;
     }
 
-    const response = await fetch(jsonUrl, {
-      headers: { "User-Agent": "PBO-Site/1.0" },
-    });
-
-    if (!response.ok) {
+    if (!response || !response.ok) {
       return NextResponse.json(
-        { error: `Failed to fetch replay: ${response.status}` },
+        { error: `Failed to fetch replay: ${response?.status || "invalid URL"}` },
         { status: 400 }
       );
     }
@@ -244,6 +225,36 @@ export async function POST(request: NextRequest) {
         total += hpValue;
       }
       return total;
+    };
+
+    const applyVisibleFormChange = (parsed: PlayerRef, pokemonInfo: string) => {
+      if (!preserveMegas) return;
+
+      const pokemonName = normalizePokemonName(pokemonInfo);
+      if (!isMegaPokemonName(pokemonName)) return;
+
+      const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
+      const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
+      const previousName = nicknameMap.get(parsed.nickname);
+      let pokemon = team.find((p) => p.name === previousName) || team.find((p) => p.name === pokemonName);
+
+      if (!pokemon && previousName) {
+        pokemon = team.find(
+          (p) =>
+            pokemonName.startsWith(p.name + "-") ||
+            p.name.startsWith(previousName + "-")
+        );
+      }
+
+      if (pokemon) {
+        const oldHp = previousName ? hpPercentMap.get(`${parsed.player}:${previousName}`) : undefined;
+        pokemon.name = pokemonName;
+        nicknameMap.set(parsed.nickname, pokemonName);
+        if (oldHp !== undefined) {
+          hpPercentMap.delete(`${parsed.player}:${previousName}`);
+          hpPercentMap.set(`${parsed.player}:${pokemonName}`, oldHp);
+        }
+      }
     };
 
     for (const line of lines) {
@@ -384,6 +395,18 @@ export async function POST(request: NextRequest) {
               p2NicknameMap.set(parsed.nickname, pokemonName);
               p2ActivePokemon = parsed.nickname;
             }
+          }
+          break;
+        }
+
+        case "detailschange":
+        case "-formechange": {
+          const pokemonRef = parts[2];
+          const pokemonInfo = parts[3];
+          const parsed = extractNicknameOwner(pokemonRef);
+
+          if (parsed && pokemonInfo) {
+            applyVisibleFormChange(parsed, pokemonInfo);
           }
           break;
         }
@@ -636,6 +659,13 @@ export async function POST(request: NextRequest) {
                 trapMoveName = name;
                 break;
               }
+            }
+
+            // Destiny Bond: when it activates, the user's opponent is about to faint
+            if (effectName.includes("destiny bond")) {
+              lastFaintSource = "Destiny Bond";
+              // The Destiny Bond user (parsed) gets the kill credit
+              lastDamageDealer = { player: parsed.player, nickname: parsed.nickname, move: "Destiny Bond" };
             }
 
             if (trapKey) {
@@ -930,6 +960,9 @@ export async function POST(request: NextRequest) {
                 killer = contactDamageSource ? { ...contactDamageSource } : null;
               } else if (cause.includes("recoil")) {
                 killer = lastDamageDealer ? { ...lastDamageDealer } : null;
+              } else if (cause.includes("destiny bond")) {
+                // Destiny Bond — lastDamageDealer was set in the -activate handler
+                killer = lastDamageDealer ? { ...lastDamageDealer } : null;
               } else {
                 killer = lastDamageDealer ? { ...lastDamageDealer, move: lastMoveInfo?.moveName } : null;
               }
@@ -1031,12 +1064,12 @@ export async function POST(request: NextRequest) {
       result.endedAt = new Date(lastTimestamp * 1000).toISOString();
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, replayJsonUrl });
   } catch (error) {
     console.error("Error scraping replay:", error);
     return NextResponse.json(
-      { error: "Failed to parse replay data" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Failed to parse replay data" },
+      { status: error instanceof Error ? 400 : 500 }
     );
   }
 }

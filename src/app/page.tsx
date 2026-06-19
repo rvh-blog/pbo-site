@@ -1,10 +1,18 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
-import { seasons, matches, coaches, seasonCoaches, playoffMatches } from "@/lib/schema";
-import { eq, desc, count, and, isNotNull, lte } from "drizzle-orm";
+import { SyncedHeightGrid } from "@/components/synced-height-grid";
+import { seasons, matches, coaches, seasonCoaches, playoffMatches, matchPokemon, coachPurchases, storeItems } from "@/lib/schema";
+import { eq, desc, count, max, and, isNotNull, lte, inArray } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+
+const DIVISION_COLORS: Record<string, string> = {
+  "Stargazer": "#3b82f6",
+  "Sunset": "#fb923c",
+  "Crystal": "#c084fc",
+  "Neon": "#4ade80",
+};
 
 async function getCurrentSeason() {
   const result = await db.query.seasons.findFirst({
@@ -37,39 +45,54 @@ type BattleLogItem = {
   team1Id: number;
   team2Id: number;
   playedAt: string | null;
+  endedAt: string | null;
   divisionName?: string;
 };
 
 async function getRecentBattles(): Promise<BattleLogItem[]> {
-  // Get regular matches (week <= 100 to exclude playoff placeholder weeks)
-  // Order by seasonNumber (not seasonId) to get matches from latest season
-  const regularMatches = await db.query.matches.findMany({
-    where: and(isNotNull(matches.winnerId), lte(matches.week, 100)),
-    orderBy: [desc(matches.seasonId), desc(matches.week)],
-    limit: 50, // Get more to filter/sort properly
-    with: {
-      coach1: true,
-      coach2: true,
-      division: true,
-      season: true,
-    },
-  });
+  // Run all queries in parallel
+  const [latestSeason, regularMatches, playoffs] = await Promise.all([
+    db.query.seasons.findFirst({
+      orderBy: [desc(seasons.seasonNumber)],
+    }),
+    db.query.matches.findMany({
+      where: isNotNull(matches.winnerId),
+      with: {
+        coach1: true,
+        coach2: true,
+        division: true,
+        season: true,
+      },
+    }),
+    db.query.playoffMatches.findMany({
+      where: isNotNull(playoffMatches.winnerId),
+      with: {
+        higherSeed: true,
+        lowerSeed: true,
+        division: true,
+        season: true,
+      },
+    }),
+  ]);
 
-  // Get playoff matches
-  const playoffs = await db.query.playoffMatches.findMany({
-    where: isNotNull(playoffMatches.winnerId),
-    orderBy: [desc(playoffMatches.seasonId), desc(playoffMatches.round)],
-    limit: 50,
-    with: {
-      higherSeed: true,
-      lowerSeed: true,
-      division: true,
-      season: true,
-    },
-  });
+  const latestSeasonNumber = latestSeason?.seasonNumber || 10;
 
-  // Convert to unified format
-  const regularBattles: BattleLogItem[] = regularMatches.map((m) => ({
+  // Filter to only recent seasons and sort
+  const recentRegularMatches = regularMatches
+    .filter(m => m.week <= 100 && (m.season?.seasonNumber || 0) >= latestSeasonNumber - 1)
+    .sort((a, b) => {
+      const aSeasonNum = a.season?.seasonNumber || 0;
+      const bSeasonNum = b.season?.seasonNumber || 0;
+      if (bSeasonNum !== aSeasonNum) return bSeasonNum - aSeasonNum;
+      return (b.week || 0) - (a.week || 0);
+    })
+    .slice(0, 50);
+
+  const recentPlayoffs = playoffs
+    .filter(p => (p.season?.seasonNumber || 0) >= latestSeasonNumber - 1);
+
+  // Convert regular matches to unified format
+  const regularBattles: BattleLogItem[] = recentRegularMatches.map((m) => ({
     id: m.id,
     matchId: m.id,
     type: "regular" as const,
@@ -86,48 +109,37 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
     team1Id: m.coach1SeasonId,
     team2Id: m.coach2SeasonId,
     playedAt: m.playedAt,
+    endedAt: m.endedAt,
     divisionName: m.division?.name,
   }));
 
-  // Look up corresponding match IDs for playoff matches (stored as week 100+round in matches table)
-  const playoffBattles: BattleLogItem[] = await Promise.all(
-    playoffs.map(async (p) => {
-      // Find the corresponding match in the matches table
-      let matchId: number | null = null;
-      if (p.higherSeedId && p.lowerSeedId) {
-        const playoffWeek = 100 + p.round;
-        const match = await db.query.matches.findFirst({
-          where: and(
-            eq(matches.divisionId, p.divisionId),
-            eq(matches.week, playoffWeek),
-            eq(matches.coach1SeasonId, p.higherSeedId),
-            eq(matches.coach2SeasonId, p.lowerSeedId)
-          ),
-        });
-        matchId = match?.id || null;
-      }
+  // Build endedAt lookup from regular matches for playoff linking
+  const endedAtByMatchId = new Map<number, string | null>();
+  for (const m of regularMatches) {
+    endedAtByMatchId.set(m.id, m.endedAt);
+  }
 
-      return {
-        id: p.id + 100000, // Offset to avoid ID collisions in React keys
-        matchId: matchId || p.id, // Fall back to playoff ID if no match found
-        type: "playoff" as const,
-        round: p.round,
-        seasonId: p.seasonId,
-        seasonNumber: p.season?.seasonNumber || 0,
-        team1Name: p.higherSeed?.teamName,
-        team2Name: p.lowerSeed?.teamName,
-        team1Logo: p.higherSeed?.teamLogoUrl,
-        team2Logo: p.lowerSeed?.teamLogoUrl,
-        team1Wins: p.higherSeedWins || 0,
-        team2Wins: p.lowerSeedWins || 0,
-        winnerId: p.winnerId,
-        team1Id: p.higherSeedId || 0,
-        team2Id: p.lowerSeedId || 0,
-        playedAt: p.playedAt,
-        divisionName: p.division?.name,
-      };
-    })
-  );
+  // Convert playoff matches - use the linked match ID from matches table
+  const playoffBattles: BattleLogItem[] = recentPlayoffs.filter(p => p.matchId).map((p) => ({
+    id: p.id + 100000,
+    matchId: p.matchId!, // Use the linked match ID from matches table
+    type: "playoff" as const,
+    round: p.round,
+    seasonId: p.seasonId,
+    seasonNumber: p.season?.seasonNumber || 0,
+    team1Name: p.higherSeed?.teamName,
+    team2Name: p.lowerSeed?.teamName,
+    team1Logo: p.higherSeed?.teamLogoUrl,
+    team2Logo: p.lowerSeed?.teamLogoUrl,
+    team1Wins: p.higherSeedWins || 0,
+    team2Wins: p.lowerSeedWins || 0,
+    winnerId: p.winnerId,
+    team1Id: p.higherSeedId || 0,
+    team2Id: p.lowerSeedId || 0,
+    playedAt: p.playedAt,
+    endedAt: p.matchId ? (endedAtByMatchId.get(p.matchId) ?? null) : null,
+    divisionName: p.division?.name,
+  }));
 
   // Division order priority: Stargazer, Sunset, Crystal, Neon
   const divisionOrder: Record<string, number> = {
@@ -137,16 +149,22 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
     "Neon": 4,
   };
 
-  // Combine and sort by seasonNumber (desc), then week/round (desc), then division order
+  // Combine and sort
   const allBattles = [...regularBattles, ...playoffBattles];
   allBattles.sort((a, b) => {
-    // First by seasonNumber (newest/highest first)
+    // PRIMARY: By season number (newest first)
     if (b.seasonNumber !== a.seasonNumber) return b.seasonNumber - a.seasonNumber;
-    // Then by week/round (latest first)
+    // SECONDARY: By endedAt if both have it (most recently finished first)
+    const aEnded = a.endedAt ? new Date(a.endedAt).getTime() : 0;
+    const bEnded = b.endedAt ? new Date(b.endedAt).getTime() : 0;
+    if (aEnded && bEnded && aEnded !== bEnded) return bEnded - aEnded;
+    // TERTIARY: Matches with endedAt before those without
+    if (aEnded && !bEnded) return -1;
+    if (!aEnded && bEnded) return 1;
+    // FALLBACK: By week/round (latest first), then division order
     const aOrder = a.type === "playoff" ? 100 + (a.round || 0) : (a.week || 0);
     const bOrder = b.type === "playoff" ? 100 + (b.round || 0) : (b.week || 0);
     if (bOrder !== aOrder) return bOrder - aOrder;
-    // Finally by division order (Stargazer first)
     const aDivOrder = divisionOrder[a.divisionName || ""] || 99;
     const bDivOrder = divisionOrder[b.divisionName || ""] || 99;
     return aDivOrder - bDivOrder;
@@ -156,13 +174,17 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
 }
 
 async function getStats() {
-  const totalCoaches = await db.select({ count: count() }).from(coaches);
-  const totalSeasons = await db.select({ count: count() }).from(seasons);
-  const totalMatches = await db.select({ count: count() }).from(matches);
+  // Run count queries in parallel
+  const [totalCoaches, maxSeasonNumber, totalMatches] = await Promise.all([
+    db.select({ count: count() }).from(coaches),
+    db.select({ max: max(seasons.seasonNumber) }).from(seasons),
+    // Only count matches with results (winnerId is set)
+    db.select({ count: count() }).from(matches).where(isNotNull(matches.winnerId)),
+  ]);
 
   return {
     coaches: totalCoaches[0].count,
-    seasons: totalSeasons[0].count,
+    seasons: maxSeasonNumber[0].max || 0,
     matches: totalMatches[0].count,
   };
 }
@@ -191,11 +213,120 @@ async function getStargazerChampion() {
   return stargazerFinals[0]?.winner || null;
 }
 
-async function getTopCoaches() {
-  return await db.query.coaches.findMany({
-    orderBy: (c, { desc }) => [desc(c.eloRating)],
-    limit: 10, // More coaches to fill the taller box
+async function getCoachTypeUsage(): Promise<Map<number, string[]>> {
+  // Get all matchPokemon entries with their Pokemon types and coachId
+  const allMatchPokemon = await db.query.matchPokemon.findMany({
+    with: {
+      pokemon: true,
+      seasonCoach: true,
+    },
   });
+
+  // Count type usage per coachId
+  const coachTypeCounts = new Map<number, Map<string, number>>();
+
+  for (const mp of allMatchPokemon) {
+    const coachId = mp.seasonCoach?.coachId;
+    const types = mp.pokemon?.types;
+    if (!coachId || !types) continue;
+
+    if (!coachTypeCounts.has(coachId)) {
+      coachTypeCounts.set(coachId, new Map());
+    }
+    const typeCounts = coachTypeCounts.get(coachId)!;
+
+    // Count each type (a Pokemon can have 1-2 types)
+    for (const type of types) {
+      const lowerType = type.toLowerCase();
+      typeCounts.set(lowerType, (typeCounts.get(lowerType) || 0) + 1);
+    }
+  }
+
+  // For each coach, sort types by count and return top types
+  const coachTopTypes = new Map<number, string[]>();
+  for (const [coachId, typeCounts] of coachTypeCounts) {
+    const sortedTypes = [...typeCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([type]) => type);
+    coachTopTypes.set(coachId, sortedTypes.slice(0, 2)); // Top 2 types
+  }
+
+  return coachTopTypes;
+}
+
+async function getTopCoaches() {
+  // Run all queries in parallel
+  const [coachesList, allCoachesForRank, typeUsage, showcasePurchases] = await Promise.all([
+    db.query.coaches.findMany({
+      orderBy: (c, { desc }) => [desc(c.eloRating)],
+      limit: 10,
+    }),
+    // Get all coaches to calculate actual ranks
+    db.query.coaches.findMany({
+      orderBy: (c, { desc }) => [desc(c.eloRating)],
+    }),
+    getCoachTypeUsage(),
+    // Get coaches with active showcase-slot purchases
+    db
+      .select({
+        coachId: coachPurchases.coachId,
+      })
+      .from(coachPurchases)
+      .innerJoin(storeItems, eq(coachPurchases.itemId, storeItems.id))
+      .where(
+        and(
+          eq(storeItems.slug, "showcase-slot"),
+          eq(coachPurchases.isActive, true)
+        )
+      ),
+  ]);
+
+  // Build rank map from all coaches
+  const rankMap = new Map<number, number>();
+  allCoachesForRank.forEach((coach, idx) => {
+    rankMap.set(coach.id, idx + 1);
+  });
+
+  // Get set of showcase coach IDs
+  const showcaseCoachIds = new Set(showcasePurchases.map((p) => p.coachId));
+
+  // Get set of top coach IDs
+  const topCoachIds = new Set(coachesList.map((c) => c.id));
+
+  // Find showcase coaches not already in top 10
+  const additionalShowcaseCoachIds = [...showcaseCoachIds].filter(
+    (id) => !topCoachIds.has(id)
+  );
+
+  // Fetch additional showcase coaches if any
+  let additionalShowcaseCoaches: typeof coachesList = [];
+  if (additionalShowcaseCoachIds.length > 0) {
+    additionalShowcaseCoaches = await db.query.coaches.findMany({
+      where: inArray(coaches.id, additionalShowcaseCoachIds),
+    });
+  }
+
+  // Map top coaches with isShowcase flag and rank
+  const topCoachesWithTypes = coachesList.map((coach, idx) => ({
+    ...coach,
+    topTypes: typeUsage.get(coach.id) || [],
+    isShowcase: showcaseCoachIds.has(coach.id),
+    rank: idx + 1,
+  }));
+
+  // Map additional showcase coaches with their actual rank
+  const showcaseCoachesWithTypes = additionalShowcaseCoaches.map((coach) => ({
+    ...coach,
+    topTypes: typeUsage.get(coach.id) || [],
+    isShowcase: true,
+    rank: rankMap.get(coach.id) || 0,
+  }));
+
+  // Return combined list (top 10 first, then showcase sorted by rank)
+  return [
+    ...topCoachesWithTypes,
+    ...showcaseCoachesWithTypes.sort((a, b) => a.rank - b.rank),
+  ];
 }
 
 // Type color map for badges
@@ -209,7 +340,7 @@ const typeColors: Record<string, string> = {
   fighting: "bg-red-700",
   poison: "bg-purple-500",
   ground: "bg-amber-600",
-  flying: "bg-indigo-300",
+  flying: "bg-indigo-400",
   psychic: "bg-pink-500",
   bug: "bg-lime-500",
   rock: "bg-amber-700",
@@ -230,11 +361,14 @@ function getRoundLabel(round: number): string {
 }
 
 export default async function Home() {
-  const currentSeason = await getCurrentSeason();
-  const recentBattles = await getRecentBattles();
-  const stats = await getStats();
-  const topCoaches = await getTopCoaches();
-  const stargazerChampion = await getStargazerChampion();
+  // Run all queries in parallel for much better performance on network-attached storage
+  const [currentSeason, recentBattles, stats, topCoaches, stargazerChampion] = await Promise.all([
+    getCurrentSeason(),
+    getRecentBattles(),
+    getStats(),
+    getTopCoaches(),
+    getStargazerChampion(),
+  ]);
 
   return (
     <div className="space-y-16">
@@ -335,47 +469,46 @@ export default async function Home() {
       </section>
 
       {/* Stats Strip (Game Style) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
         <div className="stat-card flex flex-col items-center justify-center text-center">
-          <svg className="w-6 h-6 mb-2 text-[var(--secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <div className="font-mono font-bold text-2xl text-white mb-1">{stats.coaches}</div>
-          <div className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Coaches</div>
+          <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.coaches}</div>
+          <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Coaches</div>
         </div>
         <div className="stat-card flex flex-col items-center justify-center text-center">
-          <svg className="w-6 h-6 mb-2 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <div className="font-mono font-bold text-2xl text-white mb-1">{stats.seasons}</div>
-          <div className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Seasons</div>
+          <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.seasons}</div>
+          <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Seasons</div>
         </div>
         <div className="stat-card flex flex-col items-center justify-center text-center">
           {/* Crossed Swords Icon */}
-          <svg className="w-6 h-6 mb-2 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6h6M6 3v6M18 21v-6M21 18h-6" />
           </svg>
-          <div className="font-mono font-bold text-2xl text-white mb-1">{stats.matches}</div>
-          <div className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Battles</div>
+          <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.matches}</div>
+          <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Battles</div>
         </div>
         <div className="stat-card flex flex-col items-center justify-center text-center">
           {/* Trophy Icon */}
-          <svg className="w-6 h-6 mb-2 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2C13.1 2 14 2.9 14 4V5H16C16 3.34 14.66 2 13 2H11C9.34 2 8 3.34 8 5H10V4C10 2.9 10.9 2 12 2ZM20 6H16V8H19V9C19 11.21 17.21 13 15 13H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H20ZM4 6H5C4.9 6 4 6.9 4 8V9C4 12.31 6.69 15 10 15H11V13H10C7.79 13 6 11.21 6 9V8H9V6H5C3.9 6 3 6.9 3 8V9C3 12.31 5.69 15 9 15H10V17H8V19H16V17H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H4ZM8 6H5V8H8V6ZM10 19V21H14V19H10Z" />
           </svg>
-          <div className="font-bold text-lg text-white mb-1 truncate max-w-full px-1">
+          <div className="font-bold text-sm sm:text-lg text-white mb-0.5 sm:mb-1 truncate max-w-full px-1">
             {stargazerChampion?.teamName || '--'}
           </div>
-          <div className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Champion</div>
+          <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Champion</div>
         </div>
       </div>
 
-      {/* Main Content Grid - Same Height Columns */}
-      <div className="grid lg:grid-cols-3 gap-6 items-stretch">
-        {/* Left Column: Battle Log */}
-        <div className="lg:col-span-2">
-          <div className="poke-card p-6 h-full flex flex-col">
+      {/* Main Content Grid */}
+      <SyncedHeightGrid
+        leftContent={
+          <div className="poke-card p-6">
             {/* Section Title */}
             <div className="section-title">
               <div className="section-title-icon">
@@ -388,7 +521,7 @@ export default async function Home() {
 
             {/* Battle Log Items */}
             {recentBattles.length > 0 ? (
-              <div className="space-y-3 flex-1">
+              <div className="space-y-3">
                 {recentBattles.map((battle) => (
                   <Link
                     key={battle.id}
@@ -412,9 +545,9 @@ export default async function Home() {
                       </div>
 
                       {/* Matchup - Fixed width columns for alignment */}
-                      <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                      <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-2">
                         {/* Team 1 */}
-                        <div className={`flex items-center gap-2 ${
+                        <div className={`flex items-center gap-1 sm:gap-2 min-w-0 ${
                           battle.winnerId === battle.team1Id ? 'text-[var(--success)]' : 'text-[var(--foreground-muted)]'
                         }`}>
                           {battle.team1Logo && (
@@ -423,24 +556,24 @@ export default async function Home() {
                               alt=""
                               width={24}
                               height={24}
-                              className="rounded"
+                              className="rounded hidden xs:block sm:block shrink-0"
                             />
                           )}
-                          <span className="font-bold text-sm truncate">
+                          <span className="font-bold text-xs sm:text-sm truncate">
                             {battle.team1Name}
                           </span>
                         </div>
 
                         {/* Score - Always centered */}
-                        <div className="score-display whitespace-nowrap">
+                        <div className="score-display whitespace-nowrap shrink-0">
                           {battle.team1Wins}-{battle.team2Wins}
                         </div>
 
                         {/* Team 2 */}
-                        <div className={`flex items-center gap-2 justify-end ${
+                        <div className={`flex items-center gap-1 sm:gap-2 justify-end min-w-0 ${
                           battle.winnerId === battle.team2Id ? 'text-[var(--success)]' : 'text-[var(--foreground-muted)]'
                         }`}>
-                          <span className="font-bold text-sm truncate text-right">
+                          <span className="font-bold text-xs sm:text-sm truncate text-right">
                             {battle.team2Name}
                           </span>
                           {battle.team2Logo && (
@@ -449,24 +582,32 @@ export default async function Home() {
                               alt=""
                               width={24}
                               height={24}
-                              className="rounded"
+                              className="rounded hidden xs:block sm:block shrink-0"
                             />
                           )}
                         </div>
                       </div>
 
-                      {/* Division Badge */}
-                      {battle.divisionName && (
-                        <div className="shrink-0 px-2 py-1 text-[10px] font-bold rounded bg-[var(--background-tertiary)] text-[var(--foreground-muted)] uppercase">
-                          {battle.divisionName}
-                        </div>
-                      )}
+                      {/* Division Badge - hidden on mobile */}
+                      <div className="shrink-0 w-[72px] text-center hidden sm:block">
+                        {battle.divisionName && (
+                          <span
+                            className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
+                            style={battle.divisionName && DIVISION_COLORS[battle.divisionName]
+                              ? { color: DIVISION_COLORS[battle.divisionName], backgroundColor: `${DIVISION_COLORS[battle.divisionName]}15`, border: `1px solid ${DIVISION_COLORS[battle.divisionName]}30` }
+                              : { backgroundColor: 'var(--background-tertiary)', color: 'var(--foreground-muted)' }
+                            }
+                          >
+                            {battle.divisionName}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </Link>
                 ))}
               </div>
             ) : (
-              <p className="text-[var(--foreground-muted)] text-center py-8 flex-1 flex items-center justify-center">No battles recorded yet</p>
+              <p className="text-[var(--foreground-muted)] text-center py-8">No battles recorded yet</p>
             )}
 
             {/* View All Link */}
@@ -484,13 +625,11 @@ export default async function Home() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Right Column: Top Trainers */}
-        <div>
+        }
+        rightContent={
           <div className="poke-card p-6 h-full flex flex-col">
             {/* Section Title */}
-            <div className="section-title">
+            <div className="section-title flex-shrink-0">
               <div className="section-title-icon">
                 <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
@@ -499,74 +638,82 @@ export default async function Home() {
               <h3>Top Trainers</h3>
             </div>
 
-            {/* Trainer List */}
+            {/* Trainer List - Scrollable */}
             {topCoaches.length > 0 ? (
-              <div className="space-y-3 flex-1">
-                {topCoaches.map((coach, idx) => (
-                  <Link key={coach.id} href={`/coaches/${coach.id}`} className="block">
-                    <div className="trainer-card group">
-                      {/* Rank Number */}
-                      <div className={`rank-badge ${
-                        idx === 0 ? 'rank-1' :
-                        idx === 1 ? 'rank-2' :
-                        idx === 2 ? 'rank-3' :
-                        'bg-[var(--background)] text-[var(--foreground-subtle)] border border-[var(--background-tertiary)]'
-                      }`}>
-                        {idx + 1}
-                      </div>
+              <div className="space-y-3 flex-1 overflow-y-auto min-h-0 pr-1">
+                {topCoaches.map((coach) => {
+                  // Showcase coaches always show their top 2 types
+                  const showDualTypes = coach.rank <= 3 || coach.isShowcase;
+                  const showSingleType = coach.rank >= 4 && coach.rank <= 5 && !coach.isShowcase;
+                  const showDefaultOnly = coach.rank >= 6 && !coach.isShowcase;
 
-                      {/* Name and Type Badges */}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm text-[var(--foreground-muted)] group-hover:text-white transition-colors truncate">
-                          {coach.name}
+                  return (
+                    <Link key={coach.id} href={`/coaches/${coach.id}`} className="block">
+                      <div className="trainer-card group">
+                        {/* Rank Number */}
+                        <div className={`rank-badge ${
+                          coach.rank === 1 ? 'rank-1' :
+                          coach.rank === 2 ? 'rank-2' :
+                          coach.rank === 3 ? 'rank-3' :
+                          'bg-[var(--background)] text-[var(--foreground-subtle)] border border-[var(--background-tertiary)]'
+                        }`}>
+                          {coach.rank}
                         </div>
-                        {/* Type Badges - using placeholder types based on rank */}
-                        <div className="flex gap-1 mt-1">
-                          {idx === 0 && (
-                            <>
-                              <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.dragon}`}>Dragon</span>
-                              <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.steel}`}>Steel</span>
-                            </>
-                          )}
-                          {idx === 1 && (
-                            <>
-                              <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.fire}`}>Fire</span>
-                              <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.fighting}`}>Fighting</span>
-                            </>
-                          )}
-                          {idx === 2 && (
-                            <>
-                              <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.water}`}>Water</span>
-                              <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.fairy}`}>Fairy</span>
-                            </>
-                          )}
-                          {idx === 3 && (
-                            <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.ghost}`}>Ghost</span>
-                          )}
-                          {idx === 4 && (
-                            <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.electric}`}>Electric</span>
-                          )}
-                          {idx >= 5 && (
-                            <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.normal}`}>Normal</span>
-                          )}
-                        </div>
-                      </div>
 
-                      {/* ELO */}
-                      <div className="text-right shrink-0">
-                        <div className="elo-display">{Math.round(coach.eloRating)}</div>
-                        <div className="text-[9px] text-[var(--foreground-subtle)] uppercase font-bold">ELO</div>
+                        {/* Name and Type Badges */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm text-[var(--foreground-muted)] group-hover:text-white transition-colors truncate">
+                            {coach.name}
+                          </div>
+                          {/* Type Badges - based on most used Pokemon types */}
+                          <div className="flex gap-1 mt-1">
+                            {showDualTypes && (
+                              coach.topTypes.length > 0 ? (
+                                coach.topTypes.slice(0, 2).map((type) => (
+                                  <span
+                                    key={type}
+                                    className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors[type] || typeColors.normal}`}
+                                  >
+                                    {type}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.normal}`}>Normal</span>
+                              )
+                            )}
+                            {showSingleType && (
+                              coach.topTypes.length > 0 ? (
+                                <span
+                                  className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors[coach.topTypes[0]] || typeColors.normal}`}
+                                >
+                                  {coach.topTypes[0]}
+                                </span>
+                              ) : (
+                                <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.normal}`}>Normal</span>
+                              )
+                            )}
+                            {showDefaultOnly && (
+                              <span className={`px-1.5 py-0.5 text-[8px] rounded font-bold uppercase text-white ${typeColors.normal}`}>Normal</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ELO */}
+                        <div className="text-right shrink-0">
+                          <div className="elo-display">{Math.round(coach.eloRating)}</div>
+                          <div className="text-[9px] text-[var(--foreground-subtle)] uppercase font-bold">ELO</div>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             ) : (
-              <p className="text-[var(--foreground-muted)] text-center py-8 flex-1 flex items-center justify-center">No trainers yet</p>
+              <p className="text-[var(--foreground-muted)] text-center py-8">No trainers yet</p>
             )}
 
             {/* View All Link */}
-            <div className="mt-6 text-center pt-4 border-t border-[var(--background-tertiary)]">
+            <div className="mt-6 text-center pt-4 border-t border-[var(--background-tertiary)] flex-shrink-0">
               <Link
                 href="/leaderboards"
                 className="text-xs text-[var(--foreground-subtle)] hover:text-white uppercase font-bold tracking-widest transition-colors inline-flex items-center gap-2"
@@ -578,6 +725,57 @@ export default async function Home() {
               </Link>
             </div>
           </div>
+        }
+      />
+
+      {/* Social Links */}
+      <div className="flex flex-col items-center justify-center gap-3 -mb-8">
+        <span className="text-xs text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">Connect</span>
+        <div className="flex items-center gap-4">
+          <a
+            href="https://www.youtube.com/@Pokemon.Battle.Organization"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-20 h-20 rounded-xl bg-[var(--background-secondary)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#FF0000] hover:border-[#FF0000]/50 hover:scale-105 transition-all"
+            title="YouTube"
+          >
+            <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+            </svg>
+          </a>
+          <a
+            href="https://www.twitch.tv/pokemonbattleorg"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-20 h-20 rounded-xl bg-[var(--background-secondary)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#9146FF] hover:border-[#9146FF]/50 hover:scale-105 transition-all"
+            title="Twitch"
+          >
+            <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
+            </svg>
+          </a>
+          <a
+            href="https://www.patreon.com/cw/PBO1"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-20 h-20 rounded-xl bg-[var(--background-secondary)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#FF424D] hover:border-[#FF424D]/50 hover:scale-105 transition-all"
+            title="Patreon"
+          >
+            <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M15.386.524c-4.764 0-8.64 3.876-8.64 8.64 0 4.75 3.876 8.613 8.64 8.613 4.75 0 8.614-3.864 8.614-8.613C24 4.4 20.136.524 15.386.524zM.003 23.537h4.22V.524H.003z"/>
+            </svg>
+          </a>
+          <a
+            href="https://discord.com/channels/964768747690799124"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-20 h-20 rounded-xl bg-[var(--background-secondary)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#5865F2] hover:border-[#5865F2]/50 hover:scale-105 transition-all"
+            title="Discord"
+          >
+            <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+            </svg>
+          </a>
         </div>
       </div>
 

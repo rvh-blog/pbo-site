@@ -1,0 +1,306 @@
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+import { BarChart3, ExternalLink, Loader2, Search, ShieldAlert, Swords } from "lucide-react";
+import { HpChart } from "@/components/hp-chart";
+
+interface PokemonStats {
+  name: string;
+  kills: number;
+  deaths: number;
+  damageDealt: number;
+  damageDealtIndirect: number;
+  damageTaken: number;
+  damageTakenIndirect: number;
+  hpRestored: number;
+}
+
+interface TurnSnapshot {
+  turn: number;
+  p1TotalHp: number;
+  p2TotalHp: number;
+}
+
+interface KeyEvent {
+  turn: number;
+  type: "faint" | "win";
+  player: "p1" | "p2";
+  pokemon?: string;
+  cause?: string;
+  killer?: string;
+  killerPlayer?: "p1" | "p2";
+  move?: string;
+}
+
+interface ParsedReplay {
+  p1Username: string;
+  p2Username: string;
+  p1Team: PokemonStats[];
+  p2Team: PokemonStats[];
+  winner: "p1" | "p2" | null;
+  p1Remaining: number;
+  p2Remaining: number;
+  startedAt: string | null;
+  endedAt: string | null;
+  zoroarkInvolved: boolean;
+  turnSnapshots: TurnSnapshot[];
+  keyEvents: KeyEvent[];
+  replayJsonUrl?: string;
+}
+
+function formatNumber(value: number) {
+  return Math.round(value).toString();
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "Unknown";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function getPlayerName(data: ParsedReplay, player: "p1" | "p2") {
+  return player === "p1" ? data.p1Username || "Player 1" : data.p2Username || "Player 2";
+}
+
+function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
+  return (
+    <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--background-tertiary)]">
+        <h2 className="text-sm font-black uppercase tracking-wide text-white">{title}</h2>
+        <span className="text-xs font-bold text-[var(--foreground-muted)]">{team.length} Pokemon</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead className="bg-[var(--background-secondary)] text-[10px] uppercase tracking-widest text-[var(--foreground-muted)]">
+            <tr>
+              <th className="px-4 py-3 text-left">Pokemon</th>
+              <th className="px-3 py-3 text-right">K</th>
+              <th className="px-3 py-3 text-right">D</th>
+              <th className="px-3 py-3 text-right">Direct dealt</th>
+              <th className="px-3 py-3 text-right">Indirect dealt</th>
+              <th className="px-3 py-3 text-right">Direct taken</th>
+              <th className="px-3 py-3 text-right">Indirect taken</th>
+              <th className="px-3 py-3 text-right">Restored</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--background-tertiary)]">
+            {team.map((pokemon) => (
+              <tr key={pokemon.name} className="hover:bg-[var(--glass-hover)] transition-colors">
+                <td className="px-4 py-3 font-bold text-white">{pokemon.name}</td>
+                <td className="px-3 py-3 text-right text-[var(--success)] font-bold">{pokemon.kills}</td>
+                <td className="px-3 py-3 text-right text-[var(--error)] font-bold">{pokemon.deaths}</td>
+                <td className="px-3 py-3 text-right text-[var(--foreground)]">{formatNumber(pokemon.damageDealt)}</td>
+                <td className="px-3 py-3 text-right text-[var(--foreground)]">{formatNumber(pokemon.damageDealtIndirect)}</td>
+                <td className="px-3 py-3 text-right text-[var(--foreground-muted)]">{formatNumber(pokemon.damageTaken)}</td>
+                <td className="px-3 py-3 text-right text-[var(--foreground-muted)]">{formatNumber(pokemon.damageTakenIndirect)}</td>
+                <td className="px-3 py-3 text-right text-[var(--accent)]">{formatNumber(pokemon.hpRestored)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export function AnalyzerClient() {
+  const [replayUrl, setReplayUrl] = useState("");
+  const [data, setData] = useState<ParsedReplay | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const winnerName = useMemo(() => {
+    if (!data?.winner) return "Unknown";
+    return getPlayerName(data, data.winner);
+  }, [data]);
+
+  async function handleAnalyze(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!replayUrl.trim()) {
+      setError("Enter a Pokemon Showdown replay link.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setData(null);
+
+    try {
+      const res = await fetch("/api/replay-scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replayUrl, preserveMegas: true }),
+      });
+      const payload = await res.json();
+
+      if (!res.ok) {
+        throw new Error(payload.error || "Failed to analyze replay.");
+      }
+
+      setData(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to analyze replay.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="relative z-10 min-h-screen">
+      <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8">
+        <section className="max-w-5xl">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--background-tertiary)] bg-[var(--glass)] px-3 py-1.5 text-xs font-black uppercase tracking-widest text-[var(--accent)]">
+            <BarChart3 className="h-4 w-4" />
+            Analyzer
+          </div>
+          <h1 className="mt-5 font-pixel text-2xl sm:text-4xl leading-relaxed text-white">
+            Showdown replay analyzer
+          </h1>
+          <p className="mt-4 max-w-3xl text-sm sm:text-base text-[var(--foreground-muted)]">
+            Paste any public Pokemon Showdown replay link to calculate kills, deaths, damage, recovery,
+            HP swing, and key events. This does not save the replay or match data.
+          </p>
+        </section>
+
+        <form
+          onSubmit={handleAnalyze}
+          className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 sm:p-5 shadow-xl"
+        >
+          <label htmlFor="replay-url" className="block text-xs font-black uppercase tracking-widest text-[var(--foreground-muted)]">
+            Replay link
+          </label>
+          <div className="mt-3 flex flex-col sm:flex-row gap-3">
+            <input
+              id="replay-url"
+              type="text"
+              value={replayUrl}
+              onChange={(event) => setReplayUrl(event.target.value)}
+              placeholder="https://replay.pokemonshowdown.com/gen9..."
+              className="min-w-0 flex-1 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[var(--foreground-subtle)] focus:border-[var(--primary)]"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow-[4px_4px_0px_var(--primary-dark)] transition-all hover:translate-y-1 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Analyze
+            </button>
+          </div>
+          {error && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-3 py-2 text-sm text-[var(--error)]">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </form>
+
+        {data && (
+          <div className="space-y-8">
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
+                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Winner</div>
+                <div className="mt-2 text-xl font-black text-white">{winnerName}</div>
+              </div>
+              <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
+                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Differential</div>
+                <div className="mt-2 text-xl font-black text-white">
+                  {data.winner === "p1" ? `+${data.p1Remaining}` : data.winner === "p2" ? `+${data.p2Remaining}` : "Unknown"}
+                </div>
+              </div>
+              <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
+                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Turns</div>
+                <div className="mt-2 text-xl font-black text-white">{data.turnSnapshots.at(-1)?.turn ?? 0}</div>
+              </div>
+              <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
+                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Started</div>
+                <div className="mt-2 text-xl font-black text-white">{formatDate(data.startedAt)}</div>
+              </div>
+            </section>
+
+            {data.zoroarkInvolved && (
+              <div className="rounded-lg border border-[var(--warning)]/50 bg-[var(--warning)]/10 px-4 py-3 text-sm font-bold text-[var(--warning)]">
+                Zoroark was involved, so illusion-related attribution should be reviewed manually.
+              </div>
+            )}
+
+            {data.turnSnapshots.length > 0 && (
+              <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 sm:p-5">
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-black uppercase tracking-wide text-white">HP timeline</h2>
+                  {data.replayJsonUrl && (
+                    <a
+                      href={data.replayJsonUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--foreground-muted)] hover:text-white"
+                    >
+                      JSON source
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
+                <HpChart
+                  turnSnapshots={data.turnSnapshots}
+                  keyEvents={data.keyEvents}
+                  team1Name={data.p1Username || "Player 1"}
+                  team2Name={data.p2Username || "Player 2"}
+                  team1Color="var(--secondary-light)"
+                  team2Color="var(--primary-light)"
+                  p1IsCoach1={true}
+                />
+              </section>
+            )}
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <TeamTable title={data.p1Username || "Player 1"} team={data.p1Team} />
+              <TeamTable title={data.p2Username || "Player 2"} team={data.p2Team} />
+            </div>
+
+            {data.keyEvents.length > 0 && (
+              <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--background-tertiary)]">
+                  <Swords className="h-4 w-4 text-[var(--accent)]" />
+                  <h2 className="text-sm font-black uppercase tracking-wide text-white">Key events</h2>
+                </div>
+                <div className="divide-y divide-[var(--background-tertiary)]">
+                  {data.keyEvents.map((event, index) => {
+                    const playerName = getPlayerName(data, event.player);
+                    const killerName = event.killerPlayer ? getPlayerName(data, event.killerPlayer) : null;
+
+                    return (
+                      <div key={`${event.turn}-${event.type}-${index}`} className="px-4 py-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="rounded bg-[var(--background-tertiary)] px-2 py-1 text-[10px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">
+                            Turn {event.turn}
+                          </span>
+                          <span className="font-bold text-white">
+                            {event.type === "win"
+                              ? `${playerName} won`
+                              : `${event.pokemon || "A Pokemon"} fainted for ${playerName}`}
+                          </span>
+                        </div>
+                        {event.type === "faint" && (event.killer || event.cause || event.move) && (
+                          <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                            {event.killer && killerName ? `${event.killer} (${killerName})` : event.killer}
+                            {event.move ? ` via ${event.move}` : ""}
+                            {event.cause ? ` from ${event.cause}` : ""}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

@@ -15,10 +15,29 @@
 
 # next.js
 /.next/
+**/.next/
 /out/
 
 # production
 /build
+/dist
+
+# local databases and SQLite sidecars
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# local backups, exports, and generated data
+/backups/
+/data/
+missing_pokemon_data.csv
+scripts/pokeapi-cache.json
+
+# local agent/tool state
+/.claude/
+/.secrets/
 
 # misc
 .DS_Store
@@ -32,6 +51,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel

@@ -10,6 +10,9 @@ const adminNavItems = [
   { href: "/admin/rosters", label: "Rosters" },
   { href: "/admin/transactions", label: "Transactions" },
   { href: "/admin/matches", label: "Matches" },
+  { href: "/admin/discord", label: "Discord" },
+  { href: "/admin/sheets", label: "Sheets" },
+  { href: "/admin/pick-ems", label: "Pick-ems" },
 ];
 
 export default async function AdminLayout({

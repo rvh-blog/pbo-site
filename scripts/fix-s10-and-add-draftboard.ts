@@ -7,10 +7,14 @@ import * as fs from "fs";
 
 dotenv.config({ path: ".env.local" });
 
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
+// Use local SQLite by default
+const useTurso = process.env.USE_TURSO === "true";
+const client = createClient(
+  useTurso
+    ? { url: process.env.TURSO_DATABASE_URL!, authToken: process.env.TURSO_AUTH_TOKEN }
+    : { url: "file:pbo.db" }
+);
+console.log(`Using ${useTurso ? "Turso" : "local SQLite"} database\n`);
 
 const db = drizzle(client, { schema });
 

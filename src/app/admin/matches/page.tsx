@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
+import { computeAndSortStandings } from "@/lib/standings-sort";
 
 interface Coach {
   id: number;
@@ -382,7 +383,7 @@ export default function AdminMatchesPage() {
     }
   };
 
-  const regularWeeks = [...new Set(matches.map((m) => m.week))].sort((a, b) => a - b);
+  const regularWeeks = [...new Set(matches.map((m) => m.week))].filter((w) => w <= 100).sort((a, b) => a - b);
   const playoffRounds = [...new Set(playoffMatches.map((pm) => pm.round))].sort((a, b) => a - b);
 
   const weekOptions = [
@@ -1109,12 +1110,13 @@ export default function AdminMatchesPage() {
                 </Select>
               </div>
             )}
-            {selectedSeason && (
-              <div className="ml-auto">
+            {selectedSeason && activeTab === "schedule" && (
+              <div className="ml-auto flex flex-col items-center">
                 <button
                   type="button"
                   onClick={async () => {
                     const newValue = !(selectedSeason.isSchedulePublic ?? true);
+                    if (!confirm(`Are you sure you want to ${newValue ? "show" : "hide"} the schedule on the public site?`)) return;
                     setSeasons(seasons.map((s) => s.id === selectedSeason.id ? { ...s, isSchedulePublic: newValue } : s));
                     setSelectedSeason({ ...selectedSeason, isSchedulePublic: newValue });
                     await fetch("/api/seasons", {
@@ -1131,6 +1133,9 @@ export default function AdminMatchesPage() {
                 >
                   {(selectedSeason.isSchedulePublic ?? true) ? "Schedule Visible" : "Schedule Hidden"}
                 </button>
+                <p className="text-xs text-gray-400 mt-1 text-center max-w-48">
+                  Shows/hides the schedule on public division pages. Hide during pre-season.
+                </p>
               </div>
             )}
           </div>
@@ -1644,140 +1649,298 @@ export default function AdminMatchesPage() {
 
           {/* Playoffs Tab */}
           {activeTab === "playoffs" && (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Add Playoff Match</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {!selectedDivision ? (
-                    <p className="text-[var(--warning)]">Please select a division to manage playoffs.</p>
-                  ) : (
-                    <form onSubmit={handleAddPlayoffMatch} className="space-y-4">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                          <Label>Round</Label>
-                          <Select
-                            value={playoffForm.round}
-                            onChange={(e) => {
-                              const newRound = parseInt(e.target.value);
-                              const takenPositions = playoffMatches
-                                .filter((pm) => pm.round === newRound && pm.divisionId === selectedDivision?.id)
-                                .map((pm) => pm.bracketPosition);
-                              const maxPositions = newRound === 1 ? 4 : newRound === 2 ? 2 : 1;
-                              const available = Array.from({ length: maxPositions }, (_, i) => i + 1).find(
-                                (p) => !takenPositions.includes(p)
-                              );
-                              setPlayoffForm({
-                                ...playoffForm,
-                                round: e.target.value,
-                                bracketPosition: available?.toString() || "1",
-                              });
-                            }}
-                          >
-                            <option value="1">Quarterfinals</option>
-                            <option value="2">Semifinals</option>
-                            <option value="3">Finals</option>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Bracket Position</Label>
-                          <Select
-                            value={playoffForm.bracketPosition}
-                            onChange={(e) => setPlayoffForm({ ...playoffForm, bracketPosition: e.target.value })}
-                          >
-                            {(() => {
-                              const round = parseInt(playoffForm.round);
-                              const takenPositions = playoffMatches
-                                .filter((pm) => pm.round === round && pm.divisionId === selectedDivision?.id)
-                                .map((pm) => pm.bracketPosition);
-                              const maxPositions = round === 1 ? 4 : round === 2 ? 2 : 1;
-                              return Array.from({ length: maxPositions }, (_, i) => i + 1)
-                                .filter((p) => !takenPositions.includes(p))
-                                .map((p) => (
-                                  <option key={p} value={p}>{p}</option>
-                                ));
-                            })()}
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Higher Seed</Label>
-                          <Select
-                            value={playoffForm.higherSeedId}
-                            onChange={(e) => setPlayoffForm({ ...playoffForm, higherSeedId: e.target.value })}
-                          >
-                            <option value="">Select team</option>
-                            {coachesInDivision.map((sc) => (
-                              <option key={sc.id} value={sc.id}>{sc.teamName}</option>
-                            ))}
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Lower Seed</Label>
-                          <Select
-                            value={playoffForm.lowerSeedId}
-                            onChange={(e) => setPlayoffForm({ ...playoffForm, lowerSeedId: e.target.value })}
-                          >
-                            <option value="">Select team</option>
-                            {coachesInDivision
-                              .filter((sc) => sc.id !== parseInt(playoffForm.higherSeedId))
-                              .map((sc) => (
-                                <option key={sc.id} value={sc.id}>{sc.teamName}</option>
-                              ))}
-                          </Select>
-                        </div>
-                      </div>
-                      <Button type="submit">Add Playoff Match</Button>
-                    </form>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Playoff Matches ({playoffMatches.length})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {playoffMatches.length === 0 ? (
-                    <p className="text-[var(--foreground-muted)] text-center py-4">
-                      No playoff matches yet.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {playoffMatches.map((pm) => (
-                        <div
-                          key={pm.id}
-                          className="flex items-center justify-between p-3 rounded-lg bg-[var(--background-secondary)]"
-                        >
-                          <div className="flex items-center gap-4">
-                            <span className="text-sm font-medium text-[var(--primary)]">
-                              {getRoundName(pm.round)} #{pm.bracketPosition}
-                            </span>
-                            <span>
-                              {pm.higherSeed?.teamName || "TBD"} vs {pm.lowerSeed?.teamName || "TBD"}
-                            </span>
-                            {pm.winnerId && (
-                              <span className="text-[var(--success)]">
-                                Winner: {pm.winnerId === pm.higherSeedId ? pm.higherSeed?.teamName : pm.lowerSeed?.teamName}
-                              </span>
-                            )}
-                            <span className="text-sm text-[var(--foreground-muted)]">
-                              {pm.higherSeedWins}-{pm.lowerSeedWins}
-                            </span>
-                          </div>
-                          <Button size="sm" variant="destructive" onClick={() => handleDeletePlayoffMatch(pm.id)}>
-                            Delete
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </>
+            <Card>
+              <CardHeader>
+                <CardTitle>Playoff Bracket</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!selectedDivision ? (
+                  <p className="text-[var(--warning)]">Please select a division to manage playoffs.</p>
+                ) : (
+                  <PlayoffBracketBuilder
+                    coachesInDivision={coachesInDivision}
+                    existingMatches={playoffMatches.filter((pm) => pm.divisionId === selectedDivision.id)}
+                    seasonId={selectedSeason!.id}
+                    divisionId={selectedDivision.id}
+                    divisionMatches={matches.filter((m) => m.divisionId === selectedDivision.id)}
+                    onSaved={async () => {
+                      await fetchPlayoffMatches();
+                      await fetchMatches();
+                    }}
+                  />
+                )}
+              </CardContent>
+            </Card>
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   Playoff Bracket Builder
+   ═══════════════════════════════════════════════ */
+
+interface BracketSlot {
+  round: number;
+  bracketPosition: number;
+  higherSeedId: string;
+  lowerSeedId: string;
+  existingId: number | null; // ID if already saved in DB
+  winnerId: number | null;
+}
+
+function PlayoffBracketBuilder({
+  coachesInDivision,
+  existingMatches,
+  seasonId,
+  divisionId,
+  divisionMatches,
+  onSaved,
+}: {
+  coachesInDivision: SeasonCoach[];
+  existingMatches: PlayoffMatch[];
+  seasonId: number;
+  divisionId: number;
+  divisionMatches: Match[];
+  onSaved: () => Promise<void>;
+}) {
+  // Compute standings using shared tiebreaker logic
+  const standings = computeAndSortStandings(
+    coachesInDivision,
+    new Map(),
+    divisionMatches
+  );
+  const coachRank = new Map(standings.map((sc, i) => [sc.id, i + 1]));
+  const coachesSorted = standings.map((s) => coachesInDivision.find((c) => c.id === s.id)!).filter(Boolean);
+  const [saving, setSaving] = useState(false);
+  const [slots, setSlots] = useState<BracketSlot[]>(() => {
+    // Initialize all 7 bracket slots (4 QF + 2 SF + 1 Finals)
+    const initial: BracketSlot[] = [];
+    const structure = [
+      { round: 1, positions: 4 },
+      { round: 2, positions: 2 },
+      { round: 3, positions: 1 },
+    ];
+    for (const { round, positions } of structure) {
+      for (let pos = 1; pos <= positions; pos++) {
+        const existing = existingMatches.find(
+          (pm) => pm.round === round && pm.bracketPosition === pos
+        );
+        initial.push({
+          round,
+          bracketPosition: pos,
+          higherSeedId: existing?.higherSeedId?.toString() || "",
+          lowerSeedId: existing?.lowerSeedId?.toString() || "",
+          existingId: existing?.id || null,
+          winnerId: existing?.winnerId || null,
+        });
+      }
+    }
+    return initial;
+  });
+
+  function updateSlot(round: number, pos: number, field: "higherSeedId" | "lowerSeedId", value: string) {
+    setSlots((prev) =>
+      prev.map((s) =>
+        s.round === round && s.bracketPosition === pos ? { ...s, [field]: value } : s
+      )
+    );
+  }
+
+  function getSlot(round: number, pos: number) {
+    return slots.find((s) => s.round === round && s.bracketPosition === pos)!;
+  }
+
+  function getTeamName(id: string) {
+    if (!id) return "TBD";
+    const sc = coachesInDivision.find((c) => c.id === parseInt(id));
+    return sc?.teamName || "TBD";
+  }
+
+  const roundLabel = (round: number) =>
+    round === 1 ? "Quarterfinals" : round === 2 ? "Semifinals" : "Finals";
+
+  // Check which slots have changes vs what's in DB
+  const hasChanges = slots.some((slot) => {
+    const existing = existingMatches.find(
+      (pm) => pm.round === slot.round && pm.bracketPosition === slot.bracketPosition
+    );
+    if (!existing) {
+      return !!(slot.higherSeedId || slot.lowerSeedId);
+    }
+    return (
+      (slot.higherSeedId || "") !== (existing.higherSeedId?.toString() || "") ||
+      (slot.lowerSeedId || "") !== (existing.lowerSeedId?.toString() || "")
+    );
+  });
+
+  async function handleSaveAll() {
+    if (!hasChanges) return;
+    setSaving(true);
+
+    try {
+      for (const slot of slots) {
+        const hasTeams = slot.higherSeedId || slot.lowerSeedId;
+        const existing = existingMatches.find(
+          (pm) => pm.round === slot.round && pm.bracketPosition === slot.bracketPosition
+        );
+
+        const isChanged = existing
+          ? (slot.higherSeedId || "") !== (existing.higherSeedId?.toString() || "") ||
+            (slot.lowerSeedId || "") !== (existing.lowerSeedId?.toString() || "")
+          : hasTeams;
+
+        if (!isChanged) continue;
+
+        if (existing) {
+          // Update existing
+          await fetch("/api/playoffs", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: existing.id,
+              higherSeedId: slot.higherSeedId ? parseInt(slot.higherSeedId) : null,
+              lowerSeedId: slot.lowerSeedId ? parseInt(slot.lowerSeedId) : null,
+            }),
+          });
+        } else if (hasTeams) {
+          // Create new
+          await fetch("/api/playoffs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              seasonId,
+              divisionId,
+              round: slot.round,
+              bracketPosition: slot.bracketPosition,
+              higherSeedId: slot.higherSeedId ? parseInt(slot.higherSeedId) : null,
+              lowerSeedId: slot.lowerSeedId ? parseInt(slot.lowerSeedId) : null,
+            }),
+          });
+        }
+      }
+      await onSaved();
+    } catch (err) {
+      alert(`Error saving bracket: ${err}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleClearAll() {
+    if (!confirm("Delete ALL playoff matches for this division? This cannot be undone.")) return;
+    setSaving(true);
+    try {
+      for (const pm of existingMatches) {
+        await fetch(`/api/playoffs?id=${pm.id}`, { method: "DELETE" });
+      }
+      setSlots((prev) =>
+        prev.map((s) => ({ ...s, higherSeedId: "", lowerSeedId: "", existingId: null, winnerId: null }))
+      );
+      await onSaved();
+    } catch (err) {
+      alert(`Error clearing bracket: ${err}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function TeamSelect({ round, pos, field, label }: { round: number; pos: number; field: "higherSeedId" | "lowerSeedId"; label: string }) {
+    const slot = getSlot(round, pos);
+    const otherField = field === "higherSeedId" ? "lowerSeedId" : "higherSeedId";
+    const otherValue = slot[otherField];
+    const isLocked = !!slot.winnerId;
+
+    return (
+      <Select
+        value={slot[field]}
+        onChange={(e) => updateSlot(round, pos, field, e.target.value)}
+        disabled={isLocked}
+        title={isLocked ? "Cannot edit — match has a result" : label}
+      >
+        <option value="">{label}</option>
+        {coachesSorted
+          .filter((sc) => !otherValue || sc.id !== parseInt(otherValue))
+          .map((sc) => (
+            <option key={sc.id} value={sc.id}>#{coachRank.get(sc.id)} {sc.teamName}</option>
+          ))}
+      </Select>
+    );
+  }
+
+  function MatchCard({ round, pos }: { round: number; pos: number }) {
+    const slot = getSlot(round, pos);
+    const hasResult = !!slot.winnerId;
+
+    return (
+      <div className={`p-3 rounded-lg border ${hasResult ? "border-[var(--success)]/30 bg-[var(--success)]/5" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"}`}>
+        <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wide mb-2">
+          {roundLabel(round)} {round === 1 ? `#${pos}` : round === 2 ? `#${pos}` : ""}
+          {hasResult && <span className="ml-2 text-[var(--success)]">Played</span>}
+        </div>
+        <div className="space-y-1.5">
+          <TeamSelect round={round} pos={pos} field="higherSeedId" label="Higher Seed" />
+          <div className="text-center text-[10px] text-[var(--foreground-subtle)] font-bold">VS</div>
+          <TeamSelect round={round} pos={pos} field="lowerSeedId" label="Lower Seed" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Visual Bracket */}
+      <div className="grid grid-cols-5 gap-3 items-center">
+        {/* Left QF */}
+        <div className="space-y-3">
+          <MatchCard round={1} pos={1} />
+          <MatchCard round={1} pos={2} />
+        </div>
+
+        {/* Left SF */}
+        <div className="flex items-center justify-center">
+          <div className="w-full">
+            <MatchCard round={2} pos={1} />
+          </div>
+        </div>
+
+        {/* Finals */}
+        <div className="flex items-center justify-center">
+          <div className="w-full">
+            <MatchCard round={3} pos={1} />
+          </div>
+        </div>
+
+        {/* Right SF */}
+        <div className="flex items-center justify-center">
+          <div className="w-full">
+            <MatchCard round={2} pos={2} />
+          </div>
+        </div>
+
+        {/* Right QF */}
+        <div className="space-y-3">
+          <MatchCard round={1} pos={3} />
+          <MatchCard round={1} pos={4} />
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        <Button onClick={handleSaveAll} disabled={!hasChanges || saving}>
+          {saving ? "Saving..." : "Save Bracket"}
+        </Button>
+        {existingMatches.length > 0 && (
+          <Button variant="destructive" onClick={handleClearAll} disabled={saving}>
+            Clear All
+          </Button>
+        )}
+        {hasChanges && (
+          <span className="text-xs text-[var(--warning)]">Unsaved changes</span>
+        )}
+      </div>
     </div>
   );
 }

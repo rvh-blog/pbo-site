@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { transactions, rosters, seasonCoaches, pokemon } from "@/lib/schema";
+import { transactions, rosters, seasonCoaches, pokemon, seasonPokemonPrices } from "@/lib/schema";
 import { eq, and, or, desc } from "drizzle-orm";
 import {
   getTransactionCounts,
@@ -11,6 +11,7 @@ import {
   executeFASwap,
   executeP2PTrade,
   executeTeraSwap,
+  executeBulkFATransaction,
   undoTransaction,
 } from "@/lib/transaction-service";
 
@@ -27,10 +28,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(counts);
   }
 
-  // Get available free agents
+  // Get available free agents (division-specific)
   if (action === "freeAgents" && seasonId) {
-    const freeAgents = await getAvailableFreeAgents(parseInt(seasonId));
+    const divisionId = searchParams.get("divisionId");
+    const freeAgents = await getAvailableFreeAgents(
+      parseInt(seasonId),
+      divisionId ? parseInt(divisionId) : undefined
+    );
     return NextResponse.json(freeAgents);
+  }
+
+  // Get season Pokemon prices (for TC cost lookups)
+  if (action === "seasonPrices" && seasonId) {
+    const prices = await db.query.seasonPokemonPrices.findMany({
+      where: eq(seasonPokemonPrices.seasonId, parseInt(seasonId)),
+    });
+    return NextResponse.json(prices);
   }
 
   // Check trade lock status
@@ -85,20 +98,22 @@ export async function GET(request: NextRequest) {
   // Enhance with Pokemon details
   const enhancedTxs = await Promise.all(
     txs.map(async (tx) => {
-      // Get Pokemon details for pokemonIn
-      const pokemonInDetails = tx.pokemonIn
+      // Get Pokemon details for pokemonIn (check array has items, not just exists)
+      const pokemonInIds = (tx.pokemonIn as number[]) || [];
+      const pokemonInDetails = pokemonInIds.length > 0
         ? await db.query.pokemon.findMany({
             where: or(
-              ...(tx.pokemonIn as number[]).map((id) => eq(pokemon.id, id))
+              ...pokemonInIds.map((id) => eq(pokemon.id, id))
             ),
           })
         : [];
 
-      // Get Pokemon details for pokemonOut
-      const pokemonOutDetails = tx.pokemonOut
+      // Get Pokemon details for pokemonOut (check array has items, not just exists)
+      const pokemonOutIds = (tx.pokemonOut as number[]) || [];
+      const pokemonOutDetails = pokemonOutIds.length > 0
         ? await db.query.pokemon.findMany({
             where: or(
-              ...(tx.pokemonOut as number[]).map((id) => eq(pokemon.id, id))
+              ...pokemonOutIds.map((id) => eq(pokemon.id, id))
             ),
           })
         : [];
@@ -242,6 +257,8 @@ export async function POST(request: NextRequest) {
           team1RosterIds,
           team2SeasonCoachId,
           team2RosterIds,
+          team1IncomingTC,
+          team2IncomingTC,
           week,
           countsAgainstLimit = true,
           notes,
@@ -267,6 +284,8 @@ export async function POST(request: NextRequest) {
           team1RosterIds,
           team2SeasonCoachId,
           team2RosterIds,
+          team1IncomingTC: team1IncomingTC || {},
+          team2IncomingTC: team2IncomingTC || {},
           week,
           countsAgainstLimit,
           notes,
@@ -289,11 +308,11 @@ export async function POST(request: NextRequest) {
         if (
           !seasonId ||
           !seasonCoachId ||
-          !newTeraCaptainRosterId ||
-          week === undefined
+          week === undefined ||
+          (!newTeraCaptainRosterId && !oldTeraCaptainRosterId)
         ) {
           return NextResponse.json(
-            { error: "Missing required fields" },
+            { error: "Missing required fields. Must specify at least one Pokemon to add or remove as TC." },
             { status: 400 }
           );
         }
@@ -305,6 +324,59 @@ export async function POST(request: NextRequest) {
           oldTeraCaptainRosterId,
           week,
           countsAgainstLimit,
+          notes,
+        });
+
+        return NextResponse.json(tx);
+      }
+
+      case "bulkFATransaction": {
+        const {
+          seasonId,
+          divisionId,
+          seasonCoachId,
+          week,
+          countsAgainstLimit = true,
+          swaps,
+          drops,
+          pickups,
+          tcSwaps,
+          tcChanges,
+          notes,
+        } = data;
+
+        if (!seasonId || !divisionId || !seasonCoachId || week === undefined) {
+          return NextResponse.json(
+            { error: "Missing required fields" },
+            { status: 400 }
+          );
+        }
+
+        // Ensure at least one change
+        if (
+          (!swaps || swaps.length === 0) &&
+          (!drops || drops.length === 0) &&
+          (!pickups || pickups.length === 0) &&
+          (!tcSwaps || tcSwaps.length === 0) &&
+          (!tcChanges || tcChanges.length === 0)
+        ) {
+          return NextResponse.json(
+            { error: "Must specify at least one swap, drop, pickup, or TC change" },
+            { status: 400 }
+          );
+        }
+
+        const tx = await executeBulkFATransaction({
+          seasonId,
+          divisionId,
+          seasonCoachId,
+          week,
+          countsAgainstLimit,
+          swaps: swaps || [],
+          drops: drops || [],
+          pickups: pickups || [],
+          tcSwaps: tcSwaps || [],
+          tcChanges: tcChanges || [],
           notes,
         });
 

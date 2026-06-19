@@ -41,6 +41,7 @@ async function getPokemonWithPrices(seasonId: number) {
     displayName: p.pokemon.displayName,
     spriteUrl: p.pokemon.spriteUrl,
     types: p.pokemon.types,
+    moves: p.pokemon.moves,
     price: p.price,
     teraBanned: p.teraBanned,
     teraCaptainCost: p.teraCaptainCost,
@@ -56,30 +57,38 @@ async function getPokemonWithPrices(seasonId: number) {
 }
 
 async function getRostersByDivision(seasonId: number) {
-  const divisionsList = await db.query.divisions.findMany({
-    where: eq(divisions.seasonId, seasonId),
-  });
+  // Fetch all data in parallel - no N+1 queries
+  const [divisionsList, allCoaches, allRosters] = await Promise.all([
+    db.query.divisions.findMany({
+      where: eq(divisions.seasonId, seasonId),
+    }),
+    db.query.seasonCoaches.findMany(),
+    db.query.rosters.findMany(),
+  ]);
 
+  // Build coach lookup by seasonCoachId
+  const coachById = new Map(allCoaches.map(c => [c.id, c]));
+
+  // Build division ID set for this season
+  const divisionIds = new Set(divisionsList.map(d => d.id));
+
+  // Build rosters grouped by division
   const result: Record<number, Record<number, { teamAbbr: string; teamName: string }>> = {};
 
   for (const div of divisionsList) {
     result[div.id] = {};
-    const coaches = await db.query.seasonCoaches.findMany({
-      where: eq(seasonCoaches.divisionId, div.id),
-      with: {
-        rosters: true,
-      },
-    });
+  }
 
-    for (const c of coaches) {
-      const abbr = c.teamAbbreviation || c.teamName.substring(0, 3).toUpperCase();
-      for (const r of c.rosters) {
-        result[div.id][r.pokemonId] = {
-          teamAbbr: abbr,
-          teamName: c.teamName,
-        };
-      }
-    }
+  for (const r of allRosters) {
+    const coach = coachById.get(r.seasonCoachId);
+    // Only count Pokemon as taken if the coach is active (ignore dropout teams)
+    if (!coach || !divisionIds.has(coach.divisionId) || !coach.isActive) continue;
+
+    const abbr = coach.teamAbbreviation || coach.teamName.substring(0, 3).toUpperCase();
+    result[coach.divisionId][r.pokemonId] = {
+      teamAbbr: abbr,
+      teamName: coach.teamName,
+    };
   }
 
   return result;

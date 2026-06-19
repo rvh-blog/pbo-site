@@ -7,8 +7,9 @@ import {
   divisions,
   seasons,
   pokemon,
+  matches,
 } from "@/lib/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, gte } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -23,6 +24,24 @@ export async function GET(request: NextRequest) {
       },
     });
     return NextResponse.json(roster);
+  }
+
+  const divisionId = searchParams.get("divisionId");
+
+  if (divisionId) {
+    const seasonCoachesList = await db.query.seasonCoaches.findMany({
+      where: eq(seasonCoaches.divisionId, parseInt(divisionId)),
+      with: {
+        coach: true,
+        division: true,
+        rosters: {
+          with: {
+            pokemon: true,
+          },
+        },
+      },
+    });
+    return NextResponse.json(seasonCoachesList);
   }
 
   if (seasonId) {
@@ -128,7 +147,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === "midSeasonReplacement") {
-    const { originalSeasonCoachId, newCoachId, newTeamName, newTeamLogoUrl, newTeamAbbreviation } = data;
+    const { originalSeasonCoachId, newCoachId, newTeamName, newTeamLogoUrl, newTeamAbbreviation, replacementWeek } = data;
 
     if (!originalSeasonCoachId || !newCoachId) {
       return NextResponse.json(
@@ -200,6 +219,31 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(seasonCoaches.id, originalSeasonCoachId));
 
+    // Reassign future matches from the original coach to the new coach
+    if (replacementWeek) {
+      // Update matches where original coach is coach1
+      await db
+        .update(matches)
+        .set({ coach1SeasonId: newSeasonCoach.id })
+        .where(
+          and(
+            eq(matches.coach1SeasonId, originalSeasonCoachId),
+            gte(matches.week, replacementWeek)
+          )
+        );
+
+      // Update matches where original coach is coach2
+      await db
+        .update(matches)
+        .set({ coach2SeasonId: newSeasonCoach.id })
+        .where(
+          and(
+            eq(matches.coach2SeasonId, originalSeasonCoachId),
+            gte(matches.week, replacementWeek)
+          )
+        );
+    }
+
     return NextResponse.json({
       success: true,
       newSeasonCoach,
@@ -243,6 +287,153 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(roster);
+  }
+
+  if (action === "bulkUpdateDivision") {
+    const { divisionId, draftBudget, teams } = data;
+
+    if (!divisionId || !teams || !Array.isArray(teams)) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    try {
+      for (const team of teams) {
+        // Handle deleted teams
+        if (team.isDeleted && team.id) {
+          // Delete rosters first
+          await db.delete(rosters).where(eq(rosters.seasonCoachId, team.id));
+          // Delete season coach
+          await db.delete(seasonCoaches).where(eq(seasonCoaches.id, team.id));
+          continue;
+        }
+
+        // Skip deleted teams without ID (shouldn't happen, but safety check)
+        if (team.isDeleted) continue;
+
+        // Calculate remaining budget
+        const totalSpent = team.roster.reduce(
+          (sum: number, r: any) => sum + (r.price || 0),
+          0
+        );
+        const remainingBudget = (draftBudget || 100) - totalSpent;
+
+        let seasonCoachId = team.id;
+
+        if (!team.id) {
+          // Create new season coach
+          const [newCoach] = await db
+            .insert(seasonCoaches)
+            .values({
+              coachId: team.coachId,
+              divisionId,
+              teamName: team.teamName,
+              teamAbbreviation:
+                team.teamAbbreviation ||
+                team.teamName.substring(0, 3).toUpperCase(),
+              teamLogoUrl: team.teamLogoUrl || null,
+              remainingBudget,
+              isActive: true,
+            })
+            .returning();
+          seasonCoachId = newCoach.id;
+        } else {
+          // Update existing season coach
+          await db
+            .update(seasonCoaches)
+            .set({
+              coachId: team.coachId,
+              teamName: team.teamName,
+              teamAbbreviation:
+                team.teamAbbreviation ||
+                team.teamName.substring(0, 3).toUpperCase(),
+              teamLogoUrl: team.teamLogoUrl || null,
+              remainingBudget,
+            })
+            .where(eq(seasonCoaches.id, team.id));
+
+          // Get existing rosters to preserve transaction metadata
+          const existingRosters = await db.query.rosters.findMany({
+            where: eq(rosters.seasonCoachId, team.id),
+          });
+          const existingByPokemonId = new Map(
+            existingRosters.map((r) => [r.pokemonId, r])
+          );
+
+          // Determine which Pokemon are in the new roster
+          const newPokemonIds = new Set(
+            (team.roster || [])
+              .filter((r: any) => r.pokemonId)
+              .map((r: any) => r.pokemonId)
+          );
+
+          // Delete rosters for Pokemon no longer on the team
+          for (const existing of existingRosters) {
+            if (!newPokemonIds.has(existing.pokemonId)) {
+              await db.delete(rosters).where(eq(rosters.id, existing.id));
+            }
+          }
+
+          // Update or insert rosters
+          if (team.roster && team.roster.length > 0) {
+            for (let i = 0; i < team.roster.length; i++) {
+              const r = team.roster[i];
+              if (r.pokemonId) {
+                const existing = existingByPokemonId.get(r.pokemonId);
+                if (existing) {
+                  // Update existing roster - preserve transaction metadata
+                  await db
+                    .update(rosters)
+                    .set({
+                      price: r.price || 0,
+                      draftOrder: i + 1,
+                      isTeraCaptain: r.isTeraCaptain || false,
+                      // Preserve: acquiredWeek, acquiredVia, acquiredTransactionId
+                    })
+                    .where(eq(rosters.id, existing.id));
+                } else {
+                  // Insert new roster entry
+                  await db.insert(rosters).values({
+                    seasonCoachId,
+                    pokemonId: r.pokemonId,
+                    price: r.price || 0,
+                    draftOrder: i + 1,
+                    isTeraCaptain: r.isTeraCaptain || false,
+                  });
+                }
+              }
+            }
+          }
+          continue; // Skip the insert block below for existing teams
+        }
+
+        // Insert new rosters (only for newly created teams)
+        if (team.roster && team.roster.length > 0) {
+          for (let i = 0; i < team.roster.length; i++) {
+            const r = team.roster[i];
+            if (r.pokemonId) {
+              await db.insert(rosters).values({
+                seasonCoachId,
+                pokemonId: r.pokemonId,
+                price: r.price || 0,
+                draftOrder: i + 1,
+                isTeraCaptain: r.isTeraCaptain || false,
+              });
+            }
+          }
+        }
+      }
+
+      return NextResponse.json({ success: true });
+    } catch (error: any) {
+      console.error("Bulk update error:", error);
+      return NextResponse.json(
+        { error: error.message || "Failed to save changes" },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });

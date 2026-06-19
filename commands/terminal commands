@@ -1,0 +1,11 @@
+Download DB:
+
+  mkdir -p backups && cp pbo.db "backups/pbo.db.$(date +%Y%m%d_%H%M%S)" && rm pbo.db && fly machine start $(fly machine list -q) && sleep 5 && echo "get /data/pbo.db pbo.db" | fly sftp shell && echo "Downloaded and replaced local database"
+
+Update DB:
+
+  fly machine start $(fly machine list -q) && sleep 5 && fly ssh console -C "rm /data/pbo.db" && echo "put pbo.db /data/pbo.db" | fly sftp shell && fly ssh console -C "chown nextjs:nodejs /data/pbo.db" && fly apps restart
+
+Deploy code changes:
+
+  fly deploy

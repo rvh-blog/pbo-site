@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const body = await request.json();
-  const { id, name, seasonNumber, draftBudget, isCurrent, isPublic, draftBoard } = body;
+  const { id, name, seasonNumber, draftBudget, isCurrent, isPublic, isSchedulePublic, divisions: divisionUpdates, draftBoard } = body;
 
   if (!id) {
     return NextResponse.json({ error: "ID is required" }, { status: 400 });
@@ -97,12 +97,47 @@ export async function PUT(request: NextRequest) {
   if (draftBudget !== undefined) updateData.draftBudget = draftBudget;
   if (isCurrent !== undefined) updateData.isCurrent = isCurrent;
   if (isPublic !== undefined) updateData.isPublic = isPublic;
+  if (isSchedulePublic !== undefined) updateData.isSchedulePublic = isSchedulePublic;
 
   const [season] = await db
     .update(seasons)
     .set(updateData)
     .where(eq(seasons.id, id))
     .returning();
+
+  // Process division updates if provided
+  if (divisionUpdates && Array.isArray(divisionUpdates)) {
+    // Get current divisions
+    const currentDivisions = await db.query.divisions.findMany({
+      where: eq(divisions.seasonId, id),
+    });
+    const currentIds = new Set(currentDivisions.map(d => d.id));
+    const updatedIds = new Set<number>();
+
+    for (const div of divisionUpdates) {
+      if (div.id > 0) {
+        // Update existing division
+        await db.update(divisions)
+          .set({ name: div.name, displayOrder: div.displayOrder })
+          .where(eq(divisions.id, div.id));
+        updatedIds.add(div.id);
+      } else {
+        // Create new division (negative ID means new)
+        await db.insert(divisions).values({
+          seasonId: id,
+          name: div.name,
+          displayOrder: div.displayOrder,
+        });
+      }
+    }
+
+    // Delete divisions that were removed (not in updated list)
+    for (const existingId of currentIds) {
+      if (!updatedIds.has(existingId)) {
+        await db.delete(divisions).where(eq(divisions.id, existingId));
+      }
+    }
+  }
 
   // Process draft board data if provided (replaces existing)
   if (draftBoard && Array.isArray(draftBoard)) {

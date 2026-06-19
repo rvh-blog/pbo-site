@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
+import { BulkRosterEditor } from "@/components/admin/bulk-roster-editor";
 
 interface Coach {
   id: number;
@@ -76,6 +77,7 @@ export default function AdminRostersPage() {
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [selectedDivisionId, setSelectedDivisionId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [showBulkEditor, setShowBulkEditor] = useState(false);
 
   // Form state for adding coach to season
   const [newEntry, setNewEntry] = useState({
@@ -112,7 +114,7 @@ export default function AdminRostersPage() {
     newTeamName: "",
     newTeamAbbreviation: "",
     newTeamLogoUrl: "",
-    keepTeamInfo: true,
+    replacementWeek: "",
   });
 
   // Get the selected pokemon's price info
@@ -315,10 +317,10 @@ export default function AdminRostersPage() {
     setReplacingTeam(sc);
     setReplacementForm({
       newCoachId: "",
-      newTeamName: sc.teamName,
-      newTeamAbbreviation: sc.teamAbbreviation || "",
-      newTeamLogoUrl: sc.teamLogoUrl || "",
-      keepTeamInfo: true,
+      newTeamName: "",
+      newTeamAbbreviation: "",
+      newTeamLogoUrl: "",
+      replacementWeek: "",
     });
   }
 
@@ -333,9 +335,10 @@ export default function AdminRostersPage() {
         action: "midSeasonReplacement",
         originalSeasonCoachId: replacingTeam.id,
         newCoachId: parseInt(replacementForm.newCoachId),
-        newTeamName: replacementForm.keepTeamInfo ? replacingTeam.teamName : replacementForm.newTeamName,
-        newTeamAbbreviation: replacementForm.keepTeamInfo ? replacingTeam.teamAbbreviation : replacementForm.newTeamAbbreviation,
-        newTeamLogoUrl: replacementForm.keepTeamInfo ? replacingTeam.teamLogoUrl : (replacementForm.newTeamLogoUrl || null),
+        newTeamName: replacementForm.newTeamName,
+        newTeamAbbreviation: replacementForm.newTeamAbbreviation,
+        newTeamLogoUrl: replacementForm.newTeamLogoUrl || null,
+        replacementWeek: replacementForm.replacementWeek ? parseInt(replacementForm.replacementWeek) : null,
       }),
     });
 
@@ -409,24 +412,34 @@ export default function AdminRostersPage() {
               </Select>
             </div>
             {selectedSeason && selectedSeason.divisions.length > 0 && (
-              <div className="flex items-center gap-4">
-                <Label>Division:</Label>
-                <Select
-                  value={selectedDivisionId}
-                  onChange={(e) => setSelectedDivisionId(e.target.value)}
-                  className="w-48"
+              <>
+                <div className="flex items-center gap-4">
+                  <Label>Division:</Label>
+                  <Select
+                    value={selectedDivisionId}
+                    onChange={(e) => setSelectedDivisionId(e.target.value)}
+                    className="w-48"
+                  >
+                    <option value="all">All Divisions ({seasonCoaches.length} teams)</option>
+                    {selectedSeason.divisions.map((div) => {
+                      const divTeamCount = seasonCoaches.filter((sc) => sc.divisionId === div.id).length;
+                      return (
+                        <option key={div.id} value={div.id}>
+                          {div.name} ({divTeamCount} teams)
+                        </option>
+                      );
+                    })}
+                  </Select>
+                </div>
+                <Button
+                  onClick={() => setShowBulkEditor(true)}
+                  variant="secondary"
+                  size="sm"
+                  disabled={!selectedDivisionId || selectedDivisionId === "all"}
                 >
-                  <option value="all">All Divisions ({seasonCoaches.length} teams)</option>
-                  {selectedSeason.divisions.map((div) => {
-                    const divTeamCount = seasonCoaches.filter((sc) => sc.divisionId === div.id).length;
-                    return (
-                      <option key={div.id} value={div.id}>
-                        {div.name} ({divTeamCount} teams)
-                      </option>
-                    );
-                  })}
-                </Select>
-              </div>
+                  Bulk Edit Division
+                </Button>
+              </>
             )}
           </div>
         </CardContent>
@@ -859,8 +872,8 @@ export default function AdminRostersPage() {
 
       {/* Mid-Season Replacement Modal */}
       {replacingTeam && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--card)] rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] overflow-y-auto pt-20 pb-8">
+          <div className="bg-[var(--card)] rounded-lg p-6 w-full max-w-md mx-4 my-auto">
             <h2 className="text-xl font-bold mb-2">Mid-Season Replacement</h2>
             <p className="text-sm text-[var(--foreground-muted)] mb-4">
               Replace <strong>{replacingTeam.teamName}</strong> ({replacingTeam.coach?.name})
@@ -884,61 +897,61 @@ export default function AdminRostersPage() {
                 </Select>
               </div>
               <div>
-                <Label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={replacementForm.keepTeamInfo}
-                    onChange={(e) =>
-                      setReplacementForm({
-                        ...replacementForm,
-                        keepTeamInfo: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4 rounded border-[var(--card)] bg-[var(--background-secondary)] text-[var(--primary)] focus:ring-[var(--primary)]"
-                  />
-                  <span>Keep existing team name and logo</span>
-                </Label>
+                <Label>Replacement Week</Label>
+                <Select
+                  value={replacementForm.replacementWeek}
+                  onChange={(e) =>
+                    setReplacementForm({ ...replacementForm, replacementWeek: e.target.value })
+                  }
+                >
+                  <option value="">Select week</option>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((week) => (
+                    <option key={week} value={week}>
+                      Week {week}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-[var(--foreground-muted)] mt-1">
+                  Matches from this week onward will be reassigned to the new coach
+                </p>
               </div>
-              {!replacementForm.keepTeamInfo && (
-                <>
-                  <div>
-                    <Label>New Team Name</Label>
-                    <Input
-                      value={replacementForm.newTeamName}
-                      onChange={(e) =>
-                        setReplacementForm({ ...replacementForm, newTeamName: e.target.value })
-                      }
-                      placeholder="New team name"
-                    />
-                  </div>
-                  <div>
-                    <Label>New Team Abbreviation</Label>
-                    <Input
-                      value={replacementForm.newTeamAbbreviation}
-                      onChange={(e) =>
-                        setReplacementForm({ ...replacementForm, newTeamAbbreviation: e.target.value })
-                      }
-                      placeholder="e.g., ABC"
-                      maxLength={5}
-                    />
-                  </div>
-                  <div>
-                    <Label>New Team Logo URL</Label>
-                    <Input
-                      value={replacementForm.newTeamLogoUrl}
-                      onChange={(e) =>
-                        setReplacementForm({ ...replacementForm, newTeamLogoUrl: e.target.value })
-                      }
-                      placeholder="https://example.com/logo.png"
-                    />
-                  </div>
-                </>
-              )}
+              <div>
+                <Label>New Team Name</Label>
+                <Input
+                  value={replacementForm.newTeamName}
+                  onChange={(e) =>
+                    setReplacementForm({ ...replacementForm, newTeamName: e.target.value })
+                  }
+                  placeholder="New team name"
+                />
+              </div>
+              <div>
+                <Label>New Team Abbreviation</Label>
+                <Input
+                  value={replacementForm.newTeamAbbreviation}
+                  onChange={(e) =>
+                    setReplacementForm({ ...replacementForm, newTeamAbbreviation: e.target.value })
+                  }
+                  placeholder="e.g., ABC"
+                  maxLength={5}
+                />
+              </div>
+              <div>
+                <Label>New Team Logo URL</Label>
+                <Input
+                  value={replacementForm.newTeamLogoUrl}
+                  onChange={(e) =>
+                    setReplacementForm({ ...replacementForm, newTeamLogoUrl: e.target.value })
+                  }
+                  placeholder="https://example.com/logo.png"
+                />
+              </div>
               <div className="p-3 rounded-lg bg-[var(--background-secondary)] text-sm">
                 <p className="font-medium mb-1">What happens:</p>
                 <ul className="list-disc list-inside text-[var(--foreground-muted)] space-y-1">
                   <li>Original coach is marked as inactive</li>
                   <li>New coach inherits all roster Pokemon</li>
+                  <li>Matches from replacement week onward are reassigned</li>
                   <li>Standings position is preserved</li>
                   <li>Previous match history stays with original coach</li>
                 </ul>
@@ -951,13 +964,41 @@ export default function AdminRostersPage() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={!replacementForm.newCoachId}>
+                <Button type="submit" disabled={!replacementForm.newCoachId || !replacementForm.newTeamName || !replacementForm.replacementWeek}>
                   Confirm Replacement
                 </Button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {/* Bulk Roster Editor Modal */}
+      {showBulkEditor && selectedSeason && selectedDivisionId && selectedDivisionId !== "all" && (
+        <BulkRosterEditor
+          isOpen={showBulkEditor}
+          onClose={() => setShowBulkEditor(false)}
+          seasonId={selectedSeason.id}
+          divisionId={parseInt(selectedDivisionId)}
+          divisionName={selectedSeason.divisions.find(d => d.id === parseInt(selectedDivisionId))?.name || ""}
+          seasonName={selectedSeason.name}
+          existingTeams={seasonCoaches.filter(sc => sc.divisionId === parseInt(selectedDivisionId))}
+          allCoaches={coaches}
+          allPokemon={pokemonList.map(p => ({
+            id: p.id,
+            name: p.name,
+            displayName: p.displayName || null,
+            spriteUrl: p.spriteUrl || null,
+          }))}
+          pokemonPrices={new Map(
+            pokemonList.map(p => [
+              p.id,
+              { price: p.price || 0, teraCaptainCost: p.teraCaptainCost || 0 }
+            ])
+          )}
+          draftBudget={selectedSeason.draftBudget || 100}
+          onSave={() => fetchSeasonCoaches(selectedSeason.id)}
+        />
       )}
     </div>
   );

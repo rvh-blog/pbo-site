@@ -17,7 +17,21 @@ export async function GET() {
       },
     },
   });
-  return NextResponse.json(allCoaches);
+
+  // Format response to include isClaimed and hide passwordHash
+  const formattedCoaches = allCoaches.map((coach) => ({
+    id: coach.id,
+    name: coach.name,
+    eloRating: coach.eloRating,
+    createdAt: coach.createdAt,
+    isClaimed: !!coach.passwordHash,
+    isMod: coach.isMod ?? false,
+    claimedAt: coach.claimedAt,
+    pboCoin: coach.pboCoin,
+    seasonCoaches: coach.seasonCoaches,
+  }));
+
+  return NextResponse.json(formattedCoaches);
 }
 
 export async function POST(request: NextRequest) {
@@ -31,7 +45,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const values: { name: string; eloRating?: number } = { name };
+  const values: { name: string; eloRating?: number; pboCoin: number } = {
+    name,
+    pboCoin: 100, // Starter coins for new coaches
+  };
   if (eloRating !== undefined && typeof eloRating === "number") {
     values.eloRating = eloRating;
   }
