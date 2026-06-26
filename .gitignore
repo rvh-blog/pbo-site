@@ -36,6 +36,7 @@ missing_pokemon_data.csv
 scripts/pokeapi-cache.json
 
 # local agent/tool state
+/.tools/
 /.claude/
 /.secrets/
 
@@ -48,6 +49,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.next-dev*.log
 
 # env files (can opt-in for committing if needed)
 .env*
