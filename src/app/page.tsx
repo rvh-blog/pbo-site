@@ -2,8 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
 import { SyncedHeightGrid } from "@/components/synced-height-grid";
-import { seasons, matches, coaches, seasonCoaches, playoffMatches, matchPokemon, coachPurchases, storeItems } from "@/lib/schema";
-import { eq, desc, count, max, and, isNotNull, lte, inArray } from "drizzle-orm";
+import { seasons, matches, coaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
+import { eq, desc, count, and, isNotNull, inArray } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
@@ -15,16 +15,15 @@ const DIVISION_COLORS: Record<string, string> = {
 };
 
 async function getCurrentSeason() {
-  const result = await db.query.seasons.findFirst({
+  const currentSeasons = await db.query.seasons.findMany({
     where: eq(seasons.isCurrent, true),
     with: {
       divisions: true,
     },
+    orderBy: [desc(seasons.seasonNumber)],
   });
-  if (result && result.isPublic === false) {
-    return null;
-  }
-  return result;
+
+  return currentSeasons.find((season) => season.isPublic !== false) || null;
 }
 
 type BattleLogItem = {
@@ -51,8 +50,8 @@ type BattleLogItem = {
 
 async function getRecentBattles(): Promise<BattleLogItem[]> {
   // Run all queries in parallel
-  const [latestSeason, regularMatches, playoffs] = await Promise.all([
-    db.query.seasons.findFirst({
+  const [allSeasons, regularMatches, playoffs] = await Promise.all([
+    db.query.seasons.findMany({
       orderBy: [desc(seasons.seasonNumber)],
     }),
     db.query.matches.findMany({
@@ -75,11 +74,16 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
     }),
   ]);
 
-  const latestSeasonNumber = latestSeason?.seasonNumber || 10;
+  const publicSeasons = allSeasons.filter((season) => season.isPublic !== false);
+  const latestSeasonNumber = publicSeasons[0]?.seasonNumber || 10;
 
   // Filter to only recent seasons and sort
   const recentRegularMatches = regularMatches
-    .filter(m => m.week <= 100 && (m.season?.seasonNumber || 0) >= latestSeasonNumber - 1)
+    .filter(m =>
+      m.week <= 100 &&
+      m.season?.isPublic !== false &&
+      (m.season?.seasonNumber || 0) >= latestSeasonNumber - 1
+    )
     .sort((a, b) => {
       const aSeasonNum = a.season?.seasonNumber || 0;
       const bSeasonNum = b.season?.seasonNumber || 0;
@@ -89,7 +93,10 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
     .slice(0, 50);
 
   const recentPlayoffs = playoffs
-    .filter(p => (p.season?.seasonNumber || 0) >= latestSeasonNumber - 1);
+    .filter(p =>
+      p.season?.isPublic !== false &&
+      (p.season?.seasonNumber || 0) >= latestSeasonNumber - 1
+    );
 
   // Convert regular matches to unified format
   const regularBattles: BattleLogItem[] = recentRegularMatches.map((m) => ({
@@ -174,17 +181,25 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
 }
 
 async function getStats() {
+  const allSeasons = await db.query.seasons.findMany();
+  const publicSeasons = allSeasons.filter((season) => season.isPublic !== false);
+  const publicSeasonIds = publicSeasons.map((season) => season.id);
+
   // Run count queries in parallel
-  const [totalCoaches, maxSeasonNumber, totalMatches] = await Promise.all([
+  const [totalCoaches, totalMatches] = await Promise.all([
     db.select({ count: count() }).from(coaches),
-    db.select({ max: max(seasons.seasonNumber) }).from(seasons),
     // Only count matches with results (winnerId is set)
-    db.select({ count: count() }).from(matches).where(isNotNull(matches.winnerId)),
+    publicSeasonIds.length > 0
+      ? db
+          .select({ count: count() })
+          .from(matches)
+          .where(and(isNotNull(matches.winnerId), inArray(matches.seasonId, publicSeasonIds)))
+      : Promise.resolve([{ count: 0 }]),
   ]);
 
   return {
     coaches: totalCoaches[0].count,
-    seasons: maxSeasonNumber[0].max || 0,
+    seasons: publicSeasons.length,
     matches: totalMatches[0].count,
   };
 }
@@ -789,10 +804,10 @@ export default async function Home() {
           </div>
           <h3 className="font-pixel text-sm text-[var(--warning)] mb-2">No Active Season</h3>
           <p className="text-[var(--foreground-muted)] mb-6">
-            No season is currently active. Visit the admin panel to create a new season.
+            No public season is currently active. Check back when the next season is published.
           </p>
-          <Link href="/admin">
-            <button className="btn-retro">Go to Admin Panel</button>
+          <Link href="/seasons">
+            <button className="btn-retro">View Past Seasons</button>
           </Link>
         </section>
       )}
