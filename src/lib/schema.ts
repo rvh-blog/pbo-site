@@ -367,6 +367,8 @@ export const coachesRelations = relations(coaches, ({ many }) => ({
   deathBets: many(deathBets),
   purchases: many(coachPurchases),
   triviaRewards: many(triviaRewards),
+  blogPosts: many(blogPosts),
+  fantasyEntries: many(fantasyEntries),
 }));
 
 export const seasonsRelations = relations(seasons, ({ many }) => ({
@@ -375,6 +377,7 @@ export const seasonsRelations = relations(seasons, ({ many }) => ({
   pokemonPrices: many(seasonPokemonPrices),
   playoffMatches: many(playoffMatches),
   transactions: many(transactions),
+  fantasyEntries: many(fantasyEntries),
 }));
 
 export const divisionsRelations = relations(divisions, ({ one, many }) => ({
@@ -417,6 +420,7 @@ export const pokemonRelations = relations(pokemon, ({ many }) => ({
   seasonPrices: many(seasonPokemonPrices),
   rosters: many(rosters),
   matchPokemon: many(matchPokemon),
+  fantasyPicks: many(fantasyEntryPicks),
 }));
 
 export const seasonPokemonPricesRelations = relations(
@@ -592,6 +596,39 @@ export const pickEmPicks = sqliteTable("pick_em_picks", {
   index("idx_pick_em_picks_match_id").on(table.matchId),
 ]);
 
+// Fantasy Entries - saved fantasy rosters for signed-in coaches or spectators
+export const fantasyEntries = sqliteTable("fantasy_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  coachId: integer("coach_id").references(() => coaches.id),
+  userId: integer("user_id").references(() => users.id),
+  displayName: text("display_name").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_fantasy_entries_season_id").on(table.seasonId),
+  index("idx_fantasy_entries_coach_id").on(table.coachId),
+  index("idx_fantasy_entries_user_id").on(table.userId),
+]);
+
+// Fantasy Entry Picks - Pokemon selected for a fantasy roster
+export const fantasyEntryPicks = sqliteTable("fantasy_entry_picks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  entryId: integer("entry_id")
+    .notNull()
+    .references(() => fantasyEntries.id),
+  pokemonId: integer("pokemon_id")
+    .notNull()
+    .references(() => pokemon.id),
+  slot: integer("slot").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_fantasy_entry_picks_entry_id").on(table.entryId),
+  index("idx_fantasy_entry_picks_pokemon_id").on(table.pokemonId),
+]);
+
 // Pick-Em Rewards - tracks awarded coins for pick-em performance
 export const pickEmRewards = sqliteTable("pick_em_rewards", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -720,6 +757,33 @@ export const pickEmPicksRelations = relations(pickEmPicks, ({ one }) => ({
   }),
 }));
 
+export const fantasyEntriesRelations = relations(fantasyEntries, ({ one, many }) => ({
+  season: one(seasons, {
+    fields: [fantasyEntries.seasonId],
+    references: [seasons.id],
+  }),
+  coach: one(coaches, {
+    fields: [fantasyEntries.coachId],
+    references: [coaches.id],
+  }),
+  user: one(users, {
+    fields: [fantasyEntries.userId],
+    references: [users.id],
+  }),
+  picks: many(fantasyEntryPicks),
+}));
+
+export const fantasyEntryPicksRelations = relations(fantasyEntryPicks, ({ one }) => ({
+  entry: one(fantasyEntries, {
+    fields: [fantasyEntryPicks.entryId],
+    references: [fantasyEntries.id],
+  }),
+  pokemon: one(pokemon, {
+    fields: [fantasyEntryPicks.pokemonId],
+    references: [pokemon.id],
+  }),
+}));
+
 // Discord Guild Configuration
 export const discordGuilds = sqliteTable("discord_guilds", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -774,6 +838,23 @@ export const users = sqliteTable("users", {
   pboCoin: integer("pbo_coin").notNull().default(0),
 });
 
+// Blog Posts - public league posts written by coaches or mods
+export const blogPosts = sqliteTable("blog_posts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  excerpt: text("excerpt"),
+  authorCoachId: integer("author_coach_id").references(() => coaches.id),
+  authorUserId: integer("author_user_id").references(() => users.id),
+  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_blog_posts_created_at").on(table.createdAt),
+  index("idx_blog_posts_author_coach_id").on(table.authorCoachId),
+  index("idx_blog_posts_author_user_id").on(table.authorUserId),
+]);
+
 // User Sessions - unified session management for coaches and spectators
 export const userSessions = sqliteTable("user_sessions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -793,6 +874,19 @@ export const usersRelations = relations(users, ({ many }) => ({
   bets: many(bets),
   killBets: many(killBets),
   deathBets: many(deathBets),
+  blogPosts: many(blogPosts),
+  fantasyEntries: many(fantasyEntries),
+}));
+
+export const blogPostsRelations = relations(blogPosts, ({ one }) => ({
+  authorCoach: one(coaches, {
+    fields: [blogPosts.authorCoachId],
+    references: [coaches.id],
+  }),
+  authorUser: one(users, {
+    fields: [blogPosts.authorUserId],
+    references: [users.id],
+  }),
 }));
 
 export const userSessionsRelations = relations(userSessions, ({ one }) => ({

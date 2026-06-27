@@ -21,6 +21,8 @@ const navItems = [
   { href: "/matchup-prep", label: "Prep" },
   { href: "/analyzer", label: "Analyzer" },
   { href: "/pick-ems", label: "Pick-Ems" },
+  { href: "/fantasy", label: "Fantasy" },
+  { href: "/blog", label: "Blog" },
   { href: "/leaderboards", label: "Leaderboards" },
 ];
 

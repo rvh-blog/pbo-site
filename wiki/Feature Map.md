@@ -30,6 +30,7 @@ See also:
 - Draft planner: `src/app/draft-planner`
 - Matchup prep: `src/app/matchup-prep`
 - Pick-ems: `src/app/pick-ems`
+- Fantasy: `src/app/fantasy`
 - Power rankings: `src/app/power-rankings`
 - Broadcast overlay: `src/app/broadcast`
 - Replay analyzer: `src/app/analyzer`
@@ -62,6 +63,7 @@ See also:
 - Store: `src/app/api/store`
 - Betting: `src/app/api/bets`, `src/app/api/kill-bets`, `src/app/api/death-bets`
 - Pick-ems: `src/app/api/pick-ems`
+- Fantasy entries: `src/app/api/fantasy-entry`
 - Broadcast: `src/app/api/broadcast`
 - Wiglett: `src/app/api/integrations/wiglett`
 

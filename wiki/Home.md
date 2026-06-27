@@ -12,6 +12,7 @@ Open this note first in Obsidian. The local graph from this note should show the
 - [[Change Guide]]
 - [[Operations]]
 - [[Feature Map]]
+- [[Fantasy]]
 
 ## GitHub And Fly
 
@@ -49,6 +50,7 @@ GitHub is the source code and review layer. Fly is the production runtime. The p
 - [[Wiglett Workflow]]
 - [[Discord Bot Workflow]]
 - [[Frontend Pages Workflow]]
+- [[Fantasy]]
 
 ## Runbooks
 

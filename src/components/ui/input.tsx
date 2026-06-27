@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { InputHTMLAttributes, LabelHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, forwardRef } from "react";
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {}
+type InputProps = InputHTMLAttributes<HTMLInputElement>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, ...props }, ref) => (
@@ -19,7 +19,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 );
 Input.displayName = "Input";
 
-interface SelectProps extends InputHTMLAttributes<HTMLSelectElement> {
+interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   children: React.ReactNode;
 }
 
@@ -39,7 +39,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 );
 Select.displayName = "Select";
 
-interface TextAreaProps extends InputHTMLAttributes<HTMLTextAreaElement> {}
+type TextAreaProps = TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
   ({ className, ...props }, ref) => (
@@ -55,7 +55,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
 );
 TextArea.displayName = "TextArea";
 
-interface LabelProps extends LabelHTMLAttributes<HTMLLabelElement> {}
+type LabelProps = LabelHTMLAttributes<HTMLLabelElement>;
 
 export const Label = forwardRef<HTMLLabelElement, LabelProps>(
   ({ className, ...props }, ref) => (

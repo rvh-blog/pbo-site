@@ -1,0 +1,168 @@
+# Fantasy Feature Handoff
+
+Parent index: [[Home|PBO Site Wiki]]
+
+This note captures the current fantasy feature work so it can be resumed later.
+
+## Current Scope
+
+Fantasy is a signed-in account feature at `/fantasy`.
+
+## Current Test Scenario
+
+The current local test scenario is Season 10, scouting Week 8:
+
+- URL: `/fantasy?seasonId=10&week=8`
+- Treat Week 8 as not played yet, even though Week 8 result data exists locally.
+- The scout ranks Pokemon using Season 10 performance through Week 7.
+- Saved fantasy leaderboard results stay at 0 for Week 8 until weekly results are
+  intentionally enabled for the Season 11 flow.
+- This Season 10 setup is a dry run for Season 11 weekly fantasy.
+
+Rules in the current implementation:
+
+- Only public seasons with `season_number >= 10` are available.
+- Coaches and spectator users can both play.
+- One fantasy entry is saved per signed-in account per season.
+- A fantasy roster has exactly 6 unique Pokemon.
+- The roster budget is 90 points.
+- Pokemon costs come from `season_pokemon_prices`.
+- Complex banned/unavailable Pokemon (`price < 0`) cannot be selected.
+- Roster slots are division-based:
+  - Slot 1: Infinity Division when the selected season has Infinity; older seasons without Infinity treat this as Any Division.
+  - Slot 2: Stargazer Division.
+  - Slot 3: Sunset Division.
+- Slot 4: Crystal Division.
+- Slot 5: Neon Division.
+- Slot 6: Any Division.
+- The scout supports a `week` query param. Example: `/fantasy?seasonId=10&week=8`
+  shows fantasy-picker performance through Week 7 and labels each Pokemon with
+  the team it was on at the start of Week 8 in the relevant division.
+- Season 10 defaults to scouting Week 8 so the picker treats Week 8 as unplayed
+  and uses Week 7-and-earlier performance.
+- The Any Division slot uses one available Pokemon instance from one team/division.
+  It does not add the same Pokemon's scores across multiple divisions.
+- Pokemon already selected in My Fantasy Roster are hidden from the available
+  picker list until removed from their roster slot.
+
+## Scoring
+
+The current scoring formula is:
+
+```text
+score = kills * 5
+      - deaths * 1
+      + 2 if the Pokemon's team won
+      - 2 if the Pokemon's team lost
+```
+
+This is used by both the scouting table and saved fantasy entry leaderboard.
+The fantasy roster picker uses the selected scouting week as a cutoff: Week N
+uses Pokemon match performance from weeks before N.
+Saved fantasy leaderboard results are scored from the selected fantasy week only.
+For the Season 10 Week 8 test view, Week 8 result data is intentionally ignored
+so saved rosters stay at 0 points until the Season 11 weekly flow is enabled.
+
+## UI Behavior
+
+- Clicking a My Fantasy Roster slot changes the available Pokemon list to that
+  slot's division rule.
+- The picker list sorts highest-to-lowest by the score shown for the active slot.
+- Slot 6 / Any Division uses the best single team/division instance for each
+  Pokemon, not a cumulative total across divisions.
+- Selected roster cards show Pokemon name, then team name, then performance line.
+- Available picker cards also show Pokemon name, then team name, then performance
+  line.
+
+## Files
+
+Main page and client UI:
+
+- `src/app/fantasy/page.tsx`
+- `src/app/fantasy/fantasy-entry-client.tsx`
+
+API:
+
+- `src/app/api/fantasy-entry/route.ts`
+
+Schema and migration:
+
+- `src/lib/schema.ts`
+- `migrations/add-fantasy-entries.sql`
+
+Navigation:
+
+- `src/components/navigation.tsx`
+
+Related hydration cleanup from the same work session:
+
+- `src/app/layout.tsx`
+- `src/app/page.tsx`
+
+## Database Tables
+
+`fantasy_entries`
+
+- `id`
+- `season_id`
+- `coach_id`
+- `user_id`
+- `display_name`
+- `created_at`
+- `updated_at`
+
+`fantasy_entry_picks`
+
+- `id`
+- `entry_id`
+- `pokemon_id`
+- `slot`
+- `created_at`
+
+The local `pbo.db` was migrated during development with:
+
+```bash
+sqlite3 pbo.db ".read migrations/add-fantasy-entries.sql"
+```
+
+Production still needs this migration applied before deployment.
+
+## Verification Already Run
+
+```bash
+npx.cmd tsc --noEmit
+npx.cmd eslint src/app/fantasy/page.tsx src/app/fantasy/fantasy-entry-client.tsx src/app/api/fantasy-entry/route.ts src/lib/schema.ts
+```
+
+Smoke checks passed locally:
+
+```text
+/fantasy                         200
+/api/fantasy-entry?seasonId=10   200
+POST while logged out            401
+```
+
+## Important Notes
+
+- The fantasy feature uses `coaches.id` / `users.id` for account ownership.
+- It does not use `season_coaches.id` for fantasy entry ownership.
+- It does still use season-specific Pokemon prices and season match data.
+- The feature currently allows roster edits at any time. A future iteration should add lock rules if fantasy rosters should close before matches or after a deadline.
+- The fantasy picker filters and scores by the active slot's division. Slot 1
+  still falls back to Any Division on Season 10 because Infinity starts in S11.
+- The fantasy picker list sorts by the score shown for the active slot's division.
+- The saved fantasy leaderboard scores saved entries from the selected fantasy
+  week only. A future iteration could add weekly entry snapshots, rewards, and
+  lock windows.
+- Season 11 fantasy is expected to use individual week performance windows once lock rules and weekly scoring are added.
+
+## Dirty Worktree Context
+
+At the time this note was written, the worktree also contained unrelated blog/input changes:
+
+- `src/components/ui/input.tsx`
+- `migrations/add-blog-posts.sql`
+- `src/app/api/blog/`
+- `src/app/blog/`
+
+Do not assume those belong to the fantasy feature unless intentionally included.

@@ -14,6 +14,18 @@ const DIVISION_COLORS: Record<string, string> = {
   "Neon": "#4ade80",
 };
 
+const DIVISION_ORDER = ["Stargazer", "Sunset", "Crystal", "Neon"] as const;
+
+type OffseasonChampion = {
+  divisionId: number | null;
+  divisionName: string;
+  seasonId: number | null;
+  seasonNumber: number | null;
+  teamName: string | null;
+  teamLogoUrl: string | null;
+  coachName: string | null;
+};
+
 async function getCurrentSeason() {
   const currentSeasons = await db.query.seasons.findMany({
     where: eq(seasons.isCurrent, true),
@@ -24,6 +36,57 @@ async function getCurrentSeason() {
   });
 
   return currentSeasons.find((season) => season.isPublic !== false) || null;
+}
+
+async function getPreviousSeasonChampions(): Promise<OffseasonChampion[]> {
+  const publicSeasons = (await db.query.seasons.findMany({
+    orderBy: [desc(seasons.seasonNumber)],
+  })).filter((season) => season.isPublic !== false);
+
+  const latestPublicSeason = publicSeasons[0];
+  if (!latestPublicSeason) {
+    return DIVISION_ORDER.map((divisionName) => ({
+      divisionId: null,
+      divisionName,
+      seasonId: null,
+      seasonNumber: null,
+      teamName: null,
+      teamLogoUrl: null,
+      coachName: null,
+    }));
+  }
+
+  const finals = await db.query.playoffMatches.findMany({
+    where: and(
+      eq(playoffMatches.seasonId, latestPublicSeason.id),
+      eq(playoffMatches.round, 3),
+      isNotNull(playoffMatches.winnerId)
+    ),
+    with: {
+      division: true,
+      winner: {
+        with: {
+          coach: true,
+        },
+      },
+    },
+  });
+
+  const finalsByDivision = new Map(finals.map((final) => [final.division?.name, final]));
+
+  return DIVISION_ORDER.map((divisionName) => {
+    const final = finalsByDivision.get(divisionName);
+
+    return {
+      divisionId: final?.divisionId ?? null,
+      divisionName,
+      seasonId: latestPublicSeason.id,
+      seasonNumber: latestPublicSeason.seasonNumber,
+      teamName: final?.winner?.teamName ?? null,
+      teamLogoUrl: final?.winner?.teamLogoUrl ?? null,
+      coachName: final?.winner?.coach?.name ?? null,
+    };
+  });
 }
 
 type BattleLogItem = {
@@ -377,8 +440,9 @@ function getRoundLabel(round: number): string {
 
 export default async function Home() {
   // Run all queries in parallel for much better performance on network-attached storage
-  const [currentSeason, recentBattles, stats, topCoaches, stargazerChampion] = await Promise.all([
+  const [currentSeason, previousSeasonChampions, recentBattles, stats, topCoaches, stargazerChampion] = await Promise.all([
     getCurrentSeason(),
+    getPreviousSeasonChampions(),
     getRecentBattles(),
     getStats(),
     getTopCoaches(),
@@ -416,7 +480,7 @@ export default async function Home() {
                       <div className="flex items-center gap-2 mb-2">
                         <span className="live-badge">LIVE</span>
                         <span className="font-mono text-[var(--foreground-muted)] text-xs">
-                          ID: {String(currentSeason.id).padStart(4, '0')}-{new Date().getFullYear()}
+                          ID: {String(currentSeason.id).padStart(4, '0')}-S{currentSeason.seasonNumber}
                         </span>
                       </div>
                       <h2 className="font-pixel text-xl md:text-2xl text-white leading-relaxed">
@@ -475,6 +539,100 @@ export default async function Home() {
                       </svg>
                     </Link>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!currentSeason && (
+            <div className="w-full max-w-5xl">
+              <div className="poke-card p-5 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-5">
+                  <div>
+                    <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-2">
+                      Previous Season Champions
+                    </p>
+                    <h2 className="font-pixel text-sm sm:text-base text-white leading-relaxed">
+                      {previousSeasonChampions[0]?.seasonNumber
+                        ? `Season ${previousSeasonChampions[0].seasonNumber} Title Holders`
+                        : "Division Title Holders"}
+                    </h2>
+                  </div>
+                  <Link
+                    href={previousSeasonChampions[0]?.seasonId ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs` : "/seasons"}
+                    className="text-xs text-[var(--foreground-subtle)] hover:text-white uppercase font-bold tracking-widest transition-colors inline-flex items-center gap-2"
+                  >
+                    Playoff Brackets
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </Link>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {previousSeasonChampions.map((champion) => {
+                    const divColor = DIVISION_COLORS[champion.divisionName];
+                    const championContent = (
+                      <div
+                        className="h-full rounded-lg border bg-[var(--background)]/45 p-4 transition-all hover:-translate-y-0.5 hover:bg-[var(--background)]/70"
+                        style={divColor
+                          ? { borderColor: `${divColor}55`, boxShadow: `inset 0 4px 0 ${divColor}` }
+                          : { borderColor: "var(--background-tertiary)" }
+                        }
+                      >
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                          <span
+                            className="inline-flex px-2 py-1 text-[10px] font-bold uppercase rounded"
+                            style={divColor
+                              ? { color: divColor, backgroundColor: `${divColor}18`, border: `1px solid ${divColor}35` }
+                              : { color: "var(--foreground-muted)", backgroundColor: "var(--background-tertiary)" }
+                            }
+                          >
+                            {champion.divisionName}
+                          </span>
+                          <svg className="w-5 h-5 text-yellow-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C13.1 2 14 2.9 14 4V5H16C16 3.34 14.66 2 13 2H11C9.34 2 8 3.34 8 5H10V4C10 2.9 10.9 2 12 2ZM20 6H16V8H19V9C19 11.21 17.21 13 15 13H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H20ZM4 6H5C4.9 6 4 6.9 4 8V9C4 12.31 6.69 15 10 15H11V13H10C7.79 13 6 11.21 6 9V8H9V6H5C3.9 6 3 6.9 3 8V9C3 12.31 5.69 15 9 15H10V17H8V19H16V17H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H4ZM8 6H5V8H8V6ZM10 19V21H14V19H10Z" />
+                          </svg>
+                        </div>
+
+                        <div className="flex items-center gap-3 min-w-0">
+                          {champion.teamLogoUrl ? (
+                            <Image
+                              src={champion.teamLogoUrl}
+                              alt=""
+                              width={44}
+                              height={44}
+                              className="rounded-lg shrink-0"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-lg bg-[var(--background-tertiary)] flex items-center justify-center shrink-0">
+                              <span className="text-sm font-mono text-[var(--foreground-subtle)]">--</span>
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-white text-sm truncate">
+                              {champion.teamName || "TBD"}
+                            </div>
+                            <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold truncate mt-1">
+                              {champion.coachName || "Champion"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+
+                    return champion.divisionId && champion.seasonId ? (
+                      <Link
+                        key={champion.divisionName}
+                        href={`/seasons/${champion.seasonId}/divisions/${champion.divisionId}`}
+                        className="block"
+                      >
+                        {championContent}
+                      </Link>
+                    ) : (
+                      <div key={champion.divisionName}>{championContent}</div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

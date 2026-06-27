@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
 import { Navigation } from "@/components/navigation";
@@ -35,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-PY549928RV"
@@ -52,6 +53,7 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
+        suppressHydrationWarning
       >
         {/* Pokeball dot pattern background */}
         <div className="pokeball-bg" />
@@ -88,12 +90,12 @@ export default function RootLayout({
                 </div>
                 <p className="text-[var(--foreground-subtle)] text-xs">
                   Built by{" "}
-                  <a
+                  <Link
                     href="/coaches/9"
                     className="hover:text-[var(--primary)] transition-colors"
                   >
                     Helsinki Jellicent Klub
-                  </a>
+                  </Link>
                 </p>
               </div>
 
