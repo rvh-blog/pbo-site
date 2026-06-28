@@ -228,6 +228,15 @@ export const matchPokemon = sqliteTable("match_pokemon", {
   damageDealtIndirect: integer("damage_dealt_indirect"), // Hazards, status, weather damage
   damageTaken: integer("damage_taken"), // Direct damage taken
   damageTakenIndirect: integer("damage_taken_indirect"), // Indirect damage taken
+  turnsActive: integer("turns_active"), // Unique battle turns this Pokemon was active
+  hazardDamageTaken: integer("hazard_damage_taken"), // Hazard-only damage taken
+  setupMovesUsed: integer("setup_moves_used"), // Count of setup/stat-boosting moves used
+  favorableCrits: integer("favorable_crits"), // Crits landed on targets above 25% HP
+  favorableMisses: integer("favorable_misses"), // Opponent misses while this Pokemon is active/targeted
+  favorableFlinches: integer("favorable_flinches"), // Opponent cannot move due to flinch
+  favorableParalysis: integer("favorable_paralysis"), // Opponent cannot move due to paralysis
+  favorableFreezes: integer("favorable_freezes"), // Opponent is frozen
+  favorableBurns: integer("favorable_burns"), // Opponent is burned, excluding Will-O-Wisp
   hpRestored: integer("hp_restored"), // HP healed
 }, (table) => [
   index("idx_match_pokemon_match_id").on(table.matchId),

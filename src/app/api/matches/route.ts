@@ -25,6 +25,15 @@ interface PokemonDataEntry {
   pokemonId: number;
   kills?: number;
   deaths?: number;
+  turnsActive?: number;
+  hazardDamageTaken?: number;
+  setupMovesUsed?: number;
+  favorableCrits?: number;
+  favorableMisses?: number;
+  favorableFlinches?: number;
+  favorableParalysis?: number;
+  favorableFreezes?: number;
+  favorableBurns?: number;
 }
 
 // Helper to insert kill events from keyEvents data
@@ -172,7 +181,7 @@ export async function GET(request: NextRequest) {
   const seasonId = searchParams.get("seasonId");
   const divisionId = searchParams.get("divisionId");
 
-  let query = db.query.matches.findMany({
+  const query = db.query.matches.findMany({
     with: {
       coach1: {
         with: {
@@ -226,7 +235,7 @@ export async function POST(request: NextRequest) {
     coach2Differential,
     isForfeit,
     replayUrl,
-    pokemonData, // Array of { seasonCoachId, pokemonId, kills, deaths, damageDealt?, damageDealtIndirect?, damageTaken?, damageTakenIndirect?, hpRestored? }
+    pokemonData, // Array of replay-derived Pokemon stats
     startedAt, // Match start time from replay (for anti-cheat betting)
     endedAt, // Match end time from replay
     turnSnapshots, // Array of { turn, p1TotalHp, p2TotalHp } for HP charts
@@ -277,6 +286,15 @@ export async function POST(request: NextRequest) {
         damageDealtIndirect: poke.damageDealtIndirect ?? null,
         damageTaken: poke.damageTaken ?? null,
         damageTakenIndirect: poke.damageTakenIndirect ?? null,
+        turnsActive: poke.turnsActive ?? null,
+        hazardDamageTaken: poke.hazardDamageTaken ?? null,
+        setupMovesUsed: poke.setupMovesUsed ?? null,
+        favorableCrits: poke.favorableCrits ?? null,
+        favorableMisses: poke.favorableMisses ?? null,
+        favorableFlinches: poke.favorableFlinches ?? null,
+        favorableParalysis: poke.favorableParalysis ?? null,
+        favorableFreezes: poke.favorableFreezes ?? null,
+        favorableBurns: poke.favorableBurns ?? null,
         hpRestored: poke.hpRestored ?? null,
       });
     }
@@ -379,6 +397,15 @@ export async function PUT(request: NextRequest) {
           damageDealtIndirect: poke.damageDealtIndirect ?? null,
           damageTaken: poke.damageTaken ?? null,
           damageTakenIndirect: poke.damageTakenIndirect ?? null,
+          turnsActive: poke.turnsActive ?? null,
+          hazardDamageTaken: poke.hazardDamageTaken ?? null,
+          setupMovesUsed: poke.setupMovesUsed ?? null,
+          favorableCrits: poke.favorableCrits ?? null,
+          favorableMisses: poke.favorableMisses ?? null,
+          favorableFlinches: poke.favorableFlinches ?? null,
+          favorableParalysis: poke.favorableParalysis ?? null,
+          favorableFreezes: poke.favorableFreezes ?? null,
+          favorableBurns: poke.favorableBurns ?? null,
           hpRestored: poke.hpRestored ?? null,
         });
       }

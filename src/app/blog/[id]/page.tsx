@@ -3,7 +3,9 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { blogPosts } from "@/lib/schema";
+import { getSession } from "@/lib/session";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
+import { BlogDeleteButton } from "./blog-delete-button";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -20,7 +22,10 @@ function formatDate(value: string) {
 }
 
 export default async function BlogPostPage({ params }: PageProps) {
-  const featureSettings = await getSiteFeatureSettings();
+  const [featureSettings, session] = await Promise.all([
+    getSiteFeatureSettings(),
+    getSession(),
+  ]);
   if (featureSettings.blogUiHidden) {
     notFound();
   }
@@ -46,6 +51,9 @@ export default async function BlogPostPage({ params }: PageProps) {
 
   const authorName = post.authorCoach?.name || post.authorUser?.username || "PBO Staff";
   const authorHref = post.authorCoach ? `/coaches/${post.authorCoach.id}` : null;
+  const canDeletePost = session?.isMod ||
+    (session?.type === "coach" && post.authorCoachId === session.id) ||
+    (session?.type === "spectator" && post.authorUserId === session.id);
 
   return (
     <article className="space-y-6 max-w-4xl mx-auto">
@@ -72,6 +80,11 @@ export default async function BlogPostPage({ params }: PageProps) {
           {" · "}
           {formatDate(post.createdAt)}
         </p>
+        {canDeletePost && (
+          <div className="mt-4">
+            <BlogDeleteButton postId={post.id} />
+          </div>
+        )}
       </div>
 
       <div className="poke-card p-4 sm:p-8">

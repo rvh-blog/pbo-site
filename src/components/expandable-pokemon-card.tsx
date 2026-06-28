@@ -15,6 +15,15 @@ interface PokemonData {
   damageDealtIndirect: number | null;
   damageTaken: number | null;
   damageTakenIndirect: number | null;
+  turnsActive?: number | null;
+  hazardDamageTaken?: number | null;
+  setupMovesUsed?: number | null;
+  favorableCrits?: number | null;
+  favorableMisses?: number | null;
+  favorableFlinches?: number | null;
+  favorableParalysis?: number | null;
+  favorableFreezes?: number | null;
+  favorableBurns?: number | null;
   hpRestored: number | null;
 }
 
@@ -33,6 +42,15 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
     pokemon.damageDealtIndirect !== null ||
     pokemon.damageTaken !== null ||
     pokemon.damageTakenIndirect !== null ||
+    pokemon.turnsActive != null ||
+    pokemon.hazardDamageTaken != null ||
+    pokemon.setupMovesUsed != null ||
+    pokemon.favorableCrits != null ||
+    pokemon.favorableMisses != null ||
+    pokemon.favorableFlinches != null ||
+    pokemon.favorableParalysis != null ||
+    pokemon.favorableFreezes != null ||
+    pokemon.favorableBurns != null ||
     pokemon.hpRestored !== null;
 
   return (
@@ -90,6 +108,23 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
         const directTaken = pokemon.damageTaken ?? 0;
         const indirectTaken = pokemon.damageTakenIndirect ?? 0;
         const totalTaken = directTaken + indirectTaken;
+        const turnsActive = pokemon.turnsActive ?? null;
+        const hazardDamageTaken = pokemon.hazardDamageTaken ?? null;
+        const setupMovesUsed = pokemon.setupMovesUsed ?? null;
+        const favorableTotal =
+          (pokemon.favorableCrits ?? 0) +
+          (pokemon.favorableMisses ?? 0) +
+          (pokemon.favorableFlinches ?? 0) +
+          (pokemon.favorableParalysis ?? 0) +
+          (pokemon.favorableFreezes ?? 0) +
+          (pokemon.favorableBurns ?? 0);
+        const hasFavorableData =
+          pokemon.favorableCrits != null ||
+          pokemon.favorableMisses != null ||
+          pokemon.favorableFlinches != null ||
+          pokemon.favorableParalysis != null ||
+          pokemon.favorableFreezes != null ||
+          pokemon.favorableBurns != null;
         const hpRestored = pokemon.hpRestored ?? 0;
 
         return (
@@ -145,6 +180,46 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
                   </div>
                   <div className="pl-2 border-l-2 border-[var(--success)]/30">
                     <span className="text-[var(--success)] font-bold">{hpRestored}%</span>
+                  </div>
+                </div>
+              )}
+
+              {(turnsActive !== null || hazardDamageTaken !== null || setupMovesUsed !== null) && (
+                <div className="col-span-2 grid grid-cols-3 gap-2 border-t border-[var(--background-secondary)] pt-2">
+                  <div>
+                    <div className="text-[var(--foreground-muted)] text-[10px] uppercase font-bold tracking-wide">
+                      Turns
+                    </div>
+                    <span className="text-white font-bold">{turnsActive ?? "x"}</span>
+                  </div>
+                  <div>
+                    <div className="text-[var(--foreground-muted)] text-[10px] uppercase font-bold tracking-wide">
+                      Hazard Taken
+                    </div>
+                    <span className="text-[var(--error)] font-bold">{hazardDamageTaken !== null ? `${hazardDamageTaken}%` : "x"}</span>
+                  </div>
+                  <div>
+                    <div className="text-[var(--foreground-muted)] text-[10px] uppercase font-bold tracking-wide">
+                      Setup
+                    </div>
+                    <span className="text-[var(--accent)] font-bold">{setupMovesUsed ?? "x"}</span>
+                  </div>
+                </div>
+              )}
+
+              {hasFavorableData && (
+                <div className="col-span-2 border-t border-[var(--background-secondary)] pt-2">
+                  <div className="text-[var(--foreground-muted)] text-[10px] uppercase font-bold tracking-wide">
+                    Favorable Events
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-3 text-xs font-mono">
+                    <span className="text-white font-bold">Total {favorableTotal}</span>
+                    <span className="text-[var(--foreground-muted)]">Crit {pokemon.favorableCrits ?? "x"}</span>
+                    <span className="text-[var(--foreground-muted)]">Miss {pokemon.favorableMisses ?? "x"}</span>
+                    <span className="text-[var(--foreground-muted)]">Flinch {pokemon.favorableFlinches ?? "x"}</span>
+                    <span className="text-[var(--foreground-muted)]">Para {pokemon.favorableParalysis ?? "x"}</span>
+                    <span className="text-[var(--foreground-muted)]">Freeze {pokemon.favorableFreezes ?? "x"}</span>
+                    <span className="text-[var(--foreground-muted)]">Burn {pokemon.favorableBurns ?? "x"}</span>
                   </div>
                 </div>
               )}

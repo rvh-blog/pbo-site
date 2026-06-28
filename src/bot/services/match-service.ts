@@ -17,7 +17,7 @@ import { updateEloForMatch } from "@/lib/elo-service";
 import { awardMatchCoins, resolveBetsForMatch, refundBetsForMatch } from "@/lib/betting";
 import { resolveKillBetsForMatch, refundKillBetsForMatch } from "@/lib/kill-betting";
 import { resolveDeathBetsForMatch, refundDeathBetsForMatch } from "@/lib/death-betting";
-import { getTimeSyncedRoster } from "@/lib/roster-utils";
+import { getTimeSyncedRoster, type TimeSyncTransaction } from "@/lib/roster-utils";
 import { checkAndAwardPickEmRewards, awardGotwBonus } from "@/lib/pick-em-rewards";
 import { syncDivision } from "@/lib/sheets-sync-all";
 import { normalizePokemonName, pokemonNameKey } from "@/lib/pokemon-name-utils";
@@ -51,11 +51,20 @@ interface PokemonStats {
   kills: number;
   deaths: number;
   damageDealt: number;
-  damageDealtIndirect: number;
-  damageTaken: number;
-  damageTakenIndirect: number;
-  hpRestored: number;
-}
+    damageDealtIndirect: number;
+    damageTaken: number;
+    damageTakenIndirect: number;
+    turnsActive: number;
+    hazardDamageTaken: number;
+    setupMovesUsed: number;
+    favorableCrits: number;
+    favorableMisses: number;
+    favorableFlinches: number;
+    favorableParalysis: number;
+    favorableFreezes: number;
+    favorableBurns: number;
+    hpRestored: number;
+  }
 
 interface TurnSnapshot {
   turn: number;
@@ -471,6 +480,15 @@ export async function recordMatchResult(
     damageDealtIndirect?: number;
     damageTaken?: number;
     damageTakenIndirect?: number;
+    turnsActive?: number;
+    hazardDamageTaken?: number;
+    setupMovesUsed?: number;
+    favorableCrits?: number;
+    favorableMisses?: number;
+    favorableFlinches?: number;
+    favorableParalysis?: number;
+    favorableFreezes?: number;
+    favorableBurns?: number;
     hpRestored?: number;
   }[],
   startedAt?: string | null,
@@ -528,6 +546,15 @@ export async function recordMatchResult(
             damageDealtIndirect: poke.damageDealtIndirect ?? null,
             damageTaken: poke.damageTaken ?? null,
             damageTakenIndirect: poke.damageTakenIndirect ?? null,
+            turnsActive: poke.turnsActive ?? null,
+            hazardDamageTaken: poke.hazardDamageTaken ?? null,
+            setupMovesUsed: poke.setupMovesUsed ?? null,
+            favorableCrits: poke.favorableCrits ?? null,
+            favorableMisses: poke.favorableMisses ?? null,
+            favorableFlinches: poke.favorableFlinches ?? null,
+            favorableParalysis: poke.favorableParalysis ?? null,
+            favorableFreezes: poke.favorableFreezes ?? null,
+            favorableBurns: poke.favorableBurns ?? null,
             hpRestored: poke.hpRestored ?? null,
           });
         }
@@ -830,8 +857,8 @@ export async function getCoachRoster(seasonCoachId: number, matchWeek?: number):
   const { filteredRosters, droppedPokemonDetails } = await getTimeSyncedRoster(
     seasonCoachId,
     matchWeek,
-    currentRosters as any,
-    coachTxs as any
+    currentRosters as Parameters<typeof getTimeSyncedRoster>[2],
+    coachTxs as TimeSyncTransaction[]
   );
 
   // Combine active + dropped Pokemon for matching
@@ -870,6 +897,15 @@ export async function buildPokemonDataFromReplay(
   damageDealtIndirect?: number;
   damageTaken?: number;
   damageTakenIndirect?: number;
+  turnsActive?: number;
+  hazardDamageTaken?: number;
+  setupMovesUsed?: number;
+  favorableCrits?: number;
+  favorableMisses?: number;
+  favorableFlinches?: number;
+  favorableParalysis?: number;
+  favorableFreezes?: number;
+  favorableBurns?: number;
   hpRestored?: number;
 }[]> {
   const coach1Roster = await getCoachRoster(coach1SeasonId, matchWeek);
@@ -888,6 +924,15 @@ export async function buildPokemonDataFromReplay(
     damageDealtIndirect?: number;
     damageTaken?: number;
     damageTakenIndirect?: number;
+    turnsActive?: number;
+    hazardDamageTaken?: number;
+    setupMovesUsed?: number;
+    favorableCrits?: number;
+    favorableMisses?: number;
+    favorableFlinches?: number;
+    favorableParalysis?: number;
+    favorableFreezes?: number;
+    favorableBurns?: number;
     hpRestored?: number;
   }[] = [];
 
@@ -907,6 +952,15 @@ export async function buildPokemonDataFromReplay(
         damageDealtIndirect: replayPoke.damageDealtIndirect,
         damageTaken: replayPoke.damageTaken,
         damageTakenIndirect: replayPoke.damageTakenIndirect,
+        turnsActive: replayPoke.turnsActive,
+        hazardDamageTaken: replayPoke.hazardDamageTaken,
+        setupMovesUsed: replayPoke.setupMovesUsed,
+        favorableCrits: replayPoke.favorableCrits,
+        favorableMisses: replayPoke.favorableMisses,
+        favorableFlinches: replayPoke.favorableFlinches,
+        favorableParalysis: replayPoke.favorableParalysis,
+        favorableFreezes: replayPoke.favorableFreezes,
+        favorableBurns: replayPoke.favorableBurns,
         hpRestored: replayPoke.hpRestored,
       });
     }
@@ -928,6 +982,15 @@ export async function buildPokemonDataFromReplay(
         damageDealtIndirect: replayPoke.damageDealtIndirect,
         damageTaken: replayPoke.damageTaken,
         damageTakenIndirect: replayPoke.damageTakenIndirect,
+        turnsActive: replayPoke.turnsActive,
+        hazardDamageTaken: replayPoke.hazardDamageTaken,
+        setupMovesUsed: replayPoke.setupMovesUsed,
+        favorableCrits: replayPoke.favorableCrits,
+        favorableMisses: replayPoke.favorableMisses,
+        favorableFlinches: replayPoke.favorableFlinches,
+        favorableParalysis: replayPoke.favorableParalysis,
+        favorableFreezes: replayPoke.favorableFreezes,
+        favorableBurns: replayPoke.favorableBurns,
         hpRestored: replayPoke.hpRestored,
       });
     }

@@ -123,7 +123,12 @@ Time-synced roster utilities:
 
 `matches` stores schedule, result, replay, HP chart JSON, key event JSON, and Game of the Week flag.
 
-`match_pokemon` stores per-match Pokemon brought, kills, deaths, and replay damage stats.
+`match_pokemon` stores per-match Pokemon brought, kills, deaths, and replay-derived stats.
+Replay detail fields include direct/indirect damage dealt and taken, HP restored,
+turns active, hazard-only damage taken, setup moves used, and favorable event
+counters for crits, misses, flinches, paralysis, freezes, and non-Will-O-Wisp
+burns. New replay detail fields require
+`migrations/add-match-pokemon-replay-detail-stats.sql` on existing databases.
 
 `kill_events` stores individual replay-derived faint events.
 

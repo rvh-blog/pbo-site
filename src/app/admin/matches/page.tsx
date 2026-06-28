@@ -53,6 +53,20 @@ interface MatchPokemon {
   seasonCoachId: number;
   kills: number;
   deaths: number;
+  damageDealt?: number | null;
+  damageDealtIndirect?: number | null;
+  damageTaken?: number | null;
+  damageTakenIndirect?: number | null;
+  turnsActive?: number | null;
+  hazardDamageTaken?: number | null;
+  setupMovesUsed?: number | null;
+  favorableCrits?: number | null;
+  favorableMisses?: number | null;
+  favorableFlinches?: number | null;
+  favorableParalysis?: number | null;
+  favorableFreezes?: number | null;
+  favorableBurns?: number | null;
+  hpRestored?: number | null;
   pokemon: Pokemon;
 }
 
@@ -97,8 +111,38 @@ interface PokemonEntry {
   damageDealtIndirect?: number;
   damageTaken?: number;
   damageTakenIndirect?: number;
+  turnsActive?: number;
+  hazardDamageTaken?: number;
+  setupMovesUsed?: number;
+  favorableCrits?: number;
+  favorableMisses?: number;
+  favorableFlinches?: number;
+  favorableParalysis?: number;
+  favorableFreezes?: number;
+  favorableBurns?: number;
   hpRestored?: number;
 }
+
+type MatchPokemonPayload = {
+  seasonCoachId: number;
+  pokemonId: number;
+  kills: number;
+  deaths: number;
+  damageDealt?: number;
+  damageDealtIndirect?: number;
+  damageTaken?: number;
+  damageTakenIndirect?: number;
+  turnsActive?: number;
+  hazardDamageTaken?: number;
+  setupMovesUsed?: number;
+  favorableCrits?: number;
+  favorableMisses?: number;
+  favorableFlinches?: number;
+  favorableParalysis?: number;
+  favorableFreezes?: number;
+  favorableBurns?: number;
+  hpRestored?: number;
+};
 
 type TabType = "schedule" | "results" | "playoffs";
 
@@ -434,6 +478,20 @@ export default function AdminMatchesPage() {
         pokemonId: coach1Pokemon[i]?.pokemonId?.toString() || "",
         kills: coach1Pokemon[i]?.kills?.toString() || "0",
         deaths: coach1Pokemon[i]?.deaths?.toString() || "0",
+        damageDealt: coach1Pokemon[i]?.damageDealt ?? undefined,
+        damageDealtIndirect: coach1Pokemon[i]?.damageDealtIndirect ?? undefined,
+        damageTaken: coach1Pokemon[i]?.damageTaken ?? undefined,
+        damageTakenIndirect: coach1Pokemon[i]?.damageTakenIndirect ?? undefined,
+        turnsActive: coach1Pokemon[i]?.turnsActive ?? undefined,
+        hazardDamageTaken: coach1Pokemon[i]?.hazardDamageTaken ?? undefined,
+        setupMovesUsed: coach1Pokemon[i]?.setupMovesUsed ?? undefined,
+        favorableCrits: coach1Pokemon[i]?.favorableCrits ?? undefined,
+        favorableMisses: coach1Pokemon[i]?.favorableMisses ?? undefined,
+        favorableFlinches: coach1Pokemon[i]?.favorableFlinches ?? undefined,
+        favorableParalysis: coach1Pokemon[i]?.favorableParalysis ?? undefined,
+        favorableFreezes: coach1Pokemon[i]?.favorableFreezes ?? undefined,
+        favorableBurns: coach1Pokemon[i]?.favorableBurns ?? undefined,
+        hpRestored: coach1Pokemon[i]?.hpRestored ?? undefined,
       }))
     );
     setTeam2Pokemon(
@@ -441,6 +499,20 @@ export default function AdminMatchesPage() {
         pokemonId: coach2Pokemon[i]?.pokemonId?.toString() || "",
         kills: coach2Pokemon[i]?.kills?.toString() || "0",
         deaths: coach2Pokemon[i]?.deaths?.toString() || "0",
+        damageDealt: coach2Pokemon[i]?.damageDealt ?? undefined,
+        damageDealtIndirect: coach2Pokemon[i]?.damageDealtIndirect ?? undefined,
+        damageTaken: coach2Pokemon[i]?.damageTaken ?? undefined,
+        damageTakenIndirect: coach2Pokemon[i]?.damageTakenIndirect ?? undefined,
+        turnsActive: coach2Pokemon[i]?.turnsActive ?? undefined,
+        hazardDamageTaken: coach2Pokemon[i]?.hazardDamageTaken ?? undefined,
+        setupMovesUsed: coach2Pokemon[i]?.setupMovesUsed ?? undefined,
+        favorableCrits: coach2Pokemon[i]?.favorableCrits ?? undefined,
+        favorableMisses: coach2Pokemon[i]?.favorableMisses ?? undefined,
+        favorableFlinches: coach2Pokemon[i]?.favorableFlinches ?? undefined,
+        favorableParalysis: coach2Pokemon[i]?.favorableParalysis ?? undefined,
+        favorableFreezes: coach2Pokemon[i]?.favorableFreezes ?? undefined,
+        favorableBurns: coach2Pokemon[i]?.favorableBurns ?? undefined,
+        hpRestored: coach2Pokemon[i]?.hpRestored ?? undefined,
       }))
     );
   }
@@ -459,7 +531,7 @@ export default function AdminMatchesPage() {
       const existingMatch = findMatchForPlayoff(playoffMatch);
       const playoffWeek = 100 + playoffMatch.round;
 
-      const pokemonData: Array<{ seasonCoachId: number; pokemonId: number; kills: number; deaths: number; damageDealt?: number; damageDealtIndirect?: number; damageTaken?: number; damageTakenIndirect?: number; hpRestored?: number }> = [];
+      const pokemonData: MatchPokemonPayload[] = [];
 
       team1Pokemon.forEach((p) => {
         if (p.pokemonId && playoffMatch.higherSeedId) {
@@ -472,6 +544,15 @@ export default function AdminMatchesPage() {
             damageDealtIndirect: p.damageDealtIndirect,
             damageTaken: p.damageTaken,
             damageTakenIndirect: p.damageTakenIndirect,
+            turnsActive: p.turnsActive,
+            hazardDamageTaken: p.hazardDamageTaken,
+            setupMovesUsed: p.setupMovesUsed,
+            favorableCrits: p.favorableCrits,
+            favorableMisses: p.favorableMisses,
+            favorableFlinches: p.favorableFlinches,
+            favorableParalysis: p.favorableParalysis,
+            favorableFreezes: p.favorableFreezes,
+            favorableBurns: p.favorableBurns,
             hpRestored: p.hpRestored,
           });
         }
@@ -488,6 +569,15 @@ export default function AdminMatchesPage() {
             damageDealtIndirect: p.damageDealtIndirect,
             damageTaken: p.damageTaken,
             damageTakenIndirect: p.damageTakenIndirect,
+            turnsActive: p.turnsActive,
+            hazardDamageTaken: p.hazardDamageTaken,
+            setupMovesUsed: p.setupMovesUsed,
+            favorableCrits: p.favorableCrits,
+            favorableMisses: p.favorableMisses,
+            favorableFlinches: p.favorableFlinches,
+            favorableParalysis: p.favorableParalysis,
+            favorableFreezes: p.favorableFreezes,
+            favorableBurns: p.favorableBurns,
             hpRestored: p.hpRestored,
           });
         }
@@ -569,7 +659,7 @@ export default function AdminMatchesPage() {
 
     if (!match) return;
 
-    const pokemonData: Array<{ seasonCoachId: number; pokemonId: number; kills: number; deaths: number; damageDealt?: number; damageDealtIndirect?: number; damageTaken?: number; damageTakenIndirect?: number; hpRestored?: number }> = [];
+    const pokemonData: MatchPokemonPayload[] = [];
 
     team1Pokemon.forEach((p) => {
       if (p.pokemonId) {
@@ -582,6 +672,15 @@ export default function AdminMatchesPage() {
           damageDealtIndirect: p.damageDealtIndirect,
           damageTaken: p.damageTaken,
           damageTakenIndirect: p.damageTakenIndirect,
+          turnsActive: p.turnsActive,
+          hazardDamageTaken: p.hazardDamageTaken,
+          setupMovesUsed: p.setupMovesUsed,
+          favorableCrits: p.favorableCrits,
+          favorableMisses: p.favorableMisses,
+          favorableFlinches: p.favorableFlinches,
+          favorableParalysis: p.favorableParalysis,
+          favorableFreezes: p.favorableFreezes,
+          favorableBurns: p.favorableBurns,
           hpRestored: p.hpRestored,
         });
       }
@@ -598,6 +697,15 @@ export default function AdminMatchesPage() {
           damageDealtIndirect: p.damageDealtIndirect,
           damageTaken: p.damageTaken,
           damageTakenIndirect: p.damageTakenIndirect,
+          turnsActive: p.turnsActive,
+          hazardDamageTaken: p.hazardDamageTaken,
+          setupMovesUsed: p.setupMovesUsed,
+          favorableCrits: p.favorableCrits,
+          favorableMisses: p.favorableMisses,
+          favorableFlinches: p.favorableFlinches,
+          favorableParalysis: p.favorableParalysis,
+          favorableFreezes: p.favorableFreezes,
+          favorableBurns: p.favorableBurns,
           hpRestored: p.hpRestored,
         });
       }
@@ -823,6 +931,15 @@ export default function AdminMatchesPage() {
             damageDealtIndirect: replayPoke.damageDealtIndirect,
             damageTaken: replayPoke.damageTaken,
             damageTakenIndirect: replayPoke.damageTakenIndirect,
+            turnsActive: replayPoke.turnsActive,
+            hazardDamageTaken: replayPoke.hazardDamageTaken,
+            setupMovesUsed: replayPoke.setupMovesUsed,
+            favorableCrits: replayPoke.favorableCrits,
+            favorableMisses: replayPoke.favorableMisses,
+            favorableFlinches: replayPoke.favorableFlinches,
+            favorableParalysis: replayPoke.favorableParalysis,
+            favorableFreezes: replayPoke.favorableFreezes,
+            favorableBurns: replayPoke.favorableBurns,
             hpRestored: replayPoke.hpRestored,
           });
         }
@@ -847,6 +964,15 @@ export default function AdminMatchesPage() {
             damageDealtIndirect: replayPoke.damageDealtIndirect,
             damageTaken: replayPoke.damageTaken,
             damageTakenIndirect: replayPoke.damageTakenIndirect,
+            turnsActive: replayPoke.turnsActive,
+            hazardDamageTaken: replayPoke.hazardDamageTaken,
+            setupMovesUsed: replayPoke.setupMovesUsed,
+            favorableCrits: replayPoke.favorableCrits,
+            favorableMisses: replayPoke.favorableMisses,
+            favorableFlinches: replayPoke.favorableFlinches,
+            favorableParalysis: replayPoke.favorableParalysis,
+            favorableFreezes: replayPoke.favorableFreezes,
+            favorableBurns: replayPoke.favorableBurns,
             hpRestored: replayPoke.hpRestored,
           });
         }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
@@ -89,4 +90,44 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(request: NextRequest) {
+  const featureSettings = await getSiteFeatureSettings();
+  if (featureSettings.blogUiHidden) {
+    return NextResponse.json({ error: "Blog is currently unavailable" }, { status: 404 });
+  }
+
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const postId = Number.parseInt(request.nextUrl.searchParams.get("id") || "", 10);
+  if (!Number.isInteger(postId)) {
+    return NextResponse.json({ error: "Valid post id is required" }, { status: 400 });
+  }
+
+  const existingPost = await db.query.blogPosts.findFirst({
+    where: eq(blogPosts.id, postId),
+  });
+
+  if (!existingPost) {
+    return NextResponse.json({ error: "Blog post not found" }, { status: 404 });
+  }
+
+  const isAuthor = session.type === "coach"
+    ? existingPost.authorCoachId === session.id
+    : existingPost.authorUserId === session.id;
+
+  if (!session.isMod && !isAuthor) {
+    return NextResponse.json(
+      { error: "Only admins or the post author can delete blog posts" },
+      { status: 403 }
+    );
+  }
+
+  await db.delete(blogPosts).where(eq(blogPosts.id, postId));
+
+  return NextResponse.json({ success: true });
 }

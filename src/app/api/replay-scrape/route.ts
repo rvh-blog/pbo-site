@@ -9,6 +9,15 @@ interface PokemonStats {
   damageDealtIndirect: number;
   damageTaken: number;
   damageTakenIndirect: number;
+  turnsActive: number;
+  hazardDamageTaken: number;
+  setupMovesUsed: number;
+  favorableCrits: number;
+  favorableMisses: number;
+  favorableFlinches: number;
+  favorableParalysis: number;
+  favorableFreezes: number;
+  favorableBurns: number;
   hpRestored: number;
 }
 
@@ -48,6 +57,68 @@ interface PlayerRef {
   player: "p1" | "p2";
   nickname: string;
   move?: string;
+}
+
+const SETUP_MOVES = new Set([
+  "agility",
+  "amnesia",
+  "autotomize",
+  "aqua step",
+  "aura wheel",
+  "belly drum",
+  "bulk up",
+  "calm mind",
+  "charge beam",
+  "clangorous soul",
+  "coil",
+  "cosmic power",
+  "cotton guard",
+  "curse",
+  "defend order",
+  "dragon dance",
+  "flame charge",
+  "gear up",
+  "growth",
+  "hone claws",
+  "iron defense",
+  "meteor beam",
+  "nasty plot",
+  "no retreat",
+  "power-up punch",
+  "quiver dance",
+  "rock polish",
+  "shift gear",
+  "shell smash",
+  "stockpile",
+  "stuff cheeks",
+  "swords dance",
+  "tail glow",
+  "tidy up",
+  "trailblaze",
+  "victory dance",
+  "work up",
+]);
+
+function isHazardDamageCause(cause: string) {
+  const lower = cause.toLowerCase();
+  return lower.includes("spikes") ||
+    lower.includes("stealth rock") ||
+    lower.includes("rocks") ||
+    lower.includes("sticky web");
+}
+
+function isParalysisCantMove(effect: string) {
+  const lower = effect.toLowerCase();
+  return lower === "par" || lower.includes("paralysis") || lower.includes("fully paralyzed");
+}
+
+function isFlinchCantMove(effect: string) {
+  return effect.toLowerCase().includes("flinch");
+}
+
+function isWillOWisp(source: string) {
+  const normalized = source.toLowerCase().replace(/[^a-z]/g, "");
+  return normalized === "willowisp";
 }
 
 function buildReplayJsonCandidates(replayUrl: string): string[] {
@@ -184,6 +255,7 @@ export async function POST(request: NextRequest) {
     let lastDamageDealer: PlayerRef | null = null;
     let p1ActivePokemon: string | null = null;
     let p2ActivePokemon: string | null = null;
+    const activeTurnsByPokemon: Map<string, Set<number>> = new Map();
 
     // Hazard setter tracking
     const hazardSetterMap: Map<string, PlayerRef> = new Map();
@@ -227,6 +299,54 @@ export async function POST(request: NextRequest) {
       return total;
     };
 
+    const getPokemonByRef = (parsed: PlayerRef): PokemonStats | null => {
+      const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
+      const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
+      const pokemonName = nicknameMap.get(parsed.nickname);
+      return pokemonName ? team.find((p) => p.name === pokemonName) || null : null;
+    };
+
+    const getOpponentActiveRef = (player: "p1" | "p2"): PlayerRef | null => {
+      const opponent = player === "p1" ? "p2" : "p1";
+      const nickname = opponent === "p1" ? p1ActivePokemon : p2ActivePokemon;
+      return nickname ? { player: opponent, nickname } : null;
+    };
+
+    const incrementFavorableEvent = (
+      parsed: PlayerRef | null,
+      field:
+        | "favorableCrits"
+        | "favorableMisses"
+        | "favorableFlinches"
+        | "favorableParalysis"
+        | "favorableFreezes"
+        | "favorableBurns"
+    ) => {
+      if (!parsed) return;
+      const pokemon = getPokemonByRef(parsed);
+      if (pokemon) {
+        pokemon[field]++;
+      }
+    };
+
+    const recordActiveTurn = (parsed: PlayerRef, turn = currentTurn) => {
+      if (turn <= 0) return;
+      const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
+      const pokemonName = nicknameMap.get(parsed.nickname);
+      if (!pokemonName) return;
+
+      const key = `${parsed.player}:${pokemonName}`;
+      if (!activeTurnsByPokemon.has(key)) {
+        activeTurnsByPokemon.set(key, new Set());
+      }
+      activeTurnsByPokemon.get(key)!.add(turn);
+    };
+
+    const recordCurrentActiveTurn = () => {
+      if (p1ActivePokemon) recordActiveTurn({ player: "p1", nickname: p1ActivePokemon });
+      if (p2ActivePokemon) recordActiveTurn({ player: "p2", nickname: p2ActivePokemon });
+    };
+
     const applyVisibleFormChange = (parsed: PlayerRef, pokemonInfo: string) => {
       if (!preserveMegas) return;
 
@@ -253,6 +373,15 @@ export async function POST(request: NextRequest) {
         if (oldHp !== undefined) {
           hpPercentMap.delete(`${parsed.player}:${previousName}`);
           hpPercentMap.set(`${parsed.player}:${pokemonName}`, oldHp);
+        }
+
+        if (previousName && previousName !== pokemonName) {
+          const oldActiveKey = `${parsed.player}:${previousName}`;
+          const turns = activeTurnsByPokemon.get(oldActiveKey);
+          if (turns) {
+            activeTurnsByPokemon.delete(oldActiveKey);
+            activeTurnsByPokemon.set(`${parsed.player}:${pokemonName}`, turns);
+          }
         }
       }
     };
@@ -300,6 +429,15 @@ export async function POST(request: NextRequest) {
             damageDealtIndirect: 0,
             damageTaken: 0,
             damageTakenIndirect: 0,
+            turnsActive: 0,
+            hazardDamageTaken: 0,
+            setupMovesUsed: 0,
+            favorableCrits: 0,
+            favorableMisses: 0,
+            favorableFlinches: 0,
+            favorableParalysis: 0,
+            favorableFreezes: 0,
+            favorableBurns: 0,
             hpRestored: 0,
           };
 
@@ -344,6 +482,7 @@ export async function POST(request: NextRequest) {
             }
 
             switchedInThisTurn.add(`${parsed.player}:${parsed.nickname}`);
+            recordActiveTurn(parsed);
 
             // Track HP from switch-in
             const hpPart = parts[4];
@@ -382,10 +521,17 @@ export async function POST(request: NextRequest) {
               if (oldName && oldName !== pokemonName) {
                 const oldKey = `${parsed.player}:${oldName}`;
                 const oldHp = hpPercentMap.get(oldKey);
-                if (oldHp !== undefined) {
-                  hpPercentMap.set(`${parsed.player}:${pokemonName}`, oldHp);
-                }
+              if (oldHp !== undefined) {
+                hpPercentMap.set(`${parsed.player}:${pokemonName}`, oldHp);
               }
+
+              const oldActiveKey = `${parsed.player}:${oldName}`;
+              const turns = activeTurnsByPokemon.get(oldActiveKey);
+              if (turns) {
+                activeTurnsByPokemon.delete(oldActiveKey);
+                activeTurnsByPokemon.set(`${parsed.player}:${pokemonName}`, turns);
+              }
+            }
             }
 
             if (parsed.player === "p1") {
@@ -395,6 +541,7 @@ export async function POST(request: NextRequest) {
               p2NicknameMap.set(parsed.nickname, pokemonName);
               p2ActivePokemon = parsed.nickname;
             }
+            recordActiveTurn(parsed);
           }
           break;
         }
@@ -430,6 +577,7 @@ export async function POST(request: NextRequest) {
               });
             }
             currentTurn = turnNum;
+            recordCurrentActiveTurn();
           }
           break;
         }
@@ -442,8 +590,50 @@ export async function POST(request: NextRequest) {
             lastDamageDealer = parsed;
             lastFaintSource = null;
             lastMoveInfo = { ...parsed, moveName };
+            recordActiveTurn(parsed);
+
+            if (SETUP_MOVES.has(moveName.toLowerCase())) {
+              const pokemon = getPokemonByRef(parsed);
+              if (pokemon) {
+                pokemon.setupMovesUsed++;
+              }
+            }
           }
           switchedInThisTurn.clear();
+          break;
+        }
+
+        case "-crit": {
+          const targetRef = parts[2];
+          const parsed = extractNicknameOwner(targetRef);
+          if (parsed && lastDamageDealer) {
+            const targetName = (parsed.player === "p1" ? p1NicknameMap : p2NicknameMap).get(parsed.nickname);
+            const hpKey = targetName ? `${parsed.player}:${targetName}` : null;
+            const hpBeforeHit = hpKey ? (hpPercentMap.get(hpKey) ?? 100) : 100;
+            if (hpBeforeHit > 25) {
+              incrementFavorableEvent(lastDamageDealer, "favorableCrits");
+            }
+          }
+          break;
+        }
+
+        case "-miss": {
+          const attacker = extractNicknameOwner(parts[2]);
+          const target = extractNicknameOwner(parts[3] || "");
+          incrementFavorableEvent(target || (attacker ? getOpponentActiveRef(attacker.player) : null), "favorableMisses");
+          break;
+        }
+
+        case "cant": {
+          const parsed = extractNicknameOwner(parts[2]);
+          const effect = parts[3] || "";
+          const beneficiary = parsed ? getOpponentActiveRef(parsed.player) : null;
+
+          if (isParalysisCantMove(effect)) {
+            incrementFavorableEvent(beneficiary, "favorableParalysis");
+          } else if (isFlinchCantMove(effect)) {
+            incrementFavorableEvent(beneficiary, "favorableFlinches");
+          }
           break;
         }
 
@@ -526,6 +716,19 @@ export async function POST(request: NextRequest) {
             const key = `${parsed.player}:${parsed.nickname}`;
             const fromMatch = line.match(/\[from\] (?:move: )?(.+?)(?:\||$)/);
             const fromSource = fromMatch ? fromMatch[1].toLowerCase().trim() : "";
+            const statusOfMatch = line.match(/\[of\] (p[12])a: (.+)/);
+            const beneficiary = getOpponentActiveRef(parsed.player);
+            const statusSource = fromSource || lastMoveInfo?.moveName || "";
+            const hasOpponentInflicter =
+              (statusOfMatch ? statusOfMatch[1] !== parsed.player : false) ||
+              (lastMoveInfo ? lastMoveInfo.player !== parsed.player : false);
+            const isSelfItemStatus = fromSource.includes("item:");
+
+            if (statusType === "frz" && hasOpponentInflicter) {
+              incrementFavorableEvent(beneficiary, "favorableFreezes");
+            } else if (statusType === "brn" && hasOpponentInflicter && !isSelfItemStatus && !isWillOWisp(statusSource)) {
+              incrementFavorableEvent(beneficiary, "favorableBurns");
+            }
 
             if ((statusType === "psn" || statusType === "tox") && fromSource.includes("toxic spikes")) {
               // Poison from toxic spikes entry
@@ -772,6 +975,9 @@ export async function POST(request: NextRequest) {
               const targetPokemon = targetTeam.find((p) => p.name === targetName);
               if (targetPokemon) {
                 targetPokemon.damageTakenIndirect += damageAmount;
+                if (isHazardDamageCause(lastFaintSource)) {
+                  targetPokemon.hazardDamageTaken += damageAmount;
+                }
               }
 
               // Find who caused the indirect damage
@@ -1053,6 +1259,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate remaining Pokemon (those with 0 deaths)
+    for (const player of ["p1", "p2"] as const) {
+      const team = player === "p1" ? result.p1Team : result.p2Team;
+      for (const pokemon of team) {
+        pokemon.turnsActive = activeTurnsByPokemon.get(`${player}:${pokemon.name}`)?.size ?? 0;
+      }
+    }
+
     result.p1Remaining = result.p1Team.filter((p) => p.deaths === 0).length;
     result.p2Remaining = result.p2Team.filter((p) => p.deaths === 0).length;
 

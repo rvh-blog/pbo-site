@@ -507,6 +507,15 @@ async function buildCanonicalPokemonData(
     damageDealtIndirect?: number;
     damageTaken?: number;
     damageTakenIndirect?: number;
+    turnsActive?: number;
+    hazardDamageTaken?: number;
+    setupMovesUsed?: number;
+    favorableCrits?: number;
+    favorableMisses?: number;
+    favorableFlinches?: number;
+    favorableParalysis?: number;
+    favorableFreezes?: number;
+    favorableBurns?: number;
     hpRestored?: number;
   }[] = [];
 
@@ -533,6 +542,15 @@ function overlayReplayExtraStats<
     damageDealtIndirect?: number;
     damageTaken?: number;
     damageTakenIndirect?: number;
+    turnsActive?: number;
+    hazardDamageTaken?: number;
+    setupMovesUsed?: number;
+    favorableCrits?: number;
+    favorableMisses?: number;
+    favorableFlinches?: number;
+    favorableParalysis?: number;
+    favorableFreezes?: number;
+    favorableBurns?: number;
     hpRestored?: number;
   }
 >(canonical: T[], scraped: T[]): T[] {
@@ -550,6 +568,15 @@ function overlayReplayExtraStats<
       damageDealtIndirect: extra.damageDealtIndirect,
       damageTaken: extra.damageTaken,
       damageTakenIndirect: extra.damageTakenIndirect,
+      turnsActive: extra.turnsActive,
+      hazardDamageTaken: extra.hazardDamageTaken,
+      setupMovesUsed: extra.setupMovesUsed,
+      favorableCrits: extra.favorableCrits,
+      favorableMisses: extra.favorableMisses,
+      favorableFlinches: extra.favorableFlinches,
+      favorableParalysis: extra.favorableParalysis,
+      favorableFreezes: extra.favorableFreezes,
+      favorableBurns: extra.favorableBurns,
       hpRestored: extra.hpRestored,
     };
   });

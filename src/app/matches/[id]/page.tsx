@@ -135,6 +135,15 @@ type BattleSummaryPokemon = {
   damageDealt: number | null;
   damageDealtIndirect: number | null;
   damageTakenIndirect: number | null;
+  turnsActive: number | null;
+  hazardDamageTaken: number | null;
+  setupMovesUsed: number | null;
+  favorableCrits: number | null;
+  favorableMisses: number | null;
+  favorableFlinches: number | null;
+  favorableParalysis: number | null;
+  favorableFreezes: number | null;
+  favorableBurns: number | null;
 };
 
 type TimeSyncedPokemon = {
@@ -179,11 +188,43 @@ function getPokemonLabel(mp: BattleSummaryPokemon) {
   return mp.pokemon?.displayName || mp.pokemon?.name || "Pokemon";
 }
 
-function getBattleSummaryStats() {
+function formatKnownNumber(value: number | null | undefined, suffix = "") {
+  return value === null || value === undefined ? "x" : `${value}${suffix}`;
+}
+
+function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
+  const hasHazardDamage = teamPokemon.some((mp) => mp.hazardDamageTaken !== null);
+  const hasSetupMoves = teamPokemon.some((mp) => mp.setupMovesUsed !== null);
+  const hasFavorableEvents = teamPokemon.some(
+    (mp) =>
+      mp.favorableCrits !== null ||
+      mp.favorableMisses !== null ||
+      mp.favorableFlinches !== null ||
+      mp.favorableParalysis !== null ||
+      mp.favorableFreezes !== null ||
+      mp.favorableBurns !== null
+  );
+
   return {
-    hazardDamageTaken: "x",
-    setupMoves: "x",
-    favorableEvents: "x",
+    hazardDamageTaken: hasHazardDamage
+      ? `${teamPokemon.reduce((sum, mp) => sum + (mp.hazardDamageTaken || 0), 0)}%`
+      : "x",
+    setupMoves: hasSetupMoves
+      ? teamPokemon.reduce((sum, mp) => sum + (mp.setupMovesUsed || 0), 0)
+      : "x",
+    favorableEvents: hasFavorableEvents
+      ? teamPokemon.reduce(
+          (sum, mp) =>
+            sum +
+            (mp.favorableCrits || 0) +
+            (mp.favorableMisses || 0) +
+            (mp.favorableFlinches || 0) +
+            (mp.favorableParalysis || 0) +
+            (mp.favorableFreezes || 0) +
+            (mp.favorableBurns || 0),
+          0
+        )
+      : "x",
   };
 }
 
@@ -198,7 +239,7 @@ function BattleSummaryTeam({
   pokemonRows: BattleSummaryPokemon[];
   align: "left" | "right";
 }) {
-  const stats = getBattleSummaryStats();
+  const stats = getBattleSummaryStats(pokemonRows);
 
   return (
     <div className="space-y-3">
@@ -229,12 +270,21 @@ function BattleSummaryTeam({
 
       <div className="grid grid-cols-3 gap-1.5 text-center">
         {[
-          ["Hazard Damage Taken", `${stats.hazardDamageTaken}%`],
+          ["Hazard Damage Taken", stats.hazardDamageTaken],
           ["Set Up Moves Used", stats.setupMoves],
-          ["Favorable Crits / Flinch / Miss / Para", stats.favorableEvents],
+          ["Favorable Crits/Flinch/Miss/Status Proc", stats.favorableEvents],
         ].map(([label, value]) => (
           <div key={label} className="rounded border border-white/15 bg-black/35 px-2 py-2">
-            <div className="text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">{label}</div>
+            <div className="text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">
+              {label === "Favorable Crits/Flinch/Miss/Status Proc" ? (
+                <>
+                  <span className="block">Favorable Crits/Flinch</span>
+                  <span className="block">Miss/Status Proc</span>
+                </>
+              ) : (
+                label
+              )}
+            </div>
             <div className="mt-1 text-lg sm:text-xl font-black text-white">{value}</div>
           </div>
         ))}
@@ -252,7 +302,11 @@ function BattleSummaryTeam({
             const kills = mp.kills || 0;
             const deaths = mp.deaths || 0;
             const totalDamage = (mp.damageDealt || 0) + (mp.damageDealtIndirect || 0);
-            const rowTone = kills > deaths ? "bg-emerald-500/18 border-emerald-400/30" : "bg-red-500/18 border-red-400/30";
+            const rowTone = deaths > 0
+              ? "bg-red-500/18 border-red-400/30"
+              : (mp.turnsActive || 0) > 0
+                ? "bg-emerald-500/18 border-emerald-400/30"
+                : "bg-white/10 border-white/25";
 
             return (
               <div key={mp.id} className={`grid grid-cols-[1fr_52px_82px_56px] items-center border-l-4 ${rowTone} px-2 py-1.5`}>
@@ -272,7 +326,7 @@ function BattleSummaryTeam({
                 </div>
                 <span className="text-center font-mono text-sm font-black text-white">{kills}</span>
                 <span className="text-center font-mono text-sm font-black text-white">{totalDamage}%</span>
-                <span className="text-center font-mono text-sm font-black text-white">x</span>
+                <span className="text-center font-mono text-sm font-black text-white">{formatKnownNumber(mp.turnsActive)}</span>
               </div>
             );
           })}
