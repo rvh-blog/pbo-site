@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/session";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 import { BlogPostForm } from "./blog-post-form";
 
 export const metadata = {
@@ -7,7 +8,19 @@ export const metadata = {
 };
 
 export default async function NewBlogPostPage() {
-  const session = await getSession();
+  const [featureSettings, session] = await Promise.all([
+    getSiteFeatureSettings(),
+    getSession(),
+  ]);
+  if (featureSettings.blogUiHidden) {
+    return (
+      <div className="poke-card p-8 text-center">
+        <h1 className="font-pixel text-lg text-white">PBO Blog</h1>
+        <p className="mt-3 text-[var(--foreground-muted)]">Blog is currently unavailable.</p>
+      </div>
+    );
+  }
+
   const canCreate = !!session && (session.type === "coach" || session.isMod);
 
   return (

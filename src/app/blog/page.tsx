@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,8 @@ function formatDate(value: string) {
 }
 
 export default async function BlogPage() {
-  const [session, posts] = await Promise.all([
+  const [featureSettings, session, posts] = await Promise.all([
+    getSiteFeatureSettings(),
     getSession(),
     db.query.blogPosts.findMany({
       where: eq(blogPosts.isPublished, true),
@@ -30,6 +32,15 @@ export default async function BlogPage() {
       },
     }),
   ]);
+  if (featureSettings.blogUiHidden) {
+    return (
+      <div className="poke-card p-8 text-center">
+        <h1 className="font-pixel text-lg text-white">PBO Blog</h1>
+        <p className="mt-3 text-[var(--foreground-muted)]">Blog is currently unavailable.</p>
+      </div>
+    );
+  }
+
   const canCreate = !!session && (session.type === "coach" || session.isMod);
 
   return (

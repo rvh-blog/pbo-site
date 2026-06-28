@@ -13,7 +13,8 @@ export interface FantasyPokemonOption {
   divisionNames: string[];
   divisionStats: {
     divisionName: string;
-    teamNames: string[];
+    seasonCoachId: number;
+    teamName: string;
     score: number;
     games: number;
     kills: number;
@@ -40,14 +41,21 @@ interface AuthUser {
   isMod: boolean;
 }
 
+type FantasySlotPick = {
+  pokemonId: number;
+  seasonCoachId: number;
+};
+
 interface FantasyLeaderboardEntry {
   id: number;
   displayName: string;
   coachId: number | null;
   userId: number | null;
+  week: number | null;
   totalScore: number;
   picks: {
     pokemonId: number;
+    seasonCoachId: number | null;
     name: string;
     spriteUrl: string | null;
     score: number;
@@ -59,14 +67,19 @@ interface FantasyEntryResponse {
   myEntry: {
     id: number;
     displayName: string;
-    pokemonIds: number[];
+    picks?: FantasySlotPick[];
+    pokemonIds?: number[];
+    seasonCoachIds?: (number | null)[];
     updatedAt: string;
   } | null;
+  usedInstances?: FantasySlotPick[];
   leaderboard: FantasyLeaderboardEntry[];
   settings: {
     rosterSize: number;
     budget: number;
     scoringWeek?: number;
+    leaderboardWeek?: number | "overall";
+    leaderboardWeeks?: number[];
   };
   error?: string;
 }
@@ -102,49 +115,64 @@ function normalizeDivisionName(name: string) {
   return name.trim().toLowerCase();
 }
 
+function instanceKey(pick: FantasySlotPick | { pokemonId: number; seasonCoachId: number | null }) {
+  return `${pick.pokemonId}:${pick.seasonCoachId ?? 0}`;
+}
+
 function getSlotStats(
   pokemon: FantasyPokemonOption,
-  requiredDivisionName: string | null | undefined
+  requiredDivisionName: string | null | undefined,
+  blockedInstanceKeys: Set<string> = new Set()
 ) {
   const emptyStats = {
+    seasonCoachId: null as number | null,
     score: 0,
     games: 0,
     kills: 0,
     deaths: 0,
-    teamNames: [] as string[],
+    teamName: "",
   };
 
   if (requiredDivisionName) {
     const divisionStats = pokemon.divisionStats.find(
       (stats) =>
         normalizeDivisionName(stats.divisionName) ===
-        normalizeDivisionName(requiredDivisionName)
+        normalizeDivisionName(requiredDivisionName) &&
+        !blockedInstanceKeys.has(instanceKey({ pokemonId: pokemon.id, seasonCoachId: stats.seasonCoachId }))
     );
 
     return {
+      seasonCoachId: divisionStats?.seasonCoachId ?? null,
       score: divisionStats?.score ?? 0,
       games: divisionStats?.games ?? 0,
       kills: divisionStats?.kills ?? 0,
       deaths: divisionStats?.deaths ?? 0,
-      teamNames: divisionStats?.teamNames ?? [],
+      teamName: divisionStats?.teamName ?? "",
     };
   }
 
   const bestDivisionStats = pokemon.divisionStats
+    .filter((stats) => !blockedInstanceKeys.has(instanceKey({ pokemonId: pokemon.id, seasonCoachId: stats.seasonCoachId })))
     .slice()
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return b.games - a.games;
     })[0];
 
-  return bestDivisionStats ?? emptyStats;
+  return bestDivisionStats
+    ? {
+        seasonCoachId: bestDivisionStats.seasonCoachId,
+        score: bestDivisionStats.score,
+        games: bestDivisionStats.games,
+        kills: bestDivisionStats.kills,
+        deaths: bestDivisionStats.deaths,
+        teamName: bestDivisionStats.teamName,
+      }
+    : emptyStats;
 }
 
-function formatTeamLabel(teamNames: Iterable<string>) {
-  const names = [...teamNames].filter(Boolean);
-  if (names.length === 0) return "No start-week team";
-  if (names.length === 1) return names[0];
-  return `${names[0]} +${names.length - 1}`;
+function formatTeamLabel(teamName: string) {
+  return teamName || "No start-week team";
 }
 
 export function FantasyEntryClient({
@@ -155,8 +183,12 @@ export function FantasyEntryClient({
   pokemon,
 }: FantasyEntryClientProps) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [selectedSlots, setSelectedSlots] = useState<(number | null)[]>([]);
+  const [selectedSlots, setSelectedSlots] = useState<(FantasySlotPick | null)[]>([]);
+  const [usedInstances, setUsedInstances] = useState<FantasySlotPick[]>([]);
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
+  const [leaderboardTab, setLeaderboardTab] = useState<number | "overall">(
+    targetWeek >= 1 && targetWeek <= 8 ? targetWeek : "overall"
+  );
   const [leaderboard, setLeaderboard] = useState<FantasyLeaderboardEntry[]>([]);
   const [rosterSize, setRosterSize] = useState(6);
   const [budget, setBudget] = useState(90);
@@ -193,12 +225,20 @@ export function FantasyEntryClient({
     [availableDivisions]
   );
 
+  const usedInstanceKeys = useMemo(
+    () => new Set(usedInstances.map(instanceKey)),
+    [usedInstances]
+  );
   const normalizedSlots = useMemo(
     () => Array.from({ length: rosterSize }, (_, index) => selectedSlots[index] ?? null),
     [rosterSize, selectedSlots]
   );
-  const selectedIds = normalizedSlots.filter((id): id is number => id !== null);
-  const selectedPokemon = normalizedSlots.map((id) => (id === null ? null : pokemonById.get(id) ?? null));
+  const selectedIds = normalizedSlots
+    .map((slot) => slot?.pokemonId ?? null)
+    .filter((id): id is number => id !== null);
+  const selectedPokemon = normalizedSlots.map((slot) => (
+    slot === null ? null : pokemonById.get(slot.pokemonId) ?? null
+  ));
   const totalCost = selectedPokemon.reduce((sum, row) => sum + (row?.cost ?? 0), 0);
   const projectedScore = selectedPokemon.reduce((sum, row, index) => {
     if (!row) return sum;
@@ -206,7 +246,7 @@ export function FantasyEntryClient({
   }, 0);
   const overBudget = totalCost > budget;
   const slotValidation = normalizedSlots.map((id, index) => {
-    const row = id === null ? null : pokemonById.get(id);
+    const row = id === null ? null : pokemonById.get(id.pokemonId);
     const requiredDivision = slotRules[index]?.effectiveDivisionName;
     if (!row || !requiredDivision) return true;
     return row.divisionNames.some(
@@ -224,15 +264,12 @@ export function FantasyEntryClient({
     .filter((row) => !selectedIds.includes(row.id))
     .filter((row) => {
       const requiredDivision = activeSlotRule?.effectiveDivisionName;
-      if (!requiredDivision) return true;
-      return row.divisionNames.some(
-        (divisionName) => normalizeDivisionName(divisionName) === normalizeDivisionName(requiredDivision)
-      );
+      return getSlotStats(row, requiredDivision, usedInstanceKeys).seasonCoachId !== null;
     })
     .filter((row) => row.name.toLowerCase().includes(query.trim().toLowerCase()))
     .sort((a, b) => {
-      const aStats = getSlotStats(a, activeSlotRule?.effectiveDivisionName);
-      const bStats = getSlotStats(b, activeSlotRule?.effectiveDivisionName);
+      const aStats = getSlotStats(a, activeSlotRule?.effectiveDivisionName, usedInstanceKeys);
+      const bStats = getSlotStats(b, activeSlotRule?.effectiveDivisionName, usedInstanceKeys);
       if (bStats.score !== aStats.score) return bStats.score - aStats.score;
       if (bStats.games !== aStats.games) return bStats.games - aStats.games;
       return a.name.localeCompare(b.name);
@@ -243,7 +280,9 @@ export function FantasyEntryClient({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/fantasy-entry?seasonId=${seasonId}&week=${targetWeek}`);
+      const res = await fetch(
+        `/api/fantasy-entry?seasonId=${seasonId}&week=${targetWeek}&leaderboardWeek=${leaderboardTab}`
+      );
       const data: FantasyEntryResponse = await res.json();
 
       if (!res.ok) {
@@ -253,10 +292,16 @@ export function FantasyEntryClient({
 
       setAuthUser(data.user);
       setLeaderboard(data.leaderboard || []);
+      setUsedInstances(data.usedInstances || []);
       setRosterSize(data.settings?.rosterSize || 6);
       setBudget(data.settings?.budget || 90);
       if (data.myEntry) {
-        setSelectedSlots(data.myEntry.pokemonIds.slice(0, data.settings?.rosterSize || 6));
+        const entryPicks = data.myEntry.picks ??
+          (data.myEntry.pokemonIds || []).map((pokemonId, index) => ({
+            pokemonId,
+            seasonCoachId: data.myEntry?.seasonCoachIds?.[index] ?? 0,
+          }));
+        setSelectedSlots(entryPicks.slice(0, data.settings?.rosterSize || 6));
         setSavedAt(data.myEntry.updatedAt);
       } else {
         setSelectedSlots([]);
@@ -267,7 +312,7 @@ export function FantasyEntryClient({
     } finally {
       setLoading(false);
     }
-  }, [seasonId, targetWeek]);
+  }, [leaderboardTab, seasonId, targetWeek]);
 
   useEffect(() => {
     loadEntry();
@@ -283,12 +328,17 @@ export function FantasyEntryClient({
   }
 
   function choosePokemon(id: number) {
+    const row = pokemonById.get(id);
+    const slotStats = row ? getSlotStats(row, activeSlotRule?.effectiveDivisionName, usedInstanceKeys) : null;
+    if (!slotStats?.seasonCoachId) return;
+    const seasonCoachId = slotStats.seasonCoachId;
+
     setSelectedSlots((prev) => {
       const next = Array.from({ length: rosterSize }, (_, slotIndex) => prev[slotIndex] ?? null);
-      const existingIndex = next.indexOf(id);
+      const existingIndex = next.findIndex((slot) => slot?.pokemonId === id);
       if (existingIndex !== -1) next[existingIndex] = null;
-      next[activeSlotIndex] = id;
-      const nextEmptyIndex = next.findIndex((pokemonId, index) => pokemonId === null && index > activeSlotIndex);
+      next[activeSlotIndex] = { pokemonId: id, seasonCoachId };
+      const nextEmptyIndex = next.findIndex((slot, index) => slot === null && index > activeSlotIndex);
       setActiveSlotIndex(nextEmptyIndex === -1 ? activeSlotIndex : nextEmptyIndex);
       return next;
     });
@@ -306,7 +356,11 @@ export function FantasyEntryClient({
       const res = await fetch("/api/fantasy-entry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seasonId, pokemonIds: selectedIds }),
+        body: JSON.stringify({
+          seasonId,
+          week: targetWeek,
+          picks: normalizedSlots.filter((slot): slot is FantasySlotPick => slot !== null),
+        }),
       });
       const data = await res.json();
 
@@ -407,7 +461,7 @@ export function FantasyEntryClient({
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-bold text-white">{row.name}</div>
                       <div className="truncate text-xs font-bold text-[var(--foreground-muted)]">
-                        {formatTeamLabel(slotStats?.teamNames ?? [])}
+                        {formatTeamLabel(slotStats?.teamName ?? "")}
                       </div>
                       <div className="text-[10px] text-[var(--foreground-subtle)]">
                         {row.cost} pts - {formatScore(slotStats?.score ?? 0)} score
@@ -482,8 +536,8 @@ export function FantasyEntryClient({
           <div className="grid gap-2 sm:grid-cols-2">
             {filteredPokemon.map((row) => {
               const selected = selectedIds.includes(row.id);
-              const selectedIndex = normalizedSlots.indexOf(row.id);
-              const slotStats = getSlotStats(row, activeSlotRule?.effectiveDivisionName);
+              const selectedIndex = normalizedSlots.findIndex((slot) => slot?.pokemonId === row.id);
+              const slotStats = getSlotStats(row, activeSlotRule?.effectiveDivisionName, usedInstanceKeys);
               return (
                 <button
                   key={row.id}
@@ -494,7 +548,7 @@ export function FantasyEntryClient({
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold text-white">{row.name}</div>
                     <div className="truncate text-xs font-bold text-[var(--foreground-muted)]">
-                      {formatTeamLabel(slotStats.teamNames)}
+                      {formatTeamLabel(slotStats.teamName)}
                     </div>
                     <div className="text-[10px] text-[var(--foreground-subtle)]">
                       {row.cost} pts - {slotStats.games} games - {slotStats.kills}/{slotStats.deaths}
@@ -511,13 +565,31 @@ export function FantasyEntryClient({
       </div>
 
       <div className="poke-card p-4 sm:p-5">
-        <div className="section-title">
-          <div className="section-title-icon">
-            <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3v18h18M7 15l4-4 4 4 5-8" />
-            </svg>
+        <div className="mb-4 flex flex-col gap-3">
+          <div className="section-title mb-0">
+            <div className="section-title-icon">
+              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3v18h18M7 15l4-4 4 4 5-8" />
+              </svg>
+            </div>
+            <h3>Fantasy Leaderboard</h3>
           </div>
-          <h3>Fantasy Leaderboard</h3>
+          <div className="flex flex-wrap gap-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-1">
+            {(["overall", 1, 2, 3, 4, 5, 6, 7, 8] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setLeaderboardTab(tab)}
+                className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${
+                  leaderboardTab === tab
+                    ? "bg-[var(--primary)] text-white"
+                    : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                }`}
+              >
+                {tab === "overall" ? "Overall" : `W${tab}`}
+              </button>
+            ))}
+          </div>
         </div>
 
         {leaderboard.length === 0 ? (

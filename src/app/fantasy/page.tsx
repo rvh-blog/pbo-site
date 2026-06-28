@@ -12,6 +12,9 @@ import { getTimeSyncedRoster, type TimeSyncTransaction } from "@/lib/roster-util
 import { MatchedHeightGrid } from "@/components/matched-height-grid";
 import { desc, eq } from "drizzle-orm";
 import { FantasyEntryClient, type FantasyPokemonOption } from "./fantasy-entry-client";
+import { PokemonBoardClient, type PokemonBoardRow } from "./pokemon-board-client";
+import { ScheduleBoardClient, type FantasyScheduleRow } from "./schedule-board-client";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -54,11 +57,18 @@ type PokemonFantasyRow = {
 
 type PokemonDivisionFantasyStats = {
   divisionName: string;
-  teamNames: Set<string>;
+  seasonCoachId: number;
+  teamName: string;
   score: number;
+  recentScore: number;
+  previousScore: number;
   games: number;
   kills: number;
   deaths: number;
+  wins: number;
+  losses: number;
+  damage: number;
+  indirectDamage: number;
 };
 
 type TeamFantasyRow = {
@@ -119,19 +129,31 @@ function createFantasyRow(
   };
 }
 
-function getDivisionStats(row: PokemonFantasyRow, divisionName: string) {
+function getDivisionStats(
+  row: PokemonFantasyRow,
+  divisionName: string,
+  seasonCoachId: number,
+  teamName: string
+) {
   const normalizedName = normalizeDivisionName(divisionName);
-  const key = normalizedName.toLowerCase();
+  const key = `${normalizedName.toLowerCase()}:${seasonCoachId}`;
   const existing = row.divisionStats.get(key);
   if (existing) return existing;
 
   const created: PokemonDivisionFantasyStats = {
     divisionName: normalizedName,
-    teamNames: new Set<string>(),
+    seasonCoachId,
+    teamName,
     score: 0,
+    recentScore: 0,
+    previousScore: 0,
     games: 0,
     kills: 0,
     deaths: 0,
+    wins: 0,
+    losses: 0,
+    damage: 0,
+    indirectDamage: 0,
   };
   row.divisionStats.set(key, created);
   return created;
@@ -154,10 +176,6 @@ function scorePokemonGame(mp: {
 
 function formatScore(value: number) {
   return value.toFixed(1);
-}
-
-function typeBadgeClass(type: string) {
-  return `type-badge type-${type.toLowerCase()}`;
 }
 
 function isFantasySeason(
@@ -286,9 +304,13 @@ async function getFantasyData(
   const defaultScoutingWeek = seasonNumber === 10 ? 8 : nextUnplayedWeek ?? (latestCompletedWeek || 1);
   const targetWeek = requestedWeek ?? defaultScoutingWeek;
   const scoringThroughWeek = Math.max(targetWeek - 1, 0);
+  const latestScoutingCompletedWeek = completedMatches
+    .map((match) => match.week)
+    .filter((week) => week < targetWeek)
+    .sort((a, b) => b - a)[0] ?? 0;
   const previousCompletedWeek = completedMatches
     .map((match) => match.week)
-    .filter((week) => week < latestCompletedWeek)
+    .filter((week) => week < latestScoutingCompletedWeek)
     .sort((a, b) => b - a)[0] ?? 0;
 
   const allMatchPokemon = matchIds.size
@@ -382,7 +404,7 @@ async function getFantasyData(
           createFantasyRow(roster.pokemonId, roster.pokemon, priceByPokemon.get(roster.pokemonId) ?? null);
         row.teamNames.add(team.teamName);
         row.divisionNames.add(normalizeDivisionName(team.divisionName));
-        getDivisionStats(row, team.divisionName).teamNames.add(team.teamName);
+        getDivisionStats(row, team.divisionName, team.id, team.teamName);
         pokemonMap.set(roster.pokemonId, row);
       }
 
@@ -391,7 +413,7 @@ async function getFantasyData(
           createFantasyRow(pokemon.id, pokemon, priceByPokemon.get(pokemon.id) ?? null);
         row.teamNames.add(team.teamName);
         row.divisionNames.add(normalizeDivisionName(team.divisionName));
-        getDivisionStats(row, team.divisionName).teamNames.add(team.teamName);
+        getDivisionStats(row, team.divisionName, team.id, team.teamName);
         pokemonMap.set(pokemon.id, row);
       }
     })
@@ -414,16 +436,25 @@ async function getFantasyData(
     if (mp.match.week === latestCompletedWeek) row.recentScore += score;
     if (mp.match.week === previousCompletedWeek) row.previousScore += score;
     const divisionName = normalizeDivisionName(mp.seasonCoach?.division?.name);
-    if (divisionName && mp.match.winnerId && mp.match.week < targetWeek) {
-      const divisionStats = getDivisionStats(row, divisionName);
+    const team = teamMap.get(mp.seasonCoachId);
+    if (divisionName && team && mp.match.winnerId && mp.match.week < targetWeek) {
+      const divisionStats = getDivisionStats(row, divisionName, mp.seasonCoachId, team.teamName);
       divisionStats.score += score;
+      if (mp.match.week === latestScoutingCompletedWeek) divisionStats.recentScore += score;
+      if (mp.match.week === previousCompletedWeek) divisionStats.previousScore += score;
       divisionStats.games += 1;
       divisionStats.kills += mp.kills ?? 0;
       divisionStats.deaths += mp.deaths ?? 0;
+      if (mp.match.winnerId === mp.seasonCoachId) {
+        divisionStats.wins += 1;
+      } else {
+        divisionStats.losses += 1;
+      }
+      divisionStats.damage += mp.damageDealt ?? 0;
+      divisionStats.indirectDamage += mp.damageDealtIndirect ?? 0;
     }
     pokemonMap.set(mp.pokemonId, row);
 
-    const team = teamMap.get(mp.seasonCoachId);
     if (team) {
       team.totalScore += score;
       if (mp.match.week === latestCompletedWeek) team.recentScore += score;
@@ -465,7 +496,11 @@ async function getFantasyData(
   const droppedPokemonIds = recentTransactions.flatMap((transaction) => transaction.pokemonOut ?? []);
 
   const upcomingMatches = seasonMatches
-    .filter((match) => !match.winnerId)
+    .filter(
+      (match) =>
+        !match.winnerId ||
+        (match.week >= targetWeek && match.week > 0 && match.week < 100)
+    )
     .sort((a, b) => {
       if (a.scheduledAt && b.scheduledAt) {
         return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
@@ -476,9 +511,17 @@ async function getFantasyData(
     });
 
   const recentResults = completedMatches
+    .filter((match) => match.week < targetWeek)
     .sort((a, b) => {
       if (b.week !== a.week) return b.week - a.week;
       return b.id - a.id;
+    });
+  const scheduleMatches = seasonMatches
+    .filter((match) => match.week === targetWeek)
+    .sort((a, b) => {
+      const divisionCompare = (a.division?.name ?? "").localeCompare(b.division?.name ?? "");
+      if (divisionCompare !== 0) return divisionCompare;
+      return a.id - b.id;
     });
 
   return {
@@ -487,6 +530,7 @@ async function getFantasyData(
     targetWeek,
     scoringThroughWeek,
     latestCompletedWeek,
+    latestScoutingCompletedWeek,
     previousCompletedWeek,
     pokemonRows,
     teamRows,
@@ -495,6 +539,7 @@ async function getFantasyData(
     addedPokemonIds,
     droppedPokemonIds,
     latestTransactionWeek,
+    scheduleMatches,
     upcomingMatches,
     recentResults,
   };
@@ -526,60 +571,18 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function MatchRow({
-  match,
-  isResult,
-}: {
-  match: Awaited<ReturnType<typeof getFantasyData>>["upcomingMatches"][number];
-  isResult?: boolean;
-}) {
-  const divisionColor = match.division?.name ? DIVISION_COLORS[match.division.name] : undefined;
-  const coach1Won = match.winnerId === match.coach1SeasonId;
-  const coach2Won = match.winnerId === match.coach2SeasonId;
-
-  return (
-    <Link href={`/matches/${match.id}`} className="block">
-      <div className="battle-log-item">
-        <div className={`week-badge ${match.week > 100 ? "playoff" : ""}`}>
-          <span>{match.week > 100 ? "Playoff" : "Week"}</span>
-          <span>{match.week > 100 ? match.week - 100 : match.week}</span>
-        </div>
-        <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <div className={`flex min-w-0 items-center gap-2 ${coach1Won ? "text-[var(--success)]" : "text-[var(--foreground-muted)]"}`}>
-            {match.coach1?.teamLogoUrl && (
-              <Image src={match.coach1.teamLogoUrl} alt="" width={24} height={24} className="hidden rounded sm:block" />
-            )}
-            <span className="truncate text-xs font-bold sm:text-sm">{match.coach1?.teamName}</span>
-          </div>
-          <div className="score-display">
-            {isResult ? `${match.coach1Differential ?? 0}-${match.coach2Differential ?? 0}` : "VS"}
-          </div>
-          <div className={`flex min-w-0 items-center justify-end gap-2 ${coach2Won ? "text-[var(--success)]" : "text-[var(--foreground-muted)]"}`}>
-            <span className="truncate text-right text-xs font-bold sm:text-sm">{match.coach2?.teamName}</span>
-            {match.coach2?.teamLogoUrl && (
-              <Image src={match.coach2.teamLogoUrl} alt="" width={24} height={24} className="hidden rounded sm:block" />
-            )}
-          </div>
-        </div>
-        {match.division?.name && (
-          <span
-            className="hidden rounded px-2 py-1 text-[10px] font-bold uppercase sm:inline-block"
-            style={{
-              color: divisionColor ?? "var(--foreground-muted)",
-              backgroundColor: divisionColor ? `${divisionColor}15` : "var(--background-tertiary)",
-              border: `1px solid ${divisionColor ? `${divisionColor}30` : "var(--background-tertiary)"}`,
-            }}
-          >
-            {match.division.name}
-          </span>
-        )}
-      </div>
-    </Link>
-  );
-}
-
 export default async function FantasyPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
+  const featureSettings = await getSiteFeatureSettings();
+  if (featureSettings.fantasyUiHidden) {
+    return (
+      <div className="poke-card p-8 text-center">
+        <h1 className="font-pixel text-lg text-white">Fantasy Scout</h1>
+        <p className="mt-3 text-[var(--foreground-muted)]">Fantasy is currently unavailable.</p>
+      </div>
+    );
+  }
+
   const { selected, seasons: seasonOptions } = await getSelectedSeason(searchParams);
 
   if (!selected) {
@@ -593,6 +596,48 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
 
   const requestedWeek = getRequestedWeek(params);
   const data = await getFantasyData(selected.id, selected.seasonNumber, requestedWeek);
+  const pokemonBoardRows: PokemonBoardRow[] = data.pokemonRows
+    .flatMap((row) =>
+      [...row.divisionStats.values()].map((stats) => ({
+        pokemonId: row.id,
+        name: row.name,
+        spriteUrl: row.spriteUrl,
+        types: row.types,
+        cost: row.cost,
+        divisionName: stats.divisionName,
+        seasonCoachId: stats.seasonCoachId,
+        teamName: stats.teamName,
+        score: stats.score,
+        recentScore: stats.recentScore,
+        previousScore: stats.previousScore,
+        games: stats.games,
+        kills: stats.kills,
+        deaths: stats.deaths,
+        wins: stats.wins,
+        losses: stats.losses,
+        damage: stats.damage,
+        indirectDamage: stats.indirectDamage,
+      }))
+    )
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.name.localeCompare(b.name);
+    });
+  const scheduleRows: FantasyScheduleRow[] = data.scheduleMatches.map((match) => ({
+    id: match.id,
+    week: match.week,
+    divisionName: match.division?.name ?? null,
+    divisionColor: match.division?.name ? DIVISION_COLORS[match.division.name] ?? null : null,
+    coach1SeasonId: match.coach1SeasonId,
+    coach2SeasonId: match.coach2SeasonId,
+    winnerId: match.week >= data.targetWeek && match.week > 0 && match.week < 100 ? null : match.winnerId,
+    coach1Differential: match.coach1Differential,
+    coach2Differential: match.coach2Differential,
+    coach1TeamName: match.coach1?.teamName ?? null,
+    coach2TeamName: match.coach2?.teamName ?? null,
+    coach1TeamLogoUrl: match.coach1?.teamLogoUrl ?? null,
+    coach2TeamLogoUrl: match.coach2?.teamLogoUrl ?? null,
+  }));
   const topPokemon = data.pokemonRows.slice(0, 8);
   const topValue = data.valueRows.slice(0, 6);
   const topAdded = data.addedPokemonIds
@@ -613,7 +658,8 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
       divisionNames: [...row.divisionNames],
       divisionStats: [...row.divisionStats.values()].map((stats) => ({
         divisionName: stats.divisionName,
-        teamNames: [...stats.teamNames],
+        seasonCoachId: stats.seasonCoachId,
+        teamName: stats.teamName,
         score: stats.score,
         games: stats.games,
         kills: stats.kills,
@@ -689,72 +735,7 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
             </div>
             <h3>Pokemon Board</h3>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto scrollbar-thin px-4 pb-4 sm:px-5 sm:pb-5">
-            <table className="premium-table min-w-[980px]">
-              <thead>
-                <tr>
-                  <th>Pokemon</th>
-                  <th>Cost</th>
-                  <th>Recent</th>
-                  <th>Total</th>
-                  <th>Rostered</th>
-                  <th>Trend</th>
-                  <th>PPG</th>
-                  <th>K/D</th>
-                  <th>Damage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.pokemonRows.slice(0, 60).map((row) => {
-                  const rosteredPct = data.totalTeams
-                    ? Math.round((row.rosteredTeams.size / data.totalTeams) * 100)
-                    : 0;
-                  const trend = row.recentScore - row.previousScore;
-                  return (
-                    <tr key={row.id}>
-                      <td>
-                        <Link href={`/pokemon/${row.id}`} className="flex items-center gap-3">
-                          <PokemonAvatar row={row} />
-                          <div className="min-w-0">
-                            <div className="truncate font-bold text-white">{row.name}</div>
-                            <div className="mt-1 flex gap-1">
-                              {row.types.slice(0, 2).map((type) => (
-                                <span key={type} className={typeBadgeClass(type)}>
-                                  {type}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </Link>
-                      </td>
-                      <td className="font-mono font-bold text-[var(--accent)]">
-                        {row.cost ?? "--"}
-                      </td>
-                      <td className="font-mono text-white">{formatScore(row.recentScore)}</td>
-                      <td className="font-mono font-bold text-white">{formatScore(row.totalScore)}</td>
-                      <td>
-                        <div className="font-mono text-white">{rosteredPct}%</div>
-                        <div className="text-[10px] text-[var(--foreground-subtle)]">
-                          {row.rosteredTeams.size}/{data.totalTeams}
-                        </div>
-                      </td>
-                      <td className={`font-mono font-bold ${trend >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
-                        {trend >= 0 ? "+" : ""}
-                        {formatScore(trend)}
-                      </td>
-                      <td className="font-mono text-white">
-                        {row.games ? formatScore(row.totalScore / row.games) : "--"}
-                      </td>
-                      <td className="font-mono text-white">
-                        {row.kills}/{row.deaths}
-                      </td>
-                      <td className="font-mono text-white">{row.damage + row.indirectDamage}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <PokemonBoardClient divisionNames={data.divisionNames} rows={pokemonBoardRows} />
         </div>
         }
 
@@ -871,26 +852,10 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
           </div>
         </div>
 
-        <div className="poke-card p-4 sm:p-5">
-          <div className="section-title">
-            <div className="section-title-icon">
-              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <h3>Schedule</h3>
-          </div>
-          <div className="space-y-3">
-            {(data.upcomingMatches.length ? data.upcomingMatches.slice(0, 5) : data.recentResults.slice(0, 5)).map((match) => (
-              <MatchRow key={match.id} match={match} isResult={!data.upcomingMatches.length} />
-            ))}
-            {!data.upcomingMatches.length && !data.recentResults.length && (
-              <p className="py-6 text-center text-sm text-[var(--foreground-muted)]">
-                No matches found for this season.
-              </p>
-            )}
-          </div>
-        </div>
+        <ScheduleBoardClient
+          divisionNames={data.divisionNames}
+          matches={scheduleRows}
+        />
       </section>
 
       <section className="poke-card p-4 sm:p-5">

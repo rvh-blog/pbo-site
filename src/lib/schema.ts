@@ -604,6 +604,7 @@ export const fantasyEntries = sqliteTable("fantasy_entries", {
     .references(() => seasons.id),
   coachId: integer("coach_id").references(() => coaches.id),
   userId: integer("user_id").references(() => users.id),
+  week: integer("week").notNull().default(1),
   displayName: text("display_name").notNull(),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -611,6 +612,7 @@ export const fantasyEntries = sqliteTable("fantasy_entries", {
   index("idx_fantasy_entries_season_id").on(table.seasonId),
   index("idx_fantasy_entries_coach_id").on(table.coachId),
   index("idx_fantasy_entries_user_id").on(table.userId),
+  index("idx_fantasy_entries_season_week").on(table.seasonId, table.week),
 ]);
 
 // Fantasy Entry Picks - Pokemon selected for a fantasy roster
@@ -622,11 +624,13 @@ export const fantasyEntryPicks = sqliteTable("fantasy_entry_picks", {
   pokemonId: integer("pokemon_id")
     .notNull()
     .references(() => pokemon.id),
+  seasonCoachId: integer("season_coach_id").references(() => seasonCoaches.id),
   slot: integer("slot").notNull(),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("idx_fantasy_entry_picks_entry_id").on(table.entryId),
   index("idx_fantasy_entry_picks_pokemon_id").on(table.pokemonId),
+  index("idx_fantasy_entry_picks_season_coach_id").on(table.seasonCoachId),
 ]);
 
 // Pick-Em Rewards - tracks awarded coins for pick-em performance
@@ -781,6 +785,10 @@ export const fantasyEntryPicksRelations = relations(fantasyEntryPicks, ({ one })
   pokemon: one(pokemon, {
     fields: [fantasyEntryPicks.pokemonId],
     references: [pokemon.id],
+  }),
+  seasonCoach: one(seasonCoaches, {
+    fields: [fantasyEntryPicks.seasonCoachId],
+    references: [seasonCoaches.id],
   }),
 }));
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
-import { matches, matchPokemon, rosters, seasonPokemonPrices, eloHistory, transactions, pokemon, coachPurchases, storeItems } from "@/lib/schema";
+import { matches, seasonPokemonPrices, eloHistory, transactions, coachPurchases, storeItems } from "@/lib/schema";
 import { eq, and, lt, desc, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { MatchPreview } from "@/components/match-preview";
@@ -11,6 +11,7 @@ import { ExpandablePokemonCard } from "@/components/expandable-pokemon-card";
 import { HpChart } from "@/components/hp-chart";
 import { getSession } from "@/lib/session";
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
+import type { TimeSyncTransaction } from "@/lib/roster-utils";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -111,12 +112,236 @@ function getWeekLabel(week: number): string {
   return `Week ${week}`;
 }
 
+type MatchKeyEvent = {
+  turn: number;
+  type: "faint" | "win";
+  player: "p1" | "p2";
+  pokemon?: string;
+  killer?: string;
+  killerPlayer?: "p1" | "p2";
+  move?: string;
+  cause?: string;
+};
+
+type BattleSummaryPokemon = {
+  id: number;
+  pokemon: {
+    name: string;
+    displayName?: string | null;
+    spriteUrl?: string | null;
+  } | null;
+  kills: number | null;
+  deaths: number | null;
+  damageDealt: number | null;
+  damageDealtIndirect: number | null;
+  damageTakenIndirect: number | null;
+};
+
+type TimeSyncedPokemon = {
+  id: number;
+  name: string;
+  displayName: string | null;
+  spriteUrl: string | null;
+  types: string[] | null;
+  abilities: { name: string; isHidden: boolean }[] | null;
+  hp: number | null;
+  attack: number | null;
+  defense: number | null;
+  specialAttack: number | null;
+  specialDefense: number | null;
+  speed: number | null;
+  baseStatTotal: number | null;
+  moves: string[] | null;
+};
+
+type TimeSyncedRosterEntry = {
+  id: number;
+  pokemonId: number;
+  seasonCoachId: number;
+  price: number;
+  acquiredWeek: number | null;
+  acquiredVia: string | null;
+  isTeraCaptain: boolean | null;
+  pokemon: TimeSyncedPokemon | null;
+};
+
+type MatchPreviewDroppedPokemon = {
+  id: number;
+  name: string;
+  displayName?: string | null;
+  spriteUrl: string | null;
+  types: string[] | null;
+  speed: number | null;
+  isTeraCaptain?: boolean;
+};
+
+function getPokemonLabel(mp: BattleSummaryPokemon) {
+  return mp.pokemon?.displayName || mp.pokemon?.name || "Pokemon";
+}
+
+function getBattleSummaryStats() {
+  return {
+    hazardDamageTaken: "x",
+    setupMoves: "x",
+    favorableEvents: "x",
+  };
+}
+
+function BattleSummaryTeam({
+  teamName,
+  logoUrl,
+  pokemonRows,
+  align,
+}: {
+  teamName: string;
+  logoUrl?: string | null;
+  pokemonRows: BattleSummaryPokemon[];
+  align: "left" | "right";
+}) {
+  const stats = getBattleSummaryStats();
+
+  return (
+    <div className="space-y-3">
+      <div className={`flex items-center gap-3 ${align === "right" ? "justify-end" : ""}`}>
+        {align === "left" && (
+          <div className="w-14 h-14 rounded bg-white/10 border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
+            {logoUrl ? (
+              <Image src={logoUrl} alt={teamName} width={56} height={56} className="object-contain" />
+            ) : (
+              <span className="text-xs font-black text-white">{teamName.slice(0, 2).toUpperCase()}</span>
+            )}
+          </div>
+        )}
+        <div className={align === "right" ? "text-right" : ""}>
+          <div className="text-[10px] uppercase font-black text-white/55">Team</div>
+          <div className="text-sm sm:text-base font-black text-white leading-tight">{teamName}</div>
+        </div>
+        {align === "right" && (
+          <div className="w-14 h-14 rounded bg-white/10 border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
+            {logoUrl ? (
+              <Image src={logoUrl} alt={teamName} width={56} height={56} className="object-contain" />
+            ) : (
+              <span className="text-xs font-black text-white">{teamName.slice(0, 2).toUpperCase()}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-1.5 text-center">
+        {[
+          ["Hazard Damage Taken", `${stats.hazardDamageTaken}%`],
+          ["Set Up Moves Used", stats.setupMoves],
+          ["Favorable Crits / Flinch / Miss / Para", stats.favorableEvents],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded border border-white/15 bg-black/35 px-2 py-2">
+            <div className="text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">{label}</div>
+            <div className="mt-1 text-lg sm:text-xl font-black text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="overflow-hidden rounded border border-white/15 bg-black/30">
+        <div className="grid grid-cols-[1fr_52px_82px_56px] bg-white/10 px-2 py-1.5 text-[9px] uppercase font-black text-white/55">
+          <span>Pokemon</span>
+          <span className="text-center">Kills</span>
+          <span className="text-center">Damage</span>
+          <span className="text-center">Turns</span>
+        </div>
+        <div className="divide-y divide-white/10">
+          {pokemonRows.map((mp) => {
+            const kills = mp.kills || 0;
+            const deaths = mp.deaths || 0;
+            const totalDamage = (mp.damageDealt || 0) + (mp.damageDealtIndirect || 0);
+            const rowTone = kills > deaths ? "bg-emerald-500/18 border-emerald-400/30" : "bg-red-500/18 border-red-400/30";
+
+            return (
+              <div key={mp.id} className={`grid grid-cols-[1fr_52px_82px_56px] items-center border-l-4 ${rowTone} px-2 py-1.5`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  {mp.pokemon?.spriteUrl ? (
+                    <Image
+                      src={mp.pokemon.spriteUrl}
+                      alt={getPokemonLabel(mp)}
+                      width={32}
+                      height={32}
+                      className="w-8 h-8 object-contain shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded bg-white/10 shrink-0" />
+                  )}
+                  <span className="truncate text-xs sm:text-sm font-black text-white">{getPokemonLabel(mp)}</span>
+                </div>
+                <span className="text-center font-mono text-sm font-black text-white">{kills}</span>
+                <span className="text-center font-mono text-sm font-black text-white">{totalDamage}%</span>
+                <span className="text-center font-mono text-sm font-black text-white">x</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BattleSummaryPanel({
+  coach1Name,
+  coach2Name,
+  coach1LogoUrl,
+  coach2LogoUrl,
+  coach1Pokemon,
+  coach2Pokemon,
+}: {
+  coach1Name: string;
+  coach2Name: string;
+  coach1LogoUrl?: string | null;
+  coach2LogoUrl?: string | null;
+  coach1Pokemon: BattleSummaryPokemon[];
+  coach2Pokemon: BattleSummaryPokemon[];
+}) {
+  return (
+    <div className="poke-card p-3 sm:p-5 overflow-hidden">
+      <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-3 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px_minmax(0,1fr)]">
+          <BattleSummaryTeam
+            teamName={coach1Name}
+            logoUrl={coach1LogoUrl}
+            pokemonRows={coach1Pokemon}
+            align="left"
+          />
+
+          <div className="rounded border border-white/20 bg-black/45 p-3 self-start xl:mt-20">
+            <div className="text-center text-xs sm:text-sm uppercase font-black text-white tracking-wide">Deciding Turns</div>
+            <div className="mt-3 space-y-2">
+              {[1, 2, 3].map((row) => (
+                <div key={row} className="rounded bg-white/10 px-3 py-2 text-xs text-white/85">
+                  <span className="font-black text-white">Turn x</span>
+                  <span className="text-white/60"> - </span>
+                  <span>x</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <BattleSummaryTeam
+            teamName={coach2Name}
+            logoUrl={coach2LogoUrl}
+            pokemonRows={coach2Pokemon}
+            align="right"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Get time-synced roster for a coach at a specific match week
 async function getTimeSyncedRoster(
   seasonCoachId: number,
   matchWeek: number,
-  currentRosters: any[]
-) {
+  currentRosters: TimeSyncedRosterEntry[]
+): Promise<{
+  filteredRosters: TimeSyncedRosterEntry[];
+  droppedPokemonDetails: MatchPreviewDroppedPokemon[];
+}> {
   // Get transactions for this coach (as primary or trading partner)
   const [primaryTxs, partnerTxs] = await Promise.all([
     db.query.transactions.findMany({
@@ -131,7 +356,12 @@ async function getTimeSyncedRoster(
   ]);
   const coachTxs = [...primaryTxs, ...partnerTxs];
 
-  return getTimeSyncedRosterUtil(seasonCoachId, matchWeek, currentRosters, coachTxs as any);
+  const syncedRoster = await getTimeSyncedRosterUtil(seasonCoachId, matchWeek, currentRosters, coachTxs as TimeSyncTransaction[]);
+
+  return {
+    filteredRosters: syncedRoster.filteredRosters as unknown as TimeSyncedRosterEntry[],
+    droppedPokemonDetails: syncedRoster.droppedPokemonDetails as unknown as MatchPreviewDroppedPokemon[],
+  };
 }
 
 export default async function MatchDetailPage({ params }: PageProps) {
@@ -145,7 +375,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
 
   const isPlayed = match.winnerId !== null;
   const ONE_HOUR = 60 * 60 * 1000;
-  const now = Date.now();
+  const now = new Date().getTime();
   const isUnderway = !isPlayed && !!match.scheduledAt &&
     new Date(match.scheduledAt).getTime() <= now &&
     new Date(match.scheduledAt).getTime() > now - ONE_HOUR;
@@ -235,6 +465,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
     session?.isMod ||
     (session?.type === "coach" && (session.id === coach1?.coachId || session.id === coach2?.coachId))
   );
+  const showBattleSummaryOnly = match.id === 2778;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -517,8 +748,21 @@ export default async function MatchDetailPage({ params }: PageProps) {
       {/* Match Content */}
       {isPlayed ? (
         <>
+          {showBattleSummaryOnly && (() => {
+            return (
+              <BattleSummaryPanel
+                coach1Name={coach1?.teamName || "Gotham City Golbats"}
+                coach2Name={coach2?.teamName || "Long Island Tyranitars"}
+                coach1LogoUrl={coach1?.teamLogoUrl}
+                coach2LogoUrl={coach2?.teamLogoUrl}
+                coach1Pokemon={coach1MatchPokemon}
+                coach2Pokemon={coach2MatchPokemon}
+              />
+            );
+          })()}
+
           {/* Played Match - Show Pokemon Stats */}
-          {(() => {
+          {!showBattleSummaryOnly && (() => {
             const team1Color = coach1IsBlue ? "#3b82f6" : "#ef4444";
             const team2Color = coach1IsBlue ? "#ef4444" : "#3b82f6";
             return (
@@ -567,18 +811,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
           })()}
 
           {/* Key Events Timeline */}
-          {match.keyEvents && (() => {
-            interface KeyEvent {
-              turn: number;
-              type: "faint" | "win";
-              player: "p1" | "p2";
-              pokemon?: string;
-              killer?: string;
-              killerPlayer?: "p1" | "p2";
-              move?: string;
-              cause?: string;
-            }
-            const keyEvents = JSON.parse(match.keyEvents) as KeyEvent[];
+          {!showBattleSummaryOnly && match.keyEvents && (() => {
+            const keyEvents = JSON.parse(match.keyEvents) as MatchKeyEvent[];
             if (keyEvents.length === 0) return null;
 
             // Infer p1IsCoach1 from the win event
@@ -755,13 +989,13 @@ export default async function MatchDetailPage({ params }: PageProps) {
             team1={{
               teamName: coach1.teamName,
               teamAbbreviation: coach1.teamAbbreviation,
-              rosters: coach1TimeSyncedRoster.filteredRosters as any,
+              rosters: coach1TimeSyncedRoster.filteredRosters,
               droppedPokemon: coach1TimeSyncedRoster.droppedPokemonDetails,
             }}
             team2={{
               teamName: coach2.teamName,
               teamAbbreviation: coach2.teamAbbreviation,
-              rosters: coach2TimeSyncedRoster.filteredRosters as any,
+              rosters: coach2TimeSyncedRoster.filteredRosters,
               droppedPokemon: coach2TimeSyncedRoster.droppedPokemonDetails,
             }}
             priceMap={priceMap}

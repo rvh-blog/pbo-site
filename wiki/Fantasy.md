@@ -40,10 +40,16 @@ Rules in the current implementation:
   the team it was on at the start of Week 8 in the relevant division.
 - Season 10 defaults to scouting Week 8 so the picker treats Week 8 as unplayed
   and uses Week 7-and-earlier performance.
+- Existing Season 10 test fantasy entries are backfilled to Week 8 by
+  `migrations/add-fantasy-week-instances.sql`; they should not appear as Week 1
+  leaderboard entries.
 - The Any Division slot uses one available Pokemon instance from one team/division.
   It does not add the same Pokemon's scores across multiple divisions.
 - Pokemon already selected in My Fantasy Roster are hidden from the available
   picker list until removed from their roster slot.
+- Starting with the weekly Season 11 flow, a fantasy player cannot reuse the
+  same Pokemon from the same team in a later week. The same Pokemon can still be
+  used from a different team/division in another week.
 
 ## Scoring
 
@@ -67,9 +73,25 @@ so saved rosters stay at 0 points until the Season 11 weekly flow is enabled.
 
 - Clicking a My Fantasy Roster slot changes the available Pokemon list to that
   slot's division rule.
+- The fantasy leaderboard has tabs for Overall and Weeks 1-8. Week tabs show
+  that week's saved rosters and results; Overall sums each player's weekly
+  fantasy scores.
+- The leaderboard defaults to the current scouting week tab when that week is
+  between Weeks 1-8.
+- In Overall, the Pokemon icons shown for a player come from that player's most
+  recent saved weekly roster.
 - The picker list sorts highest-to-lowest by the score shown for the active slot.
+- The Pokemon Board is split by Pokemon/team instance and has All plus division
+  tabs. The tabs filter client-side without refreshing the page. The board no
+  longer shows the Rostered column.
+- The Schedule section shows all games for the current scouting week and has
+  client-side All plus division tabs formatted like the Pokemon Board tabs.
+- Admin Pick-Ems now includes Feature Settings toggles for Fantasy and Blog.
+  When Fantasy is hidden, navigation and fantasy APIs/pages are unavailable.
 - Slot 6 / Any Division uses the best single team/division instance for each
   Pokemon, not a cumulative total across divisions.
+- Saved picks store the selected Pokemon and its start-week `season_coach_id` so
+  prior-week usage is tracked by team instance, not species alone.
 - Selected roster cards show Pokemon name, then team name, then performance line.
 - Available picker cards also show Pokemon name, then team name, then performance
   line.
@@ -107,6 +129,7 @@ Related hydration cleanup from the same work session:
 - `season_id`
 - `coach_id`
 - `user_id`
+- `week`
 - `display_name`
 - `created_at`
 - `updated_at`
@@ -116,6 +139,7 @@ Related hydration cleanup from the same work session:
 - `id`
 - `entry_id`
 - `pokemon_id`
+- `season_coach_id`
 - `slot`
 - `created_at`
 
@@ -123,6 +147,12 @@ The local `pbo.db` was migrated during development with:
 
 ```bash
 sqlite3 pbo.db ".read migrations/add-fantasy-entries.sql"
+```
+
+Existing databases that already have the first fantasy migration need:
+
+```bash
+sqlite3 pbo.db ".read migrations/add-fantasy-week-instances.sql"
 ```
 
 Production still needs this migration applied before deployment.

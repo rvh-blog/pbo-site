@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { siteSettings } from "@/lib/schema";
-import { eq } from "drizzle-orm";
-
-const BETTING_CLOSED_KEY = "betting_closed";
-const BETTING_UI_HIDDEN_KEY = "betting_ui_hidden";
+import {
+  getSiteFeatureSettings,
+  SITE_SETTING_KEYS,
+  upsertSiteSetting,
+} from "@/lib/site-settings";
 
 export async function GET() {
   try {
-    const settings = await db.query.siteSettings.findMany({
-      where: (s, { inArray }) => inArray(s.key, [BETTING_CLOSED_KEY, BETTING_UI_HIDDEN_KEY]),
-    });
-
-    const settingsMap = new Map(settings.map((s) => [s.key, s.value]));
-
-    return NextResponse.json({
-      bettingClosed: settingsMap.get(BETTING_CLOSED_KEY) === "true",
-      bettingUiHidden: settingsMap.get(BETTING_UI_HIDDEN_KEY) === "true",
-    });
+    return NextResponse.json(await getSiteFeatureSettings());
   } catch (error) {
     console.error("Error fetching betting settings:", error);
     return NextResponse.json(
@@ -30,36 +20,28 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bettingClosed, bettingUiHidden } = body;
+    const { bettingClosed, bettingUiHidden, fantasyUiHidden, blogUiHidden } = body;
 
     const updates: { key: string; value: string }[] = [];
 
     if (bettingClosed !== undefined) {
-      updates.push({ key: BETTING_CLOSED_KEY, value: String(bettingClosed) });
+      updates.push({ key: SITE_SETTING_KEYS.bettingClosed, value: String(bettingClosed) });
     }
 
     if (bettingUiHidden !== undefined) {
-      updates.push({ key: BETTING_UI_HIDDEN_KEY, value: String(bettingUiHidden) });
+      updates.push({ key: SITE_SETTING_KEYS.bettingUiHidden, value: String(bettingUiHidden) });
+    }
+
+    if (fantasyUiHidden !== undefined) {
+      updates.push({ key: SITE_SETTING_KEYS.fantasyUiHidden, value: String(fantasyUiHidden) });
+    }
+
+    if (blogUiHidden !== undefined) {
+      updates.push({ key: SITE_SETTING_KEYS.blogUiHidden, value: String(blogUiHidden) });
     }
 
     for (const update of updates) {
-      // Upsert: try to update, if no rows affected then insert
-      const existing = await db.query.siteSettings.findFirst({
-        where: eq(siteSettings.key, update.key),
-      });
-
-      if (existing) {
-        await db
-          .update(siteSettings)
-          .set({ value: update.value, updatedAt: new Date().toISOString() })
-          .where(eq(siteSettings.key, update.key));
-      } else {
-        await db.insert(siteSettings).values({
-          key: update.key,
-          value: update.value,
-          updatedAt: new Date().toISOString(),
-        });
-      }
+      await upsertSiteSetting(update.key, update.value === "true");
     }
 
     return NextResponse.json({ success: true });

@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface BettingSettings {
   bettingClosed: boolean;
   bettingUiHidden: boolean;
+  fantasyUiHidden: boolean;
+  blogUiHidden: boolean;
 }
 
 interface Division {
@@ -46,6 +48,8 @@ export default function AdminBettingPage() {
   const [settings, setSettings] = useState<BettingSettings>({
     bettingClosed: false,
     bettingUiHidden: false,
+    fantasyUiHidden: false,
+    blogUiHidden: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -574,7 +578,7 @@ export default function AdminBettingPage() {
       {/* Betting Controls */}
       <Card>
         <CardHeader>
-          <CardTitle>Betting Settings</CardTitle>
+          <CardTitle>Feature Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Close Betting Toggle */}
@@ -629,10 +633,58 @@ export default function AdminBettingPage() {
             </button>
           </div>
 
+          <div className="flex items-center justify-between p-4 bg-[var(--background-secondary)] rounded-lg">
+            <div>
+              <h3 className="font-bold text-white">Hide Fantasy</h3>
+              <p className="text-sm text-[var(--foreground-muted)] mt-1">
+                Removes Fantasy from navigation and blocks the public Fantasy page/API.
+              </p>
+            </div>
+            <button
+              onClick={() => updateSetting("fantasyUiHidden", !settings.fantasyUiHidden)}
+              disabled={saving}
+              className={`relative w-14 h-8 rounded-full transition-colors ${
+                settings.fantasyUiHidden
+                  ? "bg-red-600"
+                  : "bg-gray-600"
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                  settings.fantasyUiHidden ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-[var(--background-secondary)] rounded-lg">
+            <div>
+              <h3 className="font-bold text-white">Hide Blog</h3>
+              <p className="text-sm text-[var(--foreground-muted)] mt-1">
+                Removes Blog from navigation and blocks public blog pages/new posts.
+              </p>
+            </div>
+            <button
+              onClick={() => updateSetting("blogUiHidden", !settings.blogUiHidden)}
+              disabled={saving}
+              className={`relative w-14 h-8 rounded-full transition-colors ${
+                settings.blogUiHidden
+                  ? "bg-red-600"
+                  : "bg-gray-600"
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                  settings.blogUiHidden ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Status Summary */}
           <div className="p-4 border border-[var(--background-tertiary)] rounded-lg">
             <h4 className="font-bold text-sm text-[var(--foreground-muted)] mb-2">Current Status</h4>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                 settings.bettingClosed
                   ? "bg-red-600/20 text-red-400"
@@ -646,6 +698,20 @@ export default function AdminBettingPage() {
                   : "bg-green-600/20 text-green-400"
               }`}>
                 Betting UI: {settings.bettingUiHidden ? "HIDDEN" : "VISIBLE"}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                settings.fantasyUiHidden
+                  ? "bg-red-600/20 text-red-400"
+                  : "bg-green-600/20 text-green-400"
+              }`}>
+                Fantasy: {settings.fantasyUiHidden ? "HIDDEN" : "VISIBLE"}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                settings.blogUiHidden
+                  ? "bg-red-600/20 text-red-400"
+                  : "bg-green-600/20 text-green-400"
+              }`}>
+                Blog: {settings.blogUiHidden ? "HIDDEN" : "VISIBLE"}
               </span>
             </div>
           </div>

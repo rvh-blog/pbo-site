@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { blogPosts } from "@/lib/schema";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,6 +20,11 @@ function formatDate(value: string) {
 }
 
 export default async function BlogPostPage({ params }: PageProps) {
+  const featureSettings = await getSiteFeatureSettings();
+  if (featureSettings.blogUiHidden) {
+    notFound();
+  }
+
   const { id } = await params;
   const postId = Number.parseInt(id, 10);
 

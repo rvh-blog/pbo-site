@@ -14,6 +14,11 @@ interface AuthUser {
   isMod: boolean;
 }
 
+interface FeatureSettings {
+  fantasyUiHidden: boolean;
+  blogUiHidden: boolean;
+}
+
 const navItems = [
   { href: "/seasons", label: "Seasons" },
   { href: "/coaches", label: "Coaches" },
@@ -33,6 +38,10 @@ export function Navigation() {
   const [activeDivision, setActiveDivision] = useState<{ seasonId: number; divisionId: number } | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
+    fantasyUiHidden: false,
+    blogUiHidden: false,
+  });
 
   useEffect(() => {
     async function checkAuth() {
@@ -51,6 +60,30 @@ export function Navigation() {
     }
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    async function fetchFeatureSettings() {
+      try {
+        const res = await fetch("/api/site-settings");
+        if (!res.ok) return;
+        const data = await res.json();
+        setFeatureSettings({
+          fantasyUiHidden: Boolean(data.fantasyUiHidden),
+          blogUiHidden: Boolean(data.blogUiHidden),
+        });
+      } catch {
+        // Keep features visible if settings cannot be loaded.
+      }
+    }
+
+    fetchFeatureSettings();
+  }, []);
+
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.href === "/fantasy") return !featureSettings.fantasyUiHidden;
+    if (item.href === "/blog") return !featureSettings.blogUiHidden;
+    return true;
+  });
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -101,7 +134,7 @@ export function Navigation() {
 
         {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-6">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href));
@@ -346,7 +379,7 @@ export function Navigation() {
               )}
             </div>
 
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));

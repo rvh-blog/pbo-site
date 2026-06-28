@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_CONTENT_LENGTH = 20000;
@@ -14,6 +15,11 @@ function buildExcerpt(content: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const featureSettings = await getSiteFeatureSettings();
+  if (featureSettings.blogUiHidden) {
+    return NextResponse.json({ error: "Blog is currently unavailable" }, { status: 404 });
+  }
+
   const session = await getSession();
 
   if (!session) {
