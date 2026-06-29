@@ -34,6 +34,7 @@ interface PokemonDataEntry {
   favorableParalysis?: number;
   favorableFreezes?: number;
   favorableBurns?: number;
+  favorableSleep?: number;
 }
 
 // Helper to insert kill events from keyEvents data
@@ -295,6 +296,7 @@ export async function POST(request: NextRequest) {
         favorableParalysis: poke.favorableParalysis ?? null,
         favorableFreezes: poke.favorableFreezes ?? null,
         favorableBurns: poke.favorableBurns ?? null,
+        favorableSleep: poke.favorableSleep ?? null,
         hpRestored: poke.hpRestored ?? null,
       });
     }
@@ -406,6 +408,7 @@ export async function PUT(request: NextRequest) {
           favorableParalysis: poke.favorableParalysis ?? null,
           favorableFreezes: poke.favorableFreezes ?? null,
           favorableBurns: poke.favorableBurns ?? null,
+          favorableSleep: poke.favorableSleep ?? null,
           hpRestored: poke.hpRestored ?? null,
         });
       }

@@ -35,13 +35,20 @@ function resultLabel(match: FantasyScheduleRow) {
 }
 
 export function ScheduleBoardClient({
+  defaultDivisionName,
   divisionNames,
   matches,
 }: {
+  defaultDivisionName?: string | null;
   divisionNames: string[];
   matches: FantasyScheduleRow[];
 }) {
-  const [selectedDivision, setSelectedDivision] = useState("");
+  const initialDivision =
+    defaultDivisionName &&
+    divisionNames.some((divisionName) => divisionName.toLowerCase() === defaultDivisionName.toLowerCase())
+      ? defaultDivisionName
+      : divisionNames[0] ?? "";
+  const [selectedDivision, setSelectedDivision] = useState(initialDivision);
   const filteredMatches = useMemo(
     () =>
       matches.filter((match) =>
@@ -64,17 +71,6 @@ export function ScheduleBoardClient({
       </div>
 
       <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-1">
-        <button
-          type="button"
-          onClick={() => setSelectedDivision("")}
-          className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${
-            !selectedDivision
-              ? "bg-[var(--primary)] text-white"
-              : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
-          }`}
-        >
-          All
-        </button>
         {divisionNames.map((divisionName) => (
           <button
             key={divisionName}

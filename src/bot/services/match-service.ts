@@ -63,6 +63,7 @@ interface PokemonStats {
     favorableParalysis: number;
     favorableFreezes: number;
     favorableBurns: number;
+    favorableSleep: number;
     hpRestored: number;
   }
 
@@ -489,6 +490,7 @@ export async function recordMatchResult(
     favorableParalysis?: number;
     favorableFreezes?: number;
     favorableBurns?: number;
+    favorableSleep?: number;
     hpRestored?: number;
   }[],
   startedAt?: string | null,
@@ -555,6 +557,7 @@ export async function recordMatchResult(
             favorableParalysis: poke.favorableParalysis ?? null,
             favorableFreezes: poke.favorableFreezes ?? null,
             favorableBurns: poke.favorableBurns ?? null,
+            favorableSleep: poke.favorableSleep ?? null,
             hpRestored: poke.hpRestored ?? null,
           });
         }
@@ -906,6 +909,7 @@ export async function buildPokemonDataFromReplay(
   favorableParalysis?: number;
   favorableFreezes?: number;
   favorableBurns?: number;
+  favorableSleep?: number;
   hpRestored?: number;
 }[]> {
   const coach1Roster = await getCoachRoster(coach1SeasonId, matchWeek);
@@ -933,6 +937,7 @@ export async function buildPokemonDataFromReplay(
     favorableParalysis?: number;
     favorableFreezes?: number;
     favorableBurns?: number;
+    favorableSleep?: number;
     hpRestored?: number;
   }[] = [];
 
@@ -961,6 +966,7 @@ export async function buildPokemonDataFromReplay(
         favorableParalysis: replayPoke.favorableParalysis,
         favorableFreezes: replayPoke.favorableFreezes,
         favorableBurns: replayPoke.favorableBurns,
+        favorableSleep: replayPoke.favorableSleep,
         hpRestored: replayPoke.hpRestored,
       });
     }
@@ -991,6 +997,7 @@ export async function buildPokemonDataFromReplay(
         favorableParalysis: replayPoke.favorableParalysis,
         favorableFreezes: replayPoke.favorableFreezes,
         favorableBurns: replayPoke.favorableBurns,
+        favorableSleep: replayPoke.favorableSleep,
         hpRestored: replayPoke.hpRestored,
       });
     }

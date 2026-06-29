@@ -237,6 +237,7 @@ async function getSchedule(divisionId: number) {
         scheduledAt: null,
         turnSnapshots: null,
         keyEvents: null,
+        decidingTurnsText: null,
         zoroarkInvolved: false,
         isGameOfTheWeek: false,
         coach1: playoff.higherSeed,

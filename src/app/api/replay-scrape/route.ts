@@ -18,6 +18,7 @@ interface PokemonStats {
   favorableParalysis: number;
   favorableFreezes: number;
   favorableBurns: number;
+  favorableSleep: number;
   hpRestored: number;
 }
 
@@ -51,6 +52,15 @@ interface ParsedReplay {
   zoroarkInvolved: boolean;
   turnSnapshots: TurnSnapshot[];
   keyEvents: KeyEvent[];
+}
+
+interface ActiveTurnCreditEvent {
+  turn: number;
+  player: "p1" | "p2";
+  nickname: string;
+  pokemon: string;
+  credit: number;
+  reason: string;
 }
 
 interface PlayerRef {
@@ -106,6 +116,17 @@ function isHazardDamageCause(cause: string) {
     lower.includes("rocks") ||
     lower.includes("sticky web");
 }
+
+const PIVOT_MOVES = new Set([
+  "baton pass",
+  "chilly reception",
+  "flip turn",
+  "parting shot",
+  "shed tail",
+  "teleport",
+  "u-turn",
+  "volt switch",
+]);
 
 function isParalysisCantMove(effect: string) {
   const lower = effect.toLowerCase();
@@ -188,7 +209,7 @@ function extractNicknameOwner(pokemonRef: string): { player: "p1" | "p2"; nickna
 
 export async function POST(request: NextRequest) {
   try {
-    const { replayUrl, preserveMegas = false } = await request.json();
+    const { replayUrl, preserveMegas = false, debugActiveTurns = false } = await request.json();
 
     if (!replayUrl) {
       return NextResponse.json({ error: "Replay URL is required" }, { status: 400 });
@@ -255,7 +276,11 @@ export async function POST(request: NextRequest) {
     let lastDamageDealer: PlayerRef | null = null;
     let p1ActivePokemon: string | null = null;
     let p2ActivePokemon: string | null = null;
-    const activeTurnsByPokemon: Map<string, Set<number>> = new Map();
+    let p1ActiveEligibleTurn = 0;
+    let p2ActiveEligibleTurn = 0;
+    const faintedPlayersThisTurn: Set<"p1" | "p2"> = new Set();
+    const activeTurnsByPokemon: Map<string, Map<number, number>> = new Map();
+    const activeTurnCreditEvents: ActiveTurnCreditEvent[] = [];
 
     // Hazard setter tracking
     const hazardSetterMap: Map<string, PlayerRef> = new Map();
@@ -283,8 +308,16 @@ export async function POST(request: NextRequest) {
     // HP tracking
     const hpPercentMap: Map<string, number> = new Map();
     let currentTurn = 0;
-    let lastMoveInfo: { player: "p1" | "p2"; nickname: string; moveName: string } | null = null;
+    let lastMoveInfo: { player: "p1" | "p2"; nickname: string; moveName: string; turn: number } | null = null;
     const switchedInThisTurn: Set<string> = new Set();
+    const switchedInThisBattleTurn: Set<string> = new Set();
+    const movedThisTurn: Set<string> = new Set();
+    const pendingPivotSwitches: Map<"p1" | "p2", {
+      turn: number;
+      pivotUser: PlayerRef;
+      incoming: PlayerRef;
+      incomingTookNonHazardDamage: boolean;
+    }> = new Map();
     let spikesEntryHp: number | null = null;
 
     // Calculate total HP for a player's team
@@ -321,6 +354,7 @@ export async function POST(request: NextRequest) {
         | "favorableParalysis"
         | "favorableFreezes"
         | "favorableBurns"
+        | "favorableSleep"
     ) => {
       if (!parsed) return;
       const pokemon = getPokemonByRef(parsed);
@@ -329,7 +363,7 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    const recordActiveTurn = (parsed: PlayerRef, turn = currentTurn) => {
+    const recordActiveTurn = (parsed: PlayerRef, turn = currentTurn, credit = 1, reason = "active-at-turn-end") => {
       if (turn <= 0) return;
       const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
       const pokemonName = nicknameMap.get(parsed.nickname);
@@ -337,14 +371,44 @@ export async function POST(request: NextRequest) {
 
       const key = `${parsed.player}:${pokemonName}`;
       if (!activeTurnsByPokemon.has(key)) {
-        activeTurnsByPokemon.set(key, new Set());
+        activeTurnsByPokemon.set(key, new Map());
       }
-      activeTurnsByPokemon.get(key)!.add(turn);
+      const turns = activeTurnsByPokemon.get(key)!;
+      turns.set(turn, Math.max(turns.get(turn) ?? 0, credit));
+      if (debugActiveTurns) {
+        activeTurnCreditEvents.push({
+          turn,
+          player: parsed.player,
+          nickname: parsed.nickname,
+          pokemon: pokemonName,
+          credit,
+          reason,
+        });
+      }
+    };
+
+    const resolvePendingPivotSwitches = () => {
+      for (const [player, pivot] of pendingPivotSwitches) {
+        if (pivot.turn !== currentTurn) continue;
+
+        if (pivot.incomingTookNonHazardDamage) {
+          recordActiveTurn(pivot.pivotUser, pivot.turn, 0.5, "pivot-user-split");
+          recordActiveTurn(pivot.incoming, pivot.turn, 0.5, "pivot-incoming-damaged");
+        } else {
+          recordActiveTurn(pivot.pivotUser, pivot.turn, 1, "pivot-user-full");
+        }
+
+        pendingPivotSwitches.delete(player);
+      }
     };
 
     const recordCurrentActiveTurn = () => {
-      if (p1ActivePokemon) recordActiveTurn({ player: "p1", nickname: p1ActivePokemon });
-      if (p2ActivePokemon) recordActiveTurn({ player: "p2", nickname: p2ActivePokemon });
+      if (p1ActivePokemon && p1ActiveEligibleTurn <= currentTurn) {
+        recordActiveTurn({ player: "p1", nickname: p1ActivePokemon });
+      }
+      if (p2ActivePokemon && p2ActiveEligibleTurn <= currentTurn) {
+        recordActiveTurn({ player: "p2", nickname: p2ActivePokemon });
+      }
     };
 
     const applyVisibleFormChange = (parsed: PlayerRef, pokemonInfo: string) => {
@@ -438,6 +502,7 @@ export async function POST(request: NextRequest) {
             favorableParalysis: 0,
             favorableFreezes: 0,
             favorableBurns: 0,
+            favorableSleep: 0,
             hpRestored: 0,
           };
 
@@ -473,16 +538,44 @@ export async function POST(request: NextRequest) {
               }
             }
 
+            const pivotMoveInfo =
+              currentTurn > 0 &&
+              lastMoveInfo?.turn === currentTurn &&
+              lastMoveInfo.player === parsed.player &&
+              PIVOT_MOVES.has(lastMoveInfo.moveName.toLowerCase())
+                ? lastMoveInfo
+                : null;
+
             if (parsed.player === "p1") {
               p1NicknameMap.set(parsed.nickname, pokemonName);
               p1ActivePokemon = parsed.nickname;
+              const isPivotSwitch = pivotMoveInfo !== null;
+              p1ActiveEligibleTurn = faintedPlayersThisTurn.has("p1") || isPivotSwitch ? currentTurn + 1 : currentTurn;
+              if (pivotMoveInfo) {
+                pendingPivotSwitches.set("p1", {
+                  turn: currentTurn,
+                  pivotUser: { player: "p1", nickname: pivotMoveInfo.nickname },
+                  incoming: parsed,
+                  incomingTookNonHazardDamage: false,
+                });
+              }
             } else {
               p2NicknameMap.set(parsed.nickname, pokemonName);
               p2ActivePokemon = parsed.nickname;
+              const isPivotSwitch = pivotMoveInfo !== null;
+              p2ActiveEligibleTurn = faintedPlayersThisTurn.has("p2") || isPivotSwitch ? currentTurn + 1 : currentTurn;
+              if (pivotMoveInfo) {
+                pendingPivotSwitches.set("p2", {
+                  turn: currentTurn,
+                  pivotUser: { player: "p2", nickname: pivotMoveInfo.nickname },
+                  incoming: parsed,
+                  incomingTookNonHazardDamage: false,
+                });
+              }
             }
 
             switchedInThisTurn.add(`${parsed.player}:${parsed.nickname}`);
-            recordActiveTurn(parsed);
+            switchedInThisBattleTurn.add(`${parsed.player}:${parsed.nickname}`);
 
             // Track HP from switch-in
             const hpPart = parts[4];
@@ -537,11 +630,12 @@ export async function POST(request: NextRequest) {
             if (parsed.player === "p1") {
               p1NicknameMap.set(parsed.nickname, pokemonName);
               p1ActivePokemon = parsed.nickname;
+              p1ActiveEligibleTurn = currentTurn;
             } else {
               p2NicknameMap.set(parsed.nickname, pokemonName);
               p2ActivePokemon = parsed.nickname;
+              p2ActiveEligibleTurn = currentTurn;
             }
-            recordActiveTurn(parsed);
           }
           break;
         }
@@ -570,6 +664,8 @@ export async function POST(request: NextRequest) {
               });
             } else {
               // Push snapshot for the turn that just ended
+              resolvePendingPivotSwitches();
+              recordCurrentActiveTurn();
               result.turnSnapshots.push({
                 turn: currentTurn,
                 p1TotalHp: calculateTotalHp("p1"),
@@ -577,7 +673,9 @@ export async function POST(request: NextRequest) {
               });
             }
             currentTurn = turnNum;
-            recordCurrentActiveTurn();
+            faintedPlayersThisTurn.clear();
+            switchedInThisBattleTurn.clear();
+            movedThisTurn.clear();
           }
           break;
         }
@@ -589,8 +687,8 @@ export async function POST(request: NextRequest) {
           if (parsed) {
             lastDamageDealer = parsed;
             lastFaintSource = null;
-            lastMoveInfo = { ...parsed, moveName };
-            recordActiveTurn(parsed);
+            lastMoveInfo = { ...parsed, moveName, turn: currentTurn };
+            movedThisTurn.add(`${parsed.player}:${parsed.nickname}`);
 
             if (SETUP_MOVES.has(moveName.toLowerCase())) {
               const pokemon = getPokemonByRef(parsed);
@@ -728,6 +826,22 @@ export async function POST(request: NextRequest) {
               incrementFavorableEvent(beneficiary, "favorableFreezes");
             } else if (statusType === "brn" && hasOpponentInflicter && !isSelfItemStatus && !isWillOWisp(statusSource)) {
               incrementFavorableEvent(beneficiary, "favorableBurns");
+            } else if (
+              statusType === "par" &&
+              fromSource.includes("ability: static") &&
+              statusOfMatch &&
+              statusOfMatch[1] !== parsed.player
+            ) {
+              incrementFavorableEvent(
+                { player: statusOfMatch[1] as "p1" | "p2", nickname: statusOfMatch[2] },
+                "favorableParalysis"
+              );
+            } else if (
+              statusType === "slp" &&
+              (fromSource.includes("dire claw") || lastMoveInfo?.moveName.toLowerCase() === "dire claw") &&
+              hasOpponentInflicter
+            ) {
+              incrementFavorableEvent(beneficiary, "favorableSleep");
             }
 
             if ((statusType === "psn" || statusType === "tox") && fromSource.includes("toxic spikes")) {
@@ -940,8 +1054,21 @@ export async function POST(request: NextRequest) {
 
           // Check for indirect damage source
           const fromMatch = line.match(/\[from\] ([^|[\]]+)/);
+          const damageCause = fromMatch?.[1]?.trim() || "";
+          if (parsed && damageAmount > 0 && !isHazardDamageCause(damageCause)) {
+            const pivot = pendingPivotSwitches.get(parsed.player);
+            if (
+              pivot &&
+              pivot.turn === currentTurn &&
+              pivot.incoming.player === parsed.player &&
+              pivot.incoming.nickname === parsed.nickname
+            ) {
+              pivot.incomingTookNonHazardDamage = true;
+            }
+          }
+
           if (fromMatch) {
-            lastFaintSource = fromMatch[1].trim();
+            lastFaintSource = damageCause;
             const sourceLower = lastFaintSource.toLowerCase();
 
             // Track spikes entry HP for layer attribution
@@ -1228,6 +1355,34 @@ export async function POST(request: NextRequest) {
             }
 
             result.keyEvents.push(keyEvent);
+            const faintedKey = `${parsed.player}:${parsed.nickname}`;
+            const pendingPivot = pendingPivotSwitches.get(parsed.player);
+            const isPendingPivotIncoming =
+              pendingPivot?.turn === currentTurn &&
+              pendingPivot.incoming.player === parsed.player &&
+              pendingPivot.incoming.nickname === parsed.nickname;
+            if (
+              !(isPendingPivotIncoming && pendingPivot.incomingTookNonHazardDamage)
+            ) {
+              recordActiveTurn(
+                parsed,
+                currentTurn,
+                1,
+                movedThisTurn.has(faintedKey)
+                  ? "fainted-after-moving"
+                  : switchedInThisBattleTurn.has(faintedKey)
+                    ? "switch-in-fainted"
+                    : "fainted-while-active"
+              );
+            }
+            if (parsed.player === "p1" && p1ActivePokemon === parsed.nickname) {
+              p1ActivePokemon = null;
+              p1ActiveEligibleTurn = 0;
+            } else if (parsed.player === "p2" && p2ActivePokemon === parsed.nickname) {
+              p2ActivePokemon = null;
+              p2ActiveEligibleTurn = 0;
+            }
+            faintedPlayersThisTurn.add(parsed.player);
             faintedPokemon = null;
             spikesEntryHp = null;
           }
@@ -1248,6 +1403,8 @@ export async function POST(request: NextRequest) {
           result.keyEvents.push({ turn: currentTurn, type: "win", player: winnerPlayer });
 
           // Final turn snapshot
+          resolvePendingPivotSwitches();
+          recordCurrentActiveTurn();
           result.turnSnapshots.push({
             turn: currentTurn,
             p1TotalHp: calculateTotalHp("p1"),
@@ -1262,7 +1419,8 @@ export async function POST(request: NextRequest) {
     for (const player of ["p1", "p2"] as const) {
       const team = player === "p1" ? result.p1Team : result.p2Team;
       for (const pokemon of team) {
-        pokemon.turnsActive = activeTurnsByPokemon.get(`${player}:${pokemon.name}`)?.size ?? 0;
+        const turns = activeTurnsByPokemon.get(`${player}:${pokemon.name}`);
+        pokemon.turnsActive = turns ? [...turns.values()].reduce((total, credit) => total + credit, 0) : 0;
       }
     }
 
@@ -1275,6 +1433,39 @@ export async function POST(request: NextRequest) {
     }
     if (lastTimestamp !== null) {
       result.endedAt = new Date(lastTimestamp * 1000).toISOString();
+    }
+
+    if (debugActiveTurns) {
+      const playerTurnCredits = new Map<string, number>();
+      for (const [key, turns] of activeTurnsByPokemon) {
+        const player = key.startsWith("p1:") ? "p1" : "p2";
+        for (const [turn, credit] of turns) {
+          const playerTurnKey = `${player}:${turn}`;
+          playerTurnCredits.set(playerTurnKey, (playerTurnCredits.get(playerTurnKey) ?? 0) + credit);
+        }
+      }
+
+      const maxTurn = Math.max(...result.turnSnapshots.map((snapshot) => snapshot.turn), currentTurn);
+      const missingActiveTurnCredits = {
+        p1: [] as number[],
+        p2: [] as number[],
+      };
+
+      for (let turn = 1; turn <= maxTurn; turn++) {
+        if ((playerTurnCredits.get(`p1:${turn}`) ?? 0) === 0) {
+          missingActiveTurnCredits.p1.push(turn);
+        }
+        if ((playerTurnCredits.get(`p2:${turn}`) ?? 0) === 0) {
+          missingActiveTurnCredits.p2.push(turn);
+        }
+      }
+
+      return NextResponse.json({
+        ...result,
+        replayJsonUrl,
+        activeTurnCreditEvents,
+        missingActiveTurnCredits,
+      });
     }
 
     return NextResponse.json({ ...result, replayJsonUrl });

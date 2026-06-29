@@ -9,6 +9,7 @@ import { VictoryAnimation } from "@/components/victory-animation";
 import { ScheduleEditor } from "@/components/schedule-editor";
 import { ExpandablePokemonCard } from "@/components/expandable-pokemon-card";
 import { HpChart } from "@/components/hp-chart";
+import { DecidingTurnsPanel } from "@/components/deciding-turns-panel";
 import { getSession } from "@/lib/session";
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
 import type { TimeSyncTransaction } from "@/lib/roster-utils";
@@ -144,6 +145,7 @@ type BattleSummaryPokemon = {
   favorableParalysis: number | null;
   favorableFreezes: number | null;
   favorableBurns: number | null;
+  favorableSleep: number | null;
 };
 
 type TimeSyncedPokemon = {
@@ -202,7 +204,8 @@ function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
       mp.favorableFlinches !== null ||
       mp.favorableParalysis !== null ||
       mp.favorableFreezes !== null ||
-      mp.favorableBurns !== null
+      mp.favorableBurns !== null ||
+      mp.favorableSleep !== null
   );
 
   return {
@@ -221,7 +224,8 @@ function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
             (mp.favorableFlinches || 0) +
             (mp.favorableParalysis || 0) +
             (mp.favorableFreezes || 0) +
-            (mp.favorableBurns || 0),
+            (mp.favorableBurns || 0) +
+            (mp.favorableSleep || 0),
           0
         )
       : "x",
@@ -274,18 +278,18 @@ function BattleSummaryTeam({
           ["Set Up Moves Used", stats.setupMoves],
           ["Favorable Crits/Flinch/Miss/Status Proc", stats.favorableEvents],
         ].map(([label, value]) => (
-          <div key={label} className="rounded border border-white/15 bg-black/35 px-2 py-2">
-            <div className="text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">
+          <div key={label} className="flex min-h-[76px] flex-col rounded border border-white/15 bg-black/35 px-2 py-2">
+            <div className="flex min-h-[28px] items-start justify-center text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">
               {label === "Favorable Crits/Flinch/Miss/Status Proc" ? (
-                <>
+                <span>
                   <span className="block">Favorable Crits/Flinch</span>
                   <span className="block">Miss/Status Proc</span>
-                </>
+                </span>
               ) : (
                 label
               )}
             </div>
-            <div className="mt-1 text-lg sm:text-xl font-black text-white">{value}</div>
+            <div className="mt-auto text-lg sm:text-xl font-black text-white">{value}</div>
           </div>
         ))}
       </div>
@@ -335,19 +339,25 @@ function BattleSummaryTeam({
 }
 
 function BattleSummaryPanel({
+  canEditDecidingTurns,
   coach1Name,
   coach2Name,
   coach1LogoUrl,
   coach2LogoUrl,
   coach1Pokemon,
   coach2Pokemon,
+  decidingTurnsText,
+  matchId,
 }: {
+  canEditDecidingTurns: boolean;
   coach1Name: string;
   coach2Name: string;
   coach1LogoUrl?: string | null;
   coach2LogoUrl?: string | null;
   coach1Pokemon: BattleSummaryPokemon[];
   coach2Pokemon: BattleSummaryPokemon[];
+  decidingTurnsText: string | null;
+  matchId: number;
 }) {
   return (
     <div className="poke-card p-3 sm:p-5 overflow-hidden">
@@ -360,18 +370,11 @@ function BattleSummaryPanel({
             align="left"
           />
 
-          <div className="rounded border border-white/20 bg-black/45 p-3 self-start xl:mt-20">
-            <div className="text-center text-xs sm:text-sm uppercase font-black text-white tracking-wide">Deciding Turns</div>
-            <div className="mt-3 space-y-2">
-              {[1, 2, 3].map((row) => (
-                <div key={row} className="rounded bg-white/10 px-3 py-2 text-xs text-white/85">
-                  <span className="font-black text-white">Turn x</span>
-                  <span className="text-white/60"> - </span>
-                  <span>x</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <DecidingTurnsPanel
+            canEdit={canEditDecidingTurns}
+            initialText={decidingTurnsText}
+            matchId={matchId}
+          />
 
           <BattleSummaryTeam
             teamName={coach2Name}
@@ -517,7 +520,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
     session?.isMod ||
     (session?.type === "coach" && (session.id === coach1?.coachId || session.id === coach2?.coachId))
   );
-  const showBattleSummaryOnly = match.id === 2778;
+  const showBattleSummaryOnly =
+    match.id === 2778 ||
+    (isPlayed && (match.season?.seasonNumber ?? 0) >= 11 && Boolean(match.replayUrl));
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -809,6 +814,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 coach2LogoUrl={coach2?.teamLogoUrl}
                 coach1Pokemon={coach1MatchPokemon}
                 coach2Pokemon={coach2MatchPokemon}
+                decidingTurnsText={match.decidingTurnsText}
+                canEditDecidingTurns={Boolean(session?.isMod)}
+                matchId={match.id}
               />
             );
           })()}

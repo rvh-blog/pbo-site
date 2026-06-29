@@ -15,6 +15,7 @@ import { FantasyEntryClient, type FantasyPokemonOption } from "./fantasy-entry-c
 import { PokemonBoardClient, type PokemonBoardRow } from "./pokemon-board-client";
 import { ScheduleBoardClient, type FantasyScheduleRow } from "./schedule-board-client";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
+import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -226,12 +227,14 @@ async function getFantasyData(
   requestedWeek: number | null
 ) {
   const [
+    session,
     seasonMatches,
     activeTeams,
     rosterRows,
     priceRows,
     seasonTransactions,
   ] = await Promise.all([
+    getSession(),
     db.query.matches.findMany({
       where: eq(matches.seasonId, seasonId),
       with: {
@@ -286,10 +289,19 @@ async function getFantasyData(
     ...new Set(
       activeTeams
         .filter((team) => team.division?.seasonId === seasonId)
-        .map((team) => normalizeDivisionName(team.division?.name))
-        .filter(Boolean)
+      .map((team) => normalizeDivisionName(team.division?.name))
+      .filter(Boolean)
     ),
   ];
+  const defaultScheduleDivisionName =
+    session?.type === "coach"
+      ? activeTeams.find(
+          (team) =>
+            team.coachId === session.id &&
+            team.division?.seasonId === seasonId &&
+            team.division?.name
+        )?.division?.name ?? null
+      : null;
   const matchIds = new Set(seasonMatches.map((match) => match.id));
   const regularSeasonMatches = seasonMatches.filter(
     (match) => match.week > 0 && match.week < 100
@@ -335,6 +347,7 @@ async function getFantasyData(
   }
 
   const pokemonMap = new Map<number, PokemonFantasyRow>();
+  const rosteredInstanceKeys = new Set<string>();
   for (const price of priceRows) {
     if (!price.pokemon) continue;
     pokemonMap.set(
@@ -402,8 +415,11 @@ async function getFantasyData(
 
         const row = pokemonMap.get(roster.pokemonId) ??
           createFantasyRow(roster.pokemonId, roster.pokemon, priceByPokemon.get(roster.pokemonId) ?? null);
+        const divisionName = normalizeDivisionName(team.divisionName);
+        rosteredInstanceKeys.add(`${roster.pokemonId}:${team.id}`);
+        row.rosteredTeams.add(team.id);
         row.teamNames.add(team.teamName);
-        row.divisionNames.add(normalizeDivisionName(team.divisionName));
+        row.divisionNames.add(divisionName);
         getDivisionStats(row, team.divisionName, team.id, team.teamName);
         pokemonMap.set(roster.pokemonId, row);
       }
@@ -411,8 +427,11 @@ async function getFantasyData(
       for (const pokemon of droppedPokemonDetails) {
         const row = pokemonMap.get(pokemon.id) ??
           createFantasyRow(pokemon.id, pokemon, priceByPokemon.get(pokemon.id) ?? null);
+        const divisionName = normalizeDivisionName(team.divisionName);
+        rosteredInstanceKeys.add(`${pokemon.id}:${team.id}`);
+        row.rosteredTeams.add(team.id);
         row.teamNames.add(team.teamName);
-        row.divisionNames.add(normalizeDivisionName(team.divisionName));
+        row.divisionNames.add(divisionName);
         getDivisionStats(row, team.divisionName, team.id, team.teamName);
         pokemonMap.set(pokemon.id, row);
       }
@@ -421,6 +440,7 @@ async function getFantasyData(
 
   for (const mp of seasonMatchPokemon) {
     if (!mp.pokemon || !mp.match || !seasonTeamIds.has(mp.seasonCoachId)) continue;
+    if (!rosteredInstanceKeys.has(`${mp.pokemonId}:${mp.seasonCoachId}`)) continue;
 
     const row = pokemonMap.get(mp.pokemonId) ??
       createFantasyRow(mp.pokemonId, mp.pokemon, priceByPokemon.get(mp.pokemonId) ?? null);
@@ -527,6 +547,7 @@ async function getFantasyData(
   return {
     totalTeams: teamMap.size,
     divisionNames: seasonDivisionNames,
+    defaultScheduleDivisionName,
     targetWeek,
     scoringThroughWeek,
     latestCompletedWeek,
@@ -853,6 +874,7 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
         </div>
 
         <ScheduleBoardClient
+          defaultDivisionName={data.defaultScheduleDivisionName}
           divisionNames={data.divisionNames}
           matches={scheduleRows}
         />

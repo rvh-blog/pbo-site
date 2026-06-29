@@ -443,7 +443,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const totalCost = uniquePokemonIds.reduce((sum, id) => sum + (priceMap.get(id) ?? 0), 0);
+    const totalCost = pokemonIds.reduce((sum, id) => sum + (priceMap.get(id) ?? 0), 0);
     if (totalCost > FANTASY_BUDGET) {
       return NextResponse.json(
         { error: `Roster is over the ${FANTASY_BUDGET}-point budget` },

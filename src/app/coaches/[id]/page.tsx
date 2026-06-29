@@ -12,6 +12,9 @@ import { SeasonSelector } from "@/components/season-selector";
 import { MoveDataProvider, MoveDataToggleButton, MoveIcons } from "@/components/extended-icons-toggle";
 import { MobileTooltip } from "@/components/mobile-tooltip";
 import { CoachStoreButton } from "@/components/coach-store-button";
+import { ProjectMewConfirmation } from "@/components/project-mew-confirmation";
+import { getSession } from "@/lib/session";
+import { isProjectMewReleased } from "@/lib/project-mew";
 
 // Hazard move categories
 const HAZARD_REMOVAL_MOVES = [
@@ -763,10 +766,11 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
   const coachId = parseInt(resolvedParams.id);
 
   // Fetch initial data in parallel - all only need coachId
-  const [coach, eloHistoryData, coachSeasons] = await Promise.all([
+  const [coach, eloHistoryData, coachSeasons, session] = await Promise.all([
     getCoach(coachId),
     getCoachEloHistory(coachId),
     getCoachSeasons(coachId),
+    getSession(),
   ]);
 
   if (!coach) {
@@ -799,6 +803,11 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
   ) || coachSeasons[0];
   const selectedSeasonCoachId = selectedSeasonEntry?.id;
   const selectedSeasonId = selectedSeasonEntry?.division?.season?.id;
+  const projectMewReleased = isProjectMewReleased();
+  const canEditProjectMew =
+    projectMewReleased &&
+    (session?.isMod ||
+      (session?.type === "coach" && session.id === coachId));
 
   // Fetch shared data for placements and playoffs once - include txCounts and pokemonPrices
   const [coachMatches, coachMatchPokemon, coachTransactions, rawSeasonCoaches, rawMatches, rawPlayoffs, coinBreakdown, coachStorePurchases, txCounts, pokemonPrices] = await Promise.all([
@@ -1710,6 +1719,14 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
             </div>
           </div>
         </div>
+        {canEditProjectMew && (
+          <div className="mt-4">
+            <ProjectMewConfirmation
+              coachId={coachId}
+              initialConfirmed={coach.projectMewConfirmed ?? false}
+            />
+          </div>
+        )}
       </div>
 
       {/* Stats Cards - Compact row on mobile, grid on desktop */}

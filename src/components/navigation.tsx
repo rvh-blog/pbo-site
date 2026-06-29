@@ -6,12 +6,16 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Search } from "./search";
 import { AuthModal } from "./auth-modal";
+import { ProjectMewPromptModal } from "./project-mew-prompt-modal";
+import { isProjectMewReleased } from "@/lib/project-mew";
 
 interface AuthUser {
   type: "coach" | "spectator";
   id: number;
   name: string;
   isMod: boolean;
+  projectMewConfirmed?: boolean;
+  projectMewPromptSeen?: boolean;
 }
 
 interface FeatureSettings {
@@ -37,11 +41,13 @@ export function Navigation() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [activeDivision, setActiveDivision] = useState<{ seasonId: number; divisionId: number } | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProjectMewPrompt, setShowProjectMewPrompt] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
     fantasyUiHidden: false,
     blogUiHidden: false,
   });
+  const projectMewReleased = isProjectMewReleased();
 
   useEffect(() => {
     async function checkAuth() {
@@ -49,7 +55,13 @@ export function Navigation() {
         const res = await fetch("/api/auth/me");
         const data = await res.json();
         if (data.user) {
-          setAuthUser(data.user);
+          const user = {
+            ...data.user,
+            projectMewConfirmed: data.projectMew?.confirmed ?? false,
+            projectMewPromptSeen: data.projectMew?.promptSeen ?? true,
+          };
+          setAuthUser(user);
+          setShowProjectMewPrompt(projectMewReleased && user.type === "coach" && !user.projectMewPromptSeen);
         }
         if (data.activeDivision) {
           setActiveDivision(data.activeDivision);
@@ -59,7 +71,7 @@ export function Navigation() {
       }
     }
     checkAuth();
-  }, []);
+  }, [projectMewReleased]);
 
   useEffect(() => {
     async function fetchFeatureSettings() {
@@ -89,6 +101,7 @@ export function Navigation() {
     await fetch("/api/auth/logout", { method: "POST" });
     setAuthUser(null);
     setActiveDivision(null);
+    setShowProjectMewPrompt(false);
     setPersonaOpen(false);
     setMobileMenuOpen(false);
   }
@@ -101,6 +114,13 @@ export function Navigation() {
       try {
         const res = await fetch("/api/auth/me");
         const data = await res.json();
+        const hydratedUser = {
+          ...user,
+          projectMewConfirmed: data.projectMew?.confirmed ?? false,
+          projectMewPromptSeen: data.projectMew?.promptSeen ?? true,
+        };
+        setAuthUser(hydratedUser);
+        setShowProjectMewPrompt(projectMewReleased && !hydratedUser.projectMewPromptSeen);
         if (data.activeDivision) {
           setActiveDivision(data.activeDivision);
         }
@@ -108,6 +128,19 @@ export function Navigation() {
         // Ignore
       }
     }
+  }
+
+  function handleProjectMewPromptComplete(confirmed: boolean) {
+    setShowProjectMewPrompt(false);
+    setAuthUser((current) =>
+      current
+        ? {
+            ...current,
+            projectMewConfirmed: confirmed,
+            projectMewPromptSeen: true,
+          }
+        : current
+    );
   }
 
   return (
@@ -438,6 +471,14 @@ export function Navigation() {
           isOpen={showAuthModal}
           onClose={() => setShowAuthModal(false)}
           onSuccess={handleAuthSuccess}
+        />,
+        document.body
+      )}
+      {showProjectMewPrompt && authUser?.type === "coach" && createPortal(
+        <ProjectMewPromptModal
+          coachId={authUser.id}
+          initialConfirmed={authUser.projectMewConfirmed ?? false}
+          onComplete={handleProjectMewPromptComplete}
         />,
         document.body
       )}

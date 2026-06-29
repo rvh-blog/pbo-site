@@ -66,6 +66,7 @@ interface MatchPokemon {
   favorableParalysis?: number | null;
   favorableFreezes?: number | null;
   favorableBurns?: number | null;
+  favorableSleep?: number | null;
   hpRestored?: number | null;
   pokemon: Pokemon;
 }
@@ -120,6 +121,7 @@ interface PokemonEntry {
   favorableParalysis?: number;
   favorableFreezes?: number;
   favorableBurns?: number;
+  favorableSleep?: number;
   hpRestored?: number;
 }
 
@@ -141,6 +143,7 @@ type MatchPokemonPayload = {
   favorableParalysis?: number;
   favorableFreezes?: number;
   favorableBurns?: number;
+  favorableSleep?: number;
   hpRestored?: number;
 };
 
@@ -491,6 +494,7 @@ export default function AdminMatchesPage() {
         favorableParalysis: coach1Pokemon[i]?.favorableParalysis ?? undefined,
         favorableFreezes: coach1Pokemon[i]?.favorableFreezes ?? undefined,
         favorableBurns: coach1Pokemon[i]?.favorableBurns ?? undefined,
+        favorableSleep: coach1Pokemon[i]?.favorableSleep ?? undefined,
         hpRestored: coach1Pokemon[i]?.hpRestored ?? undefined,
       }))
     );
@@ -512,6 +516,7 @@ export default function AdminMatchesPage() {
         favorableParalysis: coach2Pokemon[i]?.favorableParalysis ?? undefined,
         favorableFreezes: coach2Pokemon[i]?.favorableFreezes ?? undefined,
         favorableBurns: coach2Pokemon[i]?.favorableBurns ?? undefined,
+        favorableSleep: coach2Pokemon[i]?.favorableSleep ?? undefined,
         hpRestored: coach2Pokemon[i]?.hpRestored ?? undefined,
       }))
     );
@@ -553,6 +558,7 @@ export default function AdminMatchesPage() {
             favorableParalysis: p.favorableParalysis,
             favorableFreezes: p.favorableFreezes,
             favorableBurns: p.favorableBurns,
+            favorableSleep: p.favorableSleep,
             hpRestored: p.hpRestored,
           });
         }
@@ -578,6 +584,7 @@ export default function AdminMatchesPage() {
             favorableParalysis: p.favorableParalysis,
             favorableFreezes: p.favorableFreezes,
             favorableBurns: p.favorableBurns,
+            favorableSleep: p.favorableSleep,
             hpRestored: p.hpRestored,
           });
         }
@@ -681,6 +688,7 @@ export default function AdminMatchesPage() {
           favorableParalysis: p.favorableParalysis,
           favorableFreezes: p.favorableFreezes,
           favorableBurns: p.favorableBurns,
+          favorableSleep: p.favorableSleep,
           hpRestored: p.hpRestored,
         });
       }
@@ -706,6 +714,7 @@ export default function AdminMatchesPage() {
           favorableParalysis: p.favorableParalysis,
           favorableFreezes: p.favorableFreezes,
           favorableBurns: p.favorableBurns,
+          favorableSleep: p.favorableSleep,
           hpRestored: p.hpRestored,
         });
       }
@@ -940,6 +949,7 @@ export default function AdminMatchesPage() {
             favorableParalysis: replayPoke.favorableParalysis,
             favorableFreezes: replayPoke.favorableFreezes,
             favorableBurns: replayPoke.favorableBurns,
+            favorableSleep: replayPoke.favorableSleep,
             hpRestored: replayPoke.hpRestored,
           });
         }
@@ -973,6 +983,7 @@ export default function AdminMatchesPage() {
             favorableParalysis: replayPoke.favorableParalysis,
             favorableFreezes: replayPoke.favorableFreezes,
             favorableBurns: replayPoke.favorableBurns,
+            favorableSleep: replayPoke.favorableSleep,
             hpRestored: replayPoke.hpRestored,
           });
         }

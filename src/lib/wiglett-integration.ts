@@ -516,6 +516,7 @@ async function buildCanonicalPokemonData(
     favorableParalysis?: number;
     favorableFreezes?: number;
     favorableBurns?: number;
+    favorableSleep?: number;
     hpRestored?: number;
   }[] = [];
 
@@ -551,6 +552,7 @@ function overlayReplayExtraStats<
     favorableParalysis?: number;
     favorableFreezes?: number;
     favorableBurns?: number;
+    favorableSleep?: number;
     hpRestored?: number;
   }
 >(canonical: T[], scraped: T[]): T[] {
@@ -577,6 +579,7 @@ function overlayReplayExtraStats<
       favorableParalysis: extra.favorableParalysis,
       favorableFreezes: extra.favorableFreezes,
       favorableBurns: extra.favorableBurns,
+      favorableSleep: extra.favorableSleep,
       hpRestored: extra.hpRestored,
     };
   });

@@ -24,6 +24,7 @@ interface PokemonData {
   favorableParalysis?: number | null;
   favorableFreezes?: number | null;
   favorableBurns?: number | null;
+  favorableSleep?: number | null;
   hpRestored: number | null;
 }
 
@@ -51,6 +52,7 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
     pokemon.favorableParalysis != null ||
     pokemon.favorableFreezes != null ||
     pokemon.favorableBurns != null ||
+    pokemon.favorableSleep != null ||
     pokemon.hpRestored !== null;
 
   return (
@@ -117,14 +119,16 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
           (pokemon.favorableFlinches ?? 0) +
           (pokemon.favorableParalysis ?? 0) +
           (pokemon.favorableFreezes ?? 0) +
-          (pokemon.favorableBurns ?? 0);
+          (pokemon.favorableBurns ?? 0) +
+          (pokemon.favorableSleep ?? 0);
         const hasFavorableData =
           pokemon.favorableCrits != null ||
           pokemon.favorableMisses != null ||
           pokemon.favorableFlinches != null ||
           pokemon.favorableParalysis != null ||
           pokemon.favorableFreezes != null ||
-          pokemon.favorableBurns != null;
+          pokemon.favorableBurns != null ||
+          pokemon.favorableSleep != null;
         const hpRestored = pokemon.hpRestored ?? 0;
 
         return (
@@ -220,6 +224,7 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
                     <span className="text-[var(--foreground-muted)]">Para {pokemon.favorableParalysis ?? "x"}</span>
                     <span className="text-[var(--foreground-muted)]">Freeze {pokemon.favorableFreezes ?? "x"}</span>
                     <span className="text-[var(--foreground-muted)]">Burn {pokemon.favorableBurns ?? "x"}</span>
+                    <span className="text-[var(--foreground-muted)]">Sleep {pokemon.favorableSleep ?? "x"}</span>
                   </div>
                 </div>
               )}

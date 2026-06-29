@@ -11,6 +11,8 @@ export const coaches = sqliteTable("coaches", {
   passwordHash: text("password_hash"), // null = unclaimed account
   isMod: integer("is_mod", { mode: "boolean" }).default(false),
   claimedAt: text("claimed_at"), // when the account was claimed
+  projectMewConfirmed: integer("project_mew_confirmed", { mode: "boolean" }).default(false),
+  projectMewPromptSeen: integer("project_mew_prompt_seen", { mode: "boolean" }).default(false),
   // Currency
   pboCoin: integer("pbo_coin").notNull().default(0),
 });
@@ -179,6 +181,7 @@ export const matches = sqliteTable("matches", {
   // Damage tracking data from replay scraper (optional - only present when scraped)
   turnSnapshots: text("turn_snapshots"), // JSON array of {turn, p1TotalHp, p2TotalHp}
   keyEvents: text("key_events"), // JSON array of {turn, type, description}
+  decidingTurnsText: text("deciding_turns_text"),
   zoroarkInvolved: integer("zoroark_involved", { mode: "boolean" }), // Warning flag for Illusion inaccuracy
   // Game of the Week - featured match for pick-ems bonus
   isGameOfTheWeek: integer("is_game_of_the_week", { mode: "boolean" }).default(false),
@@ -237,6 +240,7 @@ export const matchPokemon = sqliteTable("match_pokemon", {
   favorableParalysis: integer("favorable_paralysis"), // Opponent cannot move due to paralysis
   favorableFreezes: integer("favorable_freezes"), // Opponent is frozen
   favorableBurns: integer("favorable_burns"), // Opponent is burned, excluding Will-O-Wisp
+  favorableSleep: integer("favorable_sleep"), // Opponent is put to sleep by a favorable status proc
   hpRestored: integer("hp_restored"), // HP healed
 }, (table) => [
   index("idx_match_pokemon_match_id").on(table.matchId),
