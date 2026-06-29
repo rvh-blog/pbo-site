@@ -7,6 +7,9 @@
 const K_FACTOR = 100;
 const DEFAULT_STARTING_ELO = 1000;
 const MIN_FORFEIT_ELO_CHANGE = 15; // Minimum ELO change for forfeits
+const DYNAMIC_PLACEMENT_START_SEASON = 11;
+const PLACEMENT_ELO_OFFSET = 100;
+const PLACEMENT_ELO_ROUNDING = 25;
 
 // Placement ELO ratings by season and division
 // Key format: "S{seasonNumber} {divisionName}"
@@ -72,9 +75,26 @@ export function getMatchStartingElo(matchId: number, coachId: number): number | 
   return MATCH_STARTING_ELO_OVERRIDES[key];
 }
 
-export function getPlacementElo(seasonNumber: number, divisionName: string, coachId?: number): number {
+export function getPlacementElo(seasonNumber: number, divisionName: string): number {
   const key = `S${seasonNumber} ${divisionName}`;
   return PLACEMENT_ELO[key] ?? DEFAULT_STARTING_ELO;
+}
+
+export function usesDynamicPlacementElo(seasonNumber: number): boolean {
+  return seasonNumber >= DYNAMIC_PLACEMENT_START_SEASON;
+}
+
+export function roundPlacementElo(value: number): number {
+  return Math.round(value / PLACEMENT_ELO_ROUNDING) * PLACEMENT_ELO_ROUNDING;
+}
+
+export function calculateDynamicPlacementElo(returningCoachElos: number[]): number {
+  if (returningCoachElos.length === 0) {
+    return DEFAULT_STARTING_ELO;
+  }
+
+  const averageElo = returningCoachElos.reduce((sum, elo) => sum + elo, 0) / returningCoachElos.length;
+  return roundPlacementElo(averageElo - PLACEMENT_ELO_OFFSET);
 }
 
 export function calculateExpectedScore(

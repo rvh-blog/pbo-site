@@ -10,6 +10,7 @@ export const coaches = sqliteTable("coaches", {
   // Auth fields
   passwordHash: text("password_hash"), // null = unclaimed account
   isMod: integer("is_mod", { mode: "boolean" }).default(false),
+  canPostBlog: integer("can_post_blog", { mode: "boolean" }).default(false),
   claimedAt: text("claimed_at"), // when the account was claimed
   projectMewConfirmed: integer("project_mew_confirmed", { mode: "boolean" }).default(false),
   projectMewPromptSeen: integer("project_mew_prompt_seen", { mode: "boolean" }).default(false),
@@ -381,6 +382,7 @@ export const coachesRelations = relations(coaches, ({ many }) => ({
   purchases: many(coachPurchases),
   triviaRewards: many(triviaRewards),
   blogPosts: many(blogPosts),
+  blogComments: many(blogComments),
   fantasyEntries: many(fantasyEntries),
 }));
 
@@ -865,6 +867,7 @@ export const blogPosts = sqliteTable("blog_posts", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   excerpt: text("excerpt"),
+  imageUrl: text("image_url"),
   authorCoachId: integer("author_coach_id").references(() => coaches.id),
   authorUserId: integer("author_user_id").references(() => users.id),
   isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
@@ -874,6 +877,25 @@ export const blogPosts = sqliteTable("blog_posts", {
   index("idx_blog_posts_created_at").on(table.createdAt),
   index("idx_blog_posts_author_coach_id").on(table.authorCoachId),
   index("idx_blog_posts_author_user_id").on(table.authorUserId),
+]);
+
+export const blogComments = sqliteTable("blog_comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  postId: integer("post_id")
+    .notNull()
+    .references(() => blogPosts.id),
+  parentCommentId: integer("parent_comment_id"),
+  content: text("content").notNull(),
+  authorCoachId: integer("author_coach_id").references(() => coaches.id),
+  authorUserId: integer("author_user_id").references(() => users.id),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_blog_comments_post_id").on(table.postId),
+  index("idx_blog_comments_parent_comment_id").on(table.parentCommentId),
+  index("idx_blog_comments_created_at").on(table.createdAt),
+  index("idx_blog_comments_author_coach_id").on(table.authorCoachId),
+  index("idx_blog_comments_author_user_id").on(table.authorUserId),
 ]);
 
 // User Sessions - unified session management for coaches and spectators
@@ -896,16 +918,38 @@ export const usersRelations = relations(users, ({ many }) => ({
   killBets: many(killBets),
   deathBets: many(deathBets),
   blogPosts: many(blogPosts),
+  blogComments: many(blogComments),
   fantasyEntries: many(fantasyEntries),
 }));
 
-export const blogPostsRelations = relations(blogPosts, ({ one }) => ({
+export const blogPostsRelations = relations(blogPosts, ({ one, many }) => ({
   authorCoach: one(coaches, {
     fields: [blogPosts.authorCoachId],
     references: [coaches.id],
   }),
   authorUser: one(users, {
     fields: [blogPosts.authorUserId],
+    references: [users.id],
+  }),
+  comments: many(blogComments),
+}));
+
+export const blogCommentsRelations = relations(blogComments, ({ one }) => ({
+  post: one(blogPosts, {
+    fields: [blogComments.postId],
+    references: [blogPosts.id],
+  }),
+  parentComment: one(blogComments, {
+    fields: [blogComments.parentCommentId],
+    references: [blogComments.id],
+    relationName: "commentReplies",
+  }),
+  authorCoach: one(coaches, {
+    fields: [blogComments.authorCoachId],
+    references: [coaches.id],
+  }),
+  authorUser: one(users, {
+    fields: [blogComments.authorUserId],
     references: [users.id],
   }),
 }));

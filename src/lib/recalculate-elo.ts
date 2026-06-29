@@ -2,7 +2,15 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import { eq, asc } from "drizzle-orm";
 import * as schema from "./schema";
-import { calculateMatchElo, calculateDoubleForfeitElo, getPlacementElo, getDivisionStartingElo, getMatchStartingElo } from "./elo";
+import {
+  calculateDynamicPlacementElo,
+  calculateMatchElo,
+  calculateDoubleForfeitElo,
+  getPlacementElo,
+  getDivisionStartingElo,
+  getMatchStartingElo,
+  usesDynamicPlacementElo,
+} from "./elo";
 import * as dotenv from "dotenv";
 
 // Load environment variables
@@ -22,6 +30,58 @@ const client = createClient(
 console.log(`Using ${useTurso ? "Turso" : "local SQLite"} database`);
 
 const db = drizzle(client, { schema });
+
+type SeasonCoachWithDivision = {
+  coachId: number | null;
+  divisionId: number;
+  division?: {
+    season?: {
+      seasonNumber: number | null;
+    } | null;
+  } | null;
+};
+
+function getResolvedPlacementElo(
+  seasonNumber: number,
+  divisionId: number,
+  divisionName: string,
+  dynamicPlacementByDivision: Map<number, number>
+) {
+  if (usesDynamicPlacementElo(seasonNumber)) {
+    return dynamicPlacementByDivision.get(divisionId) ?? getPlacementElo(seasonNumber, divisionName);
+  }
+
+  return getPlacementElo(seasonNumber, divisionName);
+}
+
+function initializeDynamicPlacementsForSeason(
+  seasonNumber: number,
+  allSeasonCoaches: SeasonCoachWithDivision[],
+  coachElo: Map<number, number | null>,
+  dynamicPlacementByDivision: Map<number, number>,
+  initializedDynamicPlacementSeasons: Set<number>
+) {
+  if (!usesDynamicPlacementElo(seasonNumber) || initializedDynamicPlacementSeasons.has(seasonNumber)) {
+    return;
+  }
+
+  const divisionIds = new Set(
+    allSeasonCoaches
+      .filter((sc) => sc.division?.season?.seasonNumber === seasonNumber)
+      .map((sc) => sc.divisionId)
+  );
+
+  for (const divisionId of divisionIds) {
+    const returningCoachElos = allSeasonCoaches
+      .filter((sc) => sc.divisionId === divisionId && sc.coachId !== null)
+      .map((sc) => coachElo.get(sc.coachId!))
+      .filter((elo): elo is number => elo !== null && elo !== undefined);
+
+    dynamicPlacementByDivision.set(divisionId, calculateDynamicPlacementElo(returningCoachElos));
+  }
+
+  initializedDynamicPlacementSeasons.add(seasonNumber);
+}
 
 async function recalculateElo() {
   console.log("Recalculating ELO ratings with placement system...\n");
@@ -54,6 +114,12 @@ async function recalculateElo() {
 
   // Get all coaches
   const allCoaches = await db.query.coaches.findMany();
+  const allSeasonCoaches = await db.query.seasonCoaches.findMany({
+    with: {
+      coach: true,
+      division: { with: { season: true } },
+    },
+  });
 
   // Clear existing ELO history
   await db.delete(schema.eloHistory);
@@ -70,6 +136,8 @@ async function recalculateElo() {
 
   // Track which divisions each coach has played in (for division-specific overrides)
   const coachDivisions = new Map<number, Set<number>>();
+  const dynamicPlacementByDivision = new Map<number, number>();
+  const initializedDynamicPlacementSeasons = new Set<number>();
 
   // Process each match chronologically
   let matchesProcessed = 0;
@@ -84,10 +152,22 @@ async function recalculateElo() {
 
     const seasonNumber = match.division?.season?.seasonNumber ?? 0;
     const divisionName = match.division?.name ?? "";
+    initializeDynamicPlacementsForSeason(
+      seasonNumber,
+      allSeasonCoaches,
+      coachElo,
+      dynamicPlacementByDivision,
+      initializedDynamicPlacementSeasons
+    );
 
     // Assign placement ELO if this is coach's first match
     if (coachElo.get(coach1Id) === null) {
-      const placementElo = getPlacementElo(seasonNumber, divisionName, coach1Id);
+      const placementElo = getResolvedPlacementElo(
+        seasonNumber,
+        match.divisionId,
+        divisionName,
+        dynamicPlacementByDivision
+      );
       coachElo.set(coach1Id, placementElo);
       coachPlacements.set(coach1Id, { elo: placementElo, season: seasonNumber, division: divisionName });
       // Record placement ELO in history (match_id = null indicates placement)
@@ -99,7 +179,12 @@ async function recalculateElo() {
       });
     }
     if (coachElo.get(coach2Id) === null) {
-      const placementElo = getPlacementElo(seasonNumber, divisionName, coach2Id);
+      const placementElo = getResolvedPlacementElo(
+        seasonNumber,
+        match.divisionId,
+        divisionName,
+        dynamicPlacementByDivision
+      );
       coachElo.set(coach2Id, placementElo);
       coachPlacements.set(coach2Id, { elo: placementElo, season: seasonNumber, division: divisionName });
       // Record placement ELO in history (match_id = null indicates placement)
@@ -196,13 +281,6 @@ async function recalculateElo() {
 
   // Set placement ELO for coaches who haven't played any matches yet
   // (they are registered for a season but have 0 completed matches)
-  const allSeasonCoaches = await db.query.seasonCoaches.findMany({
-    with: {
-      coach: true,
-      division: { with: { season: true } },
-    },
-  });
-
   // Group by coach, keeping the most recent season entry
   const coachLatestSeason = new Map<number, typeof allSeasonCoaches[0]>();
   for (const sc of allSeasonCoaches) {
@@ -221,7 +299,19 @@ async function recalculateElo() {
     if (coachElo.get(coachId) === null && sc.division?.season) {
       const seasonNumber = sc.division.season.seasonNumber ?? 0;
       const divisionName = sc.division.name ?? "";
-      const placementElo = getPlacementElo(seasonNumber, divisionName, coachId);
+      initializeDynamicPlacementsForSeason(
+        seasonNumber,
+        allSeasonCoaches,
+        coachElo,
+        dynamicPlacementByDivision,
+        initializedDynamicPlacementSeasons
+      );
+      const placementElo = getResolvedPlacementElo(
+        seasonNumber,
+        sc.divisionId,
+        divisionName,
+        dynamicPlacementByDivision
+      );
       coachElo.set(coachId, placementElo);
       coachPlacements.set(coachId, { elo: placementElo, season: seasonNumber, division: divisionName });
 

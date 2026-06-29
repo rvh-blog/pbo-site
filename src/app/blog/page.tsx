@@ -41,7 +41,9 @@ export default async function BlogPage() {
     );
   }
 
-  const canCreate = !!session && (session.type === "coach" || session.isMod);
+  const canCreate = Boolean(
+    session?.isMod || (session?.type === "coach" && session.canPostBlog)
+  );
 
   return (
     <div className="space-y-6">
@@ -53,6 +55,10 @@ export default async function BlogPage() {
             </h1>
             <p className="text-[var(--foreground-muted)] mt-2">
               League posts, recaps, rankings, and coach stories.
+            </p>
+            <p className="text-sm text-[var(--foreground-muted)] mt-2">
+              Admins can publish directly. Coaches can publish once an admin grants blog posting permission.
+              Signed-in users can comment on posts.
             </p>
           </div>
           {canCreate && (
@@ -92,6 +98,16 @@ export default async function BlogPage() {
                       Read
                     </span>
                   </div>
+                  {post.imageUrl && (
+                    <div className="mt-4 overflow-hidden rounded border border-white/10 bg-black/30">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={post.imageUrl}
+                        alt=""
+                        className="h-48 w-full object-cover"
+                      />
+                    </div>
+                  )}
                   {post.excerpt && (
                     <p className="mt-4 text-[var(--foreground-muted)] leading-7">
                       {post.excerpt}

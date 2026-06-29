@@ -4,10 +4,11 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Label, TextArea } from "@/components/ui/input";
 
-export function BlogPostForm() {
+export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -20,7 +21,11 @@ export function BlogPostForm() {
       const response = await fetch("/api/blog", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content }),
+        body: JSON.stringify({
+          title,
+          content,
+          imageUrl: canPostImages ? imageUrl : "",
+        }),
       });
       const data = await response.json();
 
@@ -57,6 +62,22 @@ export function BlogPostForm() {
           placeholder="Week 4 Neon recap"
         />
       </div>
+
+      {canPostImages && (
+        <div>
+          <Label htmlFor="imageUrl">Image URL</Label>
+          <Input
+            id="imageUrl"
+            value={imageUrl}
+            onChange={(event) => setImageUrl(event.target.value)}
+            maxLength={1000}
+            placeholder="https://example.com/image.png"
+          />
+          <p className="mt-2 text-xs text-[var(--foreground-subtle)]">
+            Optional. Only admins can add images to blog posts.
+          </p>
+        </div>
+      )}
 
       <div>
         <Label htmlFor="content">Post</Label>

@@ -28,6 +28,7 @@ interface Coach {
   // Auth fields
   isClaimed?: boolean;
   isMod?: boolean;
+  canPostBlog?: boolean;
   claimedAt?: string | null;
 }
 
@@ -36,6 +37,10 @@ interface Spectator {
   name: string;
   isMod: boolean;
   createdAt: string | null;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown error";
 }
 
 export default function AdminCoachesPage() {
@@ -108,8 +113,8 @@ export default function AdminCoachesPage() {
       }
 
       alert("Password reset successfully");
-    } catch (error: any) {
-      alert(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Error: ${getErrorMessage(error)}`);
     } finally {
       setActionLoading(null);
     }
@@ -136,8 +141,33 @@ export default function AdminCoachesPage() {
 
       fetchCoaches();
       fetchSpectators();
-    } catch (error: any) {
-      alert(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Error: ${getErrorMessage(error)}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleToggleBlogPostPermission(coachId: number, currentCanPostBlog: boolean) {
+    const action = currentCanPostBlog ? "remove blog posting permission from" : "grant blog posting permission to";
+    if (!confirm(`Are you sure you want to ${action} this coach?`)) {
+      return;
+    }
+
+    setActionLoading(`blog-coach-${coachId}`);
+    try {
+      const response = await fetch(`/api/admin/users/${coachId}/toggle-blog-post`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to toggle blog posting permission");
+      }
+
+      fetchCoaches();
+    } catch (error: unknown) {
+      alert(`Error: ${getErrorMessage(error)}`);
     } finally {
       setActionLoading(null);
     }
@@ -160,8 +190,8 @@ export default function AdminCoachesPage() {
       }
 
       fetchCoaches();
-    } catch (error: any) {
-      alert(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Error: ${getErrorMessage(error)}`);
     } finally {
       setActionLoading(null);
     }
@@ -201,8 +231,8 @@ export default function AdminCoachesPage() {
       fetchCoaches();
       fetchSpectators();
       alert(`${spectatorName} has been converted to coach "${coachName}"`);
-    } catch (error: any) {
-      alert(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Error: ${getErrorMessage(error)}`);
     } finally {
       setActionLoading(null);
     }
@@ -232,8 +262,8 @@ export default function AdminCoachesPage() {
       setRecalcResult(data.message);
       // Refresh coaches to show updated ELO ratings
       fetchCoaches();
-    } catch (error: any) {
-      setRecalcResult(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      setRecalcResult(`Error: ${getErrorMessage(error)}`);
     } finally {
       setIsRecalculating(false);
     }
@@ -436,6 +466,14 @@ export default function AdminCoachesPage() {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => handleToggleBlogPostPermission(coach.id, coach.canPostBlog || false)}
+                              disabled={actionLoading === `blog-coach-${coach.id}`}
+                            >
+                              {actionLoading === `blog-coach-${coach.id}` ? "..." : coach.canPostBlog ? "Remove Blog Posting" : "Allow Blog Posts"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => handleUnclaim(coach.id)}
                               disabled={actionLoading === `unclaim-${coach.id}`}
                             >
@@ -479,6 +517,11 @@ export default function AdminCoachesPage() {
                               {coach.isMod && (
                                 <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-[var(--primary)]/20 text-[var(--primary)]">
                                   MOD
+                                </span>
+                              )}
+                              {coach.canPostBlog && (
+                                <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-[var(--accent)]/20 text-[var(--accent)]">
+                                  BLOG
                                 </span>
                               )}
                             </p>

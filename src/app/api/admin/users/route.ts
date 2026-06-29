@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAuthenticated } from "@/lib/auth";
-import { isNotNull } from "drizzle-orm";
-import * as schema from "@/lib/schema";
 
 // GET /api/admin/users - list all users (coaches + spectators)
 export async function GET() {
@@ -19,6 +17,7 @@ export async function GET() {
         name: true,
         passwordHash: true,
         isMod: true,
+        canPostBlog: true,
         claimedAt: true,
         eloRating: true,
       },
@@ -44,6 +43,7 @@ export async function GET() {
         type: "coach" as const,
         isClaimed: !!c.passwordHash,
         isMod: c.isMod ?? false,
+        canPostBlog: c.canPostBlog ?? false,
         claimedAt: c.claimedAt,
         eloRating: c.eloRating,
       })),

@@ -21,7 +21,9 @@ export default async function NewBlogPostPage() {
     );
   }
 
-  const canCreate = !!session && (session.type === "coach" || session.isMod);
+  const canCreate = Boolean(
+    session?.isMod || (session?.type === "coach" && session.canPostBlog)
+  );
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -44,14 +46,15 @@ export default async function NewBlogPostPage() {
       </div>
 
       {canCreate ? (
-        <BlogPostForm />
+        <BlogPostForm canPostImages={Boolean(session?.isMod)} />
       ) : (
         <div className="poke-card p-8 text-center">
           <h2 className="font-pixel text-sm text-[var(--warning)] mb-3">
-            Sign In Required
+            Blog Posting Access Required
           </h2>
           <p className="text-[var(--foreground-muted)] mb-6">
-            Blog posts can be created by signed-in players or admins.
+            Blog posts can be created by admins or coaches with blog posting permission.
+            Ask an admin for access.
           </p>
           <Link href="/blog" className="btn-retro-secondary px-5 py-3 text-[10px]">
             Back to Blog

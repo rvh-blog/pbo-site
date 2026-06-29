@@ -1,18 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { blogPosts } from "@/lib/schema";
+import { blogComments, blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_CONTENT_LENGTH = 20000;
 const MAX_EXCERPT_LENGTH = 240;
+const MAX_IMAGE_URL_LENGTH = 1000;
 
 function buildExcerpt(content: string) {
   const compact = content.replace(/\s+/g, " ").trim();
   if (compact.length <= MAX_EXCERPT_LENGTH) return compact;
   return `${compact.slice(0, MAX_EXCERPT_LENGTH - 1).trim()}...`;
+}
+
+function isValidImageUrl(value: string) {
+  if (value.length > MAX_IMAGE_URL_LENGTH) return false;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return value.startsWith("/") && !value.startsWith("//");
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -27,9 +39,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  if (session.type !== "coach" && !session.isMod) {
+  const canCreatePost = session.isMod || (session.type === "coach" && session.canPostBlog);
+
+  if (!canCreatePost) {
     return NextResponse.json(
-      { error: "Only players and admins can create blog posts" },
+      { error: "Only admins and approved coaches can create blog posts" },
       { status: 403 }
     );
   }
@@ -38,6 +52,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const title = typeof body.title === "string" ? body.title.trim() : "";
     const content = typeof body.content === "string" ? body.content.trim() : "";
+    const imageUrl = typeof body.imageUrl === "string" ? body.imageUrl.trim() : "";
 
     if (title.length < 3) {
       return NextResponse.json(
@@ -67,6 +82,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (imageUrl && !session.isMod) {
+      return NextResponse.json(
+        { error: "Only admins can add images to blog posts" },
+        { status: 403 }
+      );
+    }
+
+    if (imageUrl && !isValidImageUrl(imageUrl)) {
+      return NextResponse.json(
+        { error: "Image must be a valid http(s) URL or site-relative path" },
+        { status: 400 }
+      );
+    }
+
     const now = new Date().toISOString();
     const [post] = await db
       .insert(blogPosts)
@@ -74,6 +103,7 @@ export async function POST(request: NextRequest) {
         title,
         content,
         excerpt: buildExcerpt(content),
+        imageUrl: imageUrl || null,
         authorCoachId: session.type === "coach" ? session.id : null,
         authorUserId: session.type === "spectator" ? session.id : null,
         isPublished: true,
@@ -116,17 +146,14 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Blog post not found" }, { status: 404 });
   }
 
-  const isAuthor = session.type === "coach"
-    ? existingPost.authorCoachId === session.id
-    : existingPost.authorUserId === session.id;
-
-  if (!session.isMod && !isAuthor) {
+  if (!session.isMod) {
     return NextResponse.json(
-      { error: "Only admins or the post author can delete blog posts" },
+      { error: "Only admins can delete blog posts" },
       { status: 403 }
     );
   }
 
+  await db.delete(blogComments).where(eq(blogComments.postId, postId));
   await db.delete(blogPosts).where(eq(blogPosts.id, postId));
 
   return NextResponse.json({ success: true });

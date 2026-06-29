@@ -65,6 +65,7 @@ export async function POST(request: Request) {
           id: coachId,
           name: coach.name,
           isMod: coach.isMod ?? false,
+          canPostBlog: coach.canPostBlog ?? false,
         },
       });
     } else {

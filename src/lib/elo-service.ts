@@ -1,7 +1,115 @@
 import { db } from "./db";
 import { coaches, eloHistory, matches, seasonCoaches } from "./schema";
-import { eq, and, isNotNull, desc } from "drizzle-orm";
-import { calculateMatchElo, calculateDoubleForfeitElo, getPlacementElo, getDivisionStartingElo, getMatchStartingElo } from "./elo";
+import { and, eq, inArray, isNotNull, desc } from "drizzle-orm";
+import {
+  calculateDynamicPlacementElo,
+  calculateMatchElo,
+  calculateDoubleForfeitElo,
+  getPlacementElo,
+  getDivisionStartingElo,
+  getMatchStartingElo,
+  usesDynamicPlacementElo,
+} from "./elo";
+
+type SeasonCoachWithDivision = {
+  coachId: number | null;
+  divisionId: number;
+  division?: {
+    season?: {
+      seasonNumber: number | null;
+    } | null;
+  } | null;
+};
+
+function getResolvedPlacementElo(
+  seasonNumber: number,
+  divisionId: number,
+  divisionName: string,
+  dynamicPlacementByDivision: Map<number, number>
+) {
+  if (usesDynamicPlacementElo(seasonNumber)) {
+    return dynamicPlacementByDivision.get(divisionId) ?? getPlacementElo(seasonNumber, divisionName);
+  }
+
+  return getPlacementElo(seasonNumber, divisionName);
+}
+
+function initializeDynamicPlacementsForSeason(
+  seasonNumber: number,
+  allSeasonCoaches: SeasonCoachWithDivision[],
+  coachElo: Map<number, number | null>,
+  dynamicPlacementByDivision: Map<number, number>,
+  initializedDynamicPlacementSeasons: Set<number>
+) {
+  if (!usesDynamicPlacementElo(seasonNumber) || initializedDynamicPlacementSeasons.has(seasonNumber)) {
+    return;
+  }
+
+  const divisionIds = new Set(
+    allSeasonCoaches
+      .filter((sc) => sc.division?.season?.seasonNumber === seasonNumber)
+      .map((sc) => sc.divisionId)
+  );
+
+  for (const divisionId of divisionIds) {
+    const returningCoachElos = allSeasonCoaches
+      .filter((sc) => sc.divisionId === divisionId && sc.coachId !== null)
+      .map((sc) => coachElo.get(sc.coachId!))
+      .filter((elo): elo is number => elo !== null && elo !== undefined);
+
+    dynamicPlacementByDivision.set(divisionId, calculateDynamicPlacementElo(returningCoachElos));
+  }
+
+  initializedDynamicPlacementSeasons.add(seasonNumber);
+}
+
+async function getDynamicPlacementEloForCurrentDivision(divisionId: number) {
+  const divisionSeasonCoaches = await db.query.seasonCoaches.findMany({
+    where: eq(seasonCoaches.divisionId, divisionId),
+    with: {
+      coach: true,
+    },
+  });
+
+  const divisionCoachIds = divisionSeasonCoaches
+    .map((sc) => sc.coachId)
+    .filter((coachId): coachId is number => coachId !== null);
+
+  if (divisionCoachIds.length === 0) {
+    return calculateDynamicPlacementElo([]);
+  }
+
+  const priorMatchEntries = await db.query.eloHistory.findMany({
+    where: and(
+      inArray(eloHistory.coachId, divisionCoachIds),
+      isNotNull(eloHistory.matchId)
+    ),
+    columns: {
+      coachId: true,
+    },
+  });
+  const returningCoachIds = new Set(priorMatchEntries.map((entry) => entry.coachId));
+  const returningCoachElos = divisionSeasonCoaches
+    .filter((sc) => sc.coachId !== null && returningCoachIds.has(sc.coachId))
+    .map((sc) => sc.coach?.eloRating)
+    .filter((elo): elo is number => elo !== null && elo !== undefined);
+
+  return calculateDynamicPlacementElo(returningCoachElos);
+}
+
+async function coachHasPriorCompletedEloMatch(coachId: number) {
+  const priorMatchEntry = await db.query.eloHistory.findFirst({
+    where: and(
+      eq(eloHistory.coachId, coachId),
+      isNotNull(eloHistory.matchId)
+    ),
+    columns: {
+      id: true,
+    },
+  });
+
+  return Boolean(priorMatchEntry);
+}
 
 /**
  * Process ELO for a single match - used when the match is the most recent for both coaches.
@@ -78,6 +186,22 @@ async function processSingleMatchElo(matchId: number): Promise<boolean> {
 
     coach1Elo = coach1Data.eloRating;
     coach2Elo = coach2Data.eloRating;
+
+    const seasonNumber = match.division?.season?.seasonNumber ?? 0;
+    if (usesDynamicPlacementElo(seasonNumber)) {
+      const [coach1HasPriorMatch, coach2HasPriorMatch, dynamicPlacementElo] = await Promise.all([
+        coachHasPriorCompletedEloMatch(coach1Id),
+        coachHasPriorCompletedEloMatch(coach2Id),
+        getDynamicPlacementEloForCurrentDivision(match.divisionId),
+      ]);
+
+      if (!coach1HasPriorMatch) {
+        coach1Elo = dynamicPlacementElo;
+      }
+      if (!coach2HasPriorMatch) {
+        coach2Elo = dynamicPlacementElo;
+      }
+    }
   }
 
   let newCoach1Elo: number;
@@ -319,6 +443,13 @@ export async function recalculateAllElo(): Promise<{
   // Get all coaches
   const allCoaches = await db.query.coaches.findMany();
 
+  const allSeasonCoaches = await db.query.seasonCoaches.findMany({
+    with: {
+      coach: true,
+      division: { with: { season: true } },
+    },
+  });
+
   // Clear existing ELO history
   await db.delete(eloHistory);
 
@@ -330,6 +461,8 @@ export async function recalculateAllElo(): Promise<{
 
   // Track which divisions each coach has played in (for division-specific overrides)
   const coachDivisions = new Map<number, Set<number>>();
+  const dynamicPlacementByDivision = new Map<number, number>();
+  const initializedDynamicPlacementSeasons = new Set<number>();
 
   // Process each match chronologically
   let matchesProcessed = 0;
@@ -341,12 +474,24 @@ export async function recalculateAllElo(): Promise<{
 
     const seasonNumber = match.seasonNumber;
     const divisionName = match.divisionName;
+    initializeDynamicPlacementsForSeason(
+      seasonNumber,
+      allSeasonCoaches,
+      coachElo,
+      dynamicPlacementByDivision,
+      initializedDynamicPlacementSeasons
+    );
 
     // Assign placement ELO if this is coach's first match
     // Also record the initial placement as a history entry (matchId = null)
     // Pass coachId to check for S4 veteran placements
     if (coachElo.get(coach1Id) === null) {
-      const placementElo = getPlacementElo(seasonNumber, divisionName, coach1Id);
+      const placementElo = getResolvedPlacementElo(
+        seasonNumber,
+        match.divisionId,
+        divisionName,
+        dynamicPlacementByDivision
+      );
       coachElo.set(coach1Id, placementElo);
       // Record placement ELO as initial history entry
       await db.insert(eloHistory).values({
@@ -357,7 +502,12 @@ export async function recalculateAllElo(): Promise<{
       });
     }
     if (coachElo.get(coach2Id) === null) {
-      const placementElo = getPlacementElo(seasonNumber, divisionName, coach2Id);
+      const placementElo = getResolvedPlacementElo(
+        seasonNumber,
+        match.divisionId,
+        divisionName,
+        dynamicPlacementByDivision
+      );
       coachElo.set(coach2Id, placementElo);
       // Record placement ELO as initial history entry
       await db.insert(eloHistory).values({
@@ -447,13 +597,6 @@ export async function recalculateAllElo(): Promise<{
 
   // Set placement ELO for coaches who haven't played any matches yet
   // (they are registered for a season but have 0 completed matches)
-  const allSeasonCoaches = await db.query.seasonCoaches.findMany({
-    with: {
-      coach: true,
-      division: { with: { season: true } },
-    },
-  });
-
   // Group by coach, keeping the most recent season entry
   const coachLatestSeason = new Map<number, typeof allSeasonCoaches[0]>();
   for (const sc of allSeasonCoaches) {
@@ -471,7 +614,19 @@ export async function recalculateAllElo(): Promise<{
     if (coachElo.get(coachId) === null && sc.division?.season) {
       const seasonNumber = sc.division.season.seasonNumber ?? 0;
       const divisionName = sc.division.name ?? "";
-      const placementElo = getPlacementElo(seasonNumber, divisionName, coachId);
+      initializeDynamicPlacementsForSeason(
+        seasonNumber,
+        allSeasonCoaches,
+        coachElo,
+        dynamicPlacementByDivision,
+        initializedDynamicPlacementSeasons
+      );
+      const placementElo = getResolvedPlacementElo(
+        seasonNumber,
+        sc.divisionId,
+        divisionName,
+        dynamicPlacementByDivision
+      );
       coachElo.set(coachId, placementElo);
 
       // Record placement ELO in history
