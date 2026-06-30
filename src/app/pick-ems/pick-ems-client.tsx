@@ -1332,6 +1332,40 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
         </div>
       </div>
 
+      <div className="poke-card p-4 sm:p-5">
+        <div className="section-title">
+          <div className="section-title-icon">
+            <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3>About Pick-Ems</h3>
+        </div>
+        <div className="grid gap-3 text-sm leading-6 text-[var(--foreground-muted)] md:grid-cols-3">
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">How It Works</h4>
+            <p>
+              Signed-in users pick winners for scheduled matches. Picks can be changed
+              until a match starts or is completed.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Scoring</h4>
+            <p>
+              Correct picks count toward the leaderboard. If a result changes later,
+              affected pick-em rewards are reversed and recalculated.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Rewards</h4>
+            <p>
+              Weekly overall pays 200, 100, and 75 PBO Coin. Division winners get 75,
+              correct Game of the Week picks get 15, and ties split prizes evenly.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Show sign in prompt if not authenticated */}
       {!authUser && (
         <div className="poke-card p-6 text-center">

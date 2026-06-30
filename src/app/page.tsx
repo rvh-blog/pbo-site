@@ -678,6 +678,32 @@ export default async function Home() {
         </div>
       </div>
 
+      <a
+        href="https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="poke-card block p-5 transition-all hover:-translate-y-0.5 hover:border-[var(--primary)]/50"
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="section-title-icon !mb-0">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5S19.832 5.477 21 6.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-pixel text-sm text-white leading-relaxed">PBO Rulebook</h3>
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                League rules, policies, and season guidelines.
+              </p>
+            </div>
+          </div>
+          <svg className="w-4 h-4 shrink-0 text-[var(--foreground-subtle)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17L17 7M17 7H8m9 0v9" />
+          </svg>
+        </div>
+      </a>
+
       {/* Main Content Grid */}
       <SyncedHeightGrid
         leftContent={

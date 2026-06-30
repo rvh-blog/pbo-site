@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { matches, coaches, seasonCoaches, seasons, matchPokemon, killEvents } from "@/lib/schema";
-import { isNotNull, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +21,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
 
   // Get S10+ season IDs
   const allSeasons = await db.query.seasons.findMany();
+  const seasonNumberById = new Map(allSeasons.map((season) => [season.id, season.seasonNumber]));
   const s10SeasonIds = new Set(allSeasons.filter(s => s.seasonNumber >= 10).map(s => s.id));
 
   // Run all queries in parallel
@@ -81,7 +80,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
     const mins = Math.floor(avgMs / 60000);
     const secs = Math.round((avgMs % 60000) / 1000);
     entries.push({
-      label: "Slowest Coach",
+      label: "The Timekeeper",
       value: `${mins}m ${secs}s avg`,
       description: `${longestAvg[1].name}'s games take the longest on average`,
       coachName: longestAvg[1].name,
@@ -123,7 +122,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
   const topClutchCoach = [...clutchWins.entries()].sort((a, b) => b[1].count - a[1].count)[0];
   if (topClutchCoach) {
     entries.push({
-      label: "Clutch King",
+      label: "King Clutch",
       value: `${topClutchCoach[1].count} wins by 1`,
       description: `${topClutchCoach[1].name} loves making it close`,
       coachName: topClutchCoach[1].name,
@@ -223,29 +222,167 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
     });
   }
 
-  // 6. Most forfeits received
-  const forfeitWins = new Map<number, { count: number; name: string }>();
-  for (const m of s10Matches) {
-    if (!m.isForfeit || !m.winnerId) continue;
-    const coach = scToCoach.get(m.winnerId);
-    if (!coach) continue;
-    const existing = forfeitWins.get(coach.coachId) || { count: 0, name: coach.name };
-    existing.count += 1;
-    forfeitWins.set(coach.coachId, existing);
+  // 6. Team Player - most games where 4+ different Pokemon got a KO
+  const pokemonKillersByMatchCoach = new Map<string, Set<number>>();
+  for (const k of s10KillEvents) {
+    if (!k.killerSeasonCoachId || !k.killerPokemonId || !nonForfeitMatchIds.has(k.matchId)) continue;
+    const key = `${k.matchId}-${k.killerSeasonCoachId}`;
+    const set = pokemonKillersByMatchCoach.get(key) || new Set<number>();
+    set.add(k.killerPokemonId);
+    pokemonKillersByMatchCoach.set(key, set);
   }
-  const topForfeitReceiver = [...forfeitWins.entries()].sort((a, b) => b[1].count - a[1].count)[0];
-  if (topForfeitReceiver && topForfeitReceiver[1].count >= 2) {
+
+  const teamPlayerMap = new Map<number, { count: number; name: string }>();
+  for (const [key, pokemonIds] of pokemonKillersByMatchCoach) {
+    if (pokemonIds.size < 4) continue;
+    const scId = parseInt(key.split("-")[1]);
+    const coach = scToCoach.get(scId);
+    if (!coach) continue;
+    const existing = teamPlayerMap.get(coach.coachId) || { count: 0, name: coach.name };
+    existing.count += 1;
+    teamPlayerMap.set(coach.coachId, existing);
+  }
+  const topTeamPlayer = [...teamPlayerMap.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topTeamPlayer) {
     entries.push({
-      label: "Intimidation Factor",
-      value: `${topForfeitReceiver[1].count} opponents forfeited`,
-      description: `${topForfeitReceiver[1].name} scares people into quitting`,
-      coachName: topForfeitReceiver[1].name,
-      coachId: topForfeitReceiver[0],
+      label: "Team Player",
+      value: `${topTeamPlayer[1].count} balanced games`,
+      description: `${topTeamPlayer[1].name} most often has 4+ Pokemon record a KO`,
+      coachName: topTeamPlayer[1].name,
+      coachId: topTeamPlayer[0],
     });
   }
 
-  // 7. Most unique Pokemon used
-  const pokemonUsed = new Map<number, { count: number; name: string }>();
+  // 7. Heartbreaker - most losses by exactly 1 Pokemon
+  const heartbreaks = new Map<number, { count: number; name: string }>();
+  for (const m of nonForfeitMatches) {
+    if (!m.winnerId) continue;
+    const winnerDiff = m.winnerId === m.coach1SeasonId
+      ? (m.coach1Differential || 0)
+      : (m.coach2Differential || 0);
+    if (winnerDiff !== 1) continue;
+
+    const loserId = m.winnerId === m.coach1SeasonId ? m.coach2SeasonId : m.coach1SeasonId;
+    const coach = scToCoach.get(loserId);
+    if (!coach) continue;
+    const existing = heartbreaks.get(coach.coachId) || { count: 0, name: coach.name };
+    existing.count += 1;
+    heartbreaks.set(coach.coachId, existing);
+  }
+  const topHeartbreaker = [...heartbreaks.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topHeartbreaker) {
+    entries.push({
+      label: "Heartbreaker",
+      value: `${topHeartbreaker[1].count} losses by 1`,
+      description: `${topHeartbreaker[1].name} has the most narrow losses`,
+      coachName: topHeartbreaker[1].name,
+      coachId: topHeartbreaker[0],
+    });
+  }
+
+  // 8. Finisher - most last KOs in completed games
+  const killsByMatch = new Map<number, typeof s10KillEvents>();
+  for (const k of s10KillEvents) {
+    if (!nonForfeitMatchIds.has(k.matchId)) continue;
+    const list = killsByMatch.get(k.matchId) || [];
+    list.push(k);
+    killsByMatch.set(k.matchId, list);
+  }
+
+  const finisherMap = new Map<number, { count: number; name: string }>();
+  for (const [matchId, matchKills] of killsByMatch) {
+    const match = nonForfeitMatches.find((m) => m.id === matchId);
+    if (!match?.winnerId || matchKills.length === 0) continue;
+    const finalTurn = Math.max(...matchKills.map((k) => k.turn));
+    const finalKills = matchKills.filter((k) => k.turn === finalTurn && k.killerSeasonCoachId === match.winnerId);
+    for (const k of finalKills) {
+      if (!k.killerSeasonCoachId) continue;
+      const coach = scToCoach.get(k.killerSeasonCoachId);
+      if (!coach) continue;
+      const existing = finisherMap.get(coach.coachId) || { count: 0, name: coach.name };
+      existing.count += 1;
+      finisherMap.set(coach.coachId, existing);
+    }
+  }
+  const topFinisher = [...finisherMap.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topFinisher) {
+    entries.push({
+      label: "Finisher",
+      value: `${topFinisher[1].count} final KOs`,
+      description: `${topFinisher[1].name} lands the last KO most often`,
+      coachName: topFinisher[1].name,
+      coachId: topFinisher[0],
+    });
+  }
+
+  // 9. Bounce Back - most wins immediately after a loss
+  const matchHistory = new Map<number, { won: boolean; seasonNumber: number; week: number; matchId: number; name: string }[]>();
+  for (const m of nonForfeitMatches) {
+    if (!m.winnerId) continue;
+    const seasonNumber = seasonNumberById.get(m.seasonId) ?? 0;
+    for (const scId of [m.coach1SeasonId, m.coach2SeasonId]) {
+      const coach = scToCoach.get(scId);
+      if (!coach) continue;
+      const list = matchHistory.get(coach.coachId) || [];
+      list.push({
+        won: m.winnerId === scId,
+        seasonNumber,
+        week: m.week,
+        matchId: m.id,
+        name: coach.name,
+      });
+      matchHistory.set(coach.coachId, list);
+    }
+  }
+
+  const bounceBackMap = new Map<number, { count: number; name: string }>();
+  for (const [coachId, history] of matchHistory) {
+    const sortedHistory = history.sort((a, b) =>
+      a.seasonNumber - b.seasonNumber || a.week - b.week || a.matchId - b.matchId
+    );
+    let count = 0;
+    for (let i = 1; i < sortedHistory.length; i += 1) {
+      if (!sortedHistory[i - 1].won && sortedHistory[i].won) {
+        count += 1;
+      }
+    }
+    if (count > 0) {
+      bounceBackMap.set(coachId, { count, name: sortedHistory[0].name });
+    }
+  }
+  const topBounceBack = [...bounceBackMap.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topBounceBack) {
+    entries.push({
+      label: "Bounce Back",
+      value: `${topBounceBack[1].count} rebound wins`,
+      description: `${topBounceBack[1].name} wins most often right after a loss`,
+      coachName: topBounceBack[1].name,
+      coachId: topBounceBack[0],
+    });
+  }
+
+  // 10. Late Game Closer - most KOs after turn 20
+  const lateGameClosers = new Map<number, { count: number; name: string }>();
+  for (const k of s10KillEvents) {
+    if (!k.killerSeasonCoachId || k.turn <= 20 || !nonForfeitMatchIds.has(k.matchId)) continue;
+    const coach = scToCoach.get(k.killerSeasonCoachId);
+    if (!coach) continue;
+    const existing = lateGameClosers.get(coach.coachId) || { count: 0, name: coach.name };
+    existing.count += 1;
+    lateGameClosers.set(coach.coachId, existing);
+  }
+  const topLateGameCloser = [...lateGameClosers.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topLateGameCloser) {
+    entries.push({
+      label: "Late Game Closer",
+      value: `${topLateGameCloser[1].count} late KOs`,
+      description: `${topLateGameCloser[1].name} has the most KOs after turn 20`,
+      coachName: topLateGameCloser[1].name,
+      coachId: topLateGameCloser[0],
+    });
+  }
+
+  // 11. Most unique Pokemon used
   const scByCoach = new Map<number, number[]>();
   for (const sc of allSeasonCoaches) {
     if (!s10SeasonIds.has(sc.divisionId ? (allMatches.find(m => m.divisionId === sc.divisionId)?.seasonId || 0) : 0)) {

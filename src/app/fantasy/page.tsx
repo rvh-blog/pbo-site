@@ -728,6 +728,45 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
             ))}
           </div>
         </div>
+
+        <div className="section-title mt-5 border-t border-[var(--background-tertiary)] pt-5">
+          <div className="section-title-icon">
+            <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            </svg>
+          </div>
+          <h3>About</h3>
+        </div>
+        <div className="grid gap-3 text-sm leading-6 text-[var(--foreground-muted)] md:grid-cols-4">
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Scoring</h4>
+            <p>
+              Scoring is 5 per KO, -1 per death, +2 for a team win, and -2
+              for a team loss.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Ownership</h4>
+            <p>
+              Rostered percent is based on active teams in the selected season. Costs
+              come from season prices, with roster price used as a fallback.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Fantasy Rosters</h4>
+            <p>
+              Signed-in coaches and spectators can save one six-Pokemon roster per
+              season under the 90-point budget, then track it on the leaderboard.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Weekly PBO Coin</h4>
+            <p>
+              Each completed fantasy week awards 100 PBO Coin to the top roster,
+              50 to second place, and 25 to third place.
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="grid gap-3 md:grid-cols-4">
@@ -880,39 +919,6 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
         />
       </section>
 
-      <section className="poke-card p-4 sm:p-5">
-        <div className="section-title">
-          <div className="section-title-icon">
-            <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
-            </svg>
-          </div>
-          <h3>About</h3>
-        </div>
-        <div className="grid gap-3 text-sm leading-6 text-[var(--foreground-muted)] md:grid-cols-3">
-          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
-            <h4 className="mb-2 font-bold uppercase text-white">Scoring</h4>
-            <p>
-              Scoring is 5 per KO, -1 per death, +2 for a team win, and -2
-              for a team loss.
-            </p>
-          </div>
-          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
-            <h4 className="mb-2 font-bold uppercase text-white">Ownership</h4>
-            <p>
-              Rostered percent is based on active teams in the selected season. Costs
-              come from season prices, with roster price used as a fallback.
-            </p>
-          </div>
-          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
-            <h4 className="mb-2 font-bold uppercase text-white">Fantasy Rosters</h4>
-            <p>
-              Signed-in coaches and spectators can save one six-Pokemon roster per
-              season under the 90-point budget, then track it on the leaderboard.
-            </p>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

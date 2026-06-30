@@ -66,6 +66,8 @@ function getPlayerName(data: ParsedReplay, player: "p1" | "p2") {
   return player === "p1" ? data.p1Username || "Player 1" : data.p2Username || "Player 2";
 }
 
+const ANALYZER_CHECKS = ["Kills", "Deaths", "Damage", "Recovery", "HP timeline", "Key events"];
+
 function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
   return (
     <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] overflow-hidden">
@@ -80,10 +82,10 @@ function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
               <th className="px-4 py-3 text-left">Pokemon</th>
               <th className="px-3 py-3 text-right">K</th>
               <th className="px-3 py-3 text-right">D</th>
-              <th className="px-3 py-3 text-right">Direct dealt</th>
-              <th className="px-3 py-3 text-right">Indirect dealt</th>
-              <th className="px-3 py-3 text-right">Direct taken</th>
-              <th className="px-3 py-3 text-right">Indirect taken</th>
+              <th className="px-3 py-3 text-right">Dmg</th>
+              <th className="px-3 py-3 text-right">Indirect</th>
+              <th className="px-3 py-3 text-right">Taken</th>
+              <th className="px-3 py-3 text-right">Ind. Taken</th>
               <th className="px-3 py-3 text-right">Restored</th>
             </tr>
           </thead>
@@ -153,59 +155,71 @@ export function AnalyzerClient() {
   return (
     <main className="relative z-10 min-h-screen">
       <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8">
-        <section className="max-w-5xl">
-          <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--background-tertiary)] bg-[var(--glass)] px-3 py-1.5 text-xs font-black uppercase tracking-widest text-[var(--accent)]">
-            <BarChart3 className="h-4 w-4" />
-            Analyzer
-          </div>
-          <h1 className="mt-5 font-pixel text-2xl sm:text-4xl leading-relaxed text-white">
-            Showdown replay analyzer
-          </h1>
-          <p className="mt-4 max-w-3xl text-sm sm:text-base text-[var(--foreground-muted)]">
-            Paste any public Pokemon Showdown replay link to calculate kills, deaths, damage, recovery,
-            HP swing, and key events. This does not save the replay or match data.
-          </p>
-        </section>
-
-        <form
-          onSubmit={handleAnalyze}
-          className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 sm:p-5 shadow-xl"
-        >
-          <label htmlFor="replay-url" className="block text-xs font-black uppercase tracking-widest text-[var(--foreground-muted)]">
-            Replay link
-          </label>
-          <div className="mt-3 flex flex-col sm:flex-row gap-3">
-            <input
-              id="replay-url"
-              type="text"
-              value={replayUrl}
-              onChange={(event) => setReplayUrl(event.target.value)}
-              placeholder="https://replay.pokemonshowdown.com/gen9..."
-              className="min-w-0 flex-1 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[var(--foreground-subtle)] focus:border-[var(--primary)]"
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow-[4px_4px_0px_var(--primary-dark)] transition-all hover:translate-y-1 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              Analyze
-            </button>
-          </div>
-          {error && (
-            <div className="mt-4 flex items-start gap-2 rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-3 py-2 text-sm text-[var(--error)]">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
+        <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 shadow-xl sm:p-6">
+          <div className="max-w-5xl">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--background-tertiary)] bg-[var(--glass)] px-3 py-1.5 text-xs font-black uppercase tracking-widest text-[var(--accent)]">
+              <BarChart3 className="h-4 w-4" />
+              Analyzer
             </div>
-          )}
-        </form>
+            <h1 className="mt-5 font-pixel text-2xl leading-relaxed text-white sm:text-4xl">
+              Showdown replay analyzer
+            </h1>
+            <p className="mt-4 max-w-3xl text-sm text-[var(--foreground-muted)] sm:text-base">
+              Paste any public Pokemon Showdown replay link to calculate kills, deaths, damage,
+              recovery, HP swing, and key events.
+            </p>
+          </div>
+
+          <form onSubmit={handleAnalyze} className="mt-6">
+            <label htmlFor="replay-url" className="block text-xs font-black uppercase tracking-widest text-[var(--foreground-muted)]">
+              Replay link
+            </label>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+              <input
+                id="replay-url"
+                type="text"
+                value={replayUrl}
+                onChange={(event) => setReplayUrl(event.target.value)}
+                placeholder="https://replay.pokemonshowdown.com/gen9..."
+                className="min-w-0 flex-1 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[var(--foreground-subtle)] focus:border-[var(--primary)]"
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow-[4px_4px_0px_var(--primary-dark)] transition-all hover:translate-y-1 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                Analyze
+              </button>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {ANALYZER_CHECKS.map((check) => (
+                <span
+                  key={check}
+                  className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background)]/60 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--foreground-muted)]"
+                >
+                  {check}
+                </span>
+              ))}
+            </div>
+            <p className="mt-3 text-xs font-bold text-[var(--foreground-subtle)]">
+              Public Pokemon Showdown replay links only. Nothing is saved.
+            </p>
+            {error && (
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-3 py-2 text-sm text-[var(--error)]">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+          </form>
+        </section>
 
         {data && (
           <div className="space-y-8">
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
+              <div className="rounded-lg border-2 border-[var(--accent)]/50 bg-[var(--card)] p-4">
                 <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Winner</div>
-                <div className="mt-2 text-xl font-black text-white">{winnerName}</div>
+                <div className="mt-2 text-xl font-black text-[var(--accent)]">{winnerName}</div>
               </div>
               <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
                 <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Differential</div>
@@ -231,8 +245,13 @@ export function AnalyzerClient() {
 
             {data.turnSnapshots.length > 0 && (
               <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 sm:p-5">
-                <div className="mb-5 flex items-center justify-between gap-3">
-                  <h2 className="text-sm font-black uppercase tracking-wide text-white">HP timeline</h2>
+                <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-sm font-black uppercase tracking-wide text-white">Battle Timeline</h2>
+                    <p className="mt-1 text-xs font-bold text-[var(--foreground-muted)]">
+                      {data.p1Username || "Player 1"} vs {data.p2Username || "Player 2"}
+                    </p>
+                  </div>
                   {data.replayJsonUrl && (
                     <a
                       href={data.replayJsonUrl}

@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
-import { playoffMatches, rosters } from "@/lib/schema";
+import { playoffMatches } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { LeaderboardsClient } from "./leaderboards-client";
-import { getAllCoachCosmetics, GLOW_COLORS } from "@/lib/glow-utils";
+import { getAllCoachCosmetics } from "@/lib/glow-utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -242,7 +242,7 @@ async function getMostLovedPairs() {
   return Array.from(pairMap.values())
     .filter((p) => p.draftCount >= 2)
     .sort((a, b) => b.draftCount - a.draftCount)
-    .slice(0, 3);
+    .slice(0, 10);
 }
 
 export default async function LeaderboardsPage() {

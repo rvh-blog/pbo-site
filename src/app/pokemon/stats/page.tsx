@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { matchPokemon, killEvents, rosters, pokemon, seasonCoaches, matches } from "@/lib/schema";
-import { isNotNull, eq, and, isNull } from "drizzle-orm";
+import { matchPokemon, killEvents } from "@/lib/schema";
+import { isNotNull } from "drizzle-orm";
 import { PokemonStatsClient } from "./pokemon-stats-client";
 
 export const dynamic = "force-dynamic";
@@ -99,7 +99,7 @@ export interface MiscStatEntry {
   extra?: string;
 }
 
-async function getMiscStats(): Promise<MiscStatEntry[]> {
+export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
   const entries: MiscStatEntry[] = [];
 
   // Get S10+ season IDs first (needed to filter everything else)
@@ -348,13 +348,202 @@ async function getMiscStats(): Promise<MiscStatEntry[]> {
     });
   }
 
+  // 9. Wall - most damage taken per death, minimum 3 games and at least 1 death
+  const durabilityByPokemon = new Map<number, {
+    damageTaken: number;
+    deaths: number;
+    games: number;
+    pokemon: typeof allMP[0]['pokemon'];
+  }>();
+  for (const mp of allMP) {
+    if (!mp.pokemon) continue;
+    const existing = durabilityByPokemon.get(mp.pokemonId) || {
+      damageTaken: 0,
+      deaths: 0,
+      games: 0,
+      pokemon: mp.pokemon,
+    };
+    existing.damageTaken += (mp.damageTaken ?? 0) + (mp.damageTakenIndirect ?? 0);
+    existing.deaths += mp.deaths ?? 0;
+    existing.games += 1;
+    durabilityByPokemon.set(mp.pokemonId, existing);
+  }
+  const topWall = [...durabilityByPokemon.entries()]
+    .filter(([, v]) => v.games >= 3 && v.deaths > 0)
+    .sort((a, b) => (b[1].damageTaken / b[1].deaths) - (a[1].damageTaken / a[1].deaths))[0];
+  if (topWall && topWall[1].pokemon) {
+    const damagePerDeath = Math.round(topWall[1].damageTaken / topWall[1].deaths);
+    entries.push({
+      label: "Wall",
+      value: `${damagePerDeath} dmg/death`,
+      description: `${topWall[1].pokemon.displayName || topWall[1].pokemon.name} absorbs the most damage before going down`,
+      pokemon1: { name: topWall[1].pokemon.displayName || topWall[1].pokemon.name, spriteUrl: topWall[1].pokemon.spriteUrl },
+    });
+  }
+
+  // 10. Survivor - most games with 0 deaths
+  const survivorByPokemon = new Map<number, { count: number; pokemon: typeof allMP[0]['pokemon'] }>();
+  for (const mp of allMP) {
+    if (!mp.pokemon || (mp.deaths ?? 0) > 0) continue;
+    const existing = survivorByPokemon.get(mp.pokemonId);
+    survivorByPokemon.set(mp.pokemonId, {
+      count: (existing?.count || 0) + 1,
+      pokemon: mp.pokemon,
+    });
+  }
+  const topSurvivor = [...survivorByPokemon.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topSurvivor && topSurvivor[1].pokemon) {
+    entries.push({
+      label: "Survivor",
+      value: `${topSurvivor[1].count} deathless games`,
+      description: `${topSurvivor[1].pokemon.displayName || topSurvivor[1].pokemon.name} stays alive more often than anyone`,
+      pokemon1: { name: topSurvivor[1].pokemon.displayName || topSurvivor[1].pokemon.name, spriteUrl: topSurvivor[1].pokemon.spriteUrl },
+    });
+  }
+
+  // 11. Clean Game - most games with 1+ kills and 0 deaths
+  const cleanGamesByPokemon = new Map<number, { count: number; pokemon: typeof allMP[0]['pokemon'] }>();
+  for (const mp of allMP) {
+    if (!mp.pokemon || (mp.kills ?? 0) < 1 || (mp.deaths ?? 0) > 0) continue;
+    const existing = cleanGamesByPokemon.get(mp.pokemonId);
+    cleanGamesByPokemon.set(mp.pokemonId, {
+      count: (existing?.count || 0) + 1,
+      pokemon: mp.pokemon,
+    });
+  }
+  const topCleanGame = [...cleanGamesByPokemon.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topCleanGame && topCleanGame[1].pokemon) {
+    entries.push({
+      label: "Clean Game",
+      value: `${topCleanGame[1].count} clean games`,
+      description: `${topCleanGame[1].pokemon.displayName || topCleanGame[1].pokemon.name} gets KOs without fainting`,
+      pokemon1: { name: topCleanGame[1].pokemon.displayName || topCleanGame[1].pokemon.name, spriteUrl: topCleanGame[1].pokemon.spriteUrl },
+    });
+  }
+
+  // 12. Favorite Target - most common killer/victim Pokemon pairing
+  const targetPairs = new Map<string, {
+    count: number;
+    killer: typeof allKills[0]['killerPokemon'];
+    victim: typeof allKills[0]['victimPokemon'];
+  }>();
+  for (const kill of allKills) {
+    if (!kill.killerPokemonId || !kill.victimPokemonId || !kill.killerPokemon || !kill.victimPokemon) continue;
+    const key = `${kill.killerPokemonId}-${kill.victimPokemonId}`;
+    const existing = targetPairs.get(key);
+    targetPairs.set(key, {
+      count: (existing?.count || 0) + 1,
+      killer: kill.killerPokemon,
+      victim: kill.victimPokemon,
+    });
+  }
+  const topTargetPair = [...targetPairs.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topTargetPair && topTargetPair[1].killer && topTargetPair[1].victim) {
+    entries.push({
+      label: "Favorite Target",
+      value: `${topTargetPair[1].count} KOs`,
+      description: `${topTargetPair[1].killer.displayName || topTargetPair[1].killer.name} has KO'd ${topTargetPair[1].victim.displayName || topTargetPair[1].victim.name} the most`,
+      pokemon1: { name: topTargetPair[1].killer.displayName || topTargetPair[1].killer.name, spriteUrl: topTargetPair[1].killer.spriteUrl },
+      pokemon2: { name: topTargetPair[1].victim.displayName || topTargetPair[1].victim.name, spriteUrl: topTargetPair[1].victim.spriteUrl },
+    });
+  }
+
+  // 13. Sweep Threat - most games with 3+ kills
+  const sweepThreatByPokemon = new Map<number, { count: number; pokemon: typeof allMP[0]['pokemon'] }>();
+  for (const mp of allMP) {
+    if (!mp.pokemon || (mp.kills ?? 0) < 3) continue;
+    const existing = sweepThreatByPokemon.get(mp.pokemonId);
+    sweepThreatByPokemon.set(mp.pokemonId, {
+      count: (existing?.count || 0) + 1,
+      pokemon: mp.pokemon,
+    });
+  }
+  const topSweepThreat = [...sweepThreatByPokemon.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+  if (topSweepThreat && topSweepThreat[1].pokemon) {
+    entries.push({
+      label: "Sweep Threat",
+      value: `${topSweepThreat[1].count} sweep games`,
+      description: `${topSweepThreat[1].pokemon.displayName || topSweepThreat[1].pokemon.name} has the most games with 3+ KOs`,
+      pokemon1: { name: topSweepThreat[1].pokemon.displayName || topSweepThreat[1].pokemon.name, spriteUrl: topSweepThreat[1].pokemon.spriteUrl },
+    });
+  }
+
+  // 14. Punching Bag - most total damage taken
+  const damageTakenByPokemon = new Map<number, { damage: number; pokemon: typeof allMP[0]['pokemon'] }>();
+  for (const mp of allMP) {
+    if (!mp.pokemon) continue;
+    const existing = damageTakenByPokemon.get(mp.pokemonId);
+    damageTakenByPokemon.set(mp.pokemonId, {
+      damage: (existing?.damage || 0) + (mp.damageTaken ?? 0) + (mp.damageTakenIndirect ?? 0),
+      pokemon: mp.pokemon,
+    });
+  }
+  const topPunchingBag = [...damageTakenByPokemon.entries()].sort((a, b) => b[1].damage - a[1].damage)[0];
+  if (topPunchingBag && topPunchingBag[1].pokemon) {
+    entries.push({
+      label: "Punching Bag",
+      value: `${Math.round(topPunchingBag[1].damage)} damage taken`,
+      description: `${topPunchingBag[1].pokemon.displayName || topPunchingBag[1].pokemon.name} has soaked up the most damage`,
+      pokemon1: { name: topPunchingBag[1].pokemon.displayName || topPunchingBag[1].pokemon.name, spriteUrl: topPunchingBag[1].pokemon.spriteUrl },
+    });
+  }
+
+  // 15. Chip Monster - most indirect damage dealt
+  const chipDamageByPokemon = new Map<number, { damage: number; pokemon: typeof allMP[0]['pokemon'] }>();
+  for (const mp of allMP) {
+    if (!mp.pokemon) continue;
+    const existing = chipDamageByPokemon.get(mp.pokemonId);
+    chipDamageByPokemon.set(mp.pokemonId, {
+      damage: (existing?.damage || 0) + (mp.damageDealtIndirect ?? 0),
+      pokemon: mp.pokemon,
+    });
+  }
+  const topChipMonster = [...chipDamageByPokemon.entries()].sort((a, b) => b[1].damage - a[1].damage)[0];
+  if (topChipMonster && topChipMonster[1].pokemon && topChipMonster[1].damage > 0) {
+    entries.push({
+      label: "Chip Monster",
+      value: `${Math.round(topChipMonster[1].damage)} indirect damage`,
+      description: `${topChipMonster[1].pokemon.displayName || topChipMonster[1].pokemon.name} leads the league in indirect damage`,
+      pokemon1: { name: topChipMonster[1].pokemon.displayName || topChipMonster[1].pokemon.name, spriteUrl: topChipMonster[1].pokemon.spriteUrl },
+    });
+  }
+
+  // 16. Medic - most HP restored per game, minimum 3 games
+  const healingByPokemon = new Map<number, {
+    healing: number;
+    games: number;
+    pokemon: typeof allMP[0]['pokemon'];
+  }>();
+  for (const mp of allMP) {
+    if (!mp.pokemon) continue;
+    const existing = healingByPokemon.get(mp.pokemonId) || {
+      healing: 0,
+      games: 0,
+      pokemon: mp.pokemon,
+    };
+    existing.healing += mp.hpRestored ?? 0;
+    existing.games += 1;
+    healingByPokemon.set(mp.pokemonId, existing);
+  }
+  const topMedic = [...healingByPokemon.entries()]
+    .filter(([, v]) => v.games >= 3 && v.healing > 0)
+    .sort((a, b) => (b[1].healing / b[1].games) - (a[1].healing / a[1].games))[0];
+  if (topMedic && topMedic[1].pokemon) {
+    const healingPerGame = Math.round(topMedic[1].healing / topMedic[1].games);
+    entries.push({
+      label: "Medic",
+      value: `${healingPerGame} HP/game`,
+      description: `${topMedic[1].pokemon.displayName || topMedic[1].pokemon.name} restores the most HP per game`,
+      pokemon1: { name: topMedic[1].pokemon.displayName || topMedic[1].pokemon.name, spriteUrl: topMedic[1].pokemon.spriteUrl },
+    });
+  }
+
   return entries;
 }
 
 export default async function PokemonStatsPage() {
-  const [stats, miscStats, filterOptions] = await Promise.all([
+  const [stats, filterOptions] = await Promise.all([
     getPokemonBattleStats(),
-    getMiscStats(),
     getSeasonsAndDivisions(),
   ]);
 
@@ -381,7 +570,6 @@ export default async function PokemonStatsPage() {
 
       <PokemonStatsClient
         stats={stats}
-        miscStats={miscStats}
         seasons={filterOptions.seasons}
         divisions={filterOptions.divisions}
       />

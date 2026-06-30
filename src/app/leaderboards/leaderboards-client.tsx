@@ -284,15 +284,6 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
                 </div>
                 <h3>Coach Rankings</h3>
               </div>
-              <Link
-                href="/coaches/stats"
-                className="flex items-center gap-1.5 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors font-bold"
-              >
-                More Stats
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
             </div>
             {/* Sort Buttons */}
             <div className="flex flex-wrap items-center gap-2">
@@ -309,6 +300,12 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
                   {opt.label}
                 </button>
               ))}
+              <Link
+                href="/coaches/stats"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--primary)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary-hover)]"
+              >
+                Fun Facts
+              </Link>
               {coachSort === "winRate" && (
                 <div className="flex items-center gap-1.5 ml-auto">
                   <label className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide font-bold whitespace-nowrap">
@@ -453,6 +450,12 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
                   {opt.label}
                 </button>
               ))}
+              <Link
+                href="/pokemon/stats/fun-facts"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--primary)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary-hover)]"
+              >
+                Fun Facts
+              </Link>
               {pokemonSort === "winRate" && (
                 <div className="flex items-center gap-1.5 ml-auto">
                   <label className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide font-bold whitespace-nowrap">
@@ -587,7 +590,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
               <div className="flex-1">Coach + Pokemon</div>
               <div className="w-24 text-right">Times Drafted</div>
             </div>
-            <div className="space-y-1">
+            <div className="max-h-[360px] space-y-1 overflow-y-auto pr-1">
               {mostLovedPairs.map((pair, index) => (
                 <div
                   key={`${pair.coachId}-${pair.pokemonId}`}
