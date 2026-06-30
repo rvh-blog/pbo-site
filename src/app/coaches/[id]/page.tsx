@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
-import { coaches, eloHistory, seasonCoaches, matches, rosters, seasonPokemonPrices, matchPokemon, transactions, pokemon, playoffMatches, bets, killBets, deathBets, coachPurchases, storeItems, pickEmParticipants, triviaRewards } from "@/lib/schema";
+import { coaches, eloHistory, seasonCoaches, matches, rosters, seasonPokemonPrices, matchPokemon, transactions, pokemon, playoffMatches, bets, killBets, deathBets, coachPurchases, storeItems, pickEmParticipants, triviaRewards, fantasyRewards } from "@/lib/schema";
 import * as schema from "@/lib/schema";
 import { eq, desc, asc, and, inArray, or, isNotNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -12,9 +12,11 @@ import { SeasonSelector } from "@/components/season-selector";
 import { MoveDataProvider, MoveDataToggleButton, MoveIcons } from "@/components/extended-icons-toggle";
 import { MobileTooltip } from "@/components/mobile-tooltip";
 import { CoachStoreButton } from "@/components/coach-store-button";
+import { LogoFrame } from "@/components/logo-frame";
 import { ProjectMewConfirmation } from "@/components/project-mew-confirmation";
 import { getSession } from "@/lib/session";
 import { isProjectMewReleased } from "@/lib/project-mew";
+import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
 
 // Hazard move categories
 const HAZARD_REMOVAL_MOVES = [
@@ -525,7 +527,7 @@ async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publi
   const publicSeasonIdSet = new Set(publicSeasonIds);
 
   // Get all bets, store purchases, pick-em rewards, and trivia rewards for this coach in parallel
-  const [coachBets, coachKillBets, coachDeathBets, purchases, allMatches, pickEmParticipants, coachTriviaRewards] = await Promise.all([
+  const [coachBets, coachKillBets, coachDeathBets, purchases, allMatches, pickEmParticipants, coachTriviaRewards, coachFantasyRewards] = await Promise.all([
     db.query.bets.findMany({
       where: eq(bets.coachId, coachId),
     }),
@@ -552,6 +554,9 @@ async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publi
     }),
     db.query.triviaRewards.findMany({
       where: eq(triviaRewards.coachId, coachId),
+    }),
+    db.query.fantasyRewards.findMany({
+      where: eq(fantasyRewards.coachId, coachId),
     }),
   ]);
 
@@ -639,6 +644,14 @@ async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publi
     amount: r.amount,
     reason: r.reason,
   }));
+  const publicFantasyRewards = coachFantasyRewards.filter((r) =>
+    publicSeasonIdSet.has(r.seasonId)
+  );
+  const fantasyRewardsTotal = publicFantasyRewards.reduce((sum, r) => sum + r.amount, 0);
+  const fantasyRewardsList = publicFantasyRewards.map((r) => ({
+    amount: r.amount,
+    reason: r.reason,
+  }));
 
   return {
     starting: STARTING_COINS,
@@ -646,12 +659,14 @@ async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publi
     matchesPlayed,
     bettingProfit,
     pickEmRewards: pickEmRewardsTotal,
+    fantasyRewards: fantasyRewardsTotal,
+    fantasyRewardsList,
     triviaRewards: triviaRewardsTotal,
     triviaRewardsList,
     storePurchases: storePurchasesTotal,
     storePurchasesList,
     bonusPurchasesList,
-    total: STARTING_COINS + matchCoins + bettingProfit + pickEmRewardsTotal + triviaRewardsTotal - storePurchasesTotal,
+    total: STARTING_COINS + matchCoins + bettingProfit + pickEmRewardsTotal + fantasyRewardsTotal + triviaRewardsTotal - storePurchasesTotal,
   };
 }
 
@@ -879,6 +894,27 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
   const hasTwitchBadge = coachStorePurchases.some(
     (p) => p.item?.slug === "twitch-badge" && p.isActive
   );
+
+  const activeLogoFramePurchase = coachStorePurchases.find(
+    (p) =>
+      p.isActive &&
+      p.item?.category === "logo_frame" &&
+      (p.item.isActive ||
+        (p.item.slug === CHAMPION_GOLD_LOGO_FRAME_SLUG &&
+          championships.length > 0)) &&
+      isLogoFrameSlug(p.item.slug)
+  );
+  const activeLogoFrameSlug = activeLogoFramePurchase?.item?.slug;
+  const activeLogoFrameColors = parseLogoFrameColors(
+    activeLogoFramePurchase?.borderColor
+  );
+  const profileLogoFrameSlug =
+    activeLogoFrameSlug ||
+    (championships.length > 0 ? CHAMPION_GOLD_LOGO_FRAME_SLUG : undefined);
+  const profileLogoFrameColors =
+    activeLogoFrameSlug === CHAMPION_GOLD_LOGO_FRAME_SLUG
+      ? null
+      : activeLogoFrameColors;
 
   // Get opponent Pokemon data for nemesis stats
   const matchIds = coachMatches.map((m) => m.id);
@@ -1289,21 +1325,33 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
             {/* Team Logo / Avatar */}
             <div className="relative shrink-0">
               {mostRecentSeasonEntry?.teamLogoUrl ? (
-                <div className="w-24 h-24 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-lg bg-[var(--background-secondary)] flex items-center justify-center border-2 border-[var(--background-tertiary)] overflow-hidden">
-                  <Image
-                    src={mostRecentSeasonEntry.teamLogoUrl}
-                    alt={mostRecentSeasonEntry.teamName}
-                    width={96}
-                    height={96}
-                    className="object-contain"
-                  />
-                </div>
+                <LogoFrame
+                  slug={profileLogoFrameSlug}
+                  colors={profileLogoFrameColors}
+                  className="w-24 h-24 sm:w-20 sm:h-20 md:w-24 md:h-24"
+                >
+                  <div className="w-full h-full rounded-lg bg-[var(--background-secondary)] flex items-center justify-center border-2 border-[var(--background-tertiary)] overflow-hidden">
+                    <Image
+                      src={mostRecentSeasonEntry.teamLogoUrl}
+                      alt={mostRecentSeasonEntry.teamName}
+                      width={96}
+                      height={96}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </LogoFrame>
               ) : (
-                <div className="w-24 h-24 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--gradient-end)] flex items-center justify-center border-2 border-[var(--background-tertiary)]">
-                  <span className="text-white text-3xl sm:text-2xl md:text-3xl font-black">
-                    {mostRecentSeasonEntry?.teamAbbreviation || mostRecentSeasonEntry?.teamName?.substring(0, 2).toUpperCase() || coach.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                <LogoFrame
+                  slug={profileLogoFrameSlug}
+                  colors={profileLogoFrameColors}
+                  className="w-24 h-24 sm:w-20 sm:h-20 md:w-24 md:h-24"
+                >
+                  <div className="w-full h-full rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--gradient-end)] flex items-center justify-center border-2 border-[var(--background-tertiary)]">
+                    <span className="text-white text-3xl sm:text-2xl md:text-3xl font-black">
+                      {mostRecentSeasonEntry?.teamAbbreviation || mostRecentSeasonEntry?.teamName?.substring(0, 2).toUpperCase() || coach.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                </LogoFrame>
               )}
               {/* Rank indicator for top ELO */}
               {currentElo >= 1100 && (
@@ -1659,6 +1707,24 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                         <span className="text-[var(--foreground-muted)]">Pick-em rewards</span>
                         <span className="text-[var(--success)] font-mono">+{coinBreakdown.pickEmRewards}</span>
                       </div>
+                    )}
+                    {coinBreakdown.fantasyRewards > 0 && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-[var(--foreground-muted)]">Fantasy rewards</span>
+                          <span className="text-[var(--success)] font-mono">+{coinBreakdown.fantasyRewards}</span>
+                        </div>
+                        {coinBreakdown.fantasyRewardsList.length > 0 && (
+                          <div className="pl-3 space-y-0.5">
+                            {coinBreakdown.fantasyRewardsList.map((reward, idx) => (
+                              <div key={idx} className="flex justify-between text-[10px]">
+                                <span className="text-[var(--foreground-muted)]">{reward.reason}</span>
+                                <span className="text-[var(--success)] font-mono">+{reward.amount}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                     {coinBreakdown.triviaRewards > 0 && (
                       <>

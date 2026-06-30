@@ -2,6 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  EARNED_LOGO_FRAME_ITEMS,
+  getDefaultLogoFrameColors,
+  getLogoFrameStyle,
+  isCustomizableLogoFrameSlug,
+  isLogoFrameSlug,
+  parseLogoFrameColors,
+} from "@/lib/logo-frame-items";
 
 // Glow color options
 const GLOW_COLORS = {
@@ -58,6 +66,13 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
   const [toggling, setToggling] = useState<number | null>(null);
   const [savingColor, setSavingColor] = useState(false);
   const [error, setError] = useState("");
+
+  const getDeactivatedPurchaseIds = (data: { deactivatedPurchaseId?: number | null; deactivatedPurchaseIds?: number[] }) => {
+    const ids = new Set<number>();
+    if (data.deactivatedPurchaseId) ids.add(data.deactivatedPurchaseId);
+    for (const id of data.deactivatedPurchaseIds || []) ids.add(id);
+    return ids;
+  };
 
   // Fetch store items and inventory on open
   useEffect(() => {
@@ -117,11 +132,12 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
       // Update balance and inventory
       onBalanceChange(data.newBalance);
       setInventory((prev) => {
-        // If a purchase was deactivated (blue/red team mutual exclusivity), update it
+        // If a mutually exclusive item was deactivated, update it locally.
         let updated = prev;
-        if (data.deactivatedPurchaseId) {
+        const deactivatedPurchaseIds = getDeactivatedPurchaseIds(data);
+        if (deactivatedPurchaseIds.size > 0) {
           updated = prev.map((p) =>
-            p.id === data.deactivatedPurchaseId ? { ...p, isActive: false } : p
+            deactivatedPurchaseIds.has(p.id) ? { ...p, isActive: false } : p
           );
         }
         return [
@@ -140,7 +156,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           ...updated,
         ];
       });
-    } catch (err) {
+    } catch {
       setError("Purchase failed. Please try again.");
     } finally {
       setPurchasing(null);
@@ -171,7 +187,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           p.itemSlug === "row-background" ? { ...p, bgColor: color } : p
         )
       );
-    } catch (err) {
+    } catch {
       setError("Failed to save color. Please try again.");
     } finally {
       setSavingColor(false);
@@ -202,7 +218,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           p.itemSlug === "row-border" ? { ...p, borderColor: color } : p
         )
       );
-    } catch (err) {
+    } catch {
       setError("Failed to save color. Please try again.");
     } finally {
       setSavingColor(false);
@@ -227,19 +243,20 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
         return;
       }
 
-      // Update inventory (also handle deactivated opposite team item)
+      // Update inventory and any item disabled by mutual exclusivity.
+      const deactivatedPurchaseIds = getDeactivatedPurchaseIds(data);
       setInventory((prev) =>
         prev.map((p) => {
           if (p.id === purchaseId) {
             return { ...p, isActive: newState };
           }
-          if (data.deactivatedPurchaseId && p.id === data.deactivatedPurchaseId) {
+          if (deactivatedPurchaseIds.has(p.id)) {
             return { ...p, isActive: false };
           }
           return p;
         })
       );
-    } catch (err) {
+    } catch {
       setError("Failed to toggle item. Please try again.");
     } finally {
       setToggling(null);
@@ -270,8 +287,56 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           p.itemSlug === "team-name-glow" ? { ...p, glowColor: color } : p
         )
       );
-    } catch (err) {
+    } catch {
       setError("Failed to save color. Please try again.");
+    } finally {
+      setSavingColor(false);
+    }
+  };
+
+  const handleLogoFrameColorChange = async (
+    itemSlug: string,
+    colorIndex: number,
+    color: string
+  ) => {
+    if (!isCustomizableLogoFrameSlug(itemSlug)) return;
+
+    const purchase = getPurchase(itemSlug);
+    if (!purchase) return;
+
+    const currentColors =
+      parseLogoFrameColors(purchase.borderColor) ||
+      getDefaultLogoFrameColors(itemSlug);
+    const nextColors = currentColors.map((currentColor, index) =>
+      index === colorIndex ? color : currentColor
+    );
+
+    setSavingColor(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/store/logo-frame-colors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemSlug, colors: nextColors }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to save logo frame colors");
+        return;
+      }
+
+      setInventory((prev) =>
+        prev.map((p) =>
+          p.itemSlug === itemSlug
+            ? { ...p, borderColor: JSON.stringify(nextColors) }
+            : p
+        )
+      );
+    } catch {
+      setError("Failed to save logo frame colors. Please try again.");
     } finally {
       setSavingColor(false);
     }
@@ -282,6 +347,16 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
 
   const getPurchase = (itemSlug: string) =>
     inventory.find((p) => p.itemSlug === itemSlug);
+
+  const logoFrameItems = items.filter((item) => isLogoFrameSlug(item.slug));
+  const earnedLogoFrameItems = EARNED_LOGO_FRAME_ITEMS.filter(
+    (earnedItem) => !logoFrameItems.some((item) => item.slug === earnedItem.slug)
+  ).map((item, index) => ({
+    ...item,
+    id: -1000 - index,
+  }));
+  const displayLogoFrameItems = [...logoFrameItems, ...earnedLogoFrameItems];
+  const standardItems = items.filter((item) => !isLogoFrameSlug(item.slug));
 
   if (!isOpen) return null;
 
@@ -336,7 +411,191 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                   No items available yet. Check back soon!
                 </p>
               ) : (
-                items.map((item) => {
+                <>
+                  {displayLogoFrameItems.length > 0 && (
+                    <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)]">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-slate-200/25 via-cyan-400/20 to-amber-300/25 text-cyan-200">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 8h8v8H8z" />
+                          </svg>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">Logo Frames</h3>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--background-tertiary)] text-[var(--foreground-muted)]">
+                              {logoFrameItems.filter((item) => isOwned(item.slug)).length}/{logoFrameItems.length} owned
+                            </span>
+                          </div>
+                          <p className="text-sm text-[var(--foreground-muted)] mt-1">
+                            Permanent logo cosmetics. Only one logo frame can be active at a time.
+                          </p>
+
+                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                            {displayLogoFrameItems.map((item) => {
+                              const owned = isOwned(item.slug);
+                              const purchase = getPurchase(item.slug);
+                              const canAfford = balance >= item.price;
+                              const isEarnedOnly = item.slug === "logo-frame-champion-gold";
+                              const logoFrameColors = isCustomizableLogoFrameSlug(item.slug)
+                                ? parseLogoFrameColors(purchase?.borderColor) ||
+                                  getDefaultLogoFrameColors(item.slug)
+                                : null;
+                              const frameStyle = getLogoFrameStyle(item.slug, logoFrameColors);
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  className={`flex items-center gap-3 p-3 rounded-lg border ${
+                                    purchase?.isActive
+                                      ? "border-[var(--accent)]/50 bg-[var(--accent)]/10"
+                                      : owned
+                                      ? "border-[var(--success)]/30 bg-[var(--success)]/5"
+                                      : "border-[var(--card-border)] bg-[var(--background-tertiary)]/40"
+                                  }`}
+                                >
+                                  <div className="min-w-0 flex-1 text-center">
+                                    <p className="text-sm font-semibold leading-tight">{item.name.replace(" Logo Frame", "")}</p>
+                                    <p className="mt-1 text-xs leading-snug text-[var(--foreground-muted)]">{item.description}</p>
+                                  </div>
+
+                                  <div className="shrink-0 flex flex-col items-center gap-2">
+                                    <div
+                                      className={`w-12 h-12 rounded-xl p-1.5 shrink-0 ${frameStyle.ringClass}`}
+                                      style={"ringStyle" in frameStyle ? frameStyle.ringStyle : undefined}
+                                    >
+                                      <div
+                                        className={`w-full h-full rounded-lg bg-[var(--background-secondary)] flex items-center justify-center ${frameStyle.innerClass}`}
+                                      >
+                                        <span className="text-[8px] font-bold text-white">LOGO</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-col items-center gap-1.5">
+                                      {purchase?.isActive ? (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)]">
+                                          Active
+                                        </span>
+                                      ) : isEarnedOnly && owned ? (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300">
+                                          Earned
+                                        </span>
+                                      ) : isEarnedOnly ? (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--background-secondary)] text-[var(--foreground-muted)]">
+                                          Earned-only
+                                        </span>
+                                      ) : owned ? (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--success)]/20 text-[var(--success)]">
+                                          Owned
+                                        </span>
+                                      ) : null}
+                                      {isEarnedOnly && owned && purchase ? (
+                                        <button
+                                          onClick={() => handleToggle(purchase.id, !purchase.isActive)}
+                                          disabled={toggling === purchase.id}
+                                          className={`relative w-10 h-5 rounded-full transition-colors ${
+                                            purchase.isActive
+                                              ? "bg-[var(--success)]"
+                                              : "bg-[var(--background-secondary)]"
+                                          } ${toggling === purchase.id ? "opacity-50" : ""}`}
+                                          title={purchase.isActive ? "Turn off" : "Make active"}
+                                        >
+                                          <span
+                                            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                                              purchase.isActive ? "left-5" : "left-0.5"
+                                            }`}
+                                          />
+                                        </button>
+                                      ) : isEarnedOnly ? (
+                                        <div className="text-center text-[10px] leading-tight text-[var(--foreground-muted)] max-w-20">
+                                          Win a championship
+                                        </div>
+                                      ) : owned && purchase ? (
+                                        <button
+                                          onClick={() => handleToggle(purchase.id, !purchase.isActive)}
+                                          disabled={toggling === purchase.id}
+                                          className={`relative w-10 h-5 rounded-full transition-colors ${
+                                            purchase.isActive
+                                            ? "bg-[var(--success)]"
+                                            : "bg-[var(--background-secondary)]"
+                                          } ${toggling === purchase.id ? "opacity-50" : ""}`}
+                                          title={purchase.isActive ? "Turn off" : "Make active"}
+                                        >
+                                          <span
+                                            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                                              purchase.isActive ? "left-5" : "left-0.5"
+                                            }`}
+                                          />
+                                        </button>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handlePurchase(item.slug)}
+                                          disabled={!canAfford || purchasing === item.slug}
+                                          className={`px-2.5 h-7 ${!canAfford ? "opacity-50 cursor-not-allowed" : ""}`}
+                                        >
+                                          {purchasing === item.slug ? (
+                                            <span className="flex items-center gap-1">
+                                              <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full" />
+                                              ...
+                                            </span>
+                                          ) : (
+                                            <span className="flex items-center gap-1">
+                                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                                <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.3"/>
+                                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
+                                                <text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="bold" fill="currentColor">P</text>
+                                              </svg>
+                                              {item.price}
+                                            </span>
+                                          )}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {owned && purchase && isCustomizableLogoFrameSlug(item.slug) && logoFrameColors && (
+                                    <div className="pt-2 border-t border-[var(--card-border)]">
+                                      <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">
+                                        Custom Colors
+                                      </p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {logoFrameColors.map((color, index) => (
+                                          <label
+                                            key={`${item.slug}-${index}`}
+                                            className="flex items-center gap-1.5 text-[10px] text-[var(--foreground-muted)]"
+                                          >
+                                            <input
+                                              type="color"
+                                              value={color}
+                                              disabled={savingColor}
+                                              onChange={(event) =>
+                                                handleLogoFrameColorChange(
+                                                  item.slug,
+                                                  index,
+                                                  event.target.value
+                                                )
+                                              }
+                                              className="h-7 w-8 rounded border border-[var(--card-border)] bg-transparent p-0.5"
+                                            />
+                                            {index + 1}
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {standardItems.map((item) => {
                   const owned = isOwned(item.slug);
                   const purchase = getPurchase(item.slug);
                   const canAfford = balance >= item.price;
@@ -367,6 +626,8 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                             ? "bg-gradient-to-br from-yellow-500/30 to-green-500/30 text-yellow-300"
                             : item.slug === "mister-moneybags"
                             ? "bg-gradient-to-br from-yellow-400/30 to-amber-600/30 text-yellow-400"
+                            : isLogoFrameSlug(item.slug)
+                            ? "bg-gradient-to-br from-slate-200/25 via-cyan-400/20 to-amber-300/25 text-cyan-200"
                             : item.category === "visibility"
                             ? "bg-purple-500/20 text-purple-400"
                             : "bg-[var(--primary)]/20 text-[var(--primary)]"
@@ -398,6 +659,11 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                           ) : item.slug === "mister-moneybags" ? (
                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.39 4.18 3.91c-.01 1.83-1.38 2.83-3.12 3.16z" />
+                            </svg>
+                          ) : isLogoFrameSlug(item.slug) ? (
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 8h8v8H8z" />
                             </svg>
                           ) : item.category === "visibility" ? (
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -431,7 +697,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               <ul className="space-y-0.5 list-disc list-inside">
                                 <li>Top 3 trainers show top two types for free</li>
                                 <li>Ranks 4-5 show their top used type</li>
-                                <li>Ranks 6+ show "Normal" by default</li>
+                                <li>Ranks 6+ show &quot;Normal&quot; by default</li>
                                 <li className="text-purple-400">With this upgrade, show your top two types at any rank</li>
                               </ul>
                             </div>
@@ -449,6 +715,28 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                                 />
                                 <p className="text-xs text-[var(--foreground-muted)]">
                                   Displayed on your coach profile alongside championship badges
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Logo Frame Preview */}
+                          {isLogoFrameSlug(item.slug) && (
+                            <div className="mt-2 p-3 rounded bg-[var(--background-tertiary)]/50">
+                              <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Frame Preview</p>
+                              <div className="flex items-center gap-3">
+                                {(() => {
+                                  const frameStyle = getLogoFrameStyle(item.slug);
+                                  return (
+                                    <div className={`w-16 h-16 rounded-xl p-1.5 ${frameStyle.ringClass}`}>
+                                      <div className={`w-full h-full rounded-lg bg-[var(--background-secondary)] flex items-center justify-center ${frameStyle.innerClass}`}>
+                                        <span className="text-[10px] font-bold text-white">LOGO</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                                <p className="text-xs text-[var(--foreground-muted)]">
+                                  Logo frames are permanent purchases. Turning one on will turn your other logo frames off.
                                 </p>
                               </div>
                             </div>
@@ -771,7 +1059,8 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                       </div>
                     </div>
                   );
-                })
+                  })}
+                </>
               )}
 
               {/* Coming Soon */}

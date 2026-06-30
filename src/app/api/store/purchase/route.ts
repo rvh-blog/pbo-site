@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { storeItems, coachPurchases, coaches, bets } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 
@@ -99,8 +99,9 @@ export async function POST(request: NextRequest) {
       .set({ pboCoin: newBalance })
       .where(eq(coaches.id, session.id));
 
-    // Track which purchase was deactivated
+    // Track which purchases were deactivated by mutually exclusive cosmetics
     let deactivatedPurchaseId: number | null = null;
+    let deactivatedPurchaseIds: number[] = [];
 
     // If purchasing blue-team or red-team, deactivate the opposite
     if (item.slug === "blue-team" || item.slug === "red-team") {
@@ -127,6 +128,37 @@ export async function POST(request: NextRequest) {
             .set({ isActive: false })
             .where(eq(coachPurchases.id, oppositePurchase.id));
           deactivatedPurchaseId = oppositePurchase.id;
+          deactivatedPurchaseIds = [oppositePurchase.id];
+        }
+      }
+    }
+
+    if (item.category === "logo_frame") {
+      const logoFrameItems = await db.query.storeItems.findMany({
+        where: eq(storeItems.category, "logo_frame"),
+        columns: { id: true },
+      });
+      const logoFrameItemIds = logoFrameItems
+        .map((logoFrameItem) => logoFrameItem.id)
+        .filter((id) => id !== item.id);
+
+      if (logoFrameItemIds.length > 0) {
+        const activeLogoFramePurchases = await db.query.coachPurchases.findMany({
+          where: and(
+            eq(coachPurchases.coachId, session.id),
+            inArray(coachPurchases.itemId, logoFrameItemIds),
+            eq(coachPurchases.isActive, true)
+          ),
+          columns: { id: true },
+        });
+
+        if (activeLogoFramePurchases.length > 0) {
+          const activeLogoFramePurchaseIds = activeLogoFramePurchases.map((purchase) => purchase.id);
+          await db
+            .update(coachPurchases)
+            .set({ isActive: false })
+            .where(inArray(coachPurchases.id, activeLogoFramePurchaseIds));
+          deactivatedPurchaseIds = [...deactivatedPurchaseIds, ...activeLogoFramePurchaseIds];
         }
       }
     }
@@ -150,6 +182,7 @@ export async function POST(request: NextRequest) {
         name: item.name,
       },
       deactivatedPurchaseId,
+      deactivatedPurchaseIds,
     });
   } catch (error) {
     console.error("Purchase error:", error);

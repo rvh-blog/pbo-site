@@ -14,6 +14,71 @@ async function getCurrentSeason() {
   });
 }
 
+const season11Checklist = [
+  {
+    title: "League Setup",
+    items: [
+      "Create the Season 11 record and divisions.",
+      "Add teams as season coaches using the correct persistent coach account.",
+      "Confirm team names, abbreviations, logos, divisions, and replacement links.",
+      "Confirm Season 11 is marked current only when launch data is ready.",
+    ],
+  },
+  {
+    title: "ELO",
+    items: [
+      "Verify dynamic placement ELO for each Season 11 division.",
+      "Exclude new placements from each division average.",
+      "Spot-check average minus 100, rounded to the nearest 25.",
+      "Run a full ELO recalculation on a copied database before production recalculation.",
+    ],
+  },
+  {
+    title: "Draft And Rosters",
+    items: [
+      "Import Season 11 Pokemon prices, bans, tera bans, and tera captain costs.",
+      "Create initial rosters using Season 11 season_coaches IDs.",
+      "Check roster limits, remaining budget, and tera captains.",
+      "Confirm free agent pools are division-specific.",
+    ],
+  },
+  {
+    title: "Schedule And Results",
+    items: [
+      "Import Season 11 schedule with correct season, division, and season coach IDs.",
+      "Check week numbers, dates, playoff weeks, and Game of the Week flags.",
+      "Test replay parser and match report output on a Season 11 match.",
+      "Confirm turns logic and updated report format apply only Season 11 onward.",
+    ],
+  },
+  {
+    title: "Betting And Pick-Ems",
+    items: [
+      "Confirm Season 11 pick-em participants and settings.",
+      "Verify winner, kill, and death betting use Season 11 matches and rosters.",
+      "Test one local match result settlement for bets, coins, and pick-em rewards.",
+    ],
+  },
+  {
+    title: "Blog And Admin Access",
+    items: [
+      "Grant blog posting permission only to approved coaches.",
+      "Confirm admins can publish posts with images.",
+      "Confirm approved coaches can publish text posts only.",
+      "Confirm signed-in users can comment and reply, and admins can delete comments.",
+    ],
+  },
+  {
+    title: "Pre-Launch Verification",
+    items: [
+      "Run TypeScript, targeted ESLint, and production build.",
+      "Back up production DB before imports, migrations, or recalculations.",
+      "Browse Season 11 public pages and admin pages after deploy.",
+      "Check /api/health, blog, divisions, rosters, schedule, and admin matches.",
+    ],
+  },
+];
+
 export default async function AdminDashboard() {
   const authenticated = await isAuthenticated();
 
@@ -169,7 +234,7 @@ export default async function AdminDashboard() {
         <CardHeader>
           <CardTitle>Utilities</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="p-4 rounded-lg border border-[var(--background-tertiary)]">
             <div className="flex items-start gap-4">
               <div className="w-8 h-8 rounded-full bg-[var(--accent)] text-white flex items-center justify-center font-bold shrink-0">
@@ -185,6 +250,59 @@ export default async function AdminDashboard() {
                 <Link href="/admin/coaches">
                   <Button variant="outline" size="sm">Go to Coaches</Button>
                 </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg border border-[var(--background-tertiary)]">
+            <div className="flex items-start gap-4">
+              <div className="w-8 h-8 rounded-full bg-[var(--accent)] text-white flex items-center justify-center font-bold shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="font-semibold">Season 11 Launch Checklist</p>
+                    <p className="text-sm text-[var(--foreground-muted)]">
+                      Use this as the admin pre-launch pass before Season 11 data goes live.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href="/admin/seasons">
+                      <Button variant="outline" size="sm">Seasons</Button>
+                    </Link>
+                    <Link href="/admin/rosters">
+                      <Button variant="outline" size="sm">Rosters</Button>
+                    </Link>
+                    <Link href="/admin/matches">
+                      <Button variant="outline" size="sm">Matches</Button>
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  {season11Checklist.map((section) => (
+                    <div
+                      key={section.title}
+                      className="rounded-lg bg-[var(--background-secondary)] p-3"
+                    >
+                      <p className="text-sm font-semibold text-white">{section.title}</p>
+                      <div className="mt-3 space-y-2">
+                        {section.items.map((item) => (
+                          <label key={item} className="flex items-start gap-2 text-sm text-[var(--foreground-muted)]">
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 rounded border-[var(--background-tertiary)] accent-[var(--primary)]"
+                            />
+                            <span>{item}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

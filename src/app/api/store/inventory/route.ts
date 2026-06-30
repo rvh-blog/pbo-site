@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { coachPurchases, coaches, users } from "@/lib/schema";
+import { coachPurchases, coaches, storeItems, users } from "@/lib/schema";
 import { getSession } from "@/lib/session";
+import { hasCoachWonChampionship } from "@/lib/championship-utils";
+import { CHAMPION_GOLD_LOGO_FRAME_SLUG } from "@/lib/logo-frame-items";
 
 // GET /api/store/inventory - get user's purchased items
 export async function GET() {
@@ -32,9 +34,46 @@ export async function GET() {
         orderBy: (p, { desc }) => [desc(p.purchasedAt)],
       });
 
+      const hasChampionship = await hasCoachWonChampionship(session.id);
+      let inventoryPurchases = purchases;
+
+      if (hasChampionship) {
+        const championFrameItem = await db.query.storeItems.findFirst({
+          where: eq(storeItems.slug, CHAMPION_GOLD_LOGO_FRAME_SLUG),
+        });
+        const hasChampionFramePurchase =
+          championFrameItem &&
+          purchases.some((p) => p.itemId === championFrameItem.id);
+
+        if (championFrameItem && !hasChampionFramePurchase) {
+          const [championFramePurchase] = await db
+            .insert(coachPurchases)
+            .values({
+              coachId: session.id,
+              itemId: championFrameItem.id,
+              purchasedAt: new Date().toISOString(),
+              isActive: true,
+              bonusReason: "Championship winner",
+            })
+            .returning();
+
+          inventoryPurchases = [
+            {
+              ...championFramePurchase,
+              item: championFrameItem,
+            },
+            ...purchases,
+          ];
+        }
+      }
+
+      const activePurchases = inventoryPurchases.filter(
+        (p) => p.item.isActive || p.item.slug === CHAMPION_GOLD_LOGO_FRAME_SLUG
+      );
+
       return NextResponse.json({
         balance,
-        purchases: purchases.map((p) => ({
+        purchases: activePurchases.map((p) => ({
           id: p.id,
           itemSlug: p.item.slug,
           itemName: p.item.name,

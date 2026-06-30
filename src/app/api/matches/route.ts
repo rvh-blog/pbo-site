@@ -8,6 +8,7 @@ import { resolveKillBetsForMatch, refundKillBetsForMatch } from "@/lib/kill-bett
 import { resolveDeathBetsForMatch, refundDeathBetsForMatch } from "@/lib/death-betting";
 import { reResolveBetsForMatch } from "@/lib/bet-resolution";
 import { checkAndAwardPickEmRewards, reResolvePickEmRewards, awardGotwBonus, reverseGotwBonus } from "@/lib/pick-em-rewards";
+import { resolveFantasyWeeklyRewardForMatch } from "@/lib/fantasy-rewards";
 
 interface KeyEventData {
   turn: number;
@@ -469,6 +470,15 @@ export async function PUT(request: NextRequest) {
         console.error("[Matches API] Error awarding pick-em rewards:", pickEmError);
       }
 
+      try {
+        const fantasyResult = await resolveFantasyWeeklyRewardForMatch(id);
+        if (fantasyResult.awarded.length > 0 || fantasyResult.reversed.length > 0) {
+          console.log("[Matches API] Fantasy rewards resolved:", fantasyResult);
+        }
+      } catch (fantasyError) {
+        console.error("[Matches API] Error resolving fantasy rewards:", fantasyError);
+      }
+
       // Award GOTW bonus if this is a Game of the Week match
       try {
         const gotwResult = await awardGotwBonus(id, winnerId);
@@ -532,6 +542,15 @@ export async function PUT(request: NextRequest) {
         }
       } catch (pickEmError) {
         console.error("[Matches API] Error checking pick-em rewards on edit:", pickEmError);
+      }
+
+      try {
+        const fantasyResult = await resolveFantasyWeeklyRewardForMatch(id);
+        if (fantasyResult.awarded.length > 0 || fantasyResult.reversed.length > 0) {
+          console.log("[Matches API] Fantasy rewards re-resolved:", fantasyResult);
+        }
+      } catch (fantasyError) {
+        console.error("[Matches API] Error re-resolving fantasy rewards:", fantasyError);
       }
     }
   }

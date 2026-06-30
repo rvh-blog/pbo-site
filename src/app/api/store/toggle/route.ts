@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { coachPurchases, storeItems } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Track which purchases were deactivated
     let deactivatedPurchaseId: number | null = null;
+    let deactivatedPurchaseIds: number[] = [];
 
     // If activating blue-team or red-team, deactivate the opposite
     if (isActive && (purchase.item?.slug === "blue-team" || purchase.item?.slug === "red-team")) {
@@ -75,6 +76,37 @@ export async function POST(request: NextRequest) {
             .set({ isActive: false })
             .where(eq(coachPurchases.id, oppositePurchase.id));
           deactivatedPurchaseId = oppositePurchase.id;
+          deactivatedPurchaseIds = [oppositePurchase.id];
+        }
+      }
+    }
+
+    if (isActive && purchase.item?.category === "logo_frame") {
+      const logoFrameItems = await db.query.storeItems.findMany({
+        where: eq(storeItems.category, "logo_frame"),
+        columns: { id: true },
+      });
+      const logoFrameItemIds = logoFrameItems
+        .map((item) => item.id)
+        .filter((itemId) => itemId !== purchase.itemId);
+
+      if (logoFrameItemIds.length > 0) {
+        const activeLogoFramePurchases = await db.query.coachPurchases.findMany({
+          where: and(
+            eq(coachPurchases.coachId, session.id),
+            inArray(coachPurchases.itemId, logoFrameItemIds),
+            eq(coachPurchases.isActive, true)
+          ),
+          columns: { id: true },
+        });
+
+        if (activeLogoFramePurchases.length > 0) {
+          const activeLogoFramePurchaseIds = activeLogoFramePurchases.map((logoFramePurchase) => logoFramePurchase.id);
+          await db
+            .update(coachPurchases)
+            .set({ isActive: false })
+            .where(inArray(coachPurchases.id, activeLogoFramePurchaseIds));
+          deactivatedPurchaseIds = [...deactivatedPurchaseIds, ...activeLogoFramePurchaseIds];
         }
       }
     }
@@ -90,6 +122,7 @@ export async function POST(request: NextRequest) {
       purchaseId,
       isActive,
       deactivatedPurchaseId,
+      deactivatedPurchaseIds,
     });
   } catch (error) {
     console.error("Toggle error:", error);

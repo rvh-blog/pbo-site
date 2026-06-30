@@ -648,6 +648,28 @@ export const fantasyEntryPicks = sqliteTable("fantasy_entry_picks", {
   index("idx_fantasy_entry_picks_season_coach_id").on(table.seasonCoachId),
 ]);
 
+// Fantasy Rewards - tracks weekly best fantasy roster coin awards
+export const fantasyRewards = sqliteTable("fantasy_rewards", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  entryId: integer("entry_id")
+    .notNull()
+    .references(() => fantasyEntries.id),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  week: integer("week").notNull(),
+  coachId: integer("coach_id").references(() => coaches.id),
+  userId: integer("user_id").references(() => users.id),
+  amount: integer("amount").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+}, (table) => [
+  index("idx_fantasy_rewards_entry_id").on(table.entryId),
+  index("idx_fantasy_rewards_season_week").on(table.seasonId, table.week),
+  index("idx_fantasy_rewards_coach_id").on(table.coachId),
+  index("idx_fantasy_rewards_user_id").on(table.userId),
+]);
+
 // Pick-Em Rewards - tracks awarded coins for pick-em performance
 export const pickEmRewards = sqliteTable("pick_em_rewards", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -950,6 +972,25 @@ export const blogCommentsRelations = relations(blogComments, ({ one }) => ({
   }),
   authorUser: one(users, {
     fields: [blogComments.authorUserId],
+    references: [users.id],
+  }),
+}));
+
+export const fantasyRewardsRelations = relations(fantasyRewards, ({ one }) => ({
+  entry: one(fantasyEntries, {
+    fields: [fantasyRewards.entryId],
+    references: [fantasyEntries.id],
+  }),
+  season: one(seasons, {
+    fields: [fantasyRewards.seasonId],
+    references: [seasons.id],
+  }),
+  coach: one(coaches, {
+    fields: [fantasyRewards.coachId],
+    references: [coaches.id],
+  }),
+  user: one(users, {
+    fields: [fantasyRewards.userId],
     references: [users.id],
   }),
 }));
