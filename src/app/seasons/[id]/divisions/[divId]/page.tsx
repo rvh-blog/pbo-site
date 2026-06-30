@@ -14,6 +14,8 @@ import { StandingsRow } from "@/components/standings-row";
 import { computeAndSortStandings } from "@/lib/standings-sort";
 import { getDivisionColor, getDivisionShadowColor } from "@/lib/division-colors";
 import { KillLeaderboard } from "@/components/kill-leaderboard";
+import { getSession } from "@/lib/session";
+import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 // Division hierarchy (1 = top, 4 = bottom)
 // Stargazer (1) -> Sunset (2) -> Crystal (3) -> Neon (4)
@@ -292,9 +294,20 @@ export default async function DivisionPage({ params }: PageProps) {
   const seasonId = parseInt(resolvedParams.id);
   const divisionId = parseInt(resolvedParams.divId);
 
-  const division = await getDivision(divisionId);
+  const [division, session, visibility] = await Promise.all([
+    getDivision(divisionId),
+    getSession(),
+    getPublicVisibilityState(),
+  ]);
 
-  if (!division || division.seasonId !== seasonId) {
+  if (
+    !division ||
+    division.seasonId !== seasonId ||
+    (!session?.isMod &&
+      (!isDivisionPubliclyVisible(division, visibility) ||
+        !division.season ||
+        !isPublicSeasonVisible(division.season)))
+  ) {
     notFound();
   }
 
@@ -344,7 +357,7 @@ export default async function DivisionPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="poke-card p-6">
+      <div className="poke-card p-4 sm:p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
             {/* Breadcrumb */}
@@ -379,16 +392,16 @@ export default async function DivisionPage({ params }: PageProps) {
                   />
                 </div>
               )}
-              <h1 className="font-pixel text-xl md:text-2xl text-white leading-relaxed">
+              <h1 className="font-pixel text-lg sm:text-xl md:text-2xl text-white leading-relaxed">
                 {division.name} Division
               </h1>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
             <Link href={`/seasons/${seasonId}`}>
-              <button className="btn-retro-secondary py-2 px-3 sm:px-4 text-[10px] flex items-center gap-2">
+              <button className="btn-retro-secondary w-full justify-center py-2 px-2 sm:px-4 text-[10px] flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
@@ -396,7 +409,7 @@ export default async function DivisionPage({ params }: PageProps) {
               </button>
             </Link>
             <Link href={`/seasons/${seasonId}/divisions/${divisionId}/transactions`}>
-              <button className="btn-retro-secondary py-2 px-3 sm:px-4 text-[10px] flex items-center gap-2">
+              <button className="btn-retro-secondary w-full justify-center py-2 px-2 sm:px-4 text-[10px] flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
@@ -404,7 +417,7 @@ export default async function DivisionPage({ params }: PageProps) {
               </button>
             </Link>
             <Link href={`/seasons/${seasonId}/divisions/${divisionId}/rosters`}>
-              <button className="btn-retro py-2 px-3 sm:px-4 text-[10px] flex items-center gap-2">
+              <button className="btn-retro w-full justify-center py-2 px-2 sm:px-4 text-[10px] flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>

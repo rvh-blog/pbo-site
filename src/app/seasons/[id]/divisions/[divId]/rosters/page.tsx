@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { divisions, seasonCoaches, rosters, matches, transactions, pokemon, seasonPokemonPrices } from "@/lib/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { getSession } from "@/lib/session";
+import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 interface PageProps {
   params: Promise<{ id: string; divId: string }>;
@@ -73,9 +75,20 @@ export default async function DivisionRostersPage({ params }: PageProps) {
   const seasonId = parseInt(resolvedParams.id);
   const divisionId = parseInt(resolvedParams.divId);
 
-  const { division, coaches, allRosters, divisionMatches, txBySeasonCoach } = await getDivisionData(divisionId);
+  const [{ division, coaches, allRosters, divisionMatches, txBySeasonCoach }, session, visibility] = await Promise.all([
+    getDivisionData(divisionId),
+    getSession(),
+    getPublicVisibilityState(),
+  ]);
 
-  if (!division || division.seasonId !== seasonId) {
+  if (
+    !division ||
+    division.seasonId !== seasonId ||
+    (!session?.isMod &&
+      (!isDivisionPubliclyVisible(division, visibility) ||
+        !division.season ||
+        !isPublicSeasonVisible(division.season)))
+  ) {
     notFound();
   }
 

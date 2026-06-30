@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { DraftBoardGrid } from "@/components/draft-board-grid";
+import { getSession } from "@/lib/session";
+import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -98,10 +100,18 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
   const seasonId = parseInt(resolvedParams.id);
-  const season = await getSeason(seasonId);
+  const [season, session, visibility] = await Promise.all([
+    getSeason(seasonId),
+    getSession(),
+    getPublicVisibilityState(),
+  ]);
 
-  if (!season) {
+  if (!season || (!session?.isMod && !isPublicSeasonVisible(season))) {
     notFound();
+  }
+
+  if (!session?.isMod) {
+    season.divisions = filterPublicDivisions(season.divisions, visibility);
   }
 
   const pokemonList = await getPokemonWithPrices(seasonId);
@@ -113,6 +123,10 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
     : season.divisions[0]?.id;
 
   const selectedDivision = season.divisions.find((d) => d.id === selectedDivisionId);
+  if (!selectedDivision) {
+    notFound();
+  }
+
   const ownership = rostersByDivision[selectedDivisionId] || {};
 
   // Complex bans shown separately as a warning, but also appear in regular tiers

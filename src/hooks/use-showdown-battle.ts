@@ -1512,7 +1512,6 @@ export function useShowdownBattle(
       receivedRoomInitRef.current = true;
       battleSceneForwardedUpToRef.current = allRawLinesRef.current.length;
       battleSceneRef.current.seekTurn(Infinity);
-      console.log("[useShowdownBattle] Forwarded queued lines to BattleScene");
     }
   }, [battleSceneRef]);
 

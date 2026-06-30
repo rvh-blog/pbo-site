@@ -5,9 +5,10 @@ import { useRef, useEffect, useState, ReactNode } from "react";
 interface SyncedHeightGridProps {
   leftContent: ReactNode;
   rightContent: ReactNode;
+  mobileMiddleContent?: ReactNode;
 }
 
-export function SyncedHeightGrid({ leftContent, rightContent }: SyncedHeightGridProps) {
+export function SyncedHeightGrid({ leftContent, rightContent, mobileMiddleContent }: SyncedHeightGridProps) {
   const leftRef = useRef<HTMLDivElement>(null);
   const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
 
@@ -29,6 +30,12 @@ export function SyncedHeightGrid({ leftContent, rightContent }: SyncedHeightGrid
       <div className="lg:col-span-2" ref={leftRef}>
         {leftContent}
       </div>
+
+      {mobileMiddleContent && (
+        <div className="lg:hidden">
+          {mobileMiddleContent}
+        </div>
+      )}
 
       {/* Right Column: Top Trainers */}
       <div

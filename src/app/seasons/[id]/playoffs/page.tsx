@@ -4,6 +4,8 @@ import { seasons, divisions, playoffMatches, seasonCoaches, matches } from "@/li
 import { eq, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { computeAndSortStandings } from "@/lib/standings-sort";
+import { getSession } from "@/lib/session";
+import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 // Division hierarchy (1 = top, 4 = bottom)
 const DIVISION_TIERS: Record<string, number> = {
@@ -32,7 +34,7 @@ async function getSeason(id: number) {
   return season;
 }
 
-async function getPlayoffData(seasonId: number) {
+async function getPlayoffData(seasonId: number, visibleDivisionIds?: Set<number>) {
   const playoffs = await db.query.playoffMatches.findMany({
     where: eq(playoffMatches.seasonId, seasonId),
     with: {
@@ -47,6 +49,7 @@ async function getPlayoffData(seasonId: number) {
   // Group by division
   const byDivision: Record<number, typeof playoffs> = {};
   for (const p of playoffs) {
+    if (visibleDivisionIds && !visibleDivisionIds.has(p.divisionId)) continue;
     if (!byDivision[p.divisionId]) {
       byDivision[p.divisionId] = [];
     }
@@ -57,7 +60,7 @@ async function getPlayoffData(seasonId: number) {
 }
 
 // Get standings for each division to determine seeding
-async function getStandingsByDivision(seasonId: number) {
+async function getStandingsByDivision(seasonId: number, visibleDivisionIds?: Set<number>) {
   // Fetch all data in parallel - no N+1 queries!
   const [allDivisions, allSeasonCoaches, allMatches] = await Promise.all([
     db.query.divisions.findMany({
@@ -84,7 +87,11 @@ async function getStandingsByDivision(seasonId: number) {
 
   const standingsMap: Record<number, Map<number, number>> = {}; // divisionId -> Map<seasonCoachId, rank>
 
-  for (const div of allDivisions) {
+  const visibleDivisions = visibleDivisionIds
+    ? allDivisions.filter((division) => visibleDivisionIds.has(division.id))
+    : allDivisions;
+
+  for (const div of visibleDivisions) {
     const divCoaches = coachesByDivision.get(div.id) || [];
     const divMatches = matchesByDivision.get(div.id) || [];
 
@@ -437,15 +444,25 @@ export default async function PlayoffsPage({ params }: PageProps) {
   const seasonId = parseInt(resolvedParams.id);
 
   // Fetch all data in parallel
-  const [season, playoffsByDivision, standingsByDivision] = await Promise.all([
+  const [season, session, visibility] = await Promise.all([
     getSeason(seasonId),
-    getPlayoffData(seasonId),
-    getStandingsByDivision(seasonId),
+    getSession(),
+    getPublicVisibilityState(),
   ]);
 
-  if (!season) {
+  if (!season || (!session?.isMod && !isPublicSeasonVisible(season))) {
     notFound();
   }
+
+  if (!session?.isMod) {
+    season.divisions = filterPublicDivisions(season.divisions, visibility);
+  }
+
+  const visibleDivisionIds = new Set(season.divisions.map((division) => division.id));
+  const [playoffsByDivision, standingsByDivision] = await Promise.all([
+    getPlayoffData(seasonId, visibleDivisionIds),
+    getStandingsByDivision(seasonId, visibleDivisionIds),
+  ]);
 
   return (
     <div className="space-y-8">

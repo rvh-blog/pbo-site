@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { computeAndSortStandings } from "@/lib/standings-sort";
+import { filterPublicDivisions, getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
   const searchParams = url.searchParams;
   const seasonIdParam = searchParams.get("seasonId");
   const divisionIdParam = searchParams.get("divisionId");
+  const visibility = await getPublicVisibilityState();
 
   const forwardedHost = request.headers.get("x-forwarded-host");
   const forwardedProto = request.headers.get("x-forwarded-proto");
@@ -55,7 +57,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No season found" }, { status: 404, headers: CORS_HEADERS });
   }
 
-  const divs = season.divisions ?? [];
+  if (!isPublicSeasonVisible(season)) {
+    return NextResponse.json({ error: "No season found" }, { status: 404, headers: CORS_HEADERS });
+  }
+
+  const divs = filterPublicDivisions(season.divisions ?? [], visibility);
   if (divs.length === 0) {
     return NextResponse.json({ error: "No divisions in season" }, { status: 404, headers: CORS_HEADERS });
   }
@@ -65,6 +71,9 @@ export async function GET(request: NextRequest) {
     : [...divs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))[0];
 
   if (!division) {
+    return NextResponse.json({ error: "Division not found" }, { status: 404, headers: CORS_HEADERS });
+  }
+  if (!isDivisionPubliclyVisible(division, visibility)) {
     return NextResponse.json({ error: "Division not found" }, { status: 404, headers: CORS_HEADERS });
   }
 

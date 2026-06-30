@@ -9,6 +9,8 @@ import { resolveDeathBetsForMatch, refundDeathBetsForMatch } from "@/lib/death-b
 import { reResolveBetsForMatch } from "@/lib/bet-resolution";
 import { checkAndAwardPickEmRewards, reResolvePickEmRewards, awardGotwBonus, reverseGotwBonus } from "@/lib/pick-em-rewards";
 import { resolveFantasyWeeklyRewardForMatch } from "@/lib/fantasy-rewards";
+import { getSession } from "@/lib/session";
+import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 interface KeyEventData {
   turn: number;
@@ -182,6 +184,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const seasonId = searchParams.get("seasonId");
   const divisionId = searchParams.get("divisionId");
+  const session = await getSession();
+  const canSeePrivate = session?.isMod ?? false;
+  const visibility = await getPublicVisibilityState();
 
   const query = db.query.matches.findMany({
     with: {
@@ -202,7 +207,7 @@ export async function GET(request: NextRequest) {
         },
       },
       winner: true,
-      division: true,
+      division: { with: { season: true } },
       matchPokemon: {
         with: { pokemon: true, seasonCoach: true },
       },
@@ -219,6 +224,14 @@ export async function GET(request: NextRequest) {
   }
   if (divisionId) {
     filtered = filtered.filter((m) => m.divisionId === parseInt(divisionId));
+  }
+  if (!canSeePrivate) {
+    filtered = filtered.filter((match) =>
+      match.division &&
+      isDivisionPubliclyVisible(match.division, visibility) &&
+      match.division.season &&
+      isPublicSeasonVisible(match.division.season)
+    );
   }
 
   return NextResponse.json(filtered);

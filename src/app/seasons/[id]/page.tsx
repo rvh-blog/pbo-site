@@ -9,6 +9,8 @@ import { getGlowStyle } from "@/components/team-name-glow";
 import { LocalTime } from "@/components/local-time";
 import { KillLeadersToggle } from "@/components/kill-leaders-toggle";
 import { computeAndSortStandings } from "@/lib/standings-sort";
+import { getSession } from "@/lib/session";
+import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 const DIVISION_COLORS: Record<string, string> = {
   "Stargazer": "#3b82f6",
@@ -107,7 +109,7 @@ async function getStandings(divisionId: number, allDivisionMatches: Awaited<Retu
   return computeAndSortStandings(activeCoaches, replacementMap, divMatches);
 }
 
-async function getUpcomingBattles(seasonId: number): Promise<UpcomingBattleItem[]> {
+async function getUpcomingBattles(seasonId: number, visibleDivisionIds?: Set<number>): Promise<UpcomingBattleItem[]> {
   // Fetch all unplayed matches for this season
   const allUnplayed = await db.query.matches.findMany({
     where: and(
@@ -125,7 +127,11 @@ async function getUpcomingBattles(seasonId: number): Promise<UpcomingBattleItem[
   const ONE_HOUR = 60 * 60 * 1000;
 
   // Primary: matches with scheduledAt, still relevant (future or <1hr past)
-  const scheduled = allUnplayed.filter((m) => {
+  const visibleUnplayed = visibleDivisionIds
+    ? allUnplayed.filter((m) => visibleDivisionIds.has(m.divisionId))
+    : allUnplayed;
+
+  const scheduled = visibleUnplayed.filter((m) => {
     if (!m.scheduledAt) return false;
     const scheduledTime = new Date(m.scheduledAt).getTime();
     return scheduledTime > now - ONE_HOUR;
@@ -154,11 +160,11 @@ async function getUpcomingBattles(seasonId: number): Promise<UpcomingBattleItem[
   }
 
   // Fallback: no scheduled games — show earliest unplayed rounds, higher divisions first
-  if (allUnplayed.length === 0) return [];
+  if (visibleUnplayed.length === 0) return [];
 
   // Find the earliest unplayed week
-  const earliestWeek = Math.min(...allUnplayed.map((m) => m.week));
-  const earliestWeekMatches = allUnplayed.filter((m) => m.week === earliestWeek);
+  const earliestWeek = Math.min(...visibleUnplayed.map((m) => m.week));
+  const earliestWeekMatches = visibleUnplayed.filter((m) => m.week === earliestWeek);
 
   // Sort by division displayOrder (lower = higher priority)
   earliestWeekMatches.sort((a, b) => {
@@ -183,7 +189,11 @@ async function getUpcomingBattles(seasonId: number): Promise<UpcomingBattleItem[
   }));
 }
 
-async function getRecentBattles(seasonId: number, allSeasonMatches: Awaited<ReturnType<typeof db.query.matches.findMany>>): Promise<BattleLogItem[]> {
+async function getRecentBattles(
+  seasonId: number,
+  allSeasonMatches: Awaited<ReturnType<typeof db.query.matches.findMany>>,
+  visibleDivisionIds?: Set<number>
+): Promise<BattleLogItem[]> {
   const [regularMatches, playoffs] = await Promise.all([
     db.query.matches.findMany({
       where: and(
@@ -214,7 +224,14 @@ async function getRecentBattles(seasonId: number, allSeasonMatches: Awaited<Retu
     }),
   ]);
 
-  const regularBattles: BattleLogItem[] = regularMatches.map((m) => ({
+  const visibleRegularMatches = visibleDivisionIds
+    ? regularMatches.filter((m) => visibleDivisionIds.has(m.divisionId))
+    : regularMatches;
+  const visiblePlayoffs = visibleDivisionIds
+    ? playoffs.filter((p) => visibleDivisionIds.has(p.divisionId))
+    : playoffs;
+
+  const regularBattles: BattleLogItem[] = visibleRegularMatches.map((m) => ({
     id: m.id,
     matchId: m.id,
     type: "regular" as const,
@@ -233,13 +250,14 @@ async function getRecentBattles(seasonId: number, allSeasonMatches: Awaited<Retu
 
   const playoffMatchLookup = new Map<string, number>();
   for (const m of allSeasonMatches) {
+    if (visibleDivisionIds && !visibleDivisionIds.has(m.divisionId)) continue;
     if (m.week > 100) {
       const key = `${m.divisionId}-${m.week}-${m.coach1SeasonId}-${m.coach2SeasonId}`;
       playoffMatchLookup.set(key, m.id);
     }
   }
 
-  const playoffBattles: BattleLogItem[] = playoffs.map((p) => {
+  const playoffBattles: BattleLogItem[] = visiblePlayoffs.map((p) => {
     let matchId: number | null = null;
     if (p.higherSeedId && p.lowerSeedId) {
       const playoffWeek = 100 + p.round;
@@ -285,13 +303,15 @@ async function getRecentBattles(seasonId: number, allSeasonMatches: Awaited<Retu
   return allBattles.slice(0, 5);
 }
 
-async function getSeasonKillLeaderboard(seasonId: number) {
+async function getSeasonKillLeaderboard(seasonId: number, visibleDivisionIds?: Set<number>) {
   // Get all matches for this season
   const seasonMatches = await db.query.matches.findMany({
     where: eq(matches.seasonId, seasonId),
   });
 
-  const matchIds = seasonMatches.map((m) => m.id);
+  const matchIds = seasonMatches
+    .filter((m) => !visibleDivisionIds || visibleDivisionIds.has(m.divisionId))
+    .map((m) => m.id);
 
   if (matchIds.length === 0) return [];
 
@@ -358,13 +378,15 @@ async function getSeasonKillLeaderboard(seasonId: number) {
   return leaderboard.slice(0, 7); // Top 7 to match Recent Battles height
 }
 
-async function getSeasonMoveKillLeaderboard(seasonId: number) {
+async function getSeasonMoveKillLeaderboard(seasonId: number, visibleDivisionIds?: Set<number>) {
   // Get all matches for this season
   const seasonMatches = await db.query.matches.findMany({
     where: eq(matches.seasonId, seasonId),
   });
 
-  const matchIds = seasonMatches.map((m) => m.id);
+  const matchIds = seasonMatches
+    .filter((m) => !visibleDivisionIds || visibleDivisionIds.has(m.divisionId))
+    .map((m) => m.id);
 
   if (matchIds.length === 0) return [];
 
@@ -413,7 +435,7 @@ async function getSeasonMoveKillLeaderboard(seasonId: number) {
   return leaderboard.slice(0, 7); // Top 7 to match Pokemon leaderboard
 }
 
-async function getPlayoffData(seasonId: number) {
+async function getPlayoffData(seasonId: number, visibleDivisionIds?: Set<number>) {
   const playoffs = await db.query.playoffMatches.findMany({
     where: eq(playoffMatches.seasonId, seasonId),
     with: {
@@ -428,6 +450,7 @@ async function getPlayoffData(seasonId: number) {
   // Group by division
   const byDivision: Record<number, typeof playoffs> = {};
   for (const p of playoffs) {
+    if (visibleDivisionIds && !visibleDivisionIds.has(p.divisionId)) continue;
     if (!byDivision[p.divisionId]) {
       byDivision[p.divisionId] = [];
     }
@@ -442,23 +465,35 @@ export default async function SeasonPage({ params }: PageProps) {
   const seasonId = parseInt(resolvedParams.id);
 
   // Fetch all data in parallel
-  const [season, allSeasonMatches, killLeaderboard, moveKillLeaderboard, playoffsByDivision] = await Promise.all([
+  const [season, allSeasonMatches, session, visibility] = await Promise.all([
     getSeason(seasonId),
     db.query.matches.findMany({
       where: eq(matches.seasonId, seasonId),
     }),
-    getSeasonKillLeaderboard(seasonId),
-    getSeasonMoveKillLeaderboard(seasonId),
-    getPlayoffData(seasonId),
+    getSession(),
+    getPublicVisibilityState(),
   ]);
 
-  if (!season) {
+  if (!season || (!session?.isMod && !isPublicSeasonVisible(season))) {
     notFound();
   }
 
+  if (!session?.isMod) {
+    season.divisions = filterPublicDivisions(season.divisions, visibility);
+  }
+
+  const visibleDivisionIds = new Set(season.divisions.map((division) => division.id));
+  const visibleSeasonMatches = allSeasonMatches.filter((match) => visibleDivisionIds.has(match.divisionId));
+
+  const [killLeaderboard, moveKillLeaderboard, playoffsByDivision] = await Promise.all([
+    getSeasonKillLeaderboard(seasonId, visibleDivisionIds),
+    getSeasonMoveKillLeaderboard(seasonId, visibleDivisionIds),
+    getPlayoffData(seasonId, visibleDivisionIds),
+  ]);
+
   // Compute standings for all divisions in parallel
   const allStandings = await Promise.all(
-    season.divisions.map(div => getStandings(div.id, allSeasonMatches))
+    season.divisions.map(div => getStandings(div.id, visibleSeasonMatches))
   );
 
   // Collect all coach IDs across all divisions and fetch glow data once
@@ -467,8 +502,8 @@ export default async function SeasonPage({ params }: PageProps) {
     .filter((id): id is number => id !== null);
 
   const [upcomingBattles, recentBattles, glowDataMap] = await Promise.all([
-    season.isCurrent ? getUpcomingBattles(seasonId) : Promise.resolve([]),
-    season.isCurrent ? Promise.resolve([]) : getRecentBattles(seasonId, allSeasonMatches),
+    season.isCurrent ? getUpcomingBattles(seasonId, visibleDivisionIds) : Promise.resolve([]),
+    season.isCurrent ? Promise.resolve([]) : getRecentBattles(seasonId, visibleSeasonMatches, visibleDivisionIds),
     getCoachesGlow(allCoachIds),
   ]);
 
@@ -477,7 +512,7 @@ export default async function SeasonPage({ params }: PageProps) {
   return (
     <div className="space-y-10">
       {/* Page Header */}
-      <div className="poke-card p-6">
+      <div className="poke-card p-4 sm:p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
             {/* Breadcrumb */}
@@ -494,7 +529,7 @@ export default async function SeasonPage({ params }: PageProps) {
 
             {/* Title */}
             <div className="flex items-center gap-4">
-              <h1 className="font-pixel text-xl md:text-2xl text-white leading-relaxed">
+              <h1 className="font-pixel text-lg sm:text-xl md:text-2xl text-white leading-relaxed">
                 {season.name}
               </h1>
               {season.isCurrent && (
@@ -508,9 +543,9 @@ export default async function SeasonPage({ params }: PageProps) {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
             <Link href={`/seasons/${season.id}/playoffs`}>
-              <button className="btn-retro-secondary py-2 px-4 text-[10px] flex items-center gap-2">
+              <button className="btn-retro-secondary w-full justify-center py-2 px-3 sm:px-4 text-[10px] flex items-center gap-2">
                 <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
                 </svg>
@@ -518,7 +553,7 @@ export default async function SeasonPage({ params }: PageProps) {
               </button>
             </Link>
             <Link href={`/seasons/${season.id}/draft`}>
-              <button className="btn-retro py-2 px-4 text-[10px] flex items-center gap-2">
+              <button className="btn-retro w-full justify-center py-2 px-3 sm:px-4 text-[10px] flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
@@ -530,14 +565,14 @@ export default async function SeasonPage({ params }: PageProps) {
       </div>
 
       {/* Division Quick Links */}
-      <div className="flex flex-wrap gap-3">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0">
         {season.divisions.map((div) => {
           const divColor = DIVISION_COLORS[div.name];
           return (
             <Link
               key={div.id}
               href={`/seasons/${season.id}/divisions/${div.id}`}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] transition-all font-bold text-sm group"
+              className="flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] transition-all font-bold text-sm group"
               style={{ borderBottomColor: divColor ? `${divColor}66` : undefined }}
             >
               {div.logoUrl && (
@@ -629,7 +664,7 @@ export default async function SeasonPage({ params }: PageProps) {
       )}
 
       {/* Standings by Division */}
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-8 lg:grid-cols-2">
         {season.divisions.map((div, divIndex) => {
             const standings = allStandings[divIndex];
             const divColor = DIVISION_COLORS[div.name];
@@ -666,7 +701,7 @@ export default async function SeasonPage({ params }: PageProps) {
                   </div>
                 </Link>
                 <div className="h-[2px] shrink-0" style={{ background: `linear-gradient(to right, ${divColor}, ${divColor}20)` }} />
-                <div className="p-6 pt-4">
+                <div className="p-4 pt-3 sm:p-6 sm:pt-4">
                   {standings.length === 0 ? (
                     <p className="text-[var(--foreground-muted)] text-center py-4">
                       No coaches in this division

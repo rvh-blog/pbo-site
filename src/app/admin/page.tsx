@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { InfinityReleaseCard } from "@/components/admin/infinity-release-card";
+import { getPublicVisibilityState } from "@/lib/public-visibility";
 
 async function getCurrentSeason() {
   return await db.query.seasons.findFirst({
@@ -86,7 +88,10 @@ export default async function AdminDashboard() {
     redirect("/admin/login");
   }
 
-  const currentSeason = await getCurrentSeason();
+  const [currentSeason, visibility] = await Promise.all([
+    getCurrentSeason(),
+    getPublicVisibilityState(),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -253,6 +258,14 @@ export default async function AdminDashboard() {
               </div>
             </div>
           </div>
+
+          <InfinityReleaseCard
+            initialState={{
+              revealAt: visibility.infinityDivisionRevealAt.toISOString(),
+              isReleased: visibility.infinityDivisionReleased,
+              isManuallyReleased: visibility.infinityDivisionManuallyReleased,
+            }}
+          />
 
           <div className="p-4 rounded-lg border border-[var(--background-tertiary)]">
             <div className="flex items-start gap-4">

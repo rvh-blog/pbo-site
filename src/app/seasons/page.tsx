@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ const LEGACY_SEASON_NUMBERS = new Set([1, 2, 3, 4]);
 
 async function getSeasons() {
   // Run all queries in parallel
-  const [allSeasons, allSeasonCoaches] = await Promise.all([
+  const [allSeasons, allSeasonCoaches, visibility] = await Promise.all([
     db.query.seasons.findMany({
       with: {
         divisions: true,
@@ -36,11 +37,13 @@ async function getSeasons() {
       orderBy: (seasons, { desc }) => [desc(seasons.seasonNumber)],
     }),
     db.query.seasonCoaches.findMany(),
+    getPublicVisibilityState(),
   ]);
 
-  // Filter to only public seasons and sort divisions by displayOrder
-  const seasons = allSeasons.filter((s) => s.isPublic !== false);
+  // Filter to only public seasons/divisions and sort divisions by displayOrder
+  const seasons = allSeasons.filter(isPublicSeasonVisible);
   for (const season of seasons) {
+    season.divisions = filterPublicDivisions(season.divisions, visibility);
     season.divisions.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
   }
 

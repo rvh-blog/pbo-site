@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { seasons, divisions, seasonPokemonPrices, pokemon } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
+import { getSession } from "@/lib/session";
+import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const publicOnly = searchParams.get("publicOnly") === "true";
+  const session = await getSession();
+  const canSeePrivate = session?.isMod ?? false;
+  const visibility = await getPublicVisibilityState();
 
   const allSeasons = await db.query.seasons.findMany({
     with: {
@@ -14,9 +19,17 @@ export async function GET(request: NextRequest) {
     orderBy: (seasons, { desc }) => [desc(seasons.seasonNumber)],
   });
 
-  // Filter to public seasons only if requested
-  if (publicOnly) {
-    return NextResponse.json(allSeasons.filter((s) => s.isPublic));
+  // Public callers only see revealed seasons and divisions. Mods can still use
+  // the unfiltered endpoint for admin tools unless publicOnly is requested.
+  if (publicOnly || !canSeePrivate) {
+    return NextResponse.json(
+      allSeasons
+        .filter(isPublicSeasonVisible)
+        .map((season) => ({
+          ...season,
+          divisions: filterPublicDivisions(season.divisions, visibility),
+        }))
+    );
   }
 
   return NextResponse.json(allSeasons);
@@ -91,7 +104,7 @@ export async function PUT(request: NextRequest) {
   }
 
   // Build update object with only provided fields
-  const updateData: Record<string, any> = {};
+  const updateData: Partial<typeof seasons.$inferInsert> = {};
   if (name !== undefined) updateData.name = name;
   if (seasonNumber !== undefined) updateData.seasonNumber = seasonNumber;
   if (draftBudget !== undefined) updateData.draftBudget = draftBudget;

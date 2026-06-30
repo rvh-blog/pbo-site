@@ -1,9 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/session";
 import { SyncedHeightGrid } from "@/components/synced-height-grid";
-import { seasons, matches, coaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
-import { eq, desc, count, and, isNotNull, inArray } from "drizzle-orm";
+import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
+import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ const DIVISION_COLORS: Record<string, string> = {
 };
 
 const DIVISION_ORDER = ["Stargazer", "Sunset", "Crystal", "Neon"] as const;
+const RULEBOOK_URL = "https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal";
 
 type OffseasonChampion = {
   divisionId: number | null;
@@ -407,6 +409,78 @@ async function getTopCoaches() {
   ];
 }
 
+async function getHomePersonalization(currentSeasonId: number | null) {
+  const session = await getSession();
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.type !== "coach") {
+    return {
+      user: session,
+      activeTeam: null,
+      nextMatch: null,
+      opponent: null,
+    };
+  }
+
+  const coachTeams = await db.query.seasonCoaches.findMany({
+    where: eq(seasonCoaches.coachId, session.id),
+    with: {
+      division: {
+        with: {
+          season: true,
+        },
+      },
+    },
+  });
+
+  const activeTeam = coachTeams.find((team) => {
+    const teamSeason = team.division?.season;
+    if (!teamSeason) return false;
+    return currentSeasonId ? teamSeason.id === currentSeasonId : teamSeason.isCurrent;
+  }) ?? null;
+
+  if (!activeTeam?.division?.season) {
+    return {
+      user: session,
+      activeTeam: null,
+      nextMatch: null,
+      opponent: null,
+    };
+  }
+
+  const nextMatch = await db.query.matches.findFirst({
+    where: and(
+      eq(matches.divisionId, activeTeam.divisionId),
+      isNull(matches.winnerId),
+      or(
+        eq(matches.coach1SeasonId, activeTeam.id),
+        eq(matches.coach2SeasonId, activeTeam.id)
+      )
+    ),
+    with: {
+      coach1: true,
+      coach2: true,
+    },
+    orderBy: [asc(matches.week), asc(matches.scheduledAt)],
+  });
+
+  const opponent = nextMatch
+    ? nextMatch.coach1SeasonId === activeTeam.id
+      ? nextMatch.coach2
+      : nextMatch.coach1
+    : null;
+
+  return {
+    user: session,
+    activeTeam,
+    nextMatch,
+    opponent,
+  };
+}
+
 // Type color map for badges
 const typeColors: Record<string, string> = {
   normal: "bg-gray-400",
@@ -438,6 +512,146 @@ function getRoundLabel(round: number): string {
   }
 }
 
+function StatsStrip({
+  stats,
+  championTeamName,
+  className = "",
+}: {
+  stats: Awaited<ReturnType<typeof getStats>>;
+  championTeamName: string | null;
+  className?: string;
+}) {
+  return (
+    <div className={`grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 ${className}`}>
+      <div className="stat-card flex flex-col items-center justify-center text-center">
+        <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.coaches}</div>
+        <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Coaches</div>
+      </div>
+      <div className="stat-card flex flex-col items-center justify-center text-center">
+        <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.seasons}</div>
+        <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Seasons</div>
+      </div>
+      <div className="stat-card flex flex-col items-center justify-center text-center">
+        <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6h6M6 3v6M18 21v-6M21 18h-6" />
+        </svg>
+        <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.matches}</div>
+        <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Battles</div>
+      </div>
+      <div className="stat-card flex flex-col items-center justify-center text-center">
+        <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C13.1 2 14 2.9 14 4V5H16C16 3.34 14.66 2 13 2H11C9.34 2 8 3.34 8 5H10V4C10 2.9 10.9 2 12 2ZM20 6H16V8H19V9C19 11.21 17.21 13 15 13H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H20ZM4 6H5C4.9 6 4 6.9 4 8V9C4 12.31 6.69 15 10 15H11V13H10C7.79 13 6 11.21 6 9V8H9V6H5C3.9 6 3 6.9 3 8V9C3 12.31 5.69 15 9 15H10V17H8V19H16V17H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H4ZM8 6H5V8H8V6ZM10 19V21H14V19H10Z" />
+        </svg>
+        <div className="font-bold text-sm sm:text-lg text-white mb-0.5 sm:mb-1 truncate max-w-full px-1">
+          {championTeamName || "--"}
+        </div>
+        <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Champion</div>
+      </div>
+    </div>
+  );
+}
+
+function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] }) {
+  return (
+    <section className="poke-card p-5 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-5">
+        <div>
+          <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-2">
+            Previous Season Champions
+          </p>
+          <h2 className="font-pixel text-sm sm:text-base text-white leading-relaxed">
+            {champions[0]?.seasonNumber
+              ? `Season ${champions[0].seasonNumber} Title Holders`
+              : "Division Title Holders"}
+          </h2>
+        </div>
+        <Link
+          href={champions[0]?.seasonId ? `/seasons/${champions[0].seasonId}/playoffs` : "/seasons"}
+          className="text-xs text-[var(--foreground-subtle)] hover:text-white uppercase font-bold tracking-widest transition-colors inline-flex items-center gap-2"
+        >
+          Playoff Brackets
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </Link>
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {champions.map((champion) => {
+          const divColor = DIVISION_COLORS[champion.divisionName];
+          const championContent = (
+            <div
+              className="h-full rounded-lg border bg-[var(--background)]/45 p-4 transition-all hover:-translate-y-0.5 hover:bg-[var(--background)]/70"
+              style={divColor
+                ? { borderColor: `${divColor}55`, boxShadow: `inset 0 4px 0 ${divColor}` }
+                : { borderColor: "var(--background-tertiary)" }
+              }
+            >
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <span
+                  className="inline-flex px-2 py-1 text-[10px] font-bold uppercase rounded"
+                  style={divColor
+                    ? { color: divColor, backgroundColor: `${divColor}18`, border: `1px solid ${divColor}35` }
+                    : { color: "var(--foreground-muted)", backgroundColor: "var(--background-tertiary)" }
+                  }
+                >
+                  {champion.divisionName}
+                </span>
+                <svg className="w-5 h-5 text-yellow-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C13.1 2 14 2.9 14 4V5H16C16 3.34 14.66 2 13 2H11C9.34 2 8 3.34 8 5H10V4C10 2.9 10.9 2 12 2ZM20 6H16V8H19V9C19 11.21 17.21 13 15 13H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H20ZM4 6H5C4.9 6 4 6.9 4 8V9C4 12.31 6.69 15 10 15H11V13H10C7.79 13 6 11.21 6 9V8H9V6H5C3.9 6 3 6.9 3 8V9C3 12.31 5.69 15 9 15H10V17H8V19H16V17H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H4ZM8 6H5V8H8V6ZM10 19V21H14V19H10Z" />
+                </svg>
+              </div>
+
+              <div className="flex items-center gap-3 min-w-0">
+                {champion.teamLogoUrl ? (
+                  <Image
+                    src={champion.teamLogoUrl}
+                    alt=""
+                    width={44}
+                    height={44}
+                    className="rounded-lg shrink-0"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-lg bg-[var(--background-tertiary)] flex items-center justify-center shrink-0">
+                    <span className="text-sm font-mono text-[var(--foreground-subtle)]">--</span>
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="font-bold text-white text-sm truncate">
+                    {champion.teamName || "TBD"}
+                  </div>
+                  <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold truncate mt-1">
+                    {champion.coachName || "Champion"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+
+          return champion.divisionId && champion.seasonId ? (
+            <Link
+              key={champion.divisionName}
+              href={`/seasons/${champion.seasonId}/divisions/${champion.divisionId}`}
+              className="block"
+            >
+              {championContent}
+            </Link>
+          ) : (
+            <div key={champion.divisionName}>{championContent}</div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default async function Home() {
   // Run all queries in parallel for much better performance on network-attached storage
   const [currentSeason, previousSeasonChampions, recentBattles, stats, topCoaches, stargazerChampion] = await Promise.all([
@@ -448,22 +662,49 @@ export default async function Home() {
     getTopCoaches(),
     getStargazerChampion(),
   ]);
+  const personalizedHome = await getHomePersonalization(currentSeason?.id ?? null);
+  const visibleTopCoaches = topCoaches.slice(0, 5);
+  const previousSeasonPlayoffHref = previousSeasonChampions[0]?.seasonId
+    ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs`
+    : "/seasons";
+  const currentSeasonPrimaryHref = currentSeason?.divisions[0]
+    ? `/seasons/${currentSeason.id}/divisions/${currentSeason.divisions[0].id}`
+    : currentSeason
+      ? `/seasons/${currentSeason.id}`
+      : "/seasons";
 
   return (
     <div className="space-y-16">
-      {/* Hero Section - "Continue Game" Feel */}
       <section className="relative">
         <div className="flex flex-col items-center justify-center space-y-8">
-          {/* Welcome Text */}
-          <div className="text-center space-y-4 max-w-2xl">
+          <div className="text-center space-y-4 max-w-3xl">
+            <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest">
+              {currentSeason ? "Current Season" : "Offseason"}
+            </p>
             <h1 className="text-4xl md:text-5xl font-bold text-white uppercase tracking-tight">
-              Welcome Back, <span className="text-[var(--primary)]">Trainer</span>
+              {currentSeason ? currentSeason.name : "PBO Offseason Hub"}
             </h1>
             <p className="text-[var(--foreground-muted)] text-lg">
               {currentSeason
-                ? "The league is currently in session. Review the board or manage your team."
-                : "No active season. Check out past seasons or await the next draft."}
+                ? "Follow the active league board, recent results, and your team shortcuts from one place."
+                : "Review the latest champions, browse past seasons, and keep up with league history before the next draft."}
             </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <Link href={currentSeason ? `/seasons/${currentSeason.id}` : "/seasons"}>
+                <button className="btn-retro">
+                  {currentSeason ? "View Season" : "Past Seasons"}
+                </button>
+              </Link>
+              <Link
+                href={currentSeason ? currentSeasonPrimaryHref : previousSeasonPlayoffHref}
+                className="text-xs text-[var(--foreground-subtle)] hover:text-white uppercase font-bold tracking-widest transition-colors inline-flex items-center gap-2"
+              >
+                {currentSeason ? "Open First Division" : "Latest Playoffs"}
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </Link>
+            </div>
           </div>
 
           {/* League Pass Card */}
@@ -544,168 +785,179 @@ export default async function Home() {
             </div>
           )}
 
-          {!currentSeason && (
-            <div className="w-full max-w-5xl">
-              <div className="poke-card p-5 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-5">
-                  <div>
-                    <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-2">
-                      Previous Season Champions
-                    </p>
-                    <h2 className="font-pixel text-sm sm:text-base text-white leading-relaxed">
-                      {previousSeasonChampions[0]?.seasonNumber
-                        ? `Season ${previousSeasonChampions[0].seasonNumber} Title Holders`
-                        : "Division Title Holders"}
-                    </h2>
-                  </div>
-                  <Link
-                    href={previousSeasonChampions[0]?.seasonId ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs` : "/seasons"}
-                    className="text-xs text-[var(--foreground-subtle)] hover:text-white uppercase font-bold tracking-widest transition-colors inline-flex items-center gap-2"
-                  >
-                    Playoff Brackets
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                    </svg>
-                  </Link>
-                </div>
-
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {previousSeasonChampions.map((champion) => {
-                    const divColor = DIVISION_COLORS[champion.divisionName];
-                    const championContent = (
-                      <div
-                        className="h-full rounded-lg border bg-[var(--background)]/45 p-4 transition-all hover:-translate-y-0.5 hover:bg-[var(--background)]/70"
-                        style={divColor
-                          ? { borderColor: `${divColor}55`, boxShadow: `inset 0 4px 0 ${divColor}` }
-                          : { borderColor: "var(--background-tertiary)" }
-                        }
-                      >
-                        <div className="flex items-center justify-between gap-3 mb-4">
-                          <span
-                            className="inline-flex px-2 py-1 text-[10px] font-bold uppercase rounded"
-                            style={divColor
-                              ? { color: divColor, backgroundColor: `${divColor}18`, border: `1px solid ${divColor}35` }
-                              : { color: "var(--foreground-muted)", backgroundColor: "var(--background-tertiary)" }
-                            }
-                          >
-                            {champion.divisionName}
-                          </span>
-                          <svg className="w-5 h-5 text-yellow-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2C13.1 2 14 2.9 14 4V5H16C16 3.34 14.66 2 13 2H11C9.34 2 8 3.34 8 5H10V4C10 2.9 10.9 2 12 2ZM20 6H16V8H19V9C19 11.21 17.21 13 15 13H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H20ZM4 6H5C4.9 6 4 6.9 4 8V9C4 12.31 6.69 15 10 15H11V13H10C7.79 13 6 11.21 6 9V8H9V6H5C3.9 6 3 6.9 3 8V9C3 12.31 5.69 15 9 15H10V17H8V19H16V17H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H4ZM8 6H5V8H8V6ZM10 19V21H14V19H10Z" />
-                          </svg>
-                        </div>
-
-                        <div className="flex items-center gap-3 min-w-0">
-                          {champion.teamLogoUrl ? (
-                            <Image
-                              src={champion.teamLogoUrl}
-                              alt=""
-                              width={44}
-                              height={44}
-                              className="rounded-lg shrink-0"
-                            />
-                          ) : (
-                            <div className="w-11 h-11 rounded-lg bg-[var(--background-tertiary)] flex items-center justify-center shrink-0">
-                              <span className="text-sm font-mono text-[var(--foreground-subtle)]">--</span>
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-bold text-white text-sm truncate">
-                              {champion.teamName || "TBD"}
-                            </div>
-                            <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold truncate mt-1">
-                              {champion.coachName || "Champion"}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-
-                    return champion.divisionId && champion.seasonId ? (
-                      <Link
-                        key={champion.divisionName}
-                        href={`/seasons/${champion.seasonId}/divisions/${champion.divisionId}`}
-                        className="block"
-                      >
-                        {championContent}
-                      </Link>
-                    ) : (
-                      <div key={champion.divisionName}>{championContent}</div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
         </div>
       </section>
 
-      {/* Stats Strip (Game Style) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-        <div className="stat-card flex flex-col items-center justify-center text-center">
-          <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.coaches}</div>
-          <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Coaches</div>
-        </div>
-        <div className="stat-card flex flex-col items-center justify-center text-center">
-          <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.seasons}</div>
-          <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Seasons</div>
-        </div>
-        <div className="stat-card flex flex-col items-center justify-center text-center">
-          {/* Crossed Swords Icon */}
-          <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6h6M6 3v6M18 21v-6M21 18h-6" />
-          </svg>
-          <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.matches}</div>
-          <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Battles</div>
-        </div>
-        <div className="stat-card flex flex-col items-center justify-center text-center">
-          {/* Trophy Icon */}
-          <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2C13.1 2 14 2.9 14 4V5H16C16 3.34 14.66 2 13 2H11C9.34 2 8 3.34 8 5H10V4C10 2.9 10.9 2 12 2ZM20 6H16V8H19V9C19 11.21 17.21 13 15 13H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H20ZM4 6H5C4.9 6 4 6.9 4 8V9C4 12.31 6.69 15 10 15H11V13H10C7.79 13 6 11.21 6 9V8H9V6H5C3.9 6 3 6.9 3 8V9C3 12.31 5.69 15 9 15H10V17H8V19H16V17H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H4ZM8 6H5V8H8V6ZM10 19V21H14V19H10Z" />
-          </svg>
-          <div className="font-bold text-sm sm:text-lg text-white mb-0.5 sm:mb-1 truncate max-w-full px-1">
-            {stargazerChampion?.teamName || '--'}
-          </div>
-          <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Champion</div>
-        </div>
-      </div>
-
-      <a
-        href="https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="poke-card block p-5 transition-all hover:-translate-y-0.5 hover:border-[var(--primary)]/50"
-      >
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="section-title-icon !mb-0">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5S19.832 5.477 21 6.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-pixel text-sm text-white leading-relaxed">PBO Rulebook</h3>
-              <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-                League rules, policies, and season guidelines.
+      {personalizedHome && (
+        <section className="poke-card p-5 sm:p-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+            <div className="min-w-0">
+              <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-2">
+                Your League
+              </p>
+              <h2 className="font-pixel text-sm sm:text-base text-white leading-relaxed">
+                Welcome back, {personalizedHome.user.name}
+              </h2>
+              <p className="mt-3 text-sm text-[var(--foreground-muted)]">
+                {personalizedHome.activeTeam
+                  ? "Jump back into your active team, upcoming matchup, and prep tools."
+                  : "No active-season team is linked to this account right now."}
               </p>
             </div>
+
+            {personalizedHome.activeTeam ? (
+              <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto] lg:items-center flex-1">
+                <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4">
+                  <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
+                    Next Match
+                  </div>
+                  {personalizedHome.nextMatch ? (
+                    <>
+                      <div className="mt-2 font-bold text-white truncate">
+                        Week {personalizedHome.nextMatch.week} vs {personalizedHome.opponent?.teamName ?? "TBD"}
+                      </div>
+                      <Link
+                        href={`/matches/${personalizedHome.nextMatch.id}`}
+                        className="mt-2 inline-flex text-xs text-[var(--foreground-subtle)] hover:text-white uppercase font-bold tracking-widest transition-colors"
+                      >
+                        Match Page
+                      </Link>
+                    </>
+                  ) : (
+                    <div className="mt-2 font-bold text-white">No pending match</div>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {personalizedHome.activeTeam.teamLogoUrl ? (
+                      <Image
+                        src={personalizedHome.activeTeam.teamLogoUrl}
+                        alt=""
+                        width={44}
+                        height={44}
+                        className="rounded-lg shrink-0"
+                      />
+                    ) : (
+                      <div className="w-11 h-11 rounded-lg bg-[var(--background-tertiary)] flex items-center justify-center shrink-0">
+                        <span className="text-sm font-mono text-[var(--foreground-subtle)]">--</span>
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-bold text-white text-sm truncate">
+                        {personalizedHome.activeTeam.teamName}
+                      </div>
+                      <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold truncate mt-1">
+                        {personalizedHome.activeTeam.division?.season?.name} / {personalizedHome.activeTeam.division?.name}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="grid gap-2">
+                    <Link
+                      href={`/seasons/${personalizedHome.activeTeam.division!.season!.id}/divisions/${personalizedHome.activeTeam.divisionId}`}
+                      className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    >
+                      Division
+                    </Link>
+                    <Link
+                      href="/matchup-prep"
+                      className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    >
+                      Match Prep
+                    </Link>
+                  </div>
+                  <div className="grid gap-2 content-start">
+                    <Link
+                      href={`/coaches/${personalizedHome.user.id}`}
+                      className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    >
+                      My Page
+                    </Link>
+                    <a
+                      href={RULEBOOK_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    >
+                      Rulebook
+                    </a>
+                    {currentSeason && (
+                      <>
+                        <Link
+                          href="/pick-ems"
+                          className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                        >
+                          Pick-Ems
+                        </Link>
+                        <Link
+                          href="/fantasy"
+                          className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                        >
+                          Fantasy
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {personalizedHome.user.type === "coach" && (
+                  <Link
+                    href={`/coaches/${personalizedHome.user.id}`}
+                    className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  >
+                    My Coach Page
+                  </Link>
+                )}
+                <Link
+                  href="/seasons"
+                  className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                >
+                  Browse Seasons
+                </Link>
+                <Link
+                  href="/pick-ems"
+                  className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                >
+                  Pick-Ems
+                </Link>
+                <a
+                  href={RULEBOOK_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                >
+                  Rulebook
+                </a>
+              </div>
+            )}
           </div>
-          <svg className="w-4 h-4 shrink-0 text-[var(--foreground-subtle)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17L17 7M17 7H8m9 0v9" />
-          </svg>
-        </div>
-      </a>
+        </section>
+      )}
+
+      {!currentSeason && (
+        <PreviousChampionsPanel champions={previousSeasonChampions} />
+      )}
+
+      <StatsStrip
+        stats={stats}
+        championTeamName={stargazerChampion?.teamName ?? null}
+        className="hidden lg:grid"
+      />
 
       {/* Main Content Grid */}
       <SyncedHeightGrid
+        mobileMiddleContent={
+          <StatsStrip
+            stats={stats}
+            championTeamName={stargazerChampion?.teamName ?? null}
+            className="grid"
+          />
+        }
         leftContent={
           <div className="poke-card p-6">
             {/* Section Title */}
@@ -838,9 +1090,9 @@ export default async function Home() {
             </div>
 
             {/* Trainer List - Scrollable */}
-            {topCoaches.length > 0 ? (
+            {visibleTopCoaches.length > 0 ? (
               <div className="space-y-3 flex-1 overflow-y-auto min-h-0 pr-1">
-                {topCoaches.map((coach) => {
+                {visibleTopCoaches.map((coach) => {
                   // Showcase coaches always show their top 2 types
                   const showDualTypes = coach.rank <= 3 || coach.isShowcase;
                   const showSingleType = coach.rank >= 4 && coach.rank <= 5 && !coach.isShowcase;
@@ -927,74 +1179,6 @@ export default async function Home() {
         }
       />
 
-      {/* Social Links */}
-      <div className="flex flex-col items-center justify-center gap-3 -mb-8">
-        <span className="text-xs text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">Connect</span>
-        <div className="flex items-center gap-4">
-          <a
-            href="https://www.youtube.com/@Pokemon.Battle.Organization"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-20 h-20 rounded-xl bg-[var(--background-secondary)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#FF0000] hover:border-[#FF0000]/50 hover:scale-105 transition-all"
-            title="YouTube"
-          >
-            <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-            </svg>
-          </a>
-          <a
-            href="https://www.twitch.tv/pokemonbattleorg"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-20 h-20 rounded-xl bg-[var(--background-secondary)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#9146FF] hover:border-[#9146FF]/50 hover:scale-105 transition-all"
-            title="Twitch"
-          >
-            <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
-            </svg>
-          </a>
-          <a
-            href="https://www.patreon.com/cw/PBO1"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-20 h-20 rounded-xl bg-[var(--background-secondary)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#FF424D] hover:border-[#FF424D]/50 hover:scale-105 transition-all"
-            title="Patreon"
-          >
-            <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M15.386.524c-4.764 0-8.64 3.876-8.64 8.64 0 4.75 3.876 8.613 8.64 8.613 4.75 0 8.614-3.864 8.614-8.613C24 4.4 20.136.524 15.386.524zM.003 23.537h4.22V.524H.003z"/>
-            </svg>
-          </a>
-          <a
-            href="https://discord.com/channels/964768747690799124"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-20 h-20 rounded-xl bg-[var(--background-secondary)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#5865F2] hover:border-[#5865F2]/50 hover:scale-105 transition-all"
-            title="Discord"
-          >
-            <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-            </svg>
-          </a>
-        </div>
-      </div>
-
-      {/* No Season Warning */}
-      {!currentSeason && (
-        <section className="poke-card p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-[var(--warning)]/20 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-[var(--warning)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h3 className="font-pixel text-sm text-[var(--warning)] mb-2">No Active Season</h3>
-          <p className="text-[var(--foreground-muted)] mb-6">
-            No public season is currently active. Check back when the next season is published.
-          </p>
-          <Link href="/seasons">
-            <button className="btn-retro">View Past Seasons</button>
-          </Link>
-        </section>
-      )}
     </div>
   );
 }

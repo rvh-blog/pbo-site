@@ -3,15 +3,20 @@ import { db } from "@/lib/db";
 import { playoffMatches, matches, divisions, eloHistory, matchPokemon } from "@/lib/schema";
 import { eq, and, or } from "drizzle-orm";
 import { updateEloForMatch } from "@/lib/elo-service";
+import { getSession } from "@/lib/session";
+import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const seasonId = searchParams.get("seasonId");
   const divisionId = searchParams.get("divisionId");
   const fixStructure = searchParams.get("fixStructure");
+  const session = await getSession();
+  const canSeePrivate = session?.isMod ?? false;
+  const visibility = await getPublicVisibilityState();
 
   // If fixStructure=true, ensure playoff bracket structure is complete for existing data
-  if (fixStructure === "true" && seasonId) {
+  if (fixStructure === "true" && seasonId && canSeePrivate) {
     const seasonDivisions = await db.query.divisions.findMany({
       where: eq(divisions.seasonId, parseInt(seasonId)),
     });
@@ -60,7 +65,7 @@ export async function GET(request: NextRequest) {
         with: { coach: true },
       },
       winner: true,
-      division: true,
+      division: { with: { season: true } },
     },
     orderBy: (pm, { asc }) => [asc(pm.round), asc(pm.bracketPosition)],
   });
@@ -71,6 +76,14 @@ export async function GET(request: NextRequest) {
   }
   if (divisionId) {
     filtered = filtered.filter((m) => m.divisionId === parseInt(divisionId));
+  }
+  if (!canSeePrivate) {
+    filtered = filtered.filter((match) =>
+      match.division &&
+      isDivisionPubliclyVisible(match.division, visibility) &&
+      match.division.season &&
+      isPublicSeasonVisible(match.division.season)
+    );
   }
 
   return NextResponse.json(filtered);

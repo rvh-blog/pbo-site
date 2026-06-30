@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
-import { matches, matchPokemon, seasons, killEvents } from "@/lib/schema";
+import { divisions, matches, matchPokemon, seasons, killEvents } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { getSession } from "@/lib/session";
+import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -169,9 +171,12 @@ export default async function KillLeadersPage({ params }: PageProps) {
   }
 
   // Fetch all data in parallel
-  const [season, seasonMatches, allMatchPokemon, allKillEvents] = await Promise.all([
+  const [season, seasonDivisions, seasonMatches, allMatchPokemon, allKillEvents, session, visibility] = await Promise.all([
     db.query.seasons.findFirst({
       where: eq(seasons.id, seasonId),
+    }),
+    db.query.divisions.findMany({
+      where: eq(divisions.seasonId, seasonId),
     }),
     db.query.matches.findMany({
       where: eq(matches.seasonId, seasonId),
@@ -186,14 +191,24 @@ export default async function KillLeadersPage({ params }: PageProps) {
         move: true,
       },
     }),
+    getSession(),
+    getPublicVisibilityState(),
   ]);
 
-  if (!season) {
+  if (!season || (!session?.isMod && !isPublicSeasonVisible(season))) {
     notFound();
   }
 
+  const visibleDivisionIds = new Set(
+    (session?.isMod ? seasonDivisions : filterPublicDivisions(seasonDivisions, visibility)).map((division) => division.id)
+  );
+
   // Create set of match IDs for efficient lookup
-  const seasonMatchIds = new Set(seasonMatches.map((m) => m.id));
+  const seasonMatchIds = new Set(
+    seasonMatches
+      .filter((match) => visibleDivisionIds.has(match.divisionId))
+      .map((m) => m.id)
+  );
 
   // Process leaderboards from pre-fetched data
   const pokemonLeaderboard = processPokemonLeaderboard(seasonMatchIds, allMatchPokemon);

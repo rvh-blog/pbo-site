@@ -5,6 +5,8 @@ import { divisions, seasonCoaches, transactions, pokemon, rosters } from "@/lib/
 import { eq, desc, or, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { TransactionsFilter } from "./transactions-filter";
+import { getSession } from "@/lib/session";
+import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 interface PageProps {
   params: Promise<{ id: string; divId: string }>;
@@ -19,7 +21,7 @@ export default async function DivisionTransactionsPage({ params, searchParams }:
   const weekFilter = resolvedSearchParams.week ? parseInt(resolvedSearchParams.week) : null;
 
   // Fetch all data in parallel
-  const [division, divisionCoaches, allTxs, allPokemon, allRosters] = await Promise.all([
+  const [division, divisionCoaches, allTxs, allPokemon, allRosters, session, visibility] = await Promise.all([
     db.query.divisions.findFirst({
       where: eq(divisions.id, divisionId),
       with: { season: true },
@@ -35,9 +37,18 @@ export default async function DivisionTransactionsPage({ params, searchParams }:
     db.query.rosters.findMany({
       columns: { seasonCoachId: true, pokemonId: true, isTeraCaptain: true },
     }),
+    getSession(),
+    getPublicVisibilityState(),
   ]);
 
-  if (!division || division.seasonId !== seasonId) {
+  if (
+    !division ||
+    division.seasonId !== seasonId ||
+    (!session?.isMod &&
+      (!isDivisionPubliclyVisible(division, visibility) ||
+        !division.season ||
+        !isPublicSeasonVisible(division.season)))
+  ) {
     notFound();
   }
 
@@ -72,7 +83,7 @@ export default async function DivisionTransactionsPage({ params, searchParams }:
             ? rosterTCMap.get(`${tx.seasonCoachId}-${id}`) || false
             : undefined;
           return { ...p, isTeraCaptain };
-        }).filter(Boolean),
+        }).filter((p): p is NonNullable<typeof p> => p !== null),
         pokemonOutDetails: pokemonOutIds.map((id) => {
           const p = pokemonById.get(id);
           if (!p) return null;
@@ -80,7 +91,7 @@ export default async function DivisionTransactionsPage({ params, searchParams }:
             ? rosterTCMap.get(`${tx.tradingPartnerSeasonCoachId}-${id}`) || false
             : undefined;
           return { ...p, isTeraCaptain };
-        }).filter(Boolean),
+        }).filter((p): p is NonNullable<typeof p> => p !== null),
         newTeraCaptainDetails: tx.newTeraCaptainId ? pokemonById.get(tx.newTeraCaptainId) || null : null,
         oldTeraCaptainDetails: tx.oldTeraCaptainId ? pokemonById.get(tx.oldTeraCaptainId) || null : null,
         seasonCoach: coachById.get(tx.seasonCoachId),
@@ -305,7 +316,7 @@ export default async function DivisionTransactionsPage({ params, searchParams }:
                       {/* Pokemon In/Out */}
                       <div className="flex-1 flex flex-wrap items-center gap-1.5 sm:gap-2">
                         {/* Show out first, then arrow, then in (for swaps) */}
-                        {tx.pokemonOutDetails?.map((p: any) => {
+                        {tx.pokemonOutDetails?.map((p) => {
                           const wasTC = tx.type === "P2P_TRADE" ? !!p.isTeraCaptain : tx.oldTeraCaptainId === p.id;
                           return (
                             <div key={p.id} className="flex items-center gap-0.5 sm:gap-1">
@@ -319,7 +330,7 @@ export default async function DivisionTransactionsPage({ params, searchParams }:
                         {tx.pokemonOutDetails && tx.pokemonOutDetails.length > 0 && tx.pokemonInDetails && tx.pokemonInDetails.length > 0 && (
                           <span className="text-xs sm:text-sm text-[var(--foreground-muted)]">→</span>
                         )}
-                        {tx.pokemonInDetails?.map((p: any) => {
+                        {tx.pokemonInDetails?.map((p) => {
                           const isTC = tx.type === "P2P_TRADE" ? !!p.isTeraCaptain : tx.newTeraCaptainId === p.id;
                           return (
                             <div key={p.id} className="flex items-center gap-0.5 sm:gap-1">

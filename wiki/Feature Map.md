@@ -101,7 +101,7 @@ Scripts live in `scripts` and season seed logic lives mostly in `src/lib`.
 Examples:
 
 - Pokemon fetch/import: `scripts/fetch-pokemon.ts`, `scripts/seed-pokemon.ts`, `scripts/fetch-pokemon-moves.ts`
-- Season imports: `scripts/import-s2-schedule.ts`, `scripts/import-s3-*`, `scripts/import-s4-*`
+- Historical season imports: `scripts/archive/historical-seasons`
 - Data repair: `scripts/fix-*`, `scripts/compare-*`, `scripts/analyze-*`
 - Elo: `src/lib/recalculate-elo.ts`
 

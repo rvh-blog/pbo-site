@@ -7,6 +7,7 @@ export const SITE_SETTING_KEYS = {
   bettingUiHidden: "betting_ui_hidden",
   fantasyUiHidden: "fantasy_ui_hidden",
   blogUiHidden: "blog_ui_hidden",
+  infinityDivisionReleased: "infinity_division_released",
 } as const;
 
 export async function getSiteFeatureSettings() {
@@ -21,6 +22,12 @@ export async function getSiteFeatureSettings() {
     fantasyUiHidden: settingsMap.get(SITE_SETTING_KEYS.fantasyUiHidden) === "true",
     blogUiHidden: settingsMap.get(SITE_SETTING_KEYS.blogUiHidden) === "true",
   };
+}
+
+export async function getSiteSetting(key: string) {
+  return await db.query.siteSettings.findFirst({
+    where: eq(siteSettings.key, key),
+  });
 }
 
 export async function upsertSiteSetting(key: string, value: boolean) {

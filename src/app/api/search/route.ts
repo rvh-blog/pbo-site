@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { coaches, seasons, divisions, seasonCoaches, pokemon, moves } from "@/lib/schema";
-import { like, or, sql } from "drizzle-orm";
+import { and, like, or, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { getPublicVisibilityState } from "@/lib/public-visibility";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -12,6 +13,14 @@ export async function GET(request: NextRequest) {
   }
 
   const searchPattern = `%${query}%`;
+  const visibility = await getPublicVisibilityState();
+  const publicSeasonFilter = sql`${seasons.isPublic} IS NOT 0`;
+  const publicDivisionFilter = visibility.hiddenDivisionNames.has("infinity")
+    ? sql`lower(${divisions.name}) <> 'infinity'`
+    : sql`1 = 1`;
+  const exactCoachNameRank = sql`CASE WHEN lower(${coaches.name}) = ${query} THEN 0 ELSE 1 END`;
+  const exactTeamNameRank = sql`CASE WHEN lower(${seasonCoaches.teamName}) = ${query} THEN 0 ELSE 1 END`;
+  const currentSeasonRank = sql`CASE WHEN ${seasons.isCurrent} THEN 0 ELSE 1 END`;
 
   // Search coaches by name
   const coachByNameResults = await db
@@ -21,6 +30,7 @@ export async function GET(request: NextRequest) {
     })
     .from(coaches)
     .where(like(sql`lower(${coaches.name})`, searchPattern))
+    .orderBy(exactCoachNameRank, sql`${coaches.name} ASC`)
     .limit(5);
 
   // Search coaches by team name (find the coach who owns a matching team)
@@ -32,7 +42,14 @@ export async function GET(request: NextRequest) {
     })
     .from(seasonCoaches)
     .innerJoin(coaches, sql`${seasonCoaches.coachId} = ${coaches.id}`)
-    .where(like(sql`lower(${seasonCoaches.teamName})`, searchPattern))
+    .innerJoin(divisions, sql`${seasonCoaches.divisionId} = ${divisions.id}`)
+    .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
+    .where(and(
+      like(sql`lower(${seasonCoaches.teamName})`, searchPattern),
+      publicSeasonFilter,
+      publicDivisionFilter
+    ))
+    .orderBy(exactTeamNameRank, currentSeasonRank, sql`${seasons.seasonNumber} DESC`)
     .limit(5);
 
   // Merge coach results, prioritizing team name matches, then deduping
@@ -70,8 +87,12 @@ export async function GET(request: NextRequest) {
     .innerJoin(coaches, sql`${seasonCoaches.coachId} = ${coaches.id}`)
     .innerJoin(divisions, sql`${seasonCoaches.divisionId} = ${divisions.id}`)
     .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
-    .where(like(sql`lower(${seasonCoaches.teamName})`, searchPattern))
-    .orderBy(sql`${seasons.seasonNumber} DESC`)
+    .where(and(
+      like(sql`lower(${seasonCoaches.teamName})`, searchPattern),
+      publicSeasonFilter,
+      publicDivisionFilter
+    ))
+    .orderBy(exactTeamNameRank, currentSeasonRank, sql`${seasons.seasonNumber} DESC`)
     .limit(8);
 
   // Search seasons
@@ -82,8 +103,15 @@ export async function GET(request: NextRequest) {
       seasonNumber: seasons.seasonNumber,
     })
     .from(seasons)
-    .where(like(sql`lower(${seasons.name})`, searchPattern))
-    .orderBy(sql`${seasons.seasonNumber} DESC`)
+    .where(and(
+      like(sql`lower(${seasons.name})`, searchPattern),
+      publicSeasonFilter
+    ))
+    .orderBy(
+      sql`CASE WHEN lower(${seasons.name}) = ${query} THEN 0 ELSE 1 END`,
+      currentSeasonRank,
+      sql`${seasons.seasonNumber} DESC`
+    )
     .limit(5);
 
   // Search divisions
@@ -96,8 +124,17 @@ export async function GET(request: NextRequest) {
     })
     .from(divisions)
     .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
-    .where(like(sql`lower(${divisions.name})`, searchPattern))
-    .orderBy(sql`${seasons.seasonNumber} DESC`, sql`${divisions.displayOrder} ASC`)
+    .where(and(
+      like(sql`lower(${divisions.name})`, searchPattern),
+      publicSeasonFilter,
+      publicDivisionFilter
+    ))
+    .orderBy(
+      sql`CASE WHEN lower(${divisions.name}) = ${query} THEN 0 ELSE 1 END`,
+      currentSeasonRank,
+      sql`${seasons.seasonNumber} DESC`,
+      sql`${divisions.displayOrder} ASC`
+    )
     .limit(8);
 
   // Search pokemon
@@ -115,6 +152,7 @@ export async function GET(request: NextRequest) {
         like(sql`lower(${pokemon.displayName})`, searchPattern)
       )
     )
+    .orderBy(sql`CASE WHEN lower(${pokemon.name}) = ${query} OR lower(${pokemon.displayName}) = ${query} THEN 0 ELSE 1 END`)
     .limit(8);
 
   // Search for draft boards if query matches "draft"
@@ -126,6 +164,7 @@ export async function GET(request: NextRequest) {
         name: seasons.name,
       })
       .from(seasons)
+      .where(publicSeasonFilter)
       .orderBy(sql`${seasons.seasonNumber} DESC`)
       .limit(10);
   }
@@ -142,6 +181,7 @@ export async function GET(request: NextRequest) {
       })
       .from(divisions)
       .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
+      .where(and(publicSeasonFilter, publicDivisionFilter))
       .orderBy(sql`${seasons.seasonNumber} DESC`, sql`${divisions.displayOrder} ASC`)
       .limit(12);
   }
@@ -158,6 +198,7 @@ export async function GET(request: NextRequest) {
       })
       .from(divisions)
       .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
+      .where(and(publicSeasonFilter, publicDivisionFilter))
       .orderBy(sql`${seasons.seasonNumber} DESC`, sql`${divisions.displayOrder} ASC`)
       .limit(12);
   }
@@ -191,6 +232,7 @@ export async function GET(request: NextRequest) {
         like(sql`lower(${moves.displayName})`, searchPattern)
       )
     )
+    .orderBy(sql`CASE WHEN lower(${moves.name}) = ${query} OR lower(${moves.displayName}) = ${query} THEN 0 ELSE 1 END`)
     .limit(8);
 
   return NextResponse.json({
