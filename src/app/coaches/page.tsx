@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
-import { coaches, seasonCoaches, matches, seasons, divisions } from "@/lib/schema";
+import { seasons } from "@/lib/schema";
 import { desc } from "drizzle-orm";
 import { CoachesClient } from "./coaches-client";
+import { getAllCoachCosmetics } from "@/lib/glow-utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,7 @@ async function getCoachesData() {
   ]);
 
   const latestSeasonId = latestSeason?.id;
+  const cosmetics = await getAllCoachCosmetics(allCoaches.map((coach) => coach.id));
 
   // Build coach data with latest team info
   const coachData = allCoaches.map(coach => {
@@ -54,6 +56,12 @@ async function getCoachesData() {
         teamLogoUrl: latestTeam.teamLogoUrl,
         divisionName: latestTeam.division?.name,
       } : null,
+      logoFrame: cosmetics.logoFrame.has(coach.id)
+        ? {
+            slug: cosmetics.logoFrame.get(coach.id)!.slug,
+            colors: cosmetics.logoFrame.get(coach.id)!.colors,
+          }
+        : null,
       isActive,
       seasons: participations.length,
     };

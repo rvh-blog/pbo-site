@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
+import { LogoFrame } from "@/components/logo-frame";
 
 interface StandingsRowProps {
   team: {
@@ -25,6 +26,8 @@ interface StandingsRowProps {
   bgColor?: string;
   borderColor?: string;
   glowStyle?: React.CSSProperties;
+  logoFrameSlug?: string | null;
+  logoFrameColors?: string[] | null;
 }
 
 export function StandingsRow({
@@ -38,6 +41,8 @@ export function StandingsRow({
   bgColor,
   borderColor,
   glowStyle,
+  logoFrameSlug,
+  logoFrameColors,
 }: StandingsRowProps) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -87,8 +92,12 @@ export function StandingsRow({
 
         {/* Team Info */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          {team.teamLogoUrl ? (
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
+          <LogoFrame
+            slug={logoFrameSlug}
+            colors={logoFrameColors}
+            className="h-8 w-8 shrink-0 rounded bg-[var(--background-secondary)] flex items-center justify-center overflow-hidden sm:h-9 sm:w-9"
+          >
+            {team.teamLogoUrl ? (
               <Image
                 src={team.teamLogoUrl}
                 alt={team.teamName}
@@ -96,14 +105,12 @@ export function StandingsRow({
                 height={28}
                 className="object-contain"
               />
-            </div>
-          ) : (
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded bg-[var(--primary)] flex items-center justify-center flex-shrink-0">
+            ) : (
               <span className="text-white font-bold text-[10px] sm:text-xs">
                 {team.teamAbbreviation || team.teamName.substring(0, 2).toUpperCase()}
               </span>
-            </div>
-          )}
+            )}
+          </LogoFrame>
           <div className="min-w-0">
             <div
               className={`font-bold text-xs sm:text-sm ${hasBg ? 'text-white' : 'text-[var(--foreground-muted)]'} group-hover:text-white transition-colors truncate ${hasGlow ? 'team-name-glow' : ''}`}

@@ -10,7 +10,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = "default", ...props }, ref) => {
     const variants = {
-      default: "rounded-xl border border-[var(--card-border)] bg-[var(--card)] backdrop-blur-sm shadow-lg transition-all duration-300 hover:border-[var(--primary)]/30",
+      default: "rounded-lg border border-[var(--card-border)] bg-[var(--card)] backdrop-blur-sm shadow-md transition-colors duration-200 hover:border-[var(--primary)]/30",
       glass: "glass-card",
       premium: "premium-card",
     };

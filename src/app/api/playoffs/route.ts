@@ -5,6 +5,7 @@ import { eq, and, or } from "drizzle-orm";
 import { updateEloForMatch } from "@/lib/elo-service";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { logAdminAudit } from "@/lib/admin-audit";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -90,6 +91,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
   const body = await request.json();
   const {
     seasonId,
@@ -169,6 +171,23 @@ export async function POST(request: NextRequest) {
   // Ensure SF and Finals placeholders exist whenever any playoff match is added
   await ensurePlayoffBracketStructure(seasonId, divisionId);
 
+  await logAdminAudit({
+    session,
+    action: "playoff_create",
+    entityType: "playoff_match",
+    entityId: playoffMatch.id,
+    summary: `Created playoff bracket slot R${actualRound} #${actualPosition}`,
+    details: {
+      seasonId,
+      divisionId,
+      round: actualRound,
+      bracketPosition: actualPosition,
+      higherSeedId: higherSeedId || null,
+      lowerSeedId: lowerSeedId || null,
+      linkedMatchId: matchId,
+    },
+  });
+
   return NextResponse.json(playoffMatch);
 }
 
@@ -225,6 +244,7 @@ async function ensurePlayoffBracketStructure(seasonId: number, divisionId: numbe
 }
 
 export async function PUT(request: NextRequest) {
+  const session = await getSession();
   const body = await request.json();
   const {
     id,
@@ -338,10 +358,37 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  await logAdminAudit({
+    session,
+    action: winnerId !== undefined ? "playoff_result_update" : "playoff_update",
+    entityType: "playoff_match",
+    entityId: id,
+    summary: `Updated playoff bracket slot R${currentMatch.round} #${currentMatch.bracketPosition}`,
+    details: {
+      seasonId: currentMatch.seasonId,
+      divisionId: currentMatch.divisionId,
+      round: currentMatch.round,
+      bracketPosition: currentMatch.bracketPosition,
+      before: {
+        higherSeedId: currentMatch.higherSeedId,
+        lowerSeedId: currentMatch.lowerSeedId,
+        winnerId: currentMatch.winnerId,
+      },
+      after: {
+        higherSeedId: updated.higherSeedId,
+        lowerSeedId: updated.lowerSeedId,
+        winnerId: updated.winnerId,
+      },
+      linkedMatchId: updated.matchId || currentMatch.matchId,
+      needsFullRecalc,
+    },
+  });
+
   return NextResponse.json({ ...updated, needsFullRecalc });
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getSession();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 
@@ -378,6 +425,26 @@ export async function DELETE(request: NextRequest) {
       // Delete the match itself
       await db.delete(matches).where(eq(matches.id, matchIdToDelete));
     }
+
+    // Don't auto-recalculate - let UI handle showing recalc prompt
+    await logAdminAudit({
+      session,
+      action: "playoff_delete",
+      entityType: "playoff_match",
+      entityId: playoffId,
+      summary: `Deleted playoff bracket slot R${playoffMatch.round} #${playoffMatch.bracketPosition}`,
+      details: {
+        seasonId: playoffMatch.seasonId,
+        divisionId: playoffMatch.divisionId,
+        round: playoffMatch.round,
+        bracketPosition: playoffMatch.bracketPosition,
+        higherSeedId: playoffMatch.higherSeedId,
+        lowerSeedId: playoffMatch.lowerSeedId,
+        winnerId: playoffMatch.winnerId,
+        deletedMatchId: matchIdToDelete,
+        hadEloImpact,
+      },
+    });
 
     // Don't auto-recalculate - let UI handle showing recalc prompt
     // Only flag needsFullRecalc if the deleted match had ELO impact

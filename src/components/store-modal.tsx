@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
   EARNED_LOGO_FRAME_ITEMS,
@@ -27,6 +28,9 @@ const GLOW_COLORS = {
 };
 
 type GlowColorKey = keyof typeof GLOW_COLORS;
+type StoreMobileSection = "buy" | "owned" | "colors" | "frames";
+
+const COLOR_CUSTOMIZER_SLUGS = new Set(["team-name-glow", "row-background", "row-border"]);
 
 interface StoreItem {
   id: number;
@@ -66,6 +70,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
   const [toggling, setToggling] = useState<number | null>(null);
   const [savingColor, setSavingColor] = useState(false);
   const [error, setError] = useState("");
+  const [mobileSection, setMobileSection] = useState<StoreMobileSection>("buy");
 
   const getDeactivatedPurchaseIds = (data: { deactivatedPurchaseId?: number | null; deactivatedPurchaseIds?: number[] }) => {
     const ids = new Set<number>();
@@ -110,6 +115,17 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]); // Only re-fetch when modal opens, not when onBalanceChange changes
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
 
   const handlePurchase = async (itemSlug: string) => {
     setPurchasing(itemSlug);
@@ -357,11 +373,33 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
   }));
   const displayLogoFrameItems = [...logoFrameItems, ...earnedLogoFrameItems];
   const standardItems = items.filter((item) => !isLogoFrameSlug(item.slug));
+  const purchasableStandardCount = standardItems.filter((item) => !isOwned(item.slug)).length;
+  const ownedStandardCount = standardItems.filter(
+    (item) => isOwned(item.slug) && !COLOR_CUSTOMIZER_SLUGS.has(item.slug)
+  ).length;
+  const colorCustomizerCount = standardItems.filter(
+    (item) => isOwned(item.slug) && COLOR_CUSTOMIZER_SLUGS.has(item.slug)
+  ).length;
+  const mobileSectionHasItems =
+    mobileSection === "buy"
+      ? purchasableStandardCount > 0
+      : mobileSection === "owned"
+      ? ownedStandardCount > 0
+      : mobileSection === "colors"
+      ? colorCustomizerCount > 0
+      : displayLogoFrameItems.length > 0;
 
-  if (!isOpen) return null;
+  const mobileTabs: Array<{ id: StoreMobileSection; label: string; count: number }> = [
+    { id: "buy", label: "Buy", count: purchasableStandardCount },
+    { id: "owned", label: "Owned", count: ownedStandardCount },
+    { id: "colors", label: "Colors", count: colorCustomizerCount },
+    { id: "frames", label: "Frames", count: displayLogoFrameItems.length },
+  ];
 
-  return (
-    <div className="fixed inset-0 z-50">
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100]">
       {/* Backdrop - covers full viewport */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
@@ -369,9 +407,9 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
       />
 
       {/* Modal container */}
-      <div className="fixed inset-0 flex items-start justify-center pt-20 pb-8 pointer-events-none overflow-y-auto">
+      <div className="fixed inset-0 flex items-end justify-center pointer-events-none sm:items-start sm:overflow-y-auto sm:px-4 sm:pb-8 sm:pt-20">
         {/* Modal */}
-        <div className="relative w-full max-w-7xl mx-4 sm:mx-6 bg-[var(--card)] border border-[var(--card-border)] rounded-xl shadow-2xl max-h-[calc(100vh-7rem)] flex flex-col pointer-events-auto">
+        <div className="relative flex h-[100dvh] w-full flex-col bg-[var(--card)] border border-[var(--card-border)] shadow-2xl pointer-events-auto sm:h-auto sm:max-h-[calc(100dvh-7rem)] sm:max-w-7xl sm:rounded-xl">
         {/* Header */}
         <div className="p-4 pr-12 border-b border-[var(--card-border)] flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -391,6 +429,36 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
             </div>
           </div>
         </div>
+
+        {!loading && items.length > 0 && (
+          <div className="sm:hidden flex-shrink-0 border-b border-[var(--card-border)] bg-[var(--background-secondary)]">
+            <div className="flex gap-2 overflow-x-auto px-3 py-2 scrollbar-thin">
+              {mobileTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setMobileSection(tab.id)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    mobileSection === tab.id
+                      ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground-muted)]"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                      mobileSection === tab.id
+                        ? "bg-white/20 text-white"
+                        : "bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
@@ -412,8 +480,17 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                 </p>
               ) : (
                 <>
+                  {!mobileSectionHasItems && (
+                    <div className="sm:hidden rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] p-4 text-center">
+                      <p className="text-sm font-medium">Nothing here yet</p>
+                      <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                        Switch sections or check back after earning or buying more store items.
+                      </p>
+                    </div>
+                  )}
+
                   {displayLogoFrameItems.length > 0 && (
-                    <div className="p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)]">
+                    <div className={`${mobileSection === "frames" ? "block" : "hidden"} p-4 rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] sm:block`}>
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-slate-200/25 via-cyan-400/20 to-amber-300/25 text-cyan-200">
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -599,11 +676,20 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                   const owned = isOwned(item.slug);
                   const purchase = getPurchase(item.slug);
                   const canAfford = balance >= item.price;
+                  const isColorCustomizer = COLOR_CUSTOMIZER_SLUGS.has(item.slug);
+                  const showOnMobile =
+                    mobileSection === "buy"
+                      ? !owned
+                      : mobileSection === "owned"
+                      ? owned && !isColorCustomizer
+                      : mobileSection === "colors"
+                      ? owned && isColorCustomizer
+                      : false;
 
                   return (
                     <div
                       key={item.id}
-                      className={`p-4 rounded-lg border ${
+                      className={`${showOnMobile ? "block" : "hidden"} p-4 rounded-lg border sm:block ${
                         owned
                           ? "border-[var(--success)]/30 bg-[var(--success)]/5"
                           : "border-[var(--card-border)] bg-[var(--background-secondary)]"
@@ -1083,6 +1169,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

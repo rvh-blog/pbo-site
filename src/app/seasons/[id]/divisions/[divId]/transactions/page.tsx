@@ -1,12 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
-import { divisions, seasonCoaches, transactions, pokemon, rosters } from "@/lib/schema";
-import { eq, desc, or, inArray } from "drizzle-orm";
+import { divisions, seasonCoaches, transactions } from "@/lib/schema";
+import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { TransactionsFilter } from "./transactions-filter";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { DivisionMobileSubnav } from "@/components/division-mobile-subnav";
 
 interface PageProps {
   params: Promise<{ id: string; divId: string }>;
@@ -173,16 +174,34 @@ export default async function DivisionTransactionsPage({ params, searchParams }:
         </div>
       </div>
 
+      <DivisionMobileSubnav
+        seasonId={seasonId}
+        divisionId={divisionId}
+        items={[
+          { href: `/seasons/${seasonId}/divisions/${divisionId}`, label: "Overview" },
+          { href: "#transactions", label: "Transactions" },
+          { href: `/seasons/${seasonId}/divisions/${divisionId}/rosters`, label: "Rosters" },
+        ]}
+      />
+
       {/* Filters */}
-      <div className="poke-card p-4 sm:p-6">
-        <TransactionsFilter
-          weeks={weeks}
-          currentWeek={weekFilter}
-        />
-      </div>
+      <details className="poke-card p-4 sm:p-6 sm:block">
+        <summary className="mobile-collapsible-summary">
+          <span>Filters</span>
+          <span className="text-[var(--foreground-muted)] normal-case">
+            {weekFilter ? `Week ${weekFilter}` : "All weeks"}
+          </span>
+        </summary>
+        <div className="mobile-collapsible-content">
+          <TransactionsFilter
+            weeks={weeks}
+            currentWeek={weekFilter}
+          />
+        </div>
+      </details>
 
       {/* Transactions List */}
-      <div className="poke-card p-0 overflow-hidden">
+      <div id="transactions" className="scroll-mt-32 poke-card p-0 overflow-hidden">
         <div className="p-4 sm:p-6 border-b-2 border-[var(--background-tertiary)]">
           <div className="section-title !mb-0">
             <div className="section-title-icon !bg-[var(--accent)]" style={{ boxShadow: '0 4px 0 #7c3aed' }}>
@@ -229,55 +248,90 @@ export default async function DivisionTransactionsPage({ params, searchParams }:
 
                   return (
                     <div key={tx.id} className="trainer-card flex-col sm:flex-row gap-1.5 sm:gap-3">
-                      {/* Mobile: Top row with Team, Week, Type, Points */}
-                      <div className="flex sm:hidden items-center justify-between w-full">
-                        <div className="flex items-center gap-2">
-                          {team && (
-                            <Link
-                              href={`/coaches/${team.coach?.id}`}
-                              className="flex items-center gap-1 hover:opacity-80"
-                            >
-                              {team.teamLogoUrl && (
-                                <Image
-                                  src={team.teamLogoUrl}
-                                  alt={team.teamName}
-                                  width={16}
-                                  height={16}
-                                  className="object-contain"
-                                />
-                              )}
-                              <span className="text-[10px] text-[var(--foreground-muted)]">
-                                {team.teamAbbreviation || team.teamName.substring(0, 3).toUpperCase()}
+                      <details className="sm:hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)]">
+                        <summary className="mobile-collapsible-summary px-3 py-2 normal-case">
+                          <span className="flex min-w-0 items-center gap-2">
+                            {team?.teamLogoUrl && (
+                              <Image
+                                src={team.teamLogoUrl}
+                                alt={team.teamName}
+                                width={18}
+                                height={18}
+                                className="shrink-0 object-contain"
+                              />
+                            )}
+                            <span className="truncate text-xs text-white">
+                              {team?.teamAbbreviation || team?.teamName.substring(0, 3).toUpperCase() || "Team"}
+                            </span>
+                            <span className="text-[10px] text-[var(--foreground-muted)]">W{tx.week}</span>
+                            <span className={`text-xs ${typeColor}`}>{typeLabel}</span>
+                          </span>
+                          <span className="shrink-0 text-[10px] text-[var(--foreground-muted)]">
+                            {(tx.pokemonInDetails?.length || 0) + (tx.pokemonOutDetails?.length || 0) || 1} item
+                          </span>
+                        </summary>
+                        <div className="border-t border-[var(--background-tertiary)] px-3 py-3">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            {team && (
+                              <Link href={`/coaches/${team.coach?.id}`} className="text-xs font-bold text-[var(--foreground-muted)] hover:text-white">
+                                {team.teamName}
+                              </Link>
+                            )}
+                            {tx.budgetChange != null && tx.budgetChange !== 0 && (
+                              <span className={`text-xs font-bold ${tx.budgetChange > 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                                {tx.type === "P2P_TRADE"
+                                  ? `${tx.budgetChange > 0 ? "+" : ""}${tx.budgetChange}/${-tx.budgetChange > 0 ? "+" : ""}${-tx.budgetChange} pts`
+                                  : `${tx.budgetChange > 0 ? "+" : ""}${tx.budgetChange} pts`}
                               </span>
-                            </Link>
-                          )}
-                          <span className="text-[10px] text-[var(--foreground-muted)]">W{tx.week}</span>
-                          <span className={`text-xs font-bold ${typeColor}`}>{typeLabel}</span>
+                            )}
+                          </div>
                           {!tx.countsAgainstLimit && (
-                            <span className="text-[8px] text-[var(--foreground-muted)] italic">(grace)</span>
+                            <div className="mb-2 text-[10px] italic text-[var(--foreground-muted)]">Grace transaction</div>
                           )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {tx.pokemonOutDetails?.map((p) => {
+                              const wasTC = tx.type === "P2P_TRADE" ? !!p.isTeraCaptain : tx.oldTeraCaptainId === p.id;
+                              return (
+                                <Link key={p.id} href={`/pokemon/${p.id}`} className="inline-flex items-center gap-1 rounded bg-[var(--background)] px-2 py-1">
+                                  {p.spriteUrl && <img src={p.spriteUrl} alt="" className="h-5 w-5" />}
+                                  <span className="text-xs font-bold text-[var(--error)]">-{p.displayName || p.name}{wasTC ? " [TC]" : ""}</span>
+                                </Link>
+                              );
+                            })}
+                            {tx.pokemonInDetails?.map((p) => {
+                              const isTC = tx.type === "P2P_TRADE" ? !!p.isTeraCaptain : tx.newTeraCaptainId === p.id;
+                              return (
+                                <Link key={p.id} href={`/pokemon/${p.id}`} className="inline-flex items-center gap-1 rounded bg-[var(--background)] px-2 py-1">
+                                  {p.spriteUrl && <img src={p.spriteUrl} alt="" className="h-5 w-5" />}
+                                  <span className="text-xs font-bold text-[var(--success)]">+{p.displayName || p.name}{isTC ? " [TC]" : ""}</span>
+                                </Link>
+                              );
+                            })}
+                            {tx.type === "TERA_SWAP" && (
+                              <>
+                                {tx.oldTeraCaptainDetails && (
+                                  <Link href={`/pokemon/${tx.oldTeraCaptainDetails.id}`} className="inline-flex items-center gap-1 rounded bg-[var(--background)] px-2 py-1">
+                                    {tx.oldTeraCaptainDetails.spriteUrl && <img src={tx.oldTeraCaptainDetails.spriteUrl} alt="" className="h-5 w-5" />}
+                                    <span className="text-xs font-bold text-[var(--error)]">-{tx.oldTeraCaptainDetails.displayName || tx.oldTeraCaptainDetails.name} [TC]</span>
+                                  </Link>
+                                )}
+                                {tx.newTeraCaptainDetails && (
+                                  <Link href={`/pokemon/${tx.newTeraCaptainDetails.id}`} className="inline-flex items-center gap-1 rounded bg-[var(--background)] px-2 py-1">
+                                    {tx.newTeraCaptainDetails.spriteUrl && <img src={tx.newTeraCaptainDetails.spriteUrl} alt="" className="h-5 w-5" />}
+                                    <span className="text-xs font-bold text-[var(--success)]">+{tx.newTeraCaptainDetails.displayName || tx.newTeraCaptainDetails.name} [TC]</span>
+                                  </Link>
+                                )}
+                              </>
+                            )}
+                            {tx.tradingPartner && (
+                              <Link href={`/coaches/${tx.tradingPartner.coach?.id}`} className="inline-flex items-center gap-1 rounded bg-[var(--background)] px-2 py-1 text-[10px] text-[var(--foreground-muted)]">
+                                {tx.tradingPartner.teamLogoUrl && <img src={tx.tradingPartner.teamLogoUrl} alt="" className="h-4 w-4 object-contain" />}
+                                w/ {tx.tradingPartner.teamAbbreviation || tx.tradingPartner.teamName.substring(0, 3).toUpperCase()}
+                              </Link>
+                            )}
+                          </div>
                         </div>
-                        {tx.budgetChange != null && tx.budgetChange !== 0 && (
-                          tx.type === "P2P_TRADE" ? (
-                            <span className="text-xs font-bold">
-                              <span className={tx.budgetChange > 0 ? "text-[var(--success)]" : "text-[var(--error)]"}>
-                                {tx.budgetChange > 0 ? "+" : ""}{tx.budgetChange}
-                              </span>
-                              <span className="text-[var(--foreground-muted)]">/</span>
-                              <span className={-tx.budgetChange > 0 ? "text-[var(--success)]" : "text-[var(--error)]"}>
-                                {-tx.budgetChange > 0 ? "+" : ""}{-tx.budgetChange}
-                              </span>
-                              <span className="text-[var(--foreground-muted)]"> pts</span>
-                            </span>
-                          ) : (
-                            <span className={`text-xs font-bold ${
-                              tx.budgetChange > 0 ? "text-[var(--success)]" : "text-[var(--error)]"
-                            }`}>
-                              {tx.budgetChange > 0 ? "+" : ""}{tx.budgetChange} pts
-                            </span>
-                          )
-                        )}
-                      </div>
+                      </details>
                       {/* Desktop: Week */}
                       <div className="hidden sm:block w-10 text-center text-sm font-bold text-[var(--foreground-muted)]">
                         {tx.week}

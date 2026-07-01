@@ -1100,6 +1100,24 @@ export const coachPurchasesRelations = relations(coachPurchases, ({ one }) => ({
   }),
 }));
 
+// Admin Audit Logs - append-only record of risky admin/API writes
+export const adminAuditLogs = sqliteTable("admin_audit_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  actorType: text("actor_type"), // coach, spectator, or null when unauthenticated/unknown
+  actorId: integer("actor_id"),
+  actorName: text("actor_name"),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id"),
+  summary: text("summary").notNull(),
+  details: text("details"), // JSON blob with before/after counts or payload summary
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_admin_audit_logs_created_at").on(table.createdAt),
+  index("idx_admin_audit_logs_entity").on(table.entityType, table.entityId),
+  index("idx_admin_audit_logs_actor").on(table.actorType, table.actorId),
+]);
+
 // User Preferences - saves page settings for logged-in users
 export const userPreferences = sqliteTable("user_preferences", {
   id: integer("id").primaryKey({ autoIncrement: true }),

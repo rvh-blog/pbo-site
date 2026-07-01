@@ -91,8 +91,11 @@ function formatSchedule(isoString: string): string {
 export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
   const [selectedWeek, setSelectedWeek] = useState(() => getInitialWeek(schedule, maxWeek));
   const [expandedMatches, setExpandedMatches] = useState<Set<number>>(new Set());
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setNow(Date.now()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // Get all weeks from schedule (includes playoff weeks 101, 102, 103)
   const allWeeks = Object.keys(schedule).map(Number).sort((a, b) => a - b);
@@ -129,13 +132,13 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
       </div>
 
       {/* Week Selector */}
-      <div className="p-4 border-b-2 border-[var(--background-tertiary)]">
-        <div className="flex flex-wrap gap-2">
+      <div className="p-3 sm:p-4 border-b-2 border-[var(--background-tertiary)]">
+        <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 scrollbar-thin">
           {weeks.map((week) => (
             <button
               key={week}
               onClick={() => setSelectedWeek(week)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border-2 ${
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${
                 selectedWeek === week
                   ? week > 100
                     ? "bg-[var(--accent)] text-black border-[var(--accent)]"
@@ -164,8 +167,7 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
               const team2Won = match.winnerId === match.coach2.id;
               const isExpanded = expandedMatches.has(match.id);
               const ONE_HOUR = 60 * 60 * 1000;
-              const now = Date.now();
-              const isUnderway = !hasResult && !!match.scheduledAt && (() => {
+              const isUnderway = !hasResult && now !== null && !!match.scheduledAt && (() => {
                 const scheduledTime = new Date(match.scheduledAt!).getTime();
                 return scheduledTime <= now && scheduledTime > now - ONE_HOUR;
               })();
@@ -287,7 +289,7 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
                     </div>
 
                     {/* Live indicator or scheduled time for upcoming matches */}
-                    {!hasResult && match.scheduledAt && mounted && (
+                    {!hasResult && match.scheduledAt && now !== null && (
                       isUnderway ? (
                         <div className="flex items-center justify-center gap-1.5 mt-2">
                           <span className="w-1.5 h-1.5 rounded-full bg-[var(--error)] animate-pulse" />

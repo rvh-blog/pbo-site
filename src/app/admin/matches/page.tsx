@@ -149,6 +149,11 @@ type MatchPokemonPayload = {
 
 type TabType = "schedule" | "results" | "playoffs";
 
+function getSeasonCoachName(coaches: SeasonCoach[], id: number | null | undefined) {
+  if (!id) return "TBD";
+  return coaches.find((coach) => coach.id === id)?.teamName || `Season coach ${id}`;
+}
+
 export default function AdminMatchesPage() {
   const [activeTab, setActiveTab] = useState<TabType>("results");
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -301,7 +306,20 @@ export default function AdminMatchesPage() {
   }
 
   async function handleRecalculateElo() {
-    if (!confirm("This will recalculate ELO ratings for all coaches based on match history. Continue?")) return;
+    const completedMatches = matches.filter((match) => match.winnerId).length;
+    if (
+      !confirm(
+        [
+          "Recalculate ELO ratings for all coaches?",
+          "",
+          `Completed matches in current view: ${completedMatches}`,
+          "Affected data: coach ELO ratings derived from match history.",
+          "Use this after deleting or changing historical results.",
+        ].join("\n")
+      )
+    ) {
+      return;
+    }
     setRecalculating(true);
     setRecalcMessage(null);
     try {
@@ -389,6 +407,8 @@ export default function AdminMatchesPage() {
       );
       return {
         week: entry.week,
+        team1: entry.team1,
+        team2: entry.team2,
         coach1SeasonId: coach1?.id,
         coach2SeasonId: coach2?.id,
       };
@@ -398,6 +418,24 @@ export default function AdminMatchesPage() {
 
     if (validSchedule.length === 0) {
       setScheduleCsvError("No valid matches found. Make sure team names match exactly.");
+      return;
+    }
+
+    const skippedRows = scheduleData.length - validSchedule.length;
+    const weeks = [...new Set(validSchedule.map((match) => match.week))].sort((a, b) => a - b);
+    if (
+      !confirm(
+        [
+          `Upload ${validSchedule.length} schedule match${validSchedule.length === 1 ? "" : "es"}?`,
+          "",
+          `Season: ${selectedSeason.name}`,
+          `Division: ${selectedDivision.name}`,
+          `Weeks: ${weeks.join(", ")}`,
+          `Skipped rows: ${skippedRows}`,
+          "Affected data: schedule match rows. Existing matches are not removed.",
+        ].join("\n")
+      )
+    ) {
       return;
     }
 
@@ -590,6 +628,27 @@ export default function AdminMatchesPage() {
         }
       });
 
+      const winnerName = getSeasonCoachName(
+        seasonCoaches,
+        matchForm.winnerId ? parseInt(matchForm.winnerId) : null
+      );
+      if (
+        !confirm(
+          [
+            `${existingMatch ? "Update" : "Create"} playoff result?`,
+            "",
+            `Match: ${getSeasonCoachName(seasonCoaches, playoffMatch.higherSeedId)} vs ${getSeasonCoachName(seasonCoaches, playoffMatch.lowerSeedId)}`,
+            `Round: ${getRoundName(playoffMatch.round)}`,
+            `Winner: ${winnerName}`,
+            `Score differential: ${parseInt(matchForm.coach1Differential) || 0} / ${parseInt(matchForm.coach2Differential) || 0}`,
+            `Pokemon stat rows: ${pokemonData.length}`,
+            "Affected data: match result, standings, Elo dependencies, playoff advancement, bets, and pick-ems.",
+          ].join("\n")
+        )
+      ) {
+        return;
+      }
+
       if (existingMatch) {
         await fetch("/api/matches", {
           method: "PUT",
@@ -719,6 +778,28 @@ export default function AdminMatchesPage() {
         });
       }
     });
+
+    const winnerName = getSeasonCoachName(
+      seasonCoaches,
+      matchForm.winnerId ? parseInt(matchForm.winnerId) : null
+    );
+    if (
+      !confirm(
+        [
+          "Save match result?",
+          "",
+          `Match: ${match.coach1?.teamName || "TBD"} vs ${match.coach2?.teamName || "TBD"}`,
+          `Week: ${match.week}`,
+          `Winner: ${winnerName}`,
+          `Score differential: ${parseInt(matchForm.coach1Differential) || 0} / ${parseInt(matchForm.coach2Differential) || 0}`,
+          `Pokemon stat rows: ${pokemonData.length}`,
+          `Replay attached: ${matchForm.replayUrl ? "yes" : "no"}`,
+          "Affected data: match result, standings, Elo dependencies, bets, and pick-ems.",
+        ].join("\n")
+      )
+    ) {
+      return;
+    }
 
     const res = await fetch("/api/matches", {
       method: "PUT",
@@ -1094,7 +1175,26 @@ export default function AdminMatchesPage() {
   }
 
   async function handleDeleteMatch(id: number) {
-    if (!confirm("Delete this match?")) return;
+    const match = matches.find((m) => m.id === id);
+    if (
+      !confirm(
+        [
+          "Delete this match?",
+          "",
+          match
+            ? `Match: Week ${match.week}, ${match.coach1?.teamName || "TBD"} vs ${match.coach2?.teamName || "TBD"}`
+            : `Match ID: ${id}`,
+          match ? `Completed result: ${match.winnerId ? "yes" : "no"}` : "",
+          match ? `Pokemon stat rows: ${match.matchPokemon?.length || 0}` : "",
+          "Affected data: match row, match Pokemon stats, standings, Elo dependencies, bets, and pick-ems.",
+          "This cannot be undone.",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      )
+    ) {
+      return;
+    }
     try {
       const res = await fetch(`/api/matches?id=${id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -1320,6 +1420,36 @@ export default function AdminMatchesPage() {
                     {schedulePreview.length > 0 && (
                       <div className="space-y-2">
                         <p className="font-medium">Preview ({schedulePreview.length} matches):</p>
+                        {(() => {
+                          const teamsByName = new Set(coachesInDivision.map((coach) => coach.teamName.toLowerCase()));
+                          const validRows = schedulePreview.filter(
+                            (entry) =>
+                              teamsByName.has(entry.team1.toLowerCase()) &&
+                              teamsByName.has(entry.team2.toLowerCase())
+                          );
+                          const weeks = [...new Set(validRows.map((entry) => entry.week))].sort((a, b) => a - b);
+
+                          return (
+                            <div className="grid gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] p-3 text-sm sm:grid-cols-4">
+                              <div>
+                                <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Target</p>
+                                <p className="font-medium">{selectedDivision.name}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Valid rows</p>
+                                <p className="font-medium text-[var(--success)]">{validRows.length}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Skipped rows</p>
+                                <p className="font-medium text-[var(--warning)]">{schedulePreview.length - validRows.length}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Weeks</p>
+                                <p className="font-medium">{weeks.length > 0 ? weeks.join(", ") : "None"}</p>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         <div className="max-h-60 overflow-y-auto space-y-1">
                           {schedulePreview.map((entry, i) => (
                             <div key={i} className="text-sm p-2 rounded bg-[var(--background-secondary)]">
@@ -1680,7 +1810,17 @@ export default function AdminMatchesPage() {
                         </>
                       )}
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <div className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] px-3 py-2 text-xs text-[var(--foreground-muted)] sm:mr-auto sm:w-auto">
+                          <span className="font-medium text-[var(--foreground)]">Save preview:</span>{" "}
+                          {matchForm.winnerId
+                            ? `${getSeasonCoachName(seasonCoaches, parseInt(matchForm.winnerId))} winner`
+                            : "No winner selected"}
+                          {" | "}
+                          {team1Pokemon.filter((entry) => entry.pokemonId).length + team2Pokemon.filter((entry) => entry.pokemonId).length} Pokemon rows
+                          {" | "}
+                          {matchForm.replayUrl ? "replay attached" : "no replay"}
+                        </div>
                         <Button onClick={handleSaveMatchResult}>Save Result</Button>
                         <Button
                           variant="outline"
@@ -1900,7 +2040,7 @@ function PlayoffBracketBuilder({
     round === 1 ? "Quarterfinals" : round === 2 ? "Semifinals" : "Finals";
 
   // Check which slots have changes vs what's in DB
-  const hasChanges = slots.some((slot) => {
+  const changedSlots = slots.filter((slot) => {
     const existing = existingMatches.find(
       (pm) => pm.round === slot.round && pm.bracketPosition === slot.bracketPosition
     );
@@ -1912,9 +2052,26 @@ function PlayoffBracketBuilder({
       (slot.lowerSeedId || "") !== (existing.lowerSeedId?.toString() || "")
     );
   });
+  const hasChanges = changedSlots.length > 0;
 
   async function handleSaveAll() {
     if (!hasChanges) return;
+    if (
+      !confirm(
+        [
+          `Save ${changedSlots.length} playoff bracket change${changedSlots.length === 1 ? "" : "s"}?`,
+          "",
+          ...changedSlots.map(
+            (slot) =>
+              `${roundLabel(slot.round)} ${slot.bracketPosition}: ${getTeamName(slot.higherSeedId)} vs ${getTeamName(slot.lowerSeedId)}`
+          ),
+          "",
+          "Affected data: playoff bracket rows and future playoff result entry.",
+        ].join("\n")
+      )
+    ) {
+      return;
+    }
     setSaving(true);
 
     try {
@@ -1967,7 +2124,18 @@ function PlayoffBracketBuilder({
   }
 
   async function handleClearAll() {
-    if (!confirm("Delete ALL playoff matches for this division? This cannot be undone.")) return;
+    if (
+      !confirm(
+        [
+          `Delete ${existingMatches.length} playoff match${existingMatches.length === 1 ? "" : "es"} for this division?`,
+          "",
+          "Affected data: playoff bracket rows and any linked playoff progression data.",
+          "This cannot be undone.",
+        ].join("\n")
+      )
+    ) {
+      return;
+    }
     setSaving(true);
     try {
       for (const pm of existingMatches) {
@@ -2065,7 +2233,13 @@ function PlayoffBracketBuilder({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        {hasChanges && (
+          <div className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] px-3 py-2 text-xs text-[var(--foreground-muted)] sm:mr-auto sm:w-auto">
+            <span className="font-medium text-[var(--foreground)]">{changedSlots.length} bracket change{changedSlots.length === 1 ? "" : "s"}</span>
+            {" "}ready to save
+          </div>
+        )}
         <Button onClick={handleSaveAll} disabled={!hasChanges || saving}>
           {saving ? "Saving..." : "Save Bracket"}
         </Button>

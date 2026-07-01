@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { LogoFrame } from "@/components/logo-frame";
 
 type Coach = {
   id: number;
@@ -13,6 +14,10 @@ type Coach = {
     teamAbbreviation: string | null;
     teamLogoUrl: string | null;
     divisionName: string | undefined;
+  } | null;
+  logoFrame: {
+    slug: string;
+    colors: string[] | null;
   } | null;
   isActive: boolean;
   seasons: number;
@@ -79,7 +84,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
   const coachesWithStats = useMemo(() => {
     return coaches.map(coach => {
       // Get season coach IDs for this coach
-      let relevantEntries = seasonCoachEntries.filter(sc => sc.coachId === coach.id);
+      const relevantEntries = seasonCoachEntries.filter(sc => sc.coachId === coach.id);
 
       // For stats, use all-time or filtered based on toggle
       let statsEntries = relevantEntries;
@@ -209,7 +214,18 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
               </div>
 
               {/* Filters & Toggles */}
-              <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
+              <details className="sm:contents">
+                <summary className="mobile-collapsible-summary sm:hidden">
+                  <span>Filters</span>
+                  <span className="text-[var(--foreground-muted)] normal-case">
+                    {selectedDivisionId
+                      ? divisions.find((d) => d.id === selectedDivisionId)?.name
+                      : selectedSeasonId
+                      ? seasons.find((s) => s.id === selectedSeasonId)?.name
+                      : "All coaches"}
+                  </span>
+                </summary>
+              <div className="mobile-collapsible-content flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
                 {/* Filter Dropdowns Row */}
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                   <span className="text-[10px] sm:text-xs text-[var(--foreground-muted)] whitespace-nowrap">Filter:</span>
@@ -303,6 +319,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                   </label>
                 </div>
               </div>
+              </details>
             </div>
           </div>
 
@@ -322,8 +339,12 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                   </div>
 
                   {/* Team Logo / Fallback Initial */}
-                  {coach.latestTeam?.teamLogoUrl ? (
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[var(--background-secondary)] flex items-center justify-center flex-shrink-0 border-2 border-[var(--background-tertiary)] overflow-hidden">
+                  <LogoFrame
+                    slug={coach.logoFrame?.slug}
+                    colors={coach.logoFrame?.colors}
+                    className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-[var(--background-secondary)] flex items-center justify-center flex-shrink-0 border border-[var(--background-tertiary)] overflow-hidden"
+                  >
+                    {coach.latestTeam?.teamLogoUrl ? (
                       <Image
                         src={coach.latestTeam.teamLogoUrl}
                         alt={coach.latestTeam.teamName}
@@ -331,14 +352,12 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                         height={40}
                         className="object-contain"
                       />
-                    </div>
-                  ) : (
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--gradient-end)] flex items-center justify-center flex-shrink-0 border-2 border-[var(--background-tertiary)]">
+                    ) : (
                       <span className="text-white font-bold text-xs sm:text-sm">
                         {coach.latestTeam?.teamAbbreviation?.substring(0, 2) || coach.name.charAt(0).toUpperCase()}
                       </span>
-                    </div>
-                  )}
+                    )}
+                  </LogoFrame>
 
                   {/* Name & Team Info */}
                   <div className="flex-1 min-w-0">

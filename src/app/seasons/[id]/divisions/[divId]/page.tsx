@@ -2,13 +2,13 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
-import { divisions, seasons, seasonCoaches, matches, matchPokemon, pokemon, playoffMatches } from "@/lib/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { divisions, seasonCoaches, matches, playoffMatches } from "@/lib/schema";
+import { eq, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ScheduleSection } from "@/components/schedule-section";
 import { SyncedHeightContainer } from "@/components/synced-height-container";
 import { PlayoffBracket } from "@/components/playoff-bracket";
-import { getAllCoachCosmetics, getRowBgStyle, getRowBorderStyle } from "@/lib/glow-utils";
+import { getAllCoachCosmetics } from "@/lib/glow-utils";
 import { getGlowStyle } from "@/components/team-name-glow";
 import { StandingsRow } from "@/components/standings-row";
 import { computeAndSortStandings } from "@/lib/standings-sort";
@@ -16,6 +16,7 @@ import { getDivisionColor, getDivisionShadowColor } from "@/lib/division-colors"
 import { KillLeaderboard } from "@/components/kill-leaderboard";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { DivisionMobileSubnav } from "@/components/division-mobile-subnav";
 
 // Division hierarchy (1 = top, 4 = bottom)
 // Stargazer (1) -> Sunset (2) -> Crystal (3) -> Neon (4)
@@ -345,6 +346,7 @@ export default async function DivisionPage({ params }: PageProps) {
   const glowDataMap = cosmetics.glow;
   const rowBgDataMap = cosmetics.rowBg;
   const rowBorderDataMap = cosmetics.rowBorder;
+  const logoFrameDataMap = cosmetics.logoFrame;
 
   // Only show playoffs if at least one match has teams assigned
   const hasPlayoffTeams = playoffBracket.some(
@@ -428,6 +430,8 @@ export default async function DivisionPage({ params }: PageProps) {
         </div>
       </div>
 
+      <DivisionMobileSubnav seasonId={seasonId} divisionId={divisionId} />
+
       {/* Playoff Bracket - Show at top only when teams are assigned */}
       {hasPlayoffTeams && (
         <PlayoffBracket matches={playoffBracket} />
@@ -436,7 +440,7 @@ export default async function DivisionPage({ params }: PageProps) {
       {/* Side by Side Tables */}
       <SyncedHeightContainer
         leftContent={
-          <div className="poke-card p-4 sm:p-6 flex flex-col h-full">
+          <div id="standings" className="scroll-mt-32 poke-card p-4 sm:p-6 flex flex-col h-full">
             <div className="section-title !mb-4">
               <div className="section-title-icon" style={{ background: divisionColor, boxShadow: `0 4px 0 ${divisionShadow}` }}>
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -506,6 +510,8 @@ export default async function DivisionPage({ params }: PageProps) {
                           bgColor={team.coachId ? rowBgDataMap.get(team.coachId)?.colorData.color : undefined}
                           borderColor={team.coachId ? rowBorderDataMap.get(team.coachId)?.colorData.color : undefined}
                           glowStyle={team.coachId ? getGlowStyle(glowDataMap.get(team.coachId)) : undefined}
+                          logoFrameSlug={team.coachId ? logoFrameDataMap.get(team.coachId)?.slug : undefined}
+                          logoFrameColors={team.coachId ? logoFrameDataMap.get(team.coachId)?.colors : undefined}
                         />
                       </React.Fragment>
                     );
@@ -516,22 +522,26 @@ export default async function DivisionPage({ params }: PageProps) {
           </div>
         }
         rightContent={
-          <KillLeaderboard
-            combined={killLeaderboard.combined}
-            regular={killLeaderboard.regular}
-            playoffs={killLeaderboard.playoffs}
-            hasPlayoffs={killLeaderboard.hasPlayoffs}
-            divisionColor={divisionColor}
-            divisionShadow={divisionShadow}
-          />
+          <div id="leaders" className="scroll-mt-32 h-full">
+            <KillLeaderboard
+              combined={killLeaderboard.combined}
+              regular={killLeaderboard.regular}
+              playoffs={killLeaderboard.playoffs}
+              hasPlayoffs={killLeaderboard.hasPlayoffs}
+              divisionColor={divisionColor}
+              divisionShadow={divisionShadow}
+            />
+          </div>
         }
       />
 
       {/* Schedule Section - pass empty schedule if not public */}
-      <ScheduleSection
-        schedule={division.season?.isSchedulePublic === false ? {} : schedule}
-        maxWeek={division.season?.isSchedulePublic === false ? 0 : maxWeek}
-      />
+      <div id="schedule" className="scroll-mt-32">
+        <ScheduleSection
+          schedule={division.season?.isSchedulePublic === false ? {} : schedule}
+          maxWeek={division.season?.isSchedulePublic === false ? 0 : maxWeek}
+        />
+      </div>
     </div>
   );
 }

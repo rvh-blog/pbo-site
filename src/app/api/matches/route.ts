@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { matches, matchPokemon, eloHistory, playoffMatches, bets, killBets, deathBets, killEvents, moves, pokemon } from "@/lib/schema";
-import { eq, or } from "drizzle-orm";
+import { matches, matchPokemon, eloHistory, playoffMatches, bets, killBets, deathBets, killEvents } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 import { updateEloForMatch } from "@/lib/elo-service";
 import { resolveBetsForMatch, refundBetsForMatch, awardMatchCoins } from "@/lib/betting";
 import { resolveKillBetsForMatch, refundKillBetsForMatch } from "@/lib/kill-betting";
@@ -11,6 +11,7 @@ import { checkAndAwardPickEmRewards, reResolvePickEmRewards, awardGotwBonus, rev
 import { resolveFantasyWeeklyRewardForMatch } from "@/lib/fantasy-rewards";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { logAdminAudit } from "@/lib/admin-audit";
 
 interface KeyEventData {
   turn: number;
@@ -238,6 +239,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
   const body = await request.json();
   const {
     seasonId,
@@ -347,10 +349,32 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  await logAdminAudit({
+    session,
+    action: winnerId ? "match_result_create" : "match_schedule_create",
+    entityType: "match",
+    entityId: match.id,
+    summary: winnerId
+      ? `Created match result for week ${match.week}`
+      : `Created scheduled match for week ${match.week}`,
+    details: {
+      seasonId,
+      divisionId,
+      week: match.week,
+      coach1SeasonId,
+      coach2SeasonId,
+      winnerId: winnerId ?? null,
+      pokemonRows: Array.isArray(pokemonData) ? pokemonData.length : 0,
+      hasReplay: Boolean(replayUrl),
+      needsFullRecalc,
+    },
+  });
+
   return NextResponse.json({ ...match, needsFullRecalc });
 }
 
 export async function PUT(request: NextRequest) {
+  const session = await getSession();
   const body = await request.json();
   const {
     id,
@@ -568,10 +592,30 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  await logAdminAudit({
+    session,
+    action: "match_update",
+    entityType: "match",
+    entityId: id,
+    summary: `Updated match ${id}`,
+    details: {
+      previousWinnerId: previousMatch?.winnerId ?? null,
+      winnerId: winnerId ?? previousMatch?.winnerId ?? null,
+      seasonId: previousMatch?.seasonId,
+      divisionId: previousMatch?.divisionId,
+      week: previousMatch?.week,
+      pokemonRows: Array.isArray(pokemonData) ? pokemonData.length : undefined,
+      hasReplay: replayUrl !== undefined ? Boolean(replayUrl) : undefined,
+      needsFullRecalc,
+      betsReResolved,
+    },
+  });
+
   return NextResponse.json({ ...updated, needsFullRecalc, betsReResolved });
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getSession();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 
@@ -616,6 +660,23 @@ export async function DELETE(request: NextRequest) {
 
     // Delete match
     await db.delete(matches).where(eq(matches.id, matchId));
+
+    await logAdminAudit({
+      session,
+      action: "match_delete",
+      entityType: "match",
+      entityId: matchId,
+      summary: `Deleted match ${matchId}`,
+      details: {
+        seasonId: match?.seasonId,
+        divisionId: match?.divisionId,
+        week: match?.week,
+        coach1SeasonId: match?.coach1SeasonId,
+        coach2SeasonId: match?.coach2SeasonId,
+        winnerId: match?.winnerId ?? null,
+        hadEloImpact,
+      },
+    });
 
     // Don't auto-recalculate - let UI handle showing recalc prompt
     return NextResponse.json({ success: true, needsFullRecalc: hadEloImpact });

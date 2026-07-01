@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { coachPurchases, storeItems } from "@/lib/schema";
+import { isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
 
 // Glow color definitions - keep in sync with store-modal.tsx and glow-color route
 export const GLOW_COLORS: Record<string, { name: string; color: string; glow: string }> = {
@@ -212,6 +213,13 @@ export interface AllCosmeticsResult {
   glow: Map<number, GlowData>;
   rowBg: Map<number, RowBgData>;
   rowBorder: Map<number, RowBorderData>;
+  logoFrame: Map<number, LogoFrameData>;
+}
+
+export interface LogoFrameData {
+  coachId: number;
+  slug: string;
+  colors: string[] | null;
 }
 
 /**
@@ -223,13 +231,18 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
     glow: new Map(),
     rowBg: new Map(),
     rowBorder: new Map(),
+    logoFrame: new Map(),
   };
 
   if (coachIds.length === 0) return result;
 
   // Fetch all 3 store items in one query
   const storeItemsList = await db.query.storeItems.findMany({
-    where: inArray(storeItems.slug, ["team-name-glow", "row-background", "row-border"]),
+    where: (items, { or, inArray, like }) =>
+      or(
+        inArray(items.slug, ["team-name-glow", "row-background", "row-border"]),
+        like(items.slug, "logo-frame-%")
+      ),
   });
 
   if (storeItemsList.length === 0) return result;
@@ -255,6 +268,7 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
   const glowItemId = slugToId.get("team-name-glow");
   const rowBgItemId = slugToId.get("row-background");
   const rowBorderItemId = slugToId.get("row-border");
+  const idToSlug = new Map(storeItemsList.map((item) => [item.id, item.slug]));
 
   for (const purchase of purchases) {
     if (purchase.itemId === glowItemId && purchase.glowColor) {
@@ -282,6 +296,15 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
           coachId: purchase.coachId,
           borderColor: purchase.borderColor,
           colorData,
+        });
+      }
+    } else {
+      const slug = idToSlug.get(purchase.itemId);
+      if (slug && isLogoFrameSlug(slug)) {
+        result.logoFrame.set(purchase.coachId, {
+          coachId: purchase.coachId,
+          slug,
+          colors: parseLogoFrameColors(purchase.borderColor),
         });
       }
     }

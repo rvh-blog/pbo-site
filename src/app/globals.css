@@ -93,11 +93,24 @@ body {
   font-family: 'Chakra Petch', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Retro pixel font class */
 .font-pixel {
   font-family: 'Press Start 2P', monospace;
+}
+
+.poke-card h1.font-pixel,
+.poke-card h2.font-pixel,
+.poke-card h3.font-pixel,
+.poke-card h4.font-pixel {
+  font-family: 'Chakra Petch', system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 /* Pokeball dot pattern background */
@@ -309,18 +322,19 @@ body {
 /* Retro Card - Game text box style with corner accents */
 .poke-card {
   position: relative;
-  background: rgba(15, 23, 42, 0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 4px solid #334155;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-  transition: all 0.3s ease;
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(71, 85, 105, 0.85);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
 }
 
 .poke-card:hover {
-  border-color: #475569;
+  border-color: rgba(100, 116, 139, 0.95);
+  background: rgba(15, 23, 42, 0.94);
 }
 
 /* Corner accents for poke-card */
@@ -329,28 +343,7 @@ body {
 .poke-card-corners::before,
 .poke-card-corners::after {
   content: '';
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  border-color: #475569;
-  border-width: 4px;
-  pointer-events: none;
-}
-
-.poke-card::before {
-  top: 0;
-  left: 0;
-  border-right: none;
-  border-bottom: none;
-  border-top-left-radius: 8px;
-}
-
-.poke-card::after {
-  top: 0;
-  right: 0;
-  border-left: none;
-  border-bottom: none;
-  border-top-right-radius: 8px;
+  display: none;
 }
 
 /* Glass morphism card (legacy support) */
@@ -359,24 +352,23 @@ body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .glass-card:hover {
   background: var(--glass-hover);
   border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
 }
 
 /* Premium card with glow */
 .premium-card {
   background: linear-gradient(135deg, var(--background-secondary) 0%, var(--background-tertiary) 100%);
   border: 1px solid var(--card-border);
-  border-radius: 16px;
+  border-radius: 8px;
   position: relative;
   overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .premium-card::before {
@@ -390,10 +382,9 @@ body {
 
 .premium-card:hover {
   border-color: rgba(220, 38, 38, 0.3);
-  transform: translateY(-4px);
   box-shadow:
-    0 20px 40px rgba(0, 0, 0, 0.4),
-    0 0 60px var(--primary-glow);
+    0 14px 28px rgba(0, 0, 0, 0.28),
+    0 0 28px rgba(220, 38, 38, 0.2);
 }
 
 .premium-card:hover::before {
@@ -430,17 +421,17 @@ body {
 /* Stat card with shine effect */
 .stat-card {
   background: var(--background-secondary);
-  border: 2px solid #334155;
+  border: 1px solid rgba(71, 85, 105, 0.85);
   border-radius: 8px;
   padding: 0.75rem;
   position: relative;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 @media (min-width: 640px) {
   .stat-card {
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 1rem;
   }
 }
@@ -449,23 +440,102 @@ body {
   border-color: #475569;
 }
 
+.mobile-section-nav {
+  position: sticky;
+  top: 4rem;
+  z-index: 40;
+  margin-inline: -1rem;
+  border-block: 1px solid rgba(51, 65, 85, 0.8);
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.mobile-section-nav-item {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid rgba(71, 85, 105, 0.85);
+  background: rgba(2, 6, 23, 0.7);
+  padding: 0 0.8rem;
+  color: var(--foreground-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mobile-section-nav-item:hover {
+  border-color: rgba(220, 38, 38, 0.65);
+  color: white;
+}
+
+.mobile-collapsible-summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mobile-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mobile-collapsible-summary::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+details[open] > .mobile-collapsible-summary::after {
+  transform: rotate(225deg);
+}
+
+.mobile-collapsible-content {
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .mobile-collapsible-summary {
+    display: none;
+  }
+
+  details:not([open]) > .mobile-collapsible-content,
+  .mobile-collapsible-content {
+    display: block;
+    margin-top: 0;
+  }
+}
+
 /* Retro 3D Button - Primary (Pokeball Red) */
 .btn-retro {
   position: relative;
   background: #dc2626;
   color: white;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
-  font-weight: normal;
-  padding: 12px 24px;
-  border-radius: 8px;
+  font-family: 'Chakra Petch', system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 6px;
   border: none;
-  border-bottom: 4px solid #991b1b;
+  border-bottom: 2px solid #991b1b;
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: all 0.1s ease;
-  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+  letter-spacing: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  box-shadow: none;
 }
 
 .btn-retro:hover {
@@ -474,7 +544,7 @@ body {
 
 .btn-retro:active {
   border-bottom-width: 0;
-  transform: translateY(4px);
+  transform: translateY(2px);
 }
 
 /* Retro Button - Secondary (Blue) */
@@ -482,18 +552,18 @@ body {
   position: relative;
   background: #2563eb;
   color: white;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
-  font-weight: normal;
-  padding: 12px 24px;
-  border-radius: 8px;
+  font-family: 'Chakra Petch', system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 6px;
   border: none;
-  border-bottom: 4px solid #1d4ed8;
+  border-bottom: 2px solid #1d4ed8;
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: all 0.1s ease;
-  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+  letter-spacing: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  box-shadow: none;
 }
 
 .btn-retro-secondary:hover {
@@ -502,7 +572,7 @@ body {
 
 .btn-retro-secondary:active {
   border-bottom-width: 0;
-  transform: translateY(4px);
+  transform: translateY(2px);
 }
 
 /* Retro Button - Dark */
@@ -510,17 +580,17 @@ body {
   position: relative;
   background: #1e293b;
   color: white;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
-  font-weight: normal;
-  padding: 12px 24px;
-  border-radius: 8px;
+  font-family: 'Chakra Petch', system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 6px;
   border: none;
-  border-bottom: 4px solid #0f172a;
+  border-bottom: 2px solid #0f172a;
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: all 0.1s ease;
+  letter-spacing: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .btn-retro-dark:hover {
@@ -529,7 +599,7 @@ body {
 
 .btn-retro-dark:active {
   border-bottom-width: 0;
-  transform: translateY(4px);
+  transform: translateY(2px);
 }
 
 /* Premium button (legacy support) */
@@ -574,27 +644,30 @@ body {
 .section-title {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .section-title-icon {
-  padding: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 7px;
   background: #dc2626;
-  border-radius: 8px;
-  box-shadow: 0 4px 0 #991b1b;
+  border-radius: 6px;
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .section-title h2, .section-title h3 {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 12px;
+  font-family: 'Chakra Petch', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
   color: white;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+  letter-spacing: 0;
+  text-shadow: none;
 }
 
 /* Battle Log Item */
@@ -606,8 +679,8 @@ body {
   background: #1e293b;
   padding: 10px 12px;
   border-radius: 8px;
-  border-left: 4px solid #475569;
-  transition: all 0.3s ease;
+  border-left: 3px solid #475569;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   cursor: pointer;
 }
 
@@ -741,8 +814,9 @@ body {
   width: 2rem;
   height: 2rem;
   border-radius: 8px;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .rank-1 {
@@ -773,7 +847,7 @@ body {
   border-radius: 8px;
   background: rgba(30, 41, 59, 0.5);
   border: 1px solid transparent;
-  transition: all 0.3s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   cursor: pointer;
 }
 
@@ -823,7 +897,7 @@ body {
   font-family: 'Press Start 2P', monospace;
   font-weight: normal;
   font-size: 14px;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--accent);
 }
 

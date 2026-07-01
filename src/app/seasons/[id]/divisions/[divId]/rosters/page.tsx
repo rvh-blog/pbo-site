@@ -1,11 +1,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
-import { divisions, seasonCoaches, rosters, matches, transactions, pokemon, seasonPokemonPrices } from "@/lib/schema";
+import { divisions, seasonCoaches, matches, transactions, seasonPokemonPrices } from "@/lib/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { DivisionMobileSubnav } from "@/components/division-mobile-subnav";
 
 interface PageProps {
   params: Promise<{ id: string; divId: string }>;
@@ -343,15 +344,93 @@ export default async function DivisionRostersPage({ params }: PageProps) {
         </div>
       </div>
 
+      <DivisionMobileSubnav
+        seasonId={seasonId}
+        divisionId={divisionId}
+        items={[
+          { href: `/seasons/${seasonId}/divisions/${divisionId}`, label: "Overview" },
+          { href: `/seasons/${seasonId}/divisions/${divisionId}/transactions`, label: "Tx" },
+          { href: "#rosters", label: "Rosters" },
+        ]}
+      />
+
       {/* Rosters Grid */}
       {teamsWithRosters.length === 0 ? (
         <div className="poke-card p-8 text-center">
           <p className="text-[var(--foreground-muted)]">No active teams in this division</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-          {teamsWithRosters.map(({ coach, rosters: teamRosters, droppedPokemon, totalSpent, budgetLeft }) => (
-            <div key={coach.id} className="poke-card p-4 flex flex-col">
+        <div id="rosters" className="scroll-mt-32 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
+          {teamsWithRosters.map(({ coach, rosters: teamRosters, droppedPokemon, budgetLeft }) => (
+            <div key={coach.id} className="poke-card p-0 sm:p-4 flex flex-col">
+              <details className="sm:hidden">
+                <summary className="mobile-collapsible-summary px-3 py-3 normal-case">
+                  <span className="flex min-w-0 items-center gap-2">
+                    {coach.teamLogoUrl ? (
+                      <Image
+                        src={coach.teamLogoUrl}
+                        alt={coach.teamName}
+                        width={28}
+                        height={28}
+                        className="shrink-0 object-contain"
+                      />
+                    ) : (
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--primary)] text-xs text-white">
+                        {coach.teamAbbreviation || coach.teamName.substring(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs text-white">{coach.teamName}</span>
+                      <span className="block truncate text-[10px] text-[var(--foreground-muted)]">
+                        {teamRosters.length + droppedPokemon.length} Pokemon / {coach.coach?.name}
+                      </span>
+                    </span>
+                  </span>
+                  <span className={`shrink-0 font-mono text-xs font-bold ${budgetLeft >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'}`}>
+                    {budgetLeft}
+                  </span>
+                </summary>
+                <div className="border-t border-[var(--background-tertiary)] px-3 py-2">
+                  {teamRosters.length === 0 && droppedPokemon.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-[var(--foreground-muted)]">No Pokemon drafted</p>
+                  ) : (
+                    <div className="divide-y divide-[var(--background-tertiary)]/50">
+                      {[...teamRosters, ...droppedPokemon.map((p) => ({
+                        id: `dropped-${p.id}`,
+                        pokemonId: p.id,
+                        pokemon: p,
+                        isTeraCaptain: p.isTeraCaptain,
+                        displayPrice: p.displayPrice,
+                      }))].map((r) => (
+                        <Link
+                          key={r.id}
+                          href={`/pokemon/${r.pokemonId}`}
+                          className={`flex items-center gap-2 px-1 py-1.5 transition-colors ${
+                            r.isTeraCaptain ? "bg-yellow-500/10" : ""
+                          }`}
+                        >
+                          {r.pokemon?.spriteUrl ? (
+                            <img
+                              src={r.pokemon.spriteUrl}
+                              alt={r.pokemon.displayName || r.pokemon.name}
+                              className="h-6 w-6 object-contain"
+                            />
+                          ) : (
+                            <div className="h-6 w-6 rounded bg-[var(--background-tertiary)]" />
+                          )}
+                          <span className="flex-1 truncate text-sm text-[var(--foreground-muted)]">
+                            {r.pokemon?.displayName || r.pokemon?.name}
+                            {r.isTeraCaptain && <span className="ml-1 text-[10px] text-[var(--accent)]">TC</span>}
+                          </span>
+                          <span className="font-mono text-sm font-bold text-[var(--secondary)]">{r.displayPrice}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </details>
+
+              <div className="hidden sm:flex sm:flex-col sm:flex-1">
               {/* Team Header */}
               <Link href={`/coaches/${coach.coachId}`} className="group">
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--background-tertiary)]">
@@ -458,6 +537,7 @@ export default async function DivisionRostersPage({ params }: PageProps) {
                 <span className={`font-mono font-bold ${budgetLeft >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'}`}>
                   {budgetLeft}
                 </span>
+              </div>
               </div>
             </div>
           ))}

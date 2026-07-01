@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth";
 import Link from "next/link";
 import { LogoutButton } from "@/components/logout-button";
@@ -13,6 +12,7 @@ const adminNavItems = [
   { href: "/admin/discord", label: "Discord" },
   { href: "/admin/sheets", label: "Sheets" },
   { href: "/admin/pick-ems", label: "Pick-ems" },
+  { href: "/admin/audit-log", label: "Audit Log" },
 ];
 
 export default async function AdminLayout({
