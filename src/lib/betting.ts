@@ -95,6 +95,7 @@ export function formatWinProbability(prob: number): string {
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import * as schema from "./schema";
+import { MATCH_COMPLETION_COINS } from "./coin-config";
 
 /**
  * Resolve all bets for a completed match
@@ -231,8 +232,6 @@ export async function resolveBetsForMatch(
   };
 }
 
-const COINS_PER_MATCH = 5;
-
 /**
  * Award coins to players for completing a match
  * @param matchId - The completed match
@@ -266,7 +265,7 @@ export async function awardMatchCoins(
     if (winnerCoach) {
       await db
         .update(schema.coaches)
-        .set({ pboCoin: winnerCoach.pboCoin + COINS_PER_MATCH })
+        .set({ pboCoin: winnerCoach.pboCoin + MATCH_COMPLETION_COINS })
         .where(eq(schema.coaches.id, winnerSC.coachId));
     }
   }
@@ -280,7 +279,7 @@ export async function awardMatchCoins(
     if (loserCoach) {
       await db
         .update(schema.coaches)
-        .set({ pboCoin: loserCoach.pboCoin + COINS_PER_MATCH })
+        .set({ pboCoin: loserCoach.pboCoin + MATCH_COMPLETION_COINS })
         .where(eq(schema.coaches.id, loserSC.coachId));
     }
   }

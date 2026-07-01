@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
     const eloResult = await updateEloForMatch(match.id);
     needsFullRecalc = eloResult.needsFullRecalc;
 
-    // Award coins to players (+5 each, but loser gets nothing if forfeit)
+    // Award coins to players (+10 each, but loser gets nothing if forfeit)
     const loserId = winnerId === coach1SeasonId ? coach2SeasonId : coach1SeasonId;
     await awardMatchCoins(winnerId, loserId, isForfeit || false);
 

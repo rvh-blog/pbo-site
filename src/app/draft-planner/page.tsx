@@ -1,11 +1,69 @@
 import { db } from "@/lib/db";
-import { coaches, seasonCoaches, pokemon, moves, abilities, seasonPokemonPrices, seasons } from "@/lib/schema";
+import { coaches, seasonCoaches, pokemon, seasonPokemonPrices, seasons } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { DraftPlanner } from "./draft-planner";
 
 interface PageProps {
   searchParams: Promise<{ coach?: string; season?: string }>;
 }
+
+type SeasonCoachWithRoster = {
+  id: number;
+  coachId: number;
+  teamName: string;
+  teamLogoUrl: string | null;
+  division: {
+    season: {
+      id: number;
+      draftBudget: number | null;
+    } | null;
+  } | null;
+  rosters: Array<{
+    id: number;
+    pokemonId: number;
+    price: number;
+    isTeraCaptain: boolean | null;
+    draftOrder: number | null;
+    pokemon: {
+      name: string;
+      displayName: string | null;
+      spriteUrl: string | null;
+      artworkUrl: string | null;
+      types: string[] | null;
+      abilities: Array<{ name: string; isHidden: boolean }> | null;
+      moves: string[] | null;
+      hp: number | null;
+      attack: number | null;
+      defense: number | null;
+      specialAttack: number | null;
+      specialDefense: number | null;
+      speed: number | null;
+      baseStatTotal: number | null;
+    } | null;
+  }>;
+};
+
+type DraftPlannerRosterPokemon = {
+  rosterId: number;
+  pokemonId: number;
+  name: string;
+  displayName: string;
+  spriteUrl: string | null;
+  artworkUrl: string | null;
+  types: string[];
+  abilities: Array<{ name: string; isHidden: boolean }>;
+  moves: string[];
+  hp: number;
+  attack: number;
+  defense: number;
+  specialAttack: number;
+  specialDefense: number;
+  speed: number;
+  baseStatTotal: number;
+  price: number;
+  isTeraCaptain: boolean;
+  draftOrder: number | null;
+};
 
 export default async function DraftPlannerPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
@@ -59,7 +117,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
 
   // Coach-specific queries (only if coachId provided)
   let coach = null;
-  let allSeasonCoaches: any[] = [];
+  let allSeasonCoaches: SeasonCoachWithRoster[] = [];
 
   if (coachId) {
     [coach, allSeasonCoaches] = await Promise.all([
@@ -83,8 +141,8 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
 
   // Determine which season to use for prices
   let selectedSeasonId = seasonIdParam;
-  let selectedSeasonCoach = null;
-  let rosterData: any[] = [];
+  let selectedSeasonCoach: SeasonCoachWithRoster | null = null;
+  let rosterData: DraftPlannerRosterPokemon[] = [];
   let teamName = "";
   let teamLogo: string | null = null;
   let draftBudget = 120;
@@ -93,9 +151,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
     // Find the appropriate season coach
     selectedSeasonCoach = allSeasonCoaches[0];
     if (seasonIdParam) {
-      const found = allSeasonCoaches.find(
-        (sc: any) => sc.division?.season?.id === seasonIdParam
-      );
+      const found = allSeasonCoaches.find((sc) => sc.division?.season?.id === seasonIdParam);
       if (found) {
         selectedSeasonCoach = found;
       }
@@ -107,7 +163,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
     draftBudget = selectedSeasonCoach.division?.season?.draftBudget || 120;
 
     // Build roster data
-    rosterData = selectedSeasonCoach.rosters.map((r: any) => {
+    rosterData = selectedSeasonCoach.rosters.map((r) => {
       const poke = r.pokemon;
       return {
         rosterId: r.id,
@@ -161,6 +217,41 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
     };
   }
 
+  const draftedPokemon = selectedSeasonId
+    ? (
+        await db.query.rosters.findMany({
+          with: {
+            pokemon: {
+              columns: {
+                id: true,
+                name: true,
+                displayName: true,
+                spriteUrl: true,
+              },
+            },
+            seasonCoach: {
+              with: {
+                coach: true,
+                division: {
+                  with: {
+                    season: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      )
+        .filter((r) => r.seasonCoach?.division?.season?.id === selectedSeasonId)
+        .map((r) => ({
+          pokemonId: r.pokemonId,
+          pokemonName: r.pokemon?.displayName || r.pokemon?.name || "",
+          coachId: r.seasonCoach?.coachId || null,
+          coachName: r.seasonCoach?.coach?.name || "Unknown coach",
+          teamName: r.seasonCoach?.teamName || "",
+        }))
+    : [];
+
   // Build move type lookup
   const moveTypes: Record<string, string> = {};
   for (const m of allMoves) {
@@ -186,6 +277,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
       seasonPrices={seasonPrices}
       allSeasons={allSeasons}
       currentSeasonId={selectedSeasonId}
+      draftedPokemon={draftedPokemon}
     />
   );
 }

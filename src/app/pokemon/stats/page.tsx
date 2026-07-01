@@ -96,15 +96,41 @@ export interface MiscStatEntry {
   description: string;
   pokemon1?: { name: string; spriteUrl: string | null };
   pokemon2?: { name: string; spriteUrl: string | null };
+  contributors?: { coachId: number; name: string; count: number }[];
   extra?: string;
+}
+
+type Contributor = NonNullable<MiscStatEntry["contributors"]>[number];
+
+function getContributorList(
+  seasonCoaches: Array<{ coachId: number; coach?: { name: string } | null }>
+): Contributor[] {
+  const contributors = new Map<number, Contributor>();
+
+  for (const seasonCoach of seasonCoaches) {
+    const existing = contributors.get(seasonCoach.coachId);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      contributors.set(seasonCoach.coachId, {
+        coachId: seasonCoach.coachId,
+        name: seasonCoach.coach?.name || "Unknown",
+        count: 1,
+      });
+    }
+  }
+
+  return Array.from(contributors.values()).sort(
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name)
+  );
 }
 
 export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
   const entries: MiscStatEntry[] = [];
 
-  // Get S10+ season IDs first (needed to filter everything else)
-  const s10Seasons = await db.query.seasons.findMany();
-  const s10SeasonIds = new Set(s10Seasons.filter(s => s.seasonNumber >= 10).map(s => s.id));
+  // Get Season 10 IDs first (needed to filter everything else)
+  const allSeasons = await db.query.seasons.findMany();
+  const season10Ids = new Set(allSeasons.filter((s) => s.seasonNumber === 10).map((s) => s.id));
 
   // Run all data queries in parallel
   const [rawKills, rawRosters, rawMP] = await Promise.all([
@@ -113,19 +139,25 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       with: {
         killerPokemon: true,
         victimPokemon: true,
-        killerSeasonCoach: true,
-        victimSeasonCoach: true,
+        killerSeasonCoach: { with: { coach: true } },
+        victimSeasonCoach: { with: { coach: true } },
         match: true,
       },
     }),
     db.query.rosters.findMany({
       with: { seasonCoach: true },
     }),
-    db.query.matchPokemon.findMany({ with: { pokemon: true, match: true } }),
+    db.query.matchPokemon.findMany({
+      with: {
+        pokemon: true,
+        match: true,
+        seasonCoach: { with: { coach: true } },
+      },
+    }),
   ]);
 
-  const allKills = rawKills.filter(k => k.match && s10SeasonIds.has(k.match.seasonId));
-  const allMP = rawMP.filter(mp => mp.match && s10SeasonIds.has(mp.match.seasonId));
+  const allKills = rawKills.filter((k) => k.match && season10Ids.has(k.match.seasonId));
+  const allMP = rawMP.filter((mp) => mp.match && season10Ids.has(mp.match.seasonId));
   // Map: `${seasonCoachId}-${pokemonId}` -> price
   const rosterPriceMap = new Map<string, number>();
   for (const r of rawRosters) {
@@ -152,6 +184,9 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       description: `${biggestUpset.killer.killerPokemon.displayName || biggestUpset.killer.killerPokemon.name} (${biggestUpset.killerPrice}pts) KO'd ${biggestUpset.killer.victimPokemon.displayName || biggestUpset.killer.victimPokemon.name} (${biggestUpset.victimPrice}pts)`,
       pokemon1: { name: biggestUpset.killer.killerPokemon.displayName || biggestUpset.killer.killerPokemon.name, spriteUrl: biggestUpset.killer.killerPokemon.spriteUrl },
       pokemon2: { name: biggestUpset.killer.victimPokemon.displayName || biggestUpset.killer.victimPokemon.name, spriteUrl: biggestUpset.killer.victimPokemon.spriteUrl },
+      contributors: biggestUpset.killer.killerSeasonCoach
+        ? getContributorList([biggestUpset.killer.killerSeasonCoach])
+        : undefined,
     });
   }
 
@@ -173,6 +208,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topHazardVictim[1].count} indirect deaths`,
       description: `${topHazardVictim[1].pokemon.displayName || topHazardVictim[1].pokemon.name} keeps getting chipped out by hazards, weather & status`,
       pokemon1: { name: topHazardVictim[1].pokemon.displayName || topHazardVictim[1].pokemon.name, spriteUrl: topHazardVictim[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        indirectDeaths
+          .filter((k) => k.victimPokemonId === topHazardVictim[0] && k.victimSeasonCoach)
+          .map((k) => k.victimSeasonCoach!)
+      ),
     });
   }
 
@@ -196,6 +236,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topTurn1[1].count} turn-1 kills`,
       description: `${topTurn1[1].pokemon.displayName || topTurn1[1].pokemon.name} gets it done early`,
       pokemon1: { name: topTurn1[1].pokemon.displayName || topTurn1[1].pokemon.name, spriteUrl: topTurn1[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        turn1Kills
+          .filter((k) => k.killerPokemonId === topTurn1[0] && k.killerSeasonCoach)
+          .map((k) => k.killerSeasonCoach!)
+      ),
     });
   }
 
@@ -244,6 +289,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topChain[1].score} chain kills`,
       description: `${topChain[1].pokemon.displayName || topChain[1].pokemon.name} racks up consecutive KOs like no other`,
       pokemon1: { name: topChain[1].pokemon.displayName || topChain[1].pokemon.name, spriteUrl: topChain[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allKills
+          .filter((k) => k.killerPokemonId === topChain[0] && k.killerSeasonCoach)
+          .map((k) => k.killerSeasonCoach!)
+      ),
     });
   }
 
@@ -271,6 +321,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topClutch[1].count} game-ending KOs`,
       description: `${topClutch[1].pokemon.displayName || topClutch[1].pokemon.name} delivers the final blow`,
       pokemon1: { name: topClutch[1].pokemon.displayName || topClutch[1].pokemon.name, spriteUrl: topClutch[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        finalTurnKills
+          .filter((k) => k.killerPokemonId === topClutch[0] && k.killerSeasonCoach)
+          .map((k) => k.killerSeasonCoach!)
+      ),
     });
   }
 
@@ -296,6 +351,16 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topGiantSlayer[1].count} upward KOs`,
       description: `Most KOs on mons drafted above its own price`,
       pokemon1: { name: topGiantSlayer[1].pokemon.displayName || topGiantSlayer[1].pokemon.name, spriteUrl: topGiantSlayer[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allKills
+          .filter((k) => {
+            if (k.killerPokemonId !== topGiantSlayer[0] || !k.killerSeasonCoachId || !k.victimSeasonCoachId || !k.victimPokemonId || !k.killerSeasonCoach) return false;
+            const killerPrice = rosterPriceMap.get(`${k.killerSeasonCoachId}-${k.killerPokemonId}`) ?? 0;
+            const victimPrice = rosterPriceMap.get(`${k.victimSeasonCoachId}-${k.victimPokemonId}`) ?? 0;
+            return killerPrice > 0 && victimPrice > killerPrice;
+          })
+          .map((k) => k.killerSeasonCoach!)
+      ),
     });
   }
 
@@ -324,6 +389,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${bestBargain[1].kills} kills at ${bestBargain[1].price}pts`,
       description: `${bestBargain[1].pokemon.displayName || bestBargain[1].pokemon.name} proves you don't need to be expensive`,
       pokemon1: { name: bestBargain[1].pokemon.displayName || bestBargain[1].pokemon.name, spriteUrl: bestBargain[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allMP
+          .filter((mp) => mp.pokemonId === bestBargain[0] && mp.seasonCoach)
+          .map((mp) => mp.seasonCoach!)
+      ),
     });
   }
 
@@ -345,6 +415,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topRecoil[1].count} recoil deaths`,
       description: `${topRecoil[1].pokemon.displayName || topRecoil[1].pokemon.name} keeps taking itself out`,
       pokemon1: { name: topRecoil[1].pokemon.displayName || topRecoil[1].pokemon.name, spriteUrl: topRecoil[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        recoilDeaths
+          .filter((k) => k.victimPokemonId === topRecoil[0] && k.victimSeasonCoach)
+          .map((k) => k.victimSeasonCoach!)
+      ),
     });
   }
 
@@ -378,6 +453,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${damagePerDeath} dmg/death`,
       description: `${topWall[1].pokemon.displayName || topWall[1].pokemon.name} absorbs the most damage before going down`,
       pokemon1: { name: topWall[1].pokemon.displayName || topWall[1].pokemon.name, spriteUrl: topWall[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allMP
+          .filter((mp) => mp.pokemonId === topWall[0] && mp.seasonCoach)
+          .map((mp) => mp.seasonCoach!)
+      ),
     });
   }
 
@@ -398,6 +478,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topSurvivor[1].count} deathless games`,
       description: `${topSurvivor[1].pokemon.displayName || topSurvivor[1].pokemon.name} stays alive more often than anyone`,
       pokemon1: { name: topSurvivor[1].pokemon.displayName || topSurvivor[1].pokemon.name, spriteUrl: topSurvivor[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allMP
+          .filter((mp) => mp.pokemonId === topSurvivor[0] && (mp.deaths ?? 0) === 0 && mp.seasonCoach)
+          .map((mp) => mp.seasonCoach!)
+      ),
     });
   }
 
@@ -418,6 +503,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topCleanGame[1].count} clean games`,
       description: `${topCleanGame[1].pokemon.displayName || topCleanGame[1].pokemon.name} gets KOs without fainting`,
       pokemon1: { name: topCleanGame[1].pokemon.displayName || topCleanGame[1].pokemon.name, spriteUrl: topCleanGame[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allMP
+          .filter((mp) => mp.pokemonId === topCleanGame[0] && (mp.kills ?? 0) >= 1 && (mp.deaths ?? 0) === 0 && mp.seasonCoach)
+          .map((mp) => mp.seasonCoach!)
+      ),
     });
   }
 
@@ -445,6 +535,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       description: `${topTargetPair[1].killer.displayName || topTargetPair[1].killer.name} has KO'd ${topTargetPair[1].victim.displayName || topTargetPair[1].victim.name} the most`,
       pokemon1: { name: topTargetPair[1].killer.displayName || topTargetPair[1].killer.name, spriteUrl: topTargetPair[1].killer.spriteUrl },
       pokemon2: { name: topTargetPair[1].victim.displayName || topTargetPair[1].victim.name, spriteUrl: topTargetPair[1].victim.spriteUrl },
+      contributors: getContributorList(
+        allKills
+          .filter((k) => `${k.killerPokemonId}-${k.victimPokemonId}` === topTargetPair[0] && k.killerSeasonCoach)
+          .map((k) => k.killerSeasonCoach!)
+      ),
     });
   }
 
@@ -465,6 +560,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${topSweepThreat[1].count} sweep games`,
       description: `${topSweepThreat[1].pokemon.displayName || topSweepThreat[1].pokemon.name} has the most games with 3+ KOs`,
       pokemon1: { name: topSweepThreat[1].pokemon.displayName || topSweepThreat[1].pokemon.name, spriteUrl: topSweepThreat[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allMP
+          .filter((mp) => mp.pokemonId === topSweepThreat[0] && (mp.kills ?? 0) >= 3 && mp.seasonCoach)
+          .map((mp) => mp.seasonCoach!)
+      ),
     });
   }
 
@@ -485,6 +585,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${Math.round(topPunchingBag[1].damage)} damage taken`,
       description: `${topPunchingBag[1].pokemon.displayName || topPunchingBag[1].pokemon.name} has soaked up the most damage`,
       pokemon1: { name: topPunchingBag[1].pokemon.displayName || topPunchingBag[1].pokemon.name, spriteUrl: topPunchingBag[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allMP
+          .filter((mp) => mp.pokemonId === topPunchingBag[0] && mp.seasonCoach)
+          .map((mp) => mp.seasonCoach!)
+      ),
     });
   }
 
@@ -505,6 +610,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${Math.round(topChipMonster[1].damage)} indirect damage`,
       description: `${topChipMonster[1].pokemon.displayName || topChipMonster[1].pokemon.name} leads the league in indirect damage`,
       pokemon1: { name: topChipMonster[1].pokemon.displayName || topChipMonster[1].pokemon.name, spriteUrl: topChipMonster[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allMP
+          .filter((mp) => mp.pokemonId === topChipMonster[0] && (mp.damageDealtIndirect ?? 0) > 0 && mp.seasonCoach)
+          .map((mp) => mp.seasonCoach!)
+      ),
     });
   }
 
@@ -535,6 +645,11 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
       value: `${healingPerGame} HP/game`,
       description: `${topMedic[1].pokemon.displayName || topMedic[1].pokemon.name} restores the most HP per game`,
       pokemon1: { name: topMedic[1].pokemon.displayName || topMedic[1].pokemon.name, spriteUrl: topMedic[1].pokemon.spriteUrl },
+      contributors: getContributorList(
+        allMP
+          .filter((mp) => mp.pokemonId === topMedic[0] && (mp.hpRestored ?? 0) > 0 && mp.seasonCoach)
+          .map((mp) => mp.seasonCoach!)
+      ),
     });
   }
 

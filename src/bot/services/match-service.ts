@@ -578,7 +578,7 @@ export async function recordMatchResult(
     // Update ELO
     const eloResult = await updateEloForMatch(matchId);
 
-    // Award coins to players (+5 each, but loser gets nothing if forfeit)
+    // Award coins to players (+10 each, but loser gets nothing if forfeit)
     const loserId = winnerId === match.coach1SeasonId ? match.coach2SeasonId : match.coach1SeasonId;
     await awardMatchCoins(winnerId, loserId, match.isForfeit || false);
 

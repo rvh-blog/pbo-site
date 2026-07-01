@@ -495,7 +495,7 @@ export default async function AdminDashboard() {
               ["Manage current rosters", "/admin/rosters", `${stats.incompleteRosterTeams} incomplete teams`],
               ["Add transaction", "/admin/transactions", `${stats.recentTransactions} transactions this week`],
               ["Sync sheets", "/admin/sheets", `${stats.failedSheets} failed, ${stats.staleSheets} stale`],
-              ["Configure pick-ems", "/admin/pick-ems", `${stats.pickEmParticipants} participants`],
+              ["Manage engagement", "/admin/engagement", `${stats.pickEmParticipants} pick-em participants`],
             ].map(([label, href, detail]) => (
               <Link key={label} href={href} className="rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] p-3 transition-colors hover:border-[var(--primary)]/50">
                 <p className="font-semibold text-white">{label}</p>

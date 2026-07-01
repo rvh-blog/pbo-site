@@ -71,6 +71,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
   const [savingColor, setSavingColor] = useState(false);
   const [error, setError] = useState("");
   const [mobileSection, setMobileSection] = useState<StoreMobileSection>("buy");
+  const [previewColors, setPreviewColors] = useState<Partial<Record<string, GlowColorKey>>>({});
 
   const getDeactivatedPurchaseIds = (data: { deactivatedPurchaseId?: number | null; deactivatedPurchaseIds?: number[] }) => {
     const ids = new Set<number>();
@@ -363,6 +364,15 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
 
   const getPurchase = (itemSlug: string) =>
     inventory.find((p) => p.itemSlug === itemSlug);
+
+  const handlePreviewColorChange = (itemSlug: string, color: GlowColorKey) => {
+    setPreviewColors((prev) => ({ ...prev, [itemSlug]: color }));
+  };
+
+  const getPreviewColor = (itemSlug: string, savedColor?: string | null): GlowColorKey => {
+    const color = savedColor || previewColors[itemSlug] || "stargazer";
+    return color in GLOW_COLORS ? (color as GlowColorKey) : "stargazer";
+  };
 
   const logoFrameItems = items.filter((item) => isLogoFrameSlug(item.slug));
   const earnedLogoFrameItems = EARNED_LOGO_FRAME_ITEMS.filter(
@@ -677,6 +687,9 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                   const purchase = getPurchase(item.slug);
                   const canAfford = balance >= item.price;
                   const isColorCustomizer = COLOR_CUSTOMIZER_SLUGS.has(item.slug);
+                  const glowPreviewColor = getPreviewColor(item.slug, purchase?.glowColor);
+                  const bgPreviewColor = getPreviewColor(item.slug, purchase?.bgColor);
+                  const borderPreviewColor = getPreviewColor(item.slug, purchase?.borderColor);
                   const showOnMobile =
                     mobileSection === "buy"
                       ? !owned
@@ -829,11 +842,13 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                           )}
 
                           {/* Team Name Glow Color Selector */}
-                          {item.slug === "team-name-glow" && owned && purchase && (
+                          {item.slug === "team-name-glow" && (
                             <div className="mt-3 p-3 rounded-lg bg-[var(--background-tertiary)]/50">
                               <div className="flex items-center justify-between mb-3">
-                                <p className="text-xs font-medium text-[var(--foreground)]">Select Glow Color:</p>
-                                {savingColor && (
+                                <p className="text-xs font-medium text-[var(--foreground)]">
+                                  {owned ? "Select Glow Color:" : "Preview Glow Color:"}
+                                </p>
+                                {owned && savingColor && (
                                   <div className="animate-spin h-3 w-3 border-2 border-purple-400 border-t-transparent rounded-full" />
                                 )}
                               </div>
@@ -843,12 +858,16 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               <div className="flex flex-wrap gap-2 mb-3">
                                 {(["stargazer", "sunset", "crystal", "neon"] as GlowColorKey[]).map((colorKey) => {
                                   const colorData = GLOW_COLORS[colorKey];
-                                  const isSelected = purchase.glowColor === colorKey;
+                                  const isSelected = glowPreviewColor === colorKey;
                                   return (
                                     <button
                                       key={colorKey}
-                                      onClick={() => handleGlowColorChange(colorKey)}
-                                      disabled={savingColor}
+                                      onClick={() =>
+                                        owned && purchase
+                                          ? handleGlowColorChange(colorKey)
+                                          : handlePreviewColorChange(item.slug, colorKey)
+                                      }
+                                      disabled={owned && savingColor}
                                       className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                         isSelected
                                           ? "ring-2 ring-offset-2 ring-offset-[var(--background-secondary)]"
@@ -872,12 +891,16 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               <div className="flex flex-wrap gap-2 mb-3">
                                 {(["gold", "ruby", "cyan", "pink", "white"] as GlowColorKey[]).map((colorKey) => {
                                   const colorData = GLOW_COLORS[colorKey];
-                                  const isSelected = purchase.glowColor === colorKey;
+                                  const isSelected = glowPreviewColor === colorKey;
                                   return (
                                     <button
                                       key={colorKey}
-                                      onClick={() => handleGlowColorChange(colorKey)}
-                                      disabled={savingColor}
+                                      onClick={() =>
+                                        owned && purchase
+                                          ? handleGlowColorChange(colorKey)
+                                          : handlePreviewColorChange(item.slug, colorKey)
+                                      }
+                                      disabled={owned && savingColor}
                                       className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                         isSelected
                                           ? "ring-2 ring-offset-2 ring-offset-[var(--background-secondary)]"
@@ -897,14 +920,14 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               </div>
 
                               {/* Preview */}
-                              {purchase.glowColor && GLOW_COLORS[purchase.glowColor as GlowColorKey] && (
+                              {GLOW_COLORS[glowPreviewColor] && (
                                 <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
                                   <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
                                   <div className="flex items-center gap-2">
                                     <span
                                       className="font-bold text-sm team-name-glow"
                                       style={{
-                                        "--shimmer-color": GLOW_COLORS[purchase.glowColor as GlowColorKey].color,
+                                        "--shimmer-color": GLOW_COLORS[glowPreviewColor].color,
                                       } as React.CSSProperties}
                                     >
                                       Your Team Name
@@ -916,11 +939,13 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                           )}
 
                           {/* Row Background Color Selector */}
-                          {item.slug === "row-background" && owned && purchase && (
+                          {item.slug === "row-background" && (
                             <div className="mt-3 p-3 rounded-lg bg-[var(--background-tertiary)]/50">
                               <div className="flex items-center justify-between mb-3">
-                                <p className="text-xs font-medium text-[var(--foreground)]">Select Background Color:</p>
-                                {savingColor && (
+                                <p className="text-xs font-medium text-[var(--foreground)]">
+                                  {owned ? "Select Background Color:" : "Preview Background Color:"}
+                                </p>
+                                {owned && savingColor && (
                                   <div className="animate-spin h-3 w-3 border-2 border-cyan-400 border-t-transparent rounded-full" />
                                 )}
                               </div>
@@ -930,12 +955,16 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               <div className="flex flex-wrap gap-2 mb-3">
                                 {(["stargazer", "sunset", "crystal", "neon"] as GlowColorKey[]).map((colorKey) => {
                                   const colorData = GLOW_COLORS[colorKey];
-                                  const isSelected = purchase.bgColor === colorKey;
+                                  const isSelected = bgPreviewColor === colorKey;
                                   return (
                                     <button
                                       key={colorKey}
-                                      onClick={() => handleBgColorChange(colorKey)}
-                                      disabled={savingColor}
+                                      onClick={() =>
+                                        owned && purchase
+                                          ? handleBgColorChange(colorKey)
+                                          : handlePreviewColorChange(item.slug, colorKey)
+                                      }
+                                      disabled={owned && savingColor}
                                       className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                         isSelected
                                           ? "ring-2 ring-offset-2 ring-offset-[var(--background-secondary)]"
@@ -959,12 +988,16 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               <div className="flex flex-wrap gap-2 mb-3">
                                 {(["gold", "ruby", "cyan", "pink", "white"] as GlowColorKey[]).map((colorKey) => {
                                   const colorData = GLOW_COLORS[colorKey];
-                                  const isSelected = purchase.bgColor === colorKey;
+                                  const isSelected = bgPreviewColor === colorKey;
                                   return (
                                     <button
                                       key={colorKey}
-                                      onClick={() => handleBgColorChange(colorKey)}
-                                      disabled={savingColor}
+                                      onClick={() =>
+                                        owned && purchase
+                                          ? handleBgColorChange(colorKey)
+                                          : handlePreviewColorChange(item.slug, colorKey)
+                                      }
+                                      disabled={owned && savingColor}
                                       className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                         isSelected
                                           ? "ring-2 ring-offset-2 ring-offset-[var(--background-secondary)]"
@@ -984,13 +1017,13 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               </div>
 
                               {/* Preview */}
-                              {purchase.bgColor && GLOW_COLORS[purchase.bgColor as GlowColorKey] && (
+                              {GLOW_COLORS[bgPreviewColor] && (
                                 <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
                                   <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
                                   <div
                                     className="row-background rounded-lg p-3"
                                     style={{
-                                      "--row-bg-color": GLOW_COLORS[purchase.bgColor as GlowColorKey].color,
+                                      "--row-bg-color": GLOW_COLORS[bgPreviewColor].color,
                                     } as React.CSSProperties}
                                   >
                                     <div className="flex items-center gap-2">
@@ -1004,11 +1037,13 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                           )}
 
                           {/* Row Border Color Selector */}
-                          {item.slug === "row-border" && owned && purchase && (
+                          {item.slug === "row-border" && (
                             <div className="mt-3 p-3 rounded-lg bg-[var(--background-tertiary)]/50">
                               <div className="flex items-center justify-between mb-3">
-                                <p className="text-xs font-medium text-[var(--foreground)]">Select Border Color:</p>
-                                {savingColor && (
+                                <p className="text-xs font-medium text-[var(--foreground)]">
+                                  {owned ? "Select Border Color:" : "Preview Border Color:"}
+                                </p>
+                                {owned && savingColor && (
                                   <div className="animate-spin h-3 w-3 border-2 border-amber-400 border-t-transparent rounded-full" />
                                 )}
                               </div>
@@ -1018,12 +1053,16 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               <div className="flex flex-wrap gap-2 mb-3">
                                 {(["stargazer", "sunset", "crystal", "neon"] as GlowColorKey[]).map((colorKey) => {
                                   const colorData = GLOW_COLORS[colorKey];
-                                  const isSelected = purchase.borderColor === colorKey;
+                                  const isSelected = borderPreviewColor === colorKey;
                                   return (
                                     <button
                                       key={colorKey}
-                                      onClick={() => handleBorderColorChange(colorKey)}
-                                      disabled={savingColor}
+                                      onClick={() =>
+                                        owned && purchase
+                                          ? handleBorderColorChange(colorKey)
+                                          : handlePreviewColorChange(item.slug, colorKey)
+                                      }
+                                      disabled={owned && savingColor}
                                       className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                         isSelected
                                           ? "ring-2 ring-offset-2 ring-offset-[var(--background-secondary)]"
@@ -1047,12 +1086,16 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               <div className="flex flex-wrap gap-2 mb-3">
                                 {(["gold", "ruby", "cyan", "pink", "white"] as GlowColorKey[]).map((colorKey) => {
                                   const colorData = GLOW_COLORS[colorKey];
-                                  const isSelected = purchase.borderColor === colorKey;
+                                  const isSelected = borderPreviewColor === colorKey;
                                   return (
                                     <button
                                       key={colorKey}
-                                      onClick={() => handleBorderColorChange(colorKey)}
-                                      disabled={savingColor}
+                                      onClick={() =>
+                                        owned && purchase
+                                          ? handleBorderColorChange(colorKey)
+                                          : handlePreviewColorChange(item.slug, colorKey)
+                                      }
+                                      disabled={owned && savingColor}
                                       className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                         isSelected
                                           ? "ring-2 ring-offset-2 ring-offset-[var(--background-secondary)]"
@@ -1072,13 +1115,13 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                               </div>
 
                               {/* Preview */}
-                              {purchase.borderColor && GLOW_COLORS[purchase.borderColor as GlowColorKey] && (
+                              {GLOW_COLORS[borderPreviewColor] && (
                                 <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
                                   <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
                                   <div
                                     className="row-border rounded-lg p-3 bg-[var(--background-secondary)]"
                                     style={{
-                                      "--row-border-color": GLOW_COLORS[purchase.borderColor as GlowColorKey].color,
+                                      "--row-border-color": GLOW_COLORS[borderPreviewColor].color,
                                     } as React.CSSProperties}
                                   >
                                     <div className="flex items-center gap-2">

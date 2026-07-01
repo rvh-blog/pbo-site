@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { pokemon, matchPokemon, rosters, seasonPokemonPrices, seasons, playoffMatches, seasonCoaches } from "@/lib/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { pokemon, matchPokemon, rosters, seasonPokemonPrices, seasons, playoffMatches } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getTypeColor } from "@/lib/utils";
 import { getAllCoachCosmetics } from "@/lib/glow-utils";
 import { CoachRow } from "@/components/coach-row";
+import { getPokemonAllTimeKillRank } from "@/lib/pokemon-leaderboard";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -217,12 +218,13 @@ export default async function PokemonDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const [matchStats, rosterEntries, latestPriceData, championships, currentDrafts] = await Promise.all([
+  const [matchStats, rosterEntries, latestPriceData, championships, currentDrafts, allTimeRank] = await Promise.all([
     getPokemonMatchStats(pokemonId),
     getPokemonRosters(pokemonId),
     getLatestPrice(pokemonId),
     getChampionships(pokemonId),
     getCurrentDrafts(pokemonId),
+    getPokemonAllTimeKillRank(pokemonId),
   ]);
 
   // Aggregate draft counts by coach (count unique seasons drafted)
@@ -257,7 +259,7 @@ export default async function PokemonDetailPage({ params }: PageProps) {
   // Aggregate overall stats
   let totalKills = 0;
   let totalDeaths = 0;
-  let totalGames = matchStats.length;
+  const totalGames = matchStats.length;
   let totalWins = 0;
   let totalLosses = 0;
 
@@ -591,7 +593,7 @@ export default async function PokemonDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="poke-card p-4 text-center">
           <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-muted)] mb-1">Kills</p>
           <p className="text-2xl font-black text-[var(--success)]">{totalKills}</p>
@@ -604,6 +606,24 @@ export default async function PokemonDetailPage({ params }: PageProps) {
           <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-muted)] mb-1">K/D</p>
           <p className="text-2xl font-black text-white">{kdRatio}</p>
         </div>
+        <Link
+          href="/leaderboards#pokemon-all-time"
+          className="poke-card p-4 text-center transition-colors hover:border-[var(--primary)]/60"
+          title="View Pokemon All-Time leaderboard"
+        >
+          <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-muted)] mb-1">All-Time Rank</p>
+          <p className="text-2xl font-black text-[var(--accent)]">
+            {allTimeRank.rank ? `#${allTimeRank.rank}` : "—"}
+          </p>
+          {allTimeRank.rank && (
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+              of {allTimeRank.totalRanked}
+            </p>
+          )}
+          <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+            By kills
+          </p>
+        </Link>
         <div className="poke-card p-4 text-center">
           <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-muted)] mb-1">Games</p>
           <p className="text-2xl font-black text-white">{totalGames}</p>

@@ -44,9 +44,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!amount || typeof amount !== "number" || amount <= 0 || amount > 100) {
+    if (!amount || typeof amount !== "number" || amount < 10 || amount > 500) {
       return NextResponse.json(
-        { error: "amount must be between 1 and 100" },
+        { error: "amount must be between 10 and 500" },
         { status: 400 }
       );
     }

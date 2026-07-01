@@ -243,6 +243,14 @@ export default function AdminBettingPage() {
   async function awardTriviaReward() {
     if (!selectedCoachId || !triviaAmount || !triviaReason.trim()) return;
 
+    const selectedCoach = coaches.find((coach) => coach.id === selectedCoachId);
+    if (
+      triviaAmount >= 250 &&
+      !window.confirm(`Award ${triviaAmount} PBO Coin to ${selectedCoach?.name || "this coach"}?`)
+    ) {
+      return;
+    }
+
     setAwardingTrivia(true);
     setTriviaSuccess(null);
 
@@ -260,8 +268,7 @@ export default function AdminBettingPage() {
 
       if (res.ok) {
         const data = await res.json();
-        const coach = coaches.find(c => c.id === selectedCoachId);
-        setTriviaSuccess(`Awarded ${triviaAmount} coins to ${coach?.name}. New balance: ${data.newBalance}`);
+        setTriviaSuccess(`Awarded ${triviaAmount} coins to ${selectedCoach?.name}. New balance: ${data.newBalance}`);
         setSelectedCoachId("");
         setTriviaAmount(10);
         setTriviaReason("");
@@ -325,7 +332,7 @@ export default function AdminBettingPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Pick-ems</h1>
+      <h1 className="text-3xl font-bold text-white">Engagement</h1>
 
       {/* Games of the Week Section */}
       <Card>
@@ -441,13 +448,13 @@ export default function AdminBettingPage() {
 
             {/* Amount Input */}
             <div>
-              <label className="block text-sm font-medium text-white mb-1">Amount (1-100)</label>
+              <label className="block text-sm font-medium text-white mb-1">Amount (10-500)</label>
               <input
                 type="number"
-                min={1}
-                max={100}
+                min={10}
+                max={500}
                 value={triviaAmount}
-                onChange={(e) => setTriviaAmount(Math.min(100, Math.max(1, parseInt(e.target.value) || 1)))}
+                onChange={(e) => setTriviaAmount(Math.min(500, Math.max(10, parseInt(e.target.value) || 10)))}
                 className="w-full px-3 py-2 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded-lg text-white"
               />
             </div>
@@ -496,6 +503,9 @@ export default function AdminBettingPage() {
                     <span className="text-white">
                       <span className="font-bold">{reward.coach.name}</span>
                       <span className="text-[var(--foreground-muted)]"> — {reward.reason}</span>
+                      {reward.awardedBy && (
+                        <span className="text-[var(--foreground-subtle)]"> by {reward.awardedBy}</span>
+                      )}
                     </span>
                     <span className="text-[var(--accent)] font-mono">+{reward.amount}</span>
                   </div>

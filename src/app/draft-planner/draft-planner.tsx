@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { Eye, EyeOff, Filter, Search, Share2, Star, X } from "lucide-react";
 import { PokemonAutocomplete, findPokemonMatch } from "@/components/admin/pokemon-autocomplete";
 
 // Type effectiveness chart
@@ -144,6 +145,14 @@ interface Season {
   draftBudget: number | null;
 }
 
+interface DraftedPokemon {
+  pokemonId: number;
+  pokemonName: string;
+  coachId: number | null;
+  coachName: string;
+  teamName: string;
+}
+
 interface Props {
   coach: { id: number; name: string } | null;
   teamName: string;
@@ -156,6 +165,19 @@ interface Props {
   seasonPrices: Record<number, SeasonPriceInfo>;
   allSeasons: Season[];
   currentSeasonId: number | null;
+  draftedPokemon: DraftedPokemon[];
+}
+
+type DraftRole = "hazards" | "removal" | "pivot" | "setup" | "status" | "priority" | "knock";
+type DraftTier = "all" | "premium" | "starter" | "value" | "budget";
+
+interface CandidatePokemon extends SimplePokemon {
+  price: number;
+  teraCaptainCost: number | null;
+  roles: DraftRole[];
+  fitScore: number;
+  fitTags: string[];
+  draftedBy?: DraftedPokemon;
 }
 
 // Calculate defensive multiplier for a Pokemon against a type
@@ -228,6 +250,43 @@ function getMultiplierColor(value: number): string {
   return "";
 }
 
+function hasAnyMove(pokemon: SimplePokemon | RosterPokemon, moves: string[]) {
+  const moveSet = new Set((pokemon.moves || []).map((move) => move.toLowerCase()));
+  return moves.some((move) => moveSet.has(move));
+}
+
+function getDraftRoles(pokemon: SimplePokemon | RosterPokemon): DraftRole[] {
+  const roles: DraftRole[] = [];
+  if (hasAnyMove(pokemon, ["stealth-rock", "spikes", "toxic-spikes", "sticky-web"])) roles.push("hazards");
+  if (hasAnyMove(pokemon, ["defog", "rapid-spin", "mortal-spin", "tidy-up"])) roles.push("removal");
+  if (hasAnyMove(pokemon, ["u-turn", "volt-switch", "flip-turn", "parting-shot", "chilly-reception", "shed-tail"])) roles.push("pivot");
+  if (hasAnyMove(pokemon, ["swords-dance", "nasty-plot", "dragon-dance", "calm-mind", "bulk-up", "quiver-dance", "shell-smash", "iron-defense"])) roles.push("setup");
+  if (hasAnyMove(pokemon, ["toxic", "will-o-wisp", "thunder-wave", "glare", "stun-spore", "sleep-powder", "spore", "yawn"])) roles.push("status");
+  if (hasAnyMove(pokemon, ["aqua-jet", "bullet-punch", "extreme-speed", "ice-shard", "mach-punch", "quick-attack", "shadow-sneak", "sucker-punch", "vacuum-wave"])) roles.push("priority");
+  if (hasAnyMove(pokemon, ["knock-off"])) roles.push("knock");
+  return roles;
+}
+
+function getTierForPrice(price: number): Exclude<DraftTier, "all"> {
+  if (price >= 16) return "premium";
+  if (price >= 11) return "starter";
+  if (price >= 6) return "value";
+  return "budget";
+}
+
+function formatRole(role: DraftRole) {
+  const labels: Record<DraftRole, string> = {
+    hazards: "Hazards",
+    removal: "Removal",
+    pivot: "Pivot",
+    setup: "Setup",
+    status: "Status",
+    priority: "Priority",
+    knock: "Knock",
+  };
+  return labels[role];
+}
+
 export function DraftPlanner({
   coach,
   teamName,
@@ -240,10 +299,28 @@ export function DraftPlanner({
   seasonPrices,
   allSeasons,
   currentSeasonId,
+  draftedPokemon,
 }: Props) {
   const [statSort, setStatSort] = useState<"speed" | "hp" | "attack" | "defense" | "specialAttack" | "specialDefense" | "baseStatTotal">("speed");
   const [statSortAsc, setStatSortAsc] = useState(false);
   const [moveSearch, setMoveSearch] = useState("");
+  const [candidateSearch, setCandidateSearch] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+  const [selectedRole, setSelectedRole] = useState<"all" | DraftRole>("all");
+  const [selectedTier, setSelectedTier] = useState<DraftTier>("all");
+  const [maxPrice, setMaxPrice] = useState(30);
+  const [minSpeed, setMinSpeed] = useState(0);
+  const [availableOnly, setAvailableOnly] = useState(true);
+  const [fitOnly, setFitOnly] = useState(false);
+  const [watchlist, setWatchlist] = useState<number[]>([]);
+  const [notes, setNotes] = useState<Record<number, string>>({});
+  const [compareIds, setCompareIds] = useState<number[]>([]);
+  const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
+  const [showNeedsPanel, setShowNeedsPanel] = useState(true);
+  const [showDraftBoard, setShowDraftBoard] = useState(true);
+  const [showComparePanel, setShowComparePanel] = useState(true);
+  const [showNotesPanel, setShowNotesPanel] = useState(true);
+  const [showTeamAnalyzer, setShowTeamAnalyzer] = useState(true);
   const [expandedAbility, setExpandedAbility] = useState<{ slotIdx: number; abilityIdx: number } | null>(null);
   const [trackedMoves, setTrackedMoves] = useState([
     "stealth-rock", "spikes", "toxic-spikes", "sticky-web",
@@ -267,14 +344,41 @@ export function DraftPlanner({
             if (data.preferences.trackedMoves) setTrackedMoves(data.preferences.trackedMoves);
           }
         }
-      } catch (e) {
-        // Not logged in or error - ignore
+    } catch {
+      // Not logged in or error - ignore
       } finally {
         setPrefsLoaded(true);
       }
     }
     loadPrefs();
   }, []);
+
+  useEffect(() => {
+    try {
+      const savedWatchlist = localStorage.getItem("draft-planner-watchlist");
+      const savedNotes = localStorage.getItem("draft-planner-notes");
+      if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
+      if (savedNotes) setNotes(JSON.parse(savedNotes));
+    } catch {
+      // Local planner notes are optional.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("draft-planner-watchlist", JSON.stringify(watchlist));
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [watchlist]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("draft-planner-notes", JSON.stringify(notes));
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [notes]);
 
   // Save preferences
   const savePreferences = async () => {
@@ -298,7 +402,7 @@ export function DraftPlanner({
       } else {
         setSaveStatus("idle");
       }
-    } catch (e) {
+    } catch {
       setSaveStatus("idle");
     }
   };
@@ -457,6 +561,16 @@ export function DraftPlanner({
   // Calculate total spent and remaining budget
   const totalSpent = useMemo(() => slots.reduce((sum, s) => sum + s.price, 0), [slots]);
   const remainingBudget = draftBudget - totalSpent;
+  const openSlots = slots.filter((slot) => !slot.pokemon).length;
+  const avgRemainingPerSlot = openSlots > 0 ? Math.floor(remainingBudget / openSlots) : remainingBudget;
+  const plannedPokemonIds = useMemo(
+    () => new Set(slots.map((slot) => slot.pokemonId).filter((id): id is number => Boolean(id))),
+    [slots]
+  );
+  const draftedByPokemonId = useMemo(
+    () => new Map(draftedPokemon.map((drafted) => [drafted.pokemonId, drafted])),
+    [draftedPokemon]
+  );
 
   // Calculate type chart for team
   const typeChart = useMemo(() => {
@@ -512,12 +626,109 @@ export function DraftPlanner({
     };
   }, [roster]);
 
-  // All moves available on the team
-  const allTeamMoves = useMemo(() => {
-    const moveSet = new Set<string>();
-    roster.forEach(p => p.moves.forEach(m => moveSet.add(m)));
-    return Array.from(moveSet).sort();
-  }, [roster]);
+  const teamRoles = useMemo(() => new Set(roster.flatMap((p) => getDraftRoles(p))), [roster]);
+
+  const draftNeeds = useMemo(() => {
+    const needs: { label: string; met: boolean }[] = [
+      { label: "Hazard setter", met: teamRoles.has("hazards") },
+      { label: "Hazard removal", met: teamRoles.has("removal") },
+      { label: "Pivoting", met: teamRoles.has("pivot") },
+      { label: "Status", met: teamRoles.has("status") },
+      { label: "Setup wincon", met: teamRoles.has("setup") },
+      { label: "Priority", met: teamRoles.has("priority") },
+    ];
+
+    const weakTypes = ALL_TYPES.filter((type) => {
+      const overall = typeChart[type]?.overall;
+      return overall === "weak" || overall === "very_weak";
+    }).slice(0, 4);
+
+    return {
+      roleNeeds: needs,
+      missingRoles: needs.filter((need) => !need.met),
+      weakTypes,
+    };
+  }, [teamRoles, typeChart]);
+
+  const candidates = useMemo<CandidatePokemon[]>(() => {
+    return allPokemon.map((p) => {
+      const priceInfo = seasonPrices[p.id];
+      const price = priceInfo?.price ?? 0;
+      const roles = getDraftRoles(p);
+      const draftedBy = draftedByPokemonId.get(p.id);
+      const fitTags: string[] = [];
+      let fitScore = 0;
+
+      for (const role of roles) {
+        if (!teamRoles.has(role)) {
+          fitScore += 12;
+          fitTags.push(`Fills ${formatRole(role)}`);
+        }
+      }
+
+      for (const type of p.types || []) {
+        if (draftNeeds.weakTypes.includes(type.toLowerCase())) {
+          fitScore += 8;
+          fitTags.push(`${type} buffer`);
+        }
+      }
+
+      if ((p.speed || 0) >= 100 && avgStats.speed < 90) {
+        fitScore += 8;
+        fitTags.push("Adds Speed");
+      }
+
+      if (price > 0 && openSlots > 0 && price <= Math.max(1, avgRemainingPerSlot)) {
+        fitScore += 6;
+        fitTags.push("Budget Fit");
+      }
+
+      if (price > 0 && (p.baseStatTotal || 0) / price >= 55) {
+        fitScore += 5;
+        fitTags.push("Value");
+      }
+
+      if (fitTags.length === 0) {
+        fitTags.push(roles[0] ? formatRole(roles[0]) : "Depth");
+      }
+
+      return {
+        ...p,
+        price,
+        teraCaptainCost: priceInfo?.teraCaptainCost ?? null,
+        roles,
+        fitScore,
+        fitTags: Array.from(new Set(fitTags)).slice(0, 4),
+        draftedBy,
+      };
+    });
+  }, [allPokemon, avgRemainingPerSlot, avgStats.speed, draftedByPokemonId, draftNeeds.weakTypes, openSlots, seasonPrices, teamRoles]);
+
+  const filteredCandidates = useMemo(() => {
+    const search = candidateSearch.trim().toLowerCase();
+    return candidates
+      .filter((p) => p.price >= 0)
+      .filter((p) => !availableOnly || (!p.draftedBy && !plannedPokemonIds.has(p.id)))
+      .filter((p) => !fitOnly || p.fitScore > 0)
+      .filter((p) => selectedType === "all" || (p.types || []).map((type) => type.toLowerCase()).includes(selectedType))
+      .filter((p) => selectedRole === "all" || p.roles.includes(selectedRole))
+      .filter((p) => selectedTier === "all" || getTierForPrice(p.price) === selectedTier)
+      .filter((p) => p.price <= maxPrice)
+      .filter((p) => (p.speed || 0) >= minSpeed)
+      .filter((p) => !search || (p.displayName || p.name).toLowerCase().includes(search) || p.name.toLowerCase().includes(search))
+      .sort((a, b) => {
+        if (watchlist.includes(a.id) !== watchlist.includes(b.id)) return watchlist.includes(a.id) ? -1 : 1;
+        if (b.fitScore !== a.fitScore) return b.fitScore - a.fitScore;
+        if (b.price !== a.price) return b.price - a.price;
+        return (a.displayName || a.name).localeCompare(b.displayName || b.name);
+      })
+      .slice(0, 36);
+  }, [availableOnly, candidateSearch, candidates, fitOnly, maxPrice, minSpeed, plannedPokemonIds, selectedRole, selectedTier, selectedType, watchlist]);
+
+  const comparePokemon = useMemo(
+    () => compareIds.map((id) => candidates.find((p) => p.id === id)).filter((p): p is CandidatePokemon => Boolean(p)),
+    [candidates, compareIds]
+  );
 
   // All moves from database (for search)
   const allMoveNames = useMemo(() => Object.keys(moveTypes).sort(), [moveTypes]);
@@ -551,14 +762,50 @@ export function DraftPlanner({
     setTrackedMoves(trackedMoves.filter(m => m !== move));
   }
 
-  const handleStatSort = (stat: typeof statSort) => {
-    if (statSort === stat) {
-      setStatSortAsc(!statSortAsc);
-    } else {
-      setStatSort(stat);
-      setStatSortAsc(false);
-    }
-  };
+  function addCandidateToNextSlot(candidate: CandidatePokemon) {
+    const nextOpenSlot = slots.findIndex((slot) => !slot.pokemonId);
+    if (nextOpenSlot === -1) return;
+    handleSlotChange(nextOpenSlot, candidate.id, candidate.displayName || candidate.name);
+  }
+
+  function toggleWatchlist(pokemonId: number) {
+    setWatchlist((current) =>
+      current.includes(pokemonId)
+        ? current.filter((id) => id !== pokemonId)
+        : [pokemonId, ...current]
+    );
+  }
+
+  function toggleCompare(pokemonId: number) {
+    setCompareIds((current) => {
+      if (current.includes(pokemonId)) return current.filter((id) => id !== pokemonId);
+      return [...current, pokemonId].slice(-4);
+    });
+  }
+
+  async function copyDraftPlan() {
+    const rosterLines = slots
+      .filter((slot) => slot.pokemon)
+      .map((slot, index) => `${index + 1}. ${slot.pokemon!.displayName} - ${slot.price} pts${slot.isTeraCaptain ? " (TC)" : ""}`);
+    const watchLines = watchlist
+      .map((id) => candidates.find((p) => p.id === id))
+      .filter((p): p is CandidatePokemon => Boolean(p))
+      .map((p) => `- ${p.displayName || p.name} (${p.price} pts): ${notes[p.id] || p.fitTags.join(", ")}`);
+
+    const text = [
+      `${teamName || "Draft Plan"} (${totalSpent}/${draftBudget} pts)`,
+      "",
+      "Roster",
+      rosterLines.length ? rosterLines.join("\n") : "No Pokemon selected",
+      "",
+      "Watchlist",
+      watchLines.length ? watchLines.join("\n") : "No watchlist picks",
+    ].join("\n");
+
+    await navigator.clipboard.writeText(text);
+    setShareStatus("copied");
+    setTimeout(() => setShareStatus("idle"), 1800);
+  }
 
   return (
     <div
@@ -589,6 +836,9 @@ export function DraftPlanner({
             {teamLogo && <img src={teamLogo} alt="" className="w-8 h-8 object-contain" />}
             <div>
               <h1 className="font-pixel text-base text-white">{teamName || "Draft Planner"}</h1>
+              <span className="block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+                {allSeasons.find((season) => season.id === currentSeasonId)?.name || "Current season"}
+              </span>
               <span className="text-xs text-[var(--foreground-muted)]">
                 {coach ? `${coach.name} • ` : ""}Plan your team
               </span>
@@ -607,7 +857,265 @@ export function DraftPlanner({
           </button>
         </div>
 
+        <div className="mb-3 flex flex-wrap gap-2 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-2">
+          {[
+            { label: "Needs", enabled: showNeedsPanel, onClick: () => setShowNeedsPanel(!showNeedsPanel) },
+            { label: "Draft Board", enabled: showDraftBoard, onClick: () => setShowDraftBoard(!showDraftBoard) },
+            { label: "Compare", enabled: showComparePanel, onClick: () => setShowComparePanel(!showComparePanel) },
+            { label: "Notes", enabled: showNotesPanel, onClick: () => setShowNotesPanel(!showNotesPanel) },
+            { label: "Analyzer", enabled: showTeamAnalyzer, onClick: () => setShowTeamAnalyzer(!showTeamAnalyzer) },
+          ].map((toggle) => (
+            <button
+              key={toggle.label}
+              type="button"
+              onClick={toggle.onClick}
+              className={`rounded-md border px-3 py-1.5 text-xs font-bold transition-colors ${
+                toggle.enabled
+                  ? "border-[var(--primary)]/40 bg-[var(--primary)]/15 text-white"
+                  : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"
+              }`}
+            >
+              {toggle.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Draft Command Center */}
+        {(showNeedsPanel || showDraftBoard) && (
+        <div className={`mb-4 grid grid-cols-1 gap-3 ${showNeedsPanel && showDraftBoard ? "xl:grid-cols-[1.1fr_1.4fr]" : ""}`}>
+          {showNeedsPanel && (
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-bold text-white">Draft Needs</h2>
+                <p className="text-xs text-[var(--foreground-muted)]">Budget, roles, and roster gaps</p>
+              </div>
+              <button
+                type="button"
+                onClick={copyDraftPlan}
+                className="flex items-center gap-1.5 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2.5 py-1.5 text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                {shareStatus === "copied" ? "Copied" : "Copy Plan"}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-md bg-[var(--background-secondary)] p-2">
+                <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Remaining</p>
+                <p className={`font-mono text-lg font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{remainingBudget}</p>
+              </div>
+              <div className="rounded-md bg-[var(--background-secondary)] p-2">
+                <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Open Slots</p>
+                <p className="font-mono text-lg font-bold text-white">{openSlots}</p>
+              </div>
+              <div className="rounded-md bg-[var(--background-secondary)] p-2">
+                <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Avg Slot</p>
+                <p className="font-mono text-lg font-bold text-[var(--accent)]">{openSlots > 0 ? avgRemainingPerSlot : "-"}</p>
+              </div>
+              <div className="rounded-md bg-[var(--background-secondary)] p-2">
+                <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Watchlist</p>
+                <p className="font-mono text-lg font-bold text-white">{watchlist.length}</p>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="rounded-md border border-[var(--background-tertiary)] p-2">
+                <p className="mb-1 text-xs font-bold text-white">Role Checklist</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {draftNeeds.roleNeeds.map((need) => (
+                    <span
+                      key={need.label}
+                      className={`rounded px-2 py-1 text-[10px] font-bold ${need.met ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}
+                    >
+                      {need.met ? "✓" : "+"} {need.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-md border border-[var(--background-tertiary)] p-2">
+                <p className="mb-1 text-xs font-bold text-white">Pressure Points</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {draftNeeds.weakTypes.length > 0 ? draftNeeds.weakTypes.map((type) => (
+                    <span
+                      key={type}
+                      className="rounded px-2 py-1 text-[10px] font-bold text-white"
+                      style={{ backgroundColor: TYPE_COLORS[type] }}
+                    >
+                      {type}
+                    </span>
+                  )) : (
+                    <span className="text-xs text-[var(--foreground-muted)]">No major type pressure yet</span>
+                  )}
+                  {draftNeeds.missingRoles.length === 0 && (
+                    <span className="rounded bg-emerald-500/15 px-2 py-1 text-[10px] font-bold text-emerald-300">Core roles covered</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          )}
+
+          {showDraftBoard && (
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-bold text-white">Draft Board</h2>
+                <p className="text-xs text-[var(--foreground-muted)]">Filter, compare, watchlist, and add picks</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
+                <Filter className="h-3.5 w-3.5" />
+                {filteredCandidates.length} shown
+              </div>
+            </div>
+
+            <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+              <label className="relative md:col-span-2 xl:col-span-1">
+                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--foreground-subtle)]" />
+                <input
+                  value={candidateSearch}
+                  onChange={(e) => setCandidateSearch(e.target.value)}
+                  placeholder="Search Pokemon"
+                  className="w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] py-2 pl-7 pr-2 text-sm text-white placeholder:text-[var(--foreground-subtle)]"
+                />
+              </label>
+              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-2 text-sm text-white">
+                <option value="all">All types</option>
+                {ALL_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+              <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as "all" | DraftRole)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-2 text-sm text-white">
+                <option value="all">All roles</option>
+                {(["hazards", "removal", "pivot", "setup", "status", "priority", "knock"] as DraftRole[]).map((role) => <option key={role} value={role}>{formatRole(role)}</option>)}
+              </select>
+              <select value={selectedTier} onChange={(e) => setSelectedTier(e.target.value as DraftTier)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-2 text-sm text-white">
+                <option value="all">All tiers</option>
+                <option value="premium">Premium 16+</option>
+                <option value="starter">Starter 11-15</option>
+                <option value="value">Value 6-10</option>
+                <option value="budget">Budget 0-5</option>
+              </select>
+            </div>
+
+            <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-2">
+                <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Price: {maxPrice}</span>
+                <input type="range" min="0" max="30" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full" />
+              </label>
+              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-2">
+                <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Min Speed: {minSpeed}</span>
+                <input type="range" min="0" max="160" step="5" value={minSpeed} onChange={(e) => setMinSpeed(Number(e.target.value))} className="w-full" />
+              </label>
+              <button type="button" onClick={() => setAvailableOnly(!availableOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-bold transition-colors ${availableOnly ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
+                {availableOnly ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                Available only
+              </button>
+              <button type="button" onClick={() => setFitOnly(!fitOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-bold transition-colors ${fitOnly ? "border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent)]" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
+                <Star className="h-4 w-4" />
+                Fits team
+              </button>
+            </div>
+
+            {showComparePanel && comparePokemon.length > 0 && (
+              <div className="mb-3 overflow-x-auto rounded-md border border-[var(--background-tertiary)]">
+                <table className="w-full min-w-[520px] text-xs">
+                  <thead>
+                    <tr className="bg-[var(--background-secondary)] text-[var(--foreground-muted)]">
+                      <th className="px-2 py-2 text-left">Compare</th>
+                      {comparePokemon.map((p) => (
+                        <th key={p.id} className="px-2 py-2 text-left">
+                          <button type="button" onClick={() => toggleCompare(p.id)} className="flex items-center gap-1 text-white">
+                            {p.displayName || p.name}
+                            <X className="h-3 w-3" />
+                          </button>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--background-tertiary)]">
+                    {[
+                      ["Price", (p: CandidatePokemon) => `${p.price}`],
+                      ["Types", (p: CandidatePokemon) => (p.types || []).join(" / ")],
+                      ["Roles", (p: CandidatePokemon) => p.roles.map(formatRole).join(", ") || "Depth"],
+                      ["Speed", (p: CandidatePokemon) => `${p.speed || 0}`],
+                      ["BST", (p: CandidatePokemon) => `${p.baseStatTotal || 0}`],
+                    ].map(([label, getValue]) => (
+                      <tr key={label as string}>
+                        <td className="px-2 py-2 font-bold text-[var(--foreground-muted)]">{label as string}</td>
+                        {comparePokemon.map((p) => <td key={p.id} className="px-2 py-2 text-white">{(getValue as (p: CandidatePokemon) => string)(p)}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="grid max-h-[620px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredCandidates.map((candidate) => {
+                const isPlanned = plannedPokemonIds.has(candidate.id);
+                const isWatched = watchlist.includes(candidate.id);
+                const isCompared = compareIds.includes(candidate.id);
+                return (
+                  <div key={candidate.id} className={`min-w-0 rounded-lg border p-3 ${isPlanned ? "border-[var(--accent)]/50 bg-[var(--accent)]/10" : candidate.draftedBy ? "border-red-500/30 bg-red-500/5" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"}`}>
+                    <div className="mb-2 flex items-start gap-2">
+                      {candidate.spriteUrl && <img src={candidate.spriteUrl} alt="" className="h-10 w-10 shrink-0 object-contain" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <Link href={`/pokemon/${candidate.id}`} className="break-words text-sm font-bold text-white hover:text-[var(--primary)]">
+                            {candidate.displayName || candidate.name}
+                          </Link>
+                          <span className="shrink-0 rounded bg-[var(--background)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--accent)]">{candidate.price}</span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(candidate.types || []).map((type) => (
+                            <span key={type} className={`type-badge type-${type.toLowerCase()} text-[8px] px-1 py-0`}>{type}</span>
+                          ))}
+                          <span className="rounded bg-[var(--background)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--foreground-muted)]">{getTierForPrice(candidate.price)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mb-2 flex flex-wrap gap-1">
+                      {candidate.fitTags.map((tag) => (
+                        <span key={tag} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">{tag}</span>
+                      ))}
+                    </div>
+                    <div className="mb-2 grid grid-cols-3 gap-1 text-center text-[10px]">
+                      <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">SPE</span><span className="font-bold text-white">{candidate.speed || 0}</span></div>
+                      <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">BST</span><span className="font-bold text-white">{candidate.baseStatTotal || 0}</span></div>
+                      <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">FIT</span><span className="font-bold text-white">{candidate.fitScore}</span></div>
+                    </div>
+                    {candidate.draftedBy && !isPlanned && (
+                      <p className="mb-2 rounded bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-300">
+                        Drafted by {candidate.draftedBy.teamName || candidate.draftedBy.coachName}
+                      </p>
+                    )}
+                    {showNotesPanel && (
+                      <textarea
+                        value={notes[candidate.id] || ""}
+                        onChange={(e) => setNotes((current) => ({ ...current, [candidate.id]: e.target.value }))}
+                        placeholder="Watchlist notes"
+                        className="mb-2 h-16 w-full resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
+                      />
+                    )}
+                    <div className="grid grid-cols-3 gap-1">
+                      <button type="button" onClick={() => toggleWatchlist(candidate.id)} className={`rounded px-2 py-1.5 text-xs font-bold ${isWatched ? "bg-[var(--accent)] text-black" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                        {isWatched ? "Saved" : "Save"}
+                      </button>
+                      <button type="button" onClick={() => toggleCompare(candidate.id)} className={`rounded px-2 py-1.5 text-xs font-bold ${isCompared ? "bg-sky-500/20 text-sky-200" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                        Compare
+                      </button>
+                      <button type="button" disabled={openSlots === 0 || isPlanned || Boolean(candidate.draftedBy)} onClick={() => addCandidateToNextSlot(candidate)} className="rounded bg-[var(--primary)] px-2 py-1.5 text-xs font-bold text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          )}
+        </div>
+        )}
+
         {/* Main Layout: Team List on left, everything else on right */}
+        {showTeamAnalyzer && (
         <div className="flex flex-col lg:flex-row gap-3">
           {/* Left: Team List + Budget - 18% of width on desktop */}
           <div className="w-full lg:w-[18%] lg:min-w-[180px] lg:max-w-[280px] lg:shrink-0 flex flex-col">
@@ -1279,6 +1787,7 @@ export function DraftPlanner({
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

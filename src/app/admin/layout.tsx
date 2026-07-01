@@ -11,7 +11,7 @@ const adminNavItems = [
   { href: "/admin/matches", label: "Matches" },
   { href: "/admin/discord", label: "Discord" },
   { href: "/admin/sheets", label: "Sheets" },
-  { href: "/admin/pick-ems", label: "Pick-ems" },
+  { href: "/admin/engagement", label: "Engagement" },
   { href: "/admin/audit-log", label: "Audit Log" },
 ];
 

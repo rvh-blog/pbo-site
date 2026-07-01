@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { coaches, seasonCoaches, eloHistory } from "@/lib/schema";
+import { STARTING_COACH_COINS } from "@/lib/coin-config";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
 
   const values: { name: string; eloRating?: number; pboCoin: number } = {
     name,
-    pboCoin: 100, // Starter coins for new coaches
+    pboCoin: STARTING_COACH_COINS,
   };
   if (eloRating !== undefined && typeof eloRating === "number") {
     values.eloRating = eloRating;

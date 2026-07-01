@@ -1,0 +1,2 @@
+export const STARTING_COACH_COINS = 150;
+export const MATCH_COMPLETION_COINS = 10;

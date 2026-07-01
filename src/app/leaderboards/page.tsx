@@ -3,6 +3,7 @@ import { playoffMatches } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { LeaderboardsClient } from "./leaderboards-client";
 import { getAllCoachCosmetics } from "@/lib/glow-utils";
+import { getPokemonLeaderboardStats } from "@/lib/pokemon-leaderboard";
 
 export const dynamic = 'force-dynamic';
 
@@ -121,64 +122,6 @@ function getCoachStats(
   return coachStats.filter((c) => c.gamesPlayed > 0);
 }
 
-async function getPokemonStats() {
-  const allMatchPokemon = await db.query.matchPokemon.findMany({
-    with: {
-      pokemon: true,
-      match: true,
-    },
-  });
-
-  // Group by pokemon
-  const pokemonMap = new Map<number, {
-    id: number;
-    name: string;
-    spriteUrl: string | null;
-    kills: number;
-    deaths: number;
-    wins: number;
-    losses: number;
-    gamesPlayed: number;
-  }>();
-
-  for (const mp of allMatchPokemon) {
-    if (!mp.pokemon) continue;
-
-    const existing = pokemonMap.get(mp.pokemon.id) || {
-      id: mp.pokemon.id,
-      name: mp.pokemon.name,
-      displayName: mp.pokemon.displayName,
-      spriteUrl: mp.pokemon.spriteUrl,
-      kills: 0,
-      deaths: 0,
-      wins: 0,
-      losses: 0,
-      gamesPlayed: 0,
-    };
-
-    existing.kills += mp.kills || 0;
-    existing.deaths += mp.deaths || 0;
-    existing.gamesPlayed += 1;
-
-    // Check if this pokemon's team won
-    if (mp.match?.winnerId === mp.seasonCoachId) {
-      existing.wins += 1;
-    } else if (mp.match?.winnerId) {
-      existing.losses += 1;
-    }
-
-    pokemonMap.set(mp.pokemon.id, existing);
-  }
-
-  const pokemonStats = Array.from(pokemonMap.values()).map((p) => ({
-    ...p,
-    differential: p.kills - p.deaths,
-    winRate: p.gamesPlayed > 0 ? (p.wins / p.gamesPlayed) * 100 : 0,
-  }));
-
-  return pokemonStats.filter((p) => p.gamesPlayed > 0);
-}
-
 async function getMostLovedPairs() {
   // Get all roster entries with coach and pokemon data
   const allRosters = await db.query.rosters.findMany({
@@ -242,7 +185,7 @@ async function getMostLovedPairs() {
   return Array.from(pairMap.values())
     .filter((p) => p.draftCount >= 2)
     .sort((a, b) => b.draftCount - a.draftCount)
-    .slice(0, 10);
+    .slice(0, 25);
 }
 
 export default async function LeaderboardsPage() {
@@ -251,7 +194,7 @@ export default async function LeaderboardsPage() {
     db.query.coaches.findMany(),
     db.query.seasonCoaches.findMany(),
     db.query.matches.findMany(),
-    getPokemonStats(),
+    getPokemonLeaderboardStats(),
     getMostLovedPairs(),
     // Get all playoff finals (round 3) for championship counts
     db.query.playoffMatches.findMany({

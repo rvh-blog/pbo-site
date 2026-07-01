@@ -209,7 +209,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
 
       {/* Top Rated Coach Spotlight */}
       {topEloCoach && (
-        <div className="poke-card p-0 overflow-hidden">
+        <div id="pokemon-all-time" className="poke-card p-0 overflow-hidden scroll-mt-24">
           <div className="p-6 border-b-2 border-[var(--background-tertiary)] bg-[var(--accent)]/10">
             <div className="section-title !mb-0">
               <div className="section-title-icon !bg-[var(--accent)]" style={{ boxShadow: '0 4px 0 #b45309' }}>
@@ -273,7 +273,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Coach Rankings */}
-        <div className="poke-card p-0 overflow-hidden">
+        <div id="coach-rankings" className="poke-card p-0 overflow-hidden scroll-mt-24">
           <div className="p-6 border-b-2 border-[var(--background-tertiary)]">
             <div className="flex items-center justify-between mb-4">
               <div className="section-title !mb-0">
@@ -414,7 +414,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
         </div>
 
         {/* Pokemon Leaderboard */}
-        <div className="poke-card p-0 overflow-hidden">
+        <div id="ride-or-die" className="poke-card p-0 overflow-hidden scroll-mt-24">
           <div className="p-6 border-b-2 border-[var(--background-tertiary)]">
             <div className="flex items-center justify-between mb-4">
               <div className="section-title !mb-0">
@@ -423,7 +423,12 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <h3>Pokemon All-Time</h3>
+                <div>
+                  <h3>Pokemon All-Time</h3>
+                  <p className="text-xs font-normal text-[var(--foreground-muted)]">
+                    Default rank is total kills, with fewer games as the tiebreaker.
+                  </p>
+                </div>
               </div>
               <Link
                 href="/pokemon/stats"

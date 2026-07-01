@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { BarChart3, ExternalLink, Loader2, Search, ShieldAlert, Swords } from "lucide-react";
+import { BarChart3, Check, Copy, ExternalLink, Loader2, Search, ShieldAlert, Swords } from "lucide-react";
 import { HpChart } from "@/components/hp-chart";
 
 interface PokemonStats {
@@ -66,6 +66,40 @@ function getPlayerName(data: ParsedReplay, player: "p1" | "p2") {
   return player === "p1" ? data.p1Username || "Player 1" : data.p2Username || "Player 2";
 }
 
+function getDifferential(data: ParsedReplay) {
+  if (data.winner === "p1") return `+${data.p1Remaining}`;
+  if (data.winner === "p2") return `+${data.p2Remaining}`;
+  return "Unknown";
+}
+
+function formatTeamForCopy(name: string, team: PokemonStats[]) {
+  return [
+    name,
+    ...team.map(
+      (pokemon) =>
+        `${pokemon.name}: ${pokemon.kills}K/${pokemon.deaths}D, ${formatNumber(pokemon.damageDealt)} dmg, ${formatNumber(pokemon.hpRestored)} restored`
+    ),
+  ].join("\n");
+}
+
+function buildCopyResults(data: ParsedReplay, sourceUrl: string, winnerName: string) {
+  const parts = [
+    "Replay Analyzer Results",
+    sourceUrl ? `Replay: ${sourceUrl}` : null,
+    data.replayJsonUrl ? `JSON: ${data.replayJsonUrl}` : null,
+    `Winner: ${winnerName}`,
+    `Differential: ${getDifferential(data)}`,
+    `Turns: ${data.turnSnapshots.at(-1)?.turn ?? 0}`,
+    data.zoroarkInvolved ? "Warning: Zoroark/Illusion attribution should be reviewed manually." : null,
+    "",
+    formatTeamForCopy(data.p1Username || "Player 1", data.p1Team),
+    "",
+    formatTeamForCopy(data.p2Username || "Player 2", data.p2Team),
+  ];
+
+  return parts.filter((part) => part !== null).join("\n");
+}
+
 const ANALYZER_CHECKS = ["Kills", "Deaths", "Damage", "Recovery", "HP timeline", "Key events"];
 
 function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
@@ -75,7 +109,38 @@ function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
         <h2 className="text-sm font-black uppercase tracking-wide text-white">{title}</h2>
         <span className="text-xs font-bold text-[var(--foreground-muted)]">{team.length} Pokemon</span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="grid gap-3 p-3 md:hidden">
+        {team.map((pokemon) => (
+          <div key={pokemon.name} className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-3">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="min-w-0 text-sm font-black text-white">{pokemon.name}</h3>
+              <div className="flex shrink-0 gap-2 text-xs font-black">
+                <span className="text-[var(--success)]">{pokemon.kills}K</span>
+                <span className="text-[var(--error)]">{pokemon.deaths}D</span>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <div className="font-black uppercase tracking-wider text-[var(--foreground-subtle)]">Damage</div>
+                <div className="mt-0.5 font-bold text-[var(--foreground)]">{formatNumber(pokemon.damageDealt)}</div>
+              </div>
+              <div>
+                <div className="font-black uppercase tracking-wider text-[var(--foreground-subtle)]">Indirect</div>
+                <div className="mt-0.5 font-bold text-[var(--foreground)]">{formatNumber(pokemon.damageDealtIndirect)}</div>
+              </div>
+              <div>
+                <div className="font-black uppercase tracking-wider text-[var(--foreground-subtle)]">Taken</div>
+                <div className="mt-0.5 font-bold text-[var(--foreground-muted)]">{formatNumber(pokemon.damageTaken)}</div>
+              </div>
+              <div>
+                <div className="font-black uppercase tracking-wider text-[var(--foreground-subtle)]">Restored</div>
+                <div className="mt-0.5 font-bold text-[var(--accent)]">{formatNumber(pokemon.hpRestored)}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-[var(--background-secondary)] text-[10px] uppercase tracking-widest text-[var(--foreground-muted)]">
             <tr>
@@ -114,6 +179,7 @@ export function AnalyzerClient() {
   const [data, setData] = useState<ParsedReplay | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const winnerName = useMemo(() => {
     if (!data?.winner) return "Unknown";
@@ -145,11 +211,20 @@ export function AnalyzerClient() {
       }
 
       setData(payload);
+      setCopied(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to analyze replay.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleCopyResults() {
+    if (!data) return;
+
+    await navigator.clipboard.writeText(buildCopyResults(data, replayUrl.trim(), winnerName));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
   }
 
   return (
@@ -216,24 +291,54 @@ export function AnalyzerClient() {
 
         {data && (
           <div className="space-y-8">
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border-2 border-[var(--accent)]/50 bg-[var(--card)] p-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Winner</div>
-                <div className="mt-2 text-xl font-black text-[var(--accent)]">{winnerName}</div>
-              </div>
-              <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Differential</div>
-                <div className="mt-2 text-xl font-black text-white">
-                  {data.winner === "p1" ? `+${data.p1Remaining}` : data.winner === "p2" ? `+${data.p2Remaining}` : "Unknown"}
+            <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 sm:p-5">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-black uppercase tracking-wide text-white">Analysis Summary</h2>
+                  <p className="mt-1 text-xs font-bold text-[var(--foreground-muted)]">
+                    {data.p1Username || "Player 1"} vs {data.p2Username || "Player 2"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {data.replayJsonUrl && (
+                    <a
+                      href={data.replayJsonUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-black uppercase tracking-wide text-[var(--foreground-muted)] transition-colors hover:text-white"
+                    >
+                      JSON
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleCopyResults}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-black uppercase tracking-wide text-[var(--foreground-muted)] transition-colors hover:text-white"
+                  >
+                    {copied ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? "Copied" : "Copy"}
+                  </button>
                 </div>
               </div>
-              <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Turns</div>
-                <div className="mt-2 text-xl font-black text-white">{data.turnSnapshots.at(-1)?.turn ?? 0}</div>
-              </div>
-              <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Started</div>
-                <div className="mt-2 text-xl font-black text-white">{formatDate(data.startedAt)}</div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border-2 border-[var(--accent)]/50 bg-[var(--background-secondary)] p-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Winner</div>
+                  <div className="mt-2 text-xl font-black text-[var(--accent)]">{winnerName}</div>
+                </div>
+                <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Differential</div>
+                  <div className="mt-2 text-xl font-black text-white">{getDifferential(data)}</div>
+                </div>
+                <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Turns</div>
+                  <div className="mt-2 text-xl font-black text-white">{data.turnSnapshots.at(-1)?.turn ?? 0}</div>
+                </div>
+                <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Started</div>
+                  <div className="mt-2 text-xl font-black text-white">{formatDate(data.startedAt)}</div>
+                </div>
               </div>
             </section>
 
@@ -242,6 +347,24 @@ export function AnalyzerClient() {
                 Zoroark was involved, so illusion-related attribution should be reviewed manually.
               </div>
             )}
+
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-sm font-black uppercase tracking-wide text-white">Coach Stats</h2>
+                <p className="mt-1 text-xs font-bold text-[var(--foreground-muted)]">
+                  Parsed K/D, damage, and recovery by replay side.
+                </p>
+              </div>
+              <div className="grid gap-6 xl:grid-cols-2">
+                <TeamTable title={data.p1Username || "Player 1"} team={data.p1Team} />
+                <TeamTable title={data.p2Username || "Player 2"} team={data.p2Team} />
+              </div>
+              {data.zoroarkInvolved && (
+                <div className="rounded-lg border border-[var(--warning)]/50 bg-[var(--warning)]/10 px-4 py-3 text-sm font-bold text-[var(--warning)]">
+                  Illusion may affect Pokemon attribution in the coach stats above.
+                </div>
+              )}
+            </section>
 
             {data.turnSnapshots.length > 0 && (
               <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 sm:p-5">
@@ -252,17 +375,6 @@ export function AnalyzerClient() {
                       {data.p1Username || "Player 1"} vs {data.p2Username || "Player 2"}
                     </p>
                   </div>
-                  {data.replayJsonUrl && (
-                    <a
-                      href={data.replayJsonUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--foreground-muted)] hover:text-white"
-                    >
-                      JSON source
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )}
                 </div>
                 <HpChart
                   turnSnapshots={data.turnSnapshots}
@@ -276,16 +388,18 @@ export function AnalyzerClient() {
               </section>
             )}
 
-            <div className="grid gap-6 xl:grid-cols-2">
-              <TeamTable title={data.p1Username || "Player 1"} team={data.p1Team} />
-              <TeamTable title={data.p2Username || "Player 2"} team={data.p2Team} />
-            </div>
-
             {data.keyEvents.length > 0 && (
               <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--background-tertiary)]">
                   <Swords className="h-4 w-4 text-[var(--accent)]" />
-                  <h2 className="text-sm font-black uppercase tracking-wide text-white">Key events</h2>
+                  <div>
+                    <h2 className="text-sm font-black uppercase tracking-wide text-white">Key events</h2>
+                    {data.zoroarkInvolved && (
+                      <p className="mt-1 text-xs font-bold text-[var(--warning)]">
+                        Illusion may affect faint attribution.
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="divide-y divide-[var(--background-tertiary)]">
                   {data.keyEvents.map((event, index) => {

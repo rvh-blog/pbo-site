@@ -17,6 +17,7 @@ import { ProjectMewConfirmation } from "@/components/project-mew-confirmation";
 import { getSession } from "@/lib/session";
 import { isProjectMewReleased } from "@/lib/project-mew";
 import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
+import { MATCH_COMPLETION_COINS, STARTING_COACH_COINS } from "@/lib/coin-config";
 
 // Hazard move categories
 const HAZARD_REMOVAL_MOVES = [
@@ -522,8 +523,6 @@ async function getCoachTransactions(seasonCoachIds: number[]) {
 
 // Get coin breakdown for a coach
 async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publicSeasonIds: number[]) {
-  const STARTING_COINS = 100;
-  const COINS_PER_MATCH = 5;
   const publicSeasonIdSet = new Set(publicSeasonIds);
 
   // Get all bets, store purchases, pick-em rewards, and trivia rewards for this coach in parallel
@@ -626,7 +625,7 @@ async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publi
     }
   }
 
-  const matchCoins = matchesPlayed * COINS_PER_MATCH;
+  const matchCoins = matchesPlayed * MATCH_COMPLETION_COINS;
 
   // Calculate pick-em rewards total
   const pickEmRewardsTotal = pickEmParticipants.reduce((sum, p) => {
@@ -654,7 +653,7 @@ async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publi
   }));
 
   return {
-    starting: STARTING_COINS,
+    starting: STARTING_COACH_COINS,
     matchCoins,
     matchesPlayed,
     bettingProfit,
@@ -666,7 +665,7 @@ async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publi
     storePurchases: storePurchasesTotal,
     storePurchasesList,
     bonusPurchasesList,
-    total: STARTING_COINS + matchCoins + bettingProfit + pickEmRewardsTotal + fantasyRewardsTotal + triviaRewardsTotal - storePurchasesTotal,
+    total: STARTING_COACH_COINS + matchCoins + bettingProfit + pickEmRewardsTotal + fantasyRewardsTotal + triviaRewardsTotal - storePurchasesTotal,
   };
 }
 
