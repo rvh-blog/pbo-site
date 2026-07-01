@@ -15,6 +15,7 @@ import { getPublicVisibilityState } from "@/lib/public-visibility";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InfinityReleaseCard } from "@/components/admin/infinity-release-card";
+import { ensureAdminAuditLogsTable } from "@/lib/admin-audit";
 
 type Tone = "success" | "warning" | "error" | "muted" | "info";
 
@@ -128,6 +129,8 @@ function formatAge(iso: string | null | undefined) {
 }
 
 async function getDashboardData() {
+  await ensureAdminAuditLogsTable();
+
   const currentSeason = await db.query.seasons.findFirst({
     where: eq(seasons.isCurrent, true),
     with: { divisions: true },

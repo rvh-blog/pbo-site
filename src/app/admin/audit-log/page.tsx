@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { adminAuditLogs } from "@/lib/schema";
 import { isAuthenticated } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ensureAdminAuditLogsTable } from "@/lib/admin-audit";
 
 function formatDetails(details: string | null) {
   if (!details) return null;
@@ -21,6 +22,8 @@ export default async function AdminAuditLogPage() {
   if (!authenticated) {
     redirect("/admin/login");
   }
+
+  await ensureAdminAuditLogsTable();
 
   const logs = await db.query.adminAuditLogs.findMany({
     orderBy: [desc(adminAuditLogs.createdAt)],
