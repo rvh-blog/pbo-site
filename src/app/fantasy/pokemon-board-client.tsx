@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -23,6 +23,16 @@ export type PokemonBoardRow = {
   losses: number;
   damage: number;
   indirectDamage: number;
+};
+
+type UsedFantasyInstance = {
+  entryWeek: number;
+  pokemonId: number;
+  seasonCoachId: number;
+  name: string;
+  spriteUrl: string | null;
+  teamName: string;
+  divisionName: string;
 };
 
 type SortKey = "pokemon" | "cost" | "recent" | "total" | "trend" | "ppg" | "kd" | "wl";
@@ -93,14 +103,44 @@ function PokemonAvatar({ row, size = 40 }: { row: PokemonBoardRow; size?: number
 export function PokemonBoardClient({
   divisionNames,
   rows,
+  seasonId,
+  targetWeek,
 }: {
   divisionNames: string[];
   rows: PokemonBoardRow[];
+  seasonId: number;
+  targetWeek: number;
 }) {
   const [selectedDivision, setSelectedDivision] = useState("");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [usedInstances, setUsedInstances] = useState<UsedFantasyInstance[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsedInstances() {
+      try {
+        const response = await fetch(`/api/fantasy-entry?seasonId=${seasonId}&week=${targetWeek}`);
+        const data = await response.json();
+
+        if (!cancelled && response.ok) {
+          setUsedInstances(data.usedInstances || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setUsedInstances([]);
+        }
+      }
+    }
+
+    loadUsedInstances();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seasonId, targetWeek]);
 
   function toggleSort(nextSortKey: SortKey) {
     if (nextSortKey === sortKey) {
@@ -115,7 +155,11 @@ export function PokemonBoardClient({
   const filteredRows = useMemo(
     () => {
       const normalizedQuery = query.trim().toLowerCase();
+      const usedKeys = new Set(
+        usedInstances.map((used) => `${used.pokemonId}:${used.seasonCoachId}`)
+      );
       return rows
+        .filter((row) => !usedKeys.has(`${row.pokemonId}:${row.seasonCoachId}`))
         .filter((row) =>
           selectedDivision
             ? row.divisionName.toLowerCase() === selectedDivision.toLowerCase()
@@ -149,8 +193,27 @@ export function PokemonBoardClient({
         })
         .slice(0, 80);
     },
-    [query, rows, selectedDivision, sortDirection, sortKey]
+    [query, rows, selectedDivision, sortDirection, sortKey, usedInstances]
   );
+
+  const filteredUsedInstances = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return usedInstances
+      .filter((used) => {
+        if (!normalizedQuery) return true;
+        return (
+          used.name.toLowerCase().includes(normalizedQuery) ||
+          used.teamName.toLowerCase().includes(normalizedQuery) ||
+          used.divisionName.toLowerCase().includes(normalizedQuery)
+        );
+      })
+      .sort((a, b) => {
+        if (a.entryWeek !== b.entryWeek) return a.entryWeek - b.entryWeek;
+        const nameCompare = a.name.localeCompare(b.name);
+        if (nameCompare !== 0) return nameCompare;
+        return a.teamName.localeCompare(b.teamName);
+      });
+  }, [query, usedInstances]);
 
   function renderSortHeader(label: string, value: SortKey) {
     const isActive = sortKey === value;
@@ -205,9 +268,59 @@ export function PokemonBoardClient({
               {divisionName}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setSelectedDivision("__previously-selected")}
+            className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${
+              selectedDivision === "__previously-selected"
+                ? "bg-[var(--primary)] text-white"
+                : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+            }`}
+          >
+            Previously Selected
+          </button>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto scrollbar-thin px-4 pb-4 sm:px-5 sm:pb-5">
+        {selectedDivision === "__previously-selected" ? (
+          <div className="grid gap-2 pt-3 sm:grid-cols-2">
+            {filteredUsedInstances.map((used) => (
+              <div
+                key={`${used.entryWeek}-${used.pokemonId}-${used.seasonCoachId}`}
+                className="trainer-card text-left"
+              >
+                {used.spriteUrl ? (
+                  <Image
+                    src={used.spriteUrl}
+                    alt=""
+                    width={40}
+                    height={40}
+                    className="object-contain"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-[var(--background-tertiary)]" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-bold text-white">{used.name}</div>
+                  <div className="truncate text-xs font-bold text-[var(--foreground-muted)]">
+                    {used.teamName || "Unknown team"}
+                  </div>
+                  <div className="text-[10px] text-[var(--foreground-subtle)]">
+                    Week {used.entryWeek} - {used.divisionName || "Division"}
+                  </div>
+                </div>
+                <span className="rounded bg-[var(--background)] px-2 py-1 text-[10px] font-bold uppercase text-[var(--foreground-muted)]">
+                  Used
+                </span>
+              </div>
+            ))}
+            {filteredUsedInstances.length === 0 && (
+              <p className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-4 text-center text-sm text-[var(--foreground-muted)] sm:col-span-2">
+                No previously selected Pokemon match this search.
+              </p>
+            )}
+          </div>
+        ) : (
         <table className="premium-table min-w-[900px]">
           <thead>
             <tr>
@@ -267,6 +380,7 @@ export function PokemonBoardClient({
             })}
           </tbody>
         </table>
+        )}
       </div>
     </>
   );

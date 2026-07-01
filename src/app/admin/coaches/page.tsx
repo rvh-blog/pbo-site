@@ -113,6 +113,7 @@ export default function AdminCoachesPage() {
       }
 
       alert("Password reset successfully");
+      fetchCoaches();
     } catch (error: unknown) {
       alert(`Error: ${getErrorMessage(error)}`);
     } finally {
@@ -441,7 +442,7 @@ export default function AdminCoachesPage() {
                       )}
 
                       {/* Account Management Section */}
-                      {coach.isClaimed && (
+                      {(coach.isClaimed || editingId === coach.id) && (
                         <div className="border-t border-[var(--glass-border)] pt-4">
                           <p className="text-xs font-medium text-[var(--foreground-muted)] mb-2 uppercase tracking-wide">
                             Account Management
@@ -455,33 +456,38 @@ export default function AdminCoachesPage() {
                             >
                               {actionLoading === `reset-coach-${coach.id}` ? "..." : "Reset Password"}
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleToggleMod("coach", coach.id, coach.isMod || false)}
-                              disabled={actionLoading === `mod-coach-${coach.id}`}
-                            >
-                              {actionLoading === `mod-coach-${coach.id}` ? "..." : coach.isMod ? "Remove Mod" : "Make Mod"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleToggleBlogPostPermission(coach.id, coach.canPostBlog || false)}
-                              disabled={actionLoading === `blog-coach-${coach.id}`}
-                            >
-                              {actionLoading === `blog-coach-${coach.id}` ? "..." : coach.canPostBlog ? "Remove Blog Posting" : "Allow Blog Posts"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleUnclaim(coach.id)}
-                              disabled={actionLoading === `unclaim-${coach.id}`}
-                            >
-                              {actionLoading === `unclaim-${coach.id}` ? "..." : "Unclaim Account"}
-                            </Button>
+                            {coach.isClaimed && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleToggleMod("coach", coach.id, coach.isMod || false)}
+                                  disabled={actionLoading === `mod-coach-${coach.id}`}
+                                >
+                                  {actionLoading === `mod-coach-${coach.id}` ? "..." : coach.isMod ? "Remove Mod" : "Make Mod"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleToggleBlogPostPermission(coach.id, coach.canPostBlog || false)}
+                                  disabled={actionLoading === `blog-coach-${coach.id}`}
+                                >
+                                  {actionLoading === `blog-coach-${coach.id}` ? "..." : coach.canPostBlog ? "Remove Blog Posting" : "Allow Blog Posts"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleUnclaim(coach.id)}
+                                  disabled={actionLoading === `unclaim-${coach.id}`}
+                                >
+                                  {actionLoading === `unclaim-${coach.id}` ? "..." : "Unclaim Account"}
+                                </Button>
+                              </>
+                            )}
                           </div>
                           <p className="text-xs text-[var(--foreground-muted)] mt-2">
-                            Reset Password: Set a new password. Unclaim: Remove password so they must claim again.
+                            Reset Password: Set a new password without unclaiming. For unclaimed coaches, this claims the account for login.
+                            {coach.isClaimed ? " Unclaim: Remove password so they must claim again." : ""}
                           </p>
                         </div>
                       )}

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { coachPurchases, storeItems } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { GLOW_COLORS, GlowColorKey } from "@/lib/glow-utils";
+import { getCosmeticColorData } from "@/lib/glow-utils";
 
 // POST /api/store/bg-color - set the background color for row-background purchase
 export async function POST(request: NextRequest) {
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   try {
     const { color } = await request.json();
 
-    if (!color || !GLOW_COLORS[color as GlowColorKey]) {
+    if (!getCosmeticColorData(color)) {
       return NextResponse.json(
         { error: "Invalid color selection" },
         { status: 400 }

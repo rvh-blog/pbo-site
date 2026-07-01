@@ -217,41 +217,6 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
     };
   }
 
-  const draftedPokemon = selectedSeasonId
-    ? (
-        await db.query.rosters.findMany({
-          with: {
-            pokemon: {
-              columns: {
-                id: true,
-                name: true,
-                displayName: true,
-                spriteUrl: true,
-              },
-            },
-            seasonCoach: {
-              with: {
-                coach: true,
-                division: {
-                  with: {
-                    season: true,
-                  },
-                },
-              },
-            },
-          },
-        })
-      )
-        .filter((r) => r.seasonCoach?.division?.season?.id === selectedSeasonId)
-        .map((r) => ({
-          pokemonId: r.pokemonId,
-          pokemonName: r.pokemon?.displayName || r.pokemon?.name || "",
-          coachId: r.seasonCoach?.coachId || null,
-          coachName: r.seasonCoach?.coach?.name || "Unknown coach",
-          teamName: r.seasonCoach?.teamName || "",
-        }))
-    : [];
-
   // Build move type lookup
   const moveTypes: Record<string, string> = {};
   for (const m of allMoves) {
@@ -277,7 +242,6 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
       seasonPrices={seasonPrices}
       allSeasons={allSeasons}
       currentSeasonId={selectedSeasonId}
-      draftedPokemon={draftedPokemon}
     />
   );
 }

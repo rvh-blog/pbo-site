@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { coachPurchases, storeItems } from "@/lib/schema";
-import { isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
+import { coachPurchases, playoffMatches, seasonCoaches, storeItems } from "@/lib/schema";
+import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
 
 // Glow color definitions - keep in sync with store-modal.tsx and glow-color route
 export const GLOW_COLORS: Record<string, { name: string; color: string; glow: string }> = {
@@ -19,6 +19,29 @@ export const GLOW_COLORS: Record<string, { name: string; color: string; glow: st
 };
 
 export type GlowColorKey = keyof typeof GLOW_COLORS;
+
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+export function isValidCustomColor(color: string): boolean {
+  return HEX_COLOR_PATTERN.test(color);
+}
+
+export function getCosmeticColorData(color: string | null | undefined): { name: string; color: string; glow: string } | null {
+  if (!color) return null;
+
+  const preset = GLOW_COLORS[color];
+  if (preset) return preset;
+
+  if (isValidCustomColor(color)) {
+    return {
+      name: "Custom",
+      color,
+      glow: `${color}99`,
+    };
+  }
+
+  return null;
+}
 
 export interface GlowData {
   coachId: number;
@@ -46,7 +69,7 @@ export async function getCoachGlow(coachId: number): Promise<GlowData | null> {
 
   if (!purchase || !purchase.glowColor) return null;
 
-  const colorData = GLOW_COLORS[purchase.glowColor];
+  const colorData = getCosmeticColorData(purchase.glowColor);
   if (!colorData) return null;
 
   return {
@@ -80,7 +103,7 @@ export async function getCoachesGlow(coachIds: number[]): Promise<Map<number, Gl
 
   for (const purchase of purchases) {
     if (purchase.glowColor) {
-      const colorData = GLOW_COLORS[purchase.glowColor];
+      const colorData = getCosmeticColorData(purchase.glowColor);
       if (colorData) {
         result.set(purchase.coachId, {
           coachId: purchase.coachId,
@@ -125,7 +148,7 @@ export async function getCoachesRowBg(coachIds: number[]): Promise<Map<number, R
 
   for (const purchase of purchases) {
     if (purchase.bgColor) {
-      const colorData = GLOW_COLORS[purchase.bgColor];
+      const colorData = getCosmeticColorData(purchase.bgColor);
       if (colorData) {
         result.set(purchase.coachId, {
           coachId: purchase.coachId,
@@ -181,7 +204,7 @@ export async function getCoachesRowBorder(coachIds: number[]): Promise<Map<numbe
 
   for (const purchase of purchases) {
     if (purchase.borderColor) {
-      const colorData = GLOW_COLORS[purchase.borderColor];
+      const colorData = getCosmeticColorData(purchase.borderColor);
       if (colorData) {
         result.set(purchase.coachId, {
           coachId: purchase.coachId,
@@ -255,14 +278,48 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
 
   const itemIds = storeItemsList.map(i => i.id);
 
-  // Fetch all purchases for all items in one query
-  const purchases = await db.query.coachPurchases.findMany({
-    where: and(
-      inArray(coachPurchases.coachId, coachIds),
-      inArray(coachPurchases.itemId, itemIds),
-      eq(coachPurchases.isActive, true)
-    ),
-  });
+  const [purchases, seasonCoachTeams] = await Promise.all([
+    db.query.coachPurchases.findMany({
+      where: and(
+        inArray(coachPurchases.coachId, coachIds),
+        inArray(coachPurchases.itemId, itemIds),
+        eq(coachPurchases.isActive, true)
+      ),
+    }),
+    db.query.seasonCoaches.findMany({
+      where: inArray(seasonCoaches.coachId, coachIds),
+      columns: {
+        id: true,
+        coachId: true,
+      },
+    }),
+  ]);
+
+  const seasonCoachIdToCoachId = new Map(
+    seasonCoachTeams.map((team) => [team.id, team.coachId])
+  );
+  const seasonCoachIds = seasonCoachTeams.map((team) => team.id);
+  const championCoachIds = new Set<number>();
+
+  if (seasonCoachIds.length > 0) {
+    const finalsWins = await db.query.playoffMatches.findMany({
+      where: and(
+        eq(playoffMatches.round, 3),
+        inArray(playoffMatches.winnerId, seasonCoachIds)
+      ),
+      columns: {
+        winnerId: true,
+      },
+    });
+
+    for (const win of finalsWins) {
+      if (!win.winnerId) continue;
+      const coachId = seasonCoachIdToCoachId.get(win.winnerId);
+      if (coachId) {
+        championCoachIds.add(coachId);
+      }
+    }
+  }
 
   // Process purchases into their respective maps
   const glowItemId = slugToId.get("team-name-glow");
@@ -272,7 +329,7 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
 
   for (const purchase of purchases) {
     if (purchase.itemId === glowItemId && purchase.glowColor) {
-      const colorData = GLOW_COLORS[purchase.glowColor];
+      const colorData = getCosmeticColorData(purchase.glowColor);
       if (colorData) {
         result.glow.set(purchase.coachId, {
           coachId: purchase.coachId,
@@ -281,7 +338,7 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
         });
       }
     } else if (purchase.itemId === rowBgItemId && purchase.bgColor) {
-      const colorData = GLOW_COLORS[purchase.bgColor];
+      const colorData = getCosmeticColorData(purchase.bgColor);
       if (colorData) {
         result.rowBg.set(purchase.coachId, {
           coachId: purchase.coachId,
@@ -290,7 +347,7 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
         });
       }
     } else if (purchase.itemId === rowBorderItemId && purchase.borderColor) {
-      const colorData = GLOW_COLORS[purchase.borderColor];
+      const colorData = getCosmeticColorData(purchase.borderColor);
       if (colorData) {
         result.rowBorder.set(purchase.coachId, {
           coachId: purchase.coachId,
@@ -307,6 +364,16 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
           colors: parseLogoFrameColors(purchase.borderColor),
         });
       }
+    }
+  }
+
+  for (const coachId of championCoachIds) {
+    if (!result.logoFrame.has(coachId)) {
+      result.logoFrame.set(coachId, {
+        coachId,
+        slug: CHAMPION_GOLD_LOGO_FRAME_SLUG,
+        colors: null,
+      });
     }
   }
 

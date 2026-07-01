@@ -280,42 +280,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
     });
   }
 
-  // 8. Finisher - most last KOs in completed games
-  const killsByMatch = new Map<number, typeof s10KillEvents>();
-  for (const k of s10KillEvents) {
-    if (!nonForfeitMatchIds.has(k.matchId)) continue;
-    const list = killsByMatch.get(k.matchId) || [];
-    list.push(k);
-    killsByMatch.set(k.matchId, list);
-  }
-
-  const finisherMap = new Map<number, { count: number; name: string }>();
-  for (const [matchId, matchKills] of killsByMatch) {
-    const match = nonForfeitMatches.find((m) => m.id === matchId);
-    if (!match?.winnerId || matchKills.length === 0) continue;
-    const finalTurn = Math.max(...matchKills.map((k) => k.turn));
-    const finalKills = matchKills.filter((k) => k.turn === finalTurn && k.killerSeasonCoachId === match.winnerId);
-    for (const k of finalKills) {
-      if (!k.killerSeasonCoachId) continue;
-      const coach = scToCoach.get(k.killerSeasonCoachId);
-      if (!coach) continue;
-      const existing = finisherMap.get(coach.coachId) || { count: 0, name: coach.name };
-      existing.count += 1;
-      finisherMap.set(coach.coachId, existing);
-    }
-  }
-  const topFinisher = [...finisherMap.entries()].sort((a, b) => b[1].count - a[1].count)[0];
-  if (topFinisher) {
-    entries.push({
-      label: "Finisher",
-      value: `${topFinisher[1].count} final KOs`,
-      description: `${topFinisher[1].name} lands the last KO most often`,
-      coachName: topFinisher[1].name,
-      coachId: topFinisher[0],
-    });
-  }
-
-  // 9. Bounce Back - most wins immediately after a loss
+  // 8. Bounce Back - most wins immediately after a loss
   const matchHistory = new Map<number, { won: boolean; seasonNumber: number; week: number; matchId: number; name: string }[]>();
   for (const m of nonForfeitMatches) {
     if (!m.winnerId) continue;
@@ -361,7 +326,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
     });
   }
 
-  // 10. Late Game Closer - most KOs after turn 20
+  // 9. Late Game Closer - most KOs after turn 20
   const lateGameClosers = new Map<number, { count: number; name: string }>();
   for (const k of s10KillEvents) {
     if (!k.killerSeasonCoachId || k.turn <= 20 || !nonForfeitMatchIds.has(k.matchId)) continue;
@@ -382,7 +347,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
     });
   }
 
-  // 11. Most unique Pokemon used
+  // 10. Most unique Pokemon used
   const scByCoach = new Map<number, number[]>();
   for (const sc of allSeasonCoaches) {
     if (!season10Ids.has(sc.divisionId ? (allMatches.find(m => m.divisionId === sc.divisionId)?.seasonId || 0) : 0)) {

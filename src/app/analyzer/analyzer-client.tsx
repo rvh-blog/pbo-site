@@ -140,31 +140,41 @@ function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
           </div>
         ))}
       </div>
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[720px] text-sm">
+      <div className="hidden overflow-hidden md:block">
+        <table className="w-full table-fixed text-xs lg:text-sm">
+          <colgroup>
+            <col className="w-[28%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[12%]" />
+            <col className="w-[10%]" />
+            <col className="w-[13%]" />
+            <col className="w-[11%]" />
+          </colgroup>
           <thead className="bg-[var(--background-secondary)] text-[10px] uppercase tracking-widest text-[var(--foreground-muted)]">
             <tr>
-              <th className="px-4 py-3 text-left">Pokemon</th>
-              <th className="px-3 py-3 text-right">K</th>
-              <th className="px-3 py-3 text-right">D</th>
-              <th className="px-3 py-3 text-right">Dmg</th>
-              <th className="px-3 py-3 text-right">Indirect</th>
-              <th className="px-3 py-3 text-right">Taken</th>
-              <th className="px-3 py-3 text-right">Ind. Taken</th>
-              <th className="px-3 py-3 text-right">Restored</th>
+              <th className="px-2 py-3 text-left">Pokemon</th>
+              <th className="px-1 py-3 text-center">K</th>
+              <th className="px-1 py-3 text-center">D</th>
+              <th className="px-1 py-3 text-center">Dmg</th>
+              <th className="px-1 py-3 text-center">Indirect</th>
+              <th className="px-1 py-3 text-center">Taken</th>
+              <th className="px-1 py-3 text-center">Ind. Taken</th>
+              <th className="px-1 py-3 text-center">Restored</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--background-tertiary)]">
             {team.map((pokemon) => (
               <tr key={pokemon.name} className="hover:bg-[var(--glass-hover)] transition-colors">
-                <td className="px-4 py-3 font-bold text-white">{pokemon.name}</td>
-                <td className="px-3 py-3 text-right text-[var(--success)] font-bold">{pokemon.kills}</td>
-                <td className="px-3 py-3 text-right text-[var(--error)] font-bold">{pokemon.deaths}</td>
-                <td className="px-3 py-3 text-right text-[var(--foreground)]">{formatNumber(pokemon.damageDealt)}</td>
-                <td className="px-3 py-3 text-right text-[var(--foreground)]">{formatNumber(pokemon.damageDealtIndirect)}</td>
-                <td className="px-3 py-3 text-right text-[var(--foreground-muted)]">{formatNumber(pokemon.damageTaken)}</td>
-                <td className="px-3 py-3 text-right text-[var(--foreground-muted)]">{formatNumber(pokemon.damageTakenIndirect)}</td>
-                <td className="px-3 py-3 text-right text-[var(--accent)]">{formatNumber(pokemon.hpRestored)}</td>
+                <td className="truncate px-2 py-3 font-bold text-white" title={pokemon.name}>{pokemon.name}</td>
+                <td className="px-1 py-3 text-center text-[var(--success)] font-bold">{pokemon.kills}</td>
+                <td className="px-1 py-3 text-center text-[var(--error)] font-bold">{pokemon.deaths}</td>
+                <td className="px-1 py-3 text-center text-[var(--foreground)]">{formatNumber(pokemon.damageDealt)}</td>
+                <td className="px-1 py-3 text-center text-[var(--foreground)]">{formatNumber(pokemon.damageDealtIndirect)}</td>
+                <td className="px-1 py-3 text-center text-[var(--foreground-muted)]">{formatNumber(pokemon.damageTaken)}</td>
+                <td className="px-1 py-3 text-center text-[var(--foreground-muted)]">{formatNumber(pokemon.damageTakenIndirect)}</td>
+                <td className="px-1 py-3 text-center text-[var(--accent)]">{formatNumber(pokemon.hpRestored)}</td>
               </tr>
             ))}
           </tbody>
@@ -355,7 +365,7 @@ export function AnalyzerClient() {
                   Parsed K/D, damage, and recovery by replay side.
                 </p>
               </div>
-              <div className="grid gap-6 xl:grid-cols-2">
+              <div className="grid gap-6 2xl:grid-cols-2">
                 <TeamTable title={data.p1Username || "Player 1"} team={data.p1Team} />
                 <TeamTable title={data.p2Username || "Player 2"} team={data.p2Team} />
               </div>

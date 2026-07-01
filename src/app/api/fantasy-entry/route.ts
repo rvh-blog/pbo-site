@@ -129,6 +129,31 @@ async function getSeasonCoachDivisionMap(seasonId: number, seasonCoachIds: numbe
   return { divisionMap, seasonDivisions };
 }
 
+async function getStartedFantasyWeekSeasonCoachIds(seasonId: number, week: number) {
+  const weekMatches = await db.query.matches.findMany({
+    where: eq(matches.seasonId, seasonId),
+  });
+  const now = Date.now();
+  const startedSeasonCoachIds = new Set<number>();
+
+  for (const match of weekMatches) {
+    if (match.week !== week) continue;
+
+    const hasBegun =
+      Boolean(match.startedAt) ||
+      Boolean(match.winnerId) ||
+      Boolean(match.isForfeit) ||
+      (Boolean(match.scheduledAt) && new Date(match.scheduledAt!).getTime() <= now);
+
+    if (!hasBegun) continue;
+
+    startedSeasonCoachIds.add(match.coach1SeasonId);
+    startedSeasonCoachIds.add(match.coach2SeasonId);
+  }
+
+  return startedSeasonCoachIds;
+}
+
 function entryBelongsToSession(
   entry: { coachId: number | null; userId: number | null },
   session: Awaited<ReturnType<typeof getSession>>
@@ -310,6 +335,9 @@ export async function GET(request: NextRequest) {
           : scoringWeek;
 
     const session = await getSession();
+    const lockedSeasonCoachIds = [
+      ...(await getStartedFantasyWeekSeasonCoachIds(seasonId, scoringWeek)),
+    ];
 
     const allEntries = await getSeasonFantasyEntries(seasonId);
     const entries = allEntries.filter((entry) => entry.week === scoringWeek);
@@ -324,12 +352,30 @@ export async function GET(request: NextRequest) {
     const myEntry = session ? entries.find((entry) => entryBelongsToSession(entry, session)) : null;
     const usedInstances = session
       ? allEntries
-          .filter((entry) => entry.week < scoringWeek && entryBelongsToSession(entry, session))
-          .flatMap((entry) => entry.picks)
+          .filter((entry) => entry.week !== scoringWeek && entryBelongsToSession(entry, session))
+          .flatMap((entry) => entry.picks.map((pick) => ({ entry, pick })))
+          .sort((a, b) => {
+            if (a.entry.week !== b.entry.week) return a.entry.week - b.entry.week;
+            return a.pick.slot - b.pick.slot;
+          })
+          .map(({ entry, pick }) => ({
+            entryWeek: entry.week,
+            pokemonId: pick.pokemonId,
+            seasonCoachId: pick.seasonCoachId,
+            name: pick.pokemon?.displayName || pick.pokemon?.name || "Unknown",
+            spriteUrl: pick.pokemon?.spriteUrl || null,
+            teamName: pick.seasonCoach?.teamName || "",
+            divisionName: pick.seasonCoach?.division?.name || "",
+          }))
           .filter((pick) => pick.seasonCoachId !== null)
           .map((pick) => ({
+            entryWeek: pick.entryWeek,
             pokemonId: pick.pokemonId,
             seasonCoachId: pick.seasonCoachId!,
+            name: pick.name,
+            spriteUrl: pick.spriteUrl,
+            teamName: pick.teamName,
+            divisionName: pick.divisionName,
           }))
       : [];
 
@@ -359,6 +405,7 @@ export async function GET(request: NextRequest) {
           }
         : null,
       usedInstances,
+      lockedSeasonCoachIds,
       leaderboard,
       settings: {
         rosterSize: FANTASY_ROSTER_SIZE,
@@ -478,22 +525,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const seasonEntries = await getSeasonFantasyEntries(seasonId);
-    const blockedPriorPick = seasonEntries
-      .filter((entry) => entry.week < entryWeek && entryBelongsToSession(entry, session))
-      .flatMap((entry) => entry.picks)
-      .find((pick) => picks.some((selectedPick) => (
-        selectedPick.pokemonId === pick.pokemonId &&
-        selectedPick.seasonCoachId === pick.seasonCoachId
-      )));
-
-    if (blockedPriorPick) {
-      return NextResponse.json(
-        { error: "That Pokemon from that team was already used in a prior fantasy week" },
-        { status: 400 }
-      );
-    }
-
     const existing = await db.query.fantasyEntries.findFirst({
       where: and(
         eq(fantasyEntries.seasonId, seasonId),
@@ -502,7 +533,57 @@ export async function POST(request: NextRequest) {
           ? eq(fantasyEntries.coachId, session.id)
           : eq(fantasyEntries.userId, session.id)
       ),
+      with: {
+        picks: true,
+      },
     });
+    const lockedSeasonCoachIds = await getStartedFantasyWeekSeasonCoachIds(seasonId, entryWeek);
+    const existingPicksBySlot = new Map(
+      (existing?.picks ?? []).map((pick) => [pick.slot, pick])
+    );
+    const lockedPickChanged = picks.some((pick, index) => {
+      if (!lockedSeasonCoachIds.has(pick.seasonCoachId)) return false;
+
+      const existingPick = existingPicksBySlot.get(index + 1);
+      return (
+        !existingPick ||
+        existingPick.pokemonId !== pick.pokemonId ||
+        existingPick.seasonCoachId !== pick.seasonCoachId
+      );
+    });
+    const lockedExistingPickRemoved = (existing?.picks ?? []).some((pick) => {
+      if (!pick.seasonCoachId || !lockedSeasonCoachIds.has(pick.seasonCoachId)) return false;
+
+      const submittedPick = picks[pick.slot - 1];
+      return (
+        !submittedPick ||
+        submittedPick.pokemonId !== pick.pokemonId ||
+        submittedPick.seasonCoachId !== pick.seasonCoachId
+      );
+    });
+
+    if (lockedPickChanged || lockedExistingPickRemoved) {
+      return NextResponse.json(
+        { error: "A selected Pokemon is locked because its weekly matchup has already started" },
+        { status: 400 }
+      );
+    }
+
+    const seasonEntries = await getSeasonFantasyEntries(seasonId);
+    const blockedSeasonPick = seasonEntries
+      .filter((entry) => entry.week !== entryWeek && entryBelongsToSession(entry, session))
+      .flatMap((entry) => entry.picks)
+      .find((pick) => picks.some((selectedPick) => (
+        selectedPick.pokemonId === pick.pokemonId &&
+        selectedPick.seasonCoachId === pick.seasonCoachId
+      )));
+
+    if (blockedSeasonPick) {
+      return NextResponse.json(
+        { error: "That Pokemon from that team was already used in another fantasy week this season" },
+        { status: 400 }
+      );
+    }
 
     const now = new Date().toISOString();
     let entryId: number | undefined = existing?.id;

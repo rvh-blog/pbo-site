@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { coachPurchases, storeItems } from "@/lib/schema";
 import { getSession } from "@/lib/session";
+import { getCosmeticColorData } from "@/lib/glow-utils";
 
 // Available glow colors
 export const GLOW_COLORS = {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
   try {
     const { color } = await request.json();
 
-    if (!color || !GLOW_COLORS[color as GlowColorKey]) {
+    if (!getCosmeticColorData(color)) {
       return NextResponse.json(
         { error: "Invalid color selection" },
         { status: 400 }

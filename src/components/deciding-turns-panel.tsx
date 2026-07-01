@@ -17,16 +17,20 @@ function getDisplayLines(text: string | null) {
 export function DecidingTurnsPanel({
   canEdit,
   initialText,
+  initialEditorHidden,
   matchId,
 }: {
   canEdit: boolean;
   initialText: string | null;
+  initialEditorHidden: boolean;
   matchId: number;
 }) {
   const router = useRouter();
   const [text, setText] = useState(initialText ?? "");
   const [savedText, setSavedText] = useState(initialText ?? "");
+  const [isEditorHidden, setIsEditorHidden] = useState(initialEditorHidden);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTogglingHidden, setIsTogglingHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const displayLines = useMemo(() => getDisplayLines(savedText), [savedText]);
 
@@ -56,6 +60,32 @@ export function DecidingTurnsPanel({
     }
   }
 
+  async function toggleEditorHidden(nextHidden: boolean) {
+    setIsTogglingHidden(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/matches/${matchId}/deciding-turns`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hideDecidingTurnsEditor: nextHidden }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Failed to update editor visibility");
+        return;
+      }
+
+      setIsEditorHidden(Boolean(data.hideDecidingTurnsEditor));
+      router.refresh();
+    } catch {
+      setError("Failed to update editor visibility");
+    } finally {
+      setIsTogglingHidden(false);
+    }
+  }
+
   return (
     <div className="rounded border border-white/20 bg-black/45 p-3 self-start xl:mt-20">
       <div className="text-center text-xs sm:text-sm uppercase font-black text-white tracking-wide">Deciding Turns</div>
@@ -82,25 +112,39 @@ export function DecidingTurnsPanel({
 
       {canEdit && (
         <div className="mt-3 space-y-2">
-          <textarea
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder="Turn 4 - Gotham forces the critical trade&#10;Turn 7 - Long Island reclaims momentum"
-            rows={4}
-            maxLength={2000}
-            className="w-full resize-y rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white outline-none placeholder:text-white/35 focus:border-[var(--primary)]"
-          />
+          <label className="flex items-center gap-2 rounded border border-white/15 bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-white/75">
+            <input
+              type="checkbox"
+              checked={isEditorHidden}
+              disabled={isTogglingHidden}
+              onChange={(event) => toggleEditorHidden(event.target.checked)}
+              className="h-4 w-4 accent-[var(--primary)]"
+            />
+            Hide editor for admins
+          </label>
+          {!isEditorHidden && (
+            <>
+              <textarea
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="Turn 4 - Gotham forces the critical trade&#10;Turn 7 - Long Island reclaims momentum"
+                rows={4}
+                maxLength={2000}
+                className="w-full resize-y rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white outline-none placeholder:text-white/35 focus:border-[var(--primary)]"
+              />
+              <button
+                type="button"
+                onClick={saveDecidingTurns}
+                disabled={isSaving}
+                className="btn-retro-secondary w-full px-3 py-2 text-[9px] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving ? "Saving..." : "Save Deciding Turns"}
+              </button>
+            </>
+          )}
           {error && (
             <p className="text-xs font-bold text-[var(--error)]">{error}</p>
           )}
-          <button
-            type="button"
-            onClick={saveDecidingTurns}
-            disabled={isSaving}
-            className="btn-retro-secondary w-full px-3 py-2 text-[9px] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSaving ? "Saving..." : "Save Deciding Turns"}
-          </button>
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 
 interface User {
   id: number;
@@ -60,13 +60,20 @@ export default function AdminUsersPage() {
 
       if (response.ok) {
         setActionResult({ type: "success", message: "Password reset successfully" });
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === id && u.type === type
+              ? { ...u, isClaimed: true, claimedAt: u.claimedAt ?? new Date().toISOString() }
+              : u
+          )
+        );
         setResettingId(null);
         setNewPassword("");
       } else {
         const data = await response.json();
         setActionResult({ type: "error", message: data.error || "Failed to reset password" });
       }
-    } catch (error) {
+    } catch {
       setActionResult({ type: "error", message: "Failed to reset password" });
     } finally {
       setActionLoading(false);
@@ -96,7 +103,7 @@ export default function AdminUsersPage() {
         const data = await response.json();
         setActionResult({ type: "error", message: data.error || "Failed to toggle mod status" });
       }
-    } catch (error) {
+    } catch {
       setActionResult({ type: "error", message: "Failed to toggle mod status" });
     } finally {
       setActionLoading(false);
@@ -127,7 +134,7 @@ export default function AdminUsersPage() {
         const data = await response.json();
         setActionResult({ type: "error", message: data.error || "Failed to unclaim" });
       }
-    } catch (error) {
+    } catch {
       setActionResult({ type: "error", message: "Failed to unclaim" });
     } finally {
       setActionLoading(false);
@@ -326,24 +333,22 @@ export default function AdminUsersPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setResettingId({ id: user.id, type: user.type })}
+                        >
+                          Reset Password
+                        </Button>
                         {user.isClaimed && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setResettingId({ id: user.id, type: user.type })}
-                            >
-                              Reset Password
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={user.isMod ? "secondary" : "outline"}
-                              onClick={() => handleToggleMod(user.id, user.type)}
-                              disabled={actionLoading}
-                            >
-                              {user.isMod ? "Remove Mod" : "Make Mod"}
-                            </Button>
-                          </>
+                          <Button
+                            size="sm"
+                            variant={user.isMod ? "secondary" : "outline"}
+                            onClick={() => handleToggleMod(user.id, user.type)}
+                            disabled={actionLoading}
+                          >
+                            {user.isMod ? "Remove Mod" : "Make Mod"}
+                          </Button>
                         )}
                         {user.type === "coach" && user.isClaimed && (
                           <Button

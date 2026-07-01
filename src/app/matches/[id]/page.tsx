@@ -11,6 +11,7 @@ import { ExpandablePokemonCard } from "@/components/expandable-pokemon-card";
 import { HpChart } from "@/components/hp-chart";
 import { DecidingTurnsPanel } from "@/components/deciding-turns-panel";
 import { getSession } from "@/lib/session";
+import { getMatchDecidingTurnsEditorHiddenKey, getSiteSetting } from "@/lib/site-settings";
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
 import type { TimeSyncTransaction } from "@/lib/roster-utils";
 
@@ -347,6 +348,7 @@ function BattleSummaryPanel({
   coach1Pokemon,
   coach2Pokemon,
   decidingTurnsText,
+  decidingTurnsEditorHidden,
   matchId,
 }: {
   canEditDecidingTurns: boolean;
@@ -357,6 +359,7 @@ function BattleSummaryPanel({
   coach1Pokemon: BattleSummaryPokemon[];
   coach2Pokemon: BattleSummaryPokemon[];
   decidingTurnsText: string | null;
+  decidingTurnsEditorHidden: boolean;
   matchId: number;
 }) {
   return (
@@ -373,6 +376,7 @@ function BattleSummaryPanel({
           <DecidingTurnsPanel
             canEdit={canEditDecidingTurns}
             initialText={decidingTurnsText}
+            initialEditorHidden={decidingTurnsEditorHidden}
             matchId={matchId}
           />
 
@@ -459,7 +463,16 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const coachIds = [coach1?.coachId, coach2?.coachId].filter((id): id is number => id !== undefined);
   const needsTimeSyncedRosters = !isPlayed && coach1 && coach2;
 
-  const [pokemonPrices, eloChanges, storeItemsList, session, allPurchases, coach1TimeSyncedRoster, coach2TimeSyncedRoster] = await Promise.all([
+  const [
+    pokemonPrices,
+    eloChanges,
+    storeItemsList,
+    session,
+    allPurchases,
+    coach1TimeSyncedRoster,
+    coach2TimeSyncedRoster,
+    decidingTurnsEditorHiddenSetting,
+  ] = await Promise.all([
     getSeasonPokemonPrices(match.seasonId),
     getMatchEloChanges(matchId, coach1?.coachId, coach2?.coachId),
     db.query.storeItems.findMany({
@@ -480,6 +493,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
     needsTimeSyncedRosters
       ? getTimeSyncedRoster(match.coach2SeasonId, match.week, coach2?.rosters || [])
       : Promise.resolve(null),
+    getSiteSetting(getMatchDecidingTurnsEditorHiddenKey(match.id)),
   ]);
 
   const victoryAnimItem = storeItemsList.find(i => i.slug === "victory-animation");
@@ -523,6 +537,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const showBattleSummaryOnly =
     match.id === 2778 ||
     (isPlayed && (match.season?.seasonNumber ?? 0) >= 11 && Boolean(match.replayUrl));
+  const decidingTurnsEditorHidden = decidingTurnsEditorHiddenSetting?.value === "true";
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -815,6 +830,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 coach1Pokemon={coach1MatchPokemon}
                 coach2Pokemon={coach2MatchPokemon}
                 decidingTurnsText={match.decidingTurnsText}
+                decidingTurnsEditorHidden={decidingTurnsEditorHidden}
                 canEditDecidingTurns={Boolean(session?.isMod)}
                 matchId={match.id}
               />

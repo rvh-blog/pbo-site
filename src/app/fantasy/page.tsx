@@ -795,7 +795,12 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
             </div>
             <h3>Pokemon Board</h3>
           </div>
-          <PokemonBoardClient divisionNames={data.divisionNames} rows={pokemonBoardRows} />
+          <PokemonBoardClient
+            divisionNames={data.divisionNames}
+            rows={pokemonBoardRows}
+            seasonId={selected.id}
+            targetWeek={data.targetWeek}
+          />
         </div>
         }
 

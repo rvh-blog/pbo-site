@@ -46,6 +46,14 @@ type FantasySlotPick = {
   seasonCoachId: number;
 };
 
+type FantasyUsedInstance = FantasySlotPick & {
+  entryWeek: number;
+  name: string;
+  spriteUrl: string | null;
+  teamName: string;
+  divisionName: string;
+};
+
 interface FantasyLeaderboardEntry {
   id: number;
   displayName: string;
@@ -72,7 +80,8 @@ interface FantasyEntryResponse {
     seasonCoachIds?: (number | null)[];
     updatedAt: string;
   } | null;
-  usedInstances?: FantasySlotPick[];
+  usedInstances?: FantasyUsedInstance[];
+  lockedSeasonCoachIds?: number[];
   leaderboard: FantasyLeaderboardEntry[];
   settings: {
     rosterSize: number;
@@ -136,7 +145,8 @@ export function FantasyEntryClient({
 }: FantasyEntryClientProps) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [selectedSlots, setSelectedSlots] = useState<(FantasySlotPick | null)[]>([]);
-  const [usedInstances, setUsedInstances] = useState<FantasySlotPick[]>([]);
+  const [usedInstances, setUsedInstances] = useState<FantasyUsedInstance[]>([]);
+  const [lockedSeasonCoachIds, setLockedSeasonCoachIds] = useState<number[]>([]);
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
   const [leaderboardTab, setLeaderboardTab] = useState<number | "overall">(
     targetWeek >= 1 && targetWeek <= 8 ? targetWeek : "overall"
@@ -180,6 +190,10 @@ export function FantasyEntryClient({
   const usedInstanceKeys = useMemo(
     () => new Set(usedInstances.map(instanceKey)),
     [usedInstances]
+  );
+  const lockedSeasonCoachIdSet = useMemo(
+    () => new Set(lockedSeasonCoachIds),
+    [lockedSeasonCoachIds]
   );
   const normalizedSlots = useMemo(
     () => Array.from({ length: rosterSize }, (_, index) => selectedSlots[index] ?? null),
@@ -237,6 +251,7 @@ export function FantasyEntryClient({
     .filter((option) => !selectedIds.includes(option.pokemon.id))
     .filter((option) => !selectedInstanceKeySet.has(option.key))
     .filter((option) => !usedInstanceKeys.has(option.key))
+    .filter((option) => !lockedSeasonCoachIdSet.has(option.stats.seasonCoachId))
     .filter((option) => {
       const requiredDivision = activeSlotRule?.effectiveDivisionName;
       return requiredDivision
@@ -270,6 +285,7 @@ export function FantasyEntryClient({
       setAuthUser(data.user);
       setLeaderboard(data.leaderboard || []);
       setUsedInstances(data.usedInstances || []);
+      setLockedSeasonCoachIds(data.lockedSeasonCoachIds || []);
       setRosterSize(data.settings?.rosterSize || 6);
       setBudget(data.settings?.budget || 90);
       if (data.myEntry) {
@@ -402,13 +418,14 @@ export function FantasyEntryClient({
           </div>
         </div>
 
-        <div className="mb-4 grid gap-2 md:grid-cols-2">
+        <div className="mb-4 grid gap-2 md:grid-cols-3">
           {Array.from({ length: rosterSize }).map((_, index) => {
             const row = selectedPokemon[index];
             const slotRule = slotRules[index];
             const requiredDivision = slotRule?.effectiveDivisionName;
             const slotPick = normalizedSlots[index];
             const slotStats = row && slotPick ? getPickedStats(row, slotPick.seasonCoachId) : null;
+            const slotIsLocked = slotPick ? lockedSeasonCoachIdSet.has(slotPick.seasonCoachId) : false;
             const slotIsValid =
               !row ||
               !slotPick ||
@@ -444,15 +461,21 @@ export function FantasyEntryClient({
                         {row.cost} pts - {formatScore(slotStats?.score ?? 0)} score
                       </div>
                     </div>
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        removeSlot(index);
-                      }}
-                      className="text-xs font-bold text-[var(--error)] hover:text-white"
-                    >
-                      Remove
-                    </button>
+                    {slotIsLocked ? (
+                      <span className="rounded bg-amber-500/15 px-2 py-1 text-[10px] font-bold uppercase text-amber-300">
+                        Locked
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removeSlot(index);
+                        }}
+                        className="text-xs font-bold text-[var(--error)] hover:text-white"
+                      >
+                        Remove
+                      </button>
+                    )}
                   </>
                 ) : (
                   <div className="min-w-0">
@@ -536,6 +559,11 @@ export function FantasyEntryClient({
                 </button>
               );
             })}
+            {filteredPokemonInstances.length === 0 && (
+              <p className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-4 text-center text-sm text-[var(--foreground-muted)] sm:col-span-2">
+                No available Pokemon match this search and slot.
+              </p>
+            )}
           </div>
         </div>
       </div>

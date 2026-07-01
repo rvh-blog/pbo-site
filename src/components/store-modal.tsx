@@ -28,6 +28,7 @@ const GLOW_COLORS = {
 };
 
 type GlowColorKey = keyof typeof GLOW_COLORS;
+type ColorSelection = GlowColorKey | `#${string}`;
 type StoreMobileSection = "buy" | "owned" | "colors" | "frames";
 
 const COLOR_CUSTOMIZER_SLUGS = new Set(["team-name-glow", "row-background", "row-border"]);
@@ -71,7 +72,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
   const [savingColor, setSavingColor] = useState(false);
   const [error, setError] = useState("");
   const [mobileSection, setMobileSection] = useState<StoreMobileSection>("buy");
-  const [previewColors, setPreviewColors] = useState<Partial<Record<string, GlowColorKey>>>({});
+  const [previewColors, setPreviewColors] = useState<Partial<Record<string, ColorSelection>>>({});
 
   const getDeactivatedPurchaseIds = (data: { deactivatedPurchaseId?: number | null; deactivatedPurchaseIds?: number[] }) => {
     const ids = new Set<number>();
@@ -180,7 +181,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
     }
   };
 
-  const handleBgColorChange = async (color: GlowColorKey) => {
+  const handleBgColorChange = async (color: ColorSelection) => {
     setSavingColor(true);
     setError("");
 
@@ -211,7 +212,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
     }
   };
 
-  const handleBorderColorChange = async (color: GlowColorKey) => {
+  const handleBorderColorChange = async (color: ColorSelection) => {
     setSavingColor(true);
     setError("");
 
@@ -280,7 +281,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
     }
   };
 
-  const handleGlowColorChange = async (color: GlowColorKey) => {
+  const handleGlowColorChange = async (color: ColorSelection) => {
     setSavingColor(true);
     setError("");
 
@@ -365,13 +366,19 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
   const getPurchase = (itemSlug: string) =>
     inventory.find((p) => p.itemSlug === itemSlug);
 
-  const handlePreviewColorChange = (itemSlug: string, color: GlowColorKey) => {
+  const isCustomHexColor = (color: string | null | undefined): color is `#${string}` =>
+    Boolean(color && /^#[0-9a-fA-F]{6}$/.test(color));
+
+  const getColorValue = (color: ColorSelection) =>
+    color in GLOW_COLORS ? GLOW_COLORS[color as GlowColorKey].color : color;
+
+  const handlePreviewColorChange = (itemSlug: string, color: ColorSelection) => {
     setPreviewColors((prev) => ({ ...prev, [itemSlug]: color }));
   };
 
-  const getPreviewColor = (itemSlug: string, savedColor?: string | null): GlowColorKey => {
+  const getPreviewColor = (itemSlug: string, savedColor?: string | null): ColorSelection => {
     const color = savedColor || previewColors[itemSlug] || "stargazer";
-    return color in GLOW_COLORS ? (color as GlowColorKey) : "stargazer";
+    return color in GLOW_COLORS || isCustomHexColor(color) ? (color as ColorSelection) : "stargazer";
   };
 
   const logoFrameItems = items.filter((item) => isLogoFrameSlug(item.slug));
@@ -919,22 +926,61 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                                 })}
                               </div>
 
-                              {/* Preview */}
-                              {GLOW_COLORS[glowPreviewColor] && (
-                                <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
-                                  <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className="font-bold text-sm team-name-glow"
-                                      style={{
-                                        "--shimmer-color": GLOW_COLORS[glowPreviewColor].color,
-                                      } as React.CSSProperties}
-                                    >
-                                      Your Team Name
-                                    </span>
-                                  </div>
+                              {/* Custom Color */}
+                              <div className="mb-3">
+                                <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Custom Color</p>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={isCustomHexColor(glowPreviewColor) ? glowPreviewColor : getColorValue(glowPreviewColor)}
+                                    onChange={(event) => {
+                                      const color = event.target.value as `#${string}`;
+                                      if (owned && purchase) {
+                                        handleGlowColorChange(color);
+                                      } else {
+                                        handlePreviewColorChange(item.slug, color);
+                                      }
+                                    }}
+                                    disabled={owned && savingColor}
+                                    className="h-9 w-12 rounded border border-[var(--card-border)] bg-transparent p-0.5"
+                                    aria-label="Custom team name glow color"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={isCustomHexColor(glowPreviewColor) ? glowPreviewColor : getColorValue(glowPreviewColor)}
+                                    onChange={(event) => {
+                                      const value = event.target.value.trim();
+                                      if (!isCustomHexColor(value)) {
+                                        handlePreviewColorChange(item.slug, value.startsWith("#") ? (value as `#${string}`) : glowPreviewColor);
+                                        return;
+                                      }
+                                      if (owned && purchase) {
+                                        handleGlowColorChange(value);
+                                      } else {
+                                        handlePreviewColorChange(item.slug, value);
+                                      }
+                                    }}
+                                    disabled={owned && savingColor}
+                                    className="w-28 rounded border border-[var(--card-border)] bg-[var(--background-secondary)] px-2 py-1.5 text-xs font-mono text-white"
+                                    aria-label="Custom team name glow hex color"
+                                  />
                                 </div>
-                              )}
+                              </div>
+
+                              {/* Preview */}
+                              <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
+                                <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="font-bold text-sm team-name-glow"
+                                    style={{
+                                      "--shimmer-color": getColorValue(glowPreviewColor),
+                                    } as React.CSSProperties}
+                                  >
+                                    Your Team Name
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           )}
 
@@ -1016,23 +1062,62 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                                 })}
                               </div>
 
+                              {/* Custom Color */}
+                              <div className="mb-3">
+                                <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Custom Color</p>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={isCustomHexColor(bgPreviewColor) ? bgPreviewColor : getColorValue(bgPreviewColor)}
+                                    onChange={(event) => {
+                                      const color = event.target.value as `#${string}`;
+                                      if (owned && purchase) {
+                                        handleBgColorChange(color);
+                                      } else {
+                                        handlePreviewColorChange(item.slug, color);
+                                      }
+                                    }}
+                                    disabled={owned && savingColor}
+                                    className="h-9 w-12 rounded border border-[var(--card-border)] bg-transparent p-0.5"
+                                    aria-label="Custom row background color"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={isCustomHexColor(bgPreviewColor) ? bgPreviewColor : getColorValue(bgPreviewColor)}
+                                    onChange={(event) => {
+                                      const value = event.target.value.trim();
+                                      if (!isCustomHexColor(value)) {
+                                        handlePreviewColorChange(item.slug, value.startsWith("#") ? (value as `#${string}`) : bgPreviewColor);
+                                        return;
+                                      }
+                                      if (owned && purchase) {
+                                        handleBgColorChange(value);
+                                      } else {
+                                        handlePreviewColorChange(item.slug, value);
+                                      }
+                                    }}
+                                    disabled={owned && savingColor}
+                                    className="w-28 rounded border border-[var(--card-border)] bg-[var(--background-secondary)] px-2 py-1.5 text-xs font-mono text-white"
+                                    aria-label="Custom row background hex color"
+                                  />
+                                </div>
+                              </div>
+
                               {/* Preview */}
-                              {GLOW_COLORS[bgPreviewColor] && (
-                                <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
-                                  <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
-                                  <div
-                                    className="row-background rounded-lg p-3"
-                                    style={{
-                                      "--row-bg-color": GLOW_COLORS[bgPreviewColor].color,
-                                    } as React.CSSProperties}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-6 h-6 rounded bg-[var(--background-tertiary)]" />
-                                      <span className="font-bold text-sm">Your Team Name</span>
-                                    </div>
+                              <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
+                                <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
+                                <div
+                                  className="row-background rounded-lg p-3"
+                                  style={{
+                                    "--row-bg-color": getColorValue(bgPreviewColor),
+                                  } as React.CSSProperties}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded bg-[var(--background-tertiary)]" />
+                                    <span className="font-bold text-sm">Your Team Name</span>
                                   </div>
                                 </div>
-                              )}
+                              </div>
                             </div>
                           )}
 
@@ -1114,23 +1199,62 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                                 })}
                               </div>
 
+                              {/* Custom Color */}
+                              <div className="mb-3">
+                                <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Custom Color</p>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={isCustomHexColor(borderPreviewColor) ? borderPreviewColor : getColorValue(borderPreviewColor)}
+                                    onChange={(event) => {
+                                      const color = event.target.value as `#${string}`;
+                                      if (owned && purchase) {
+                                        handleBorderColorChange(color);
+                                      } else {
+                                        handlePreviewColorChange(item.slug, color);
+                                      }
+                                    }}
+                                    disabled={owned && savingColor}
+                                    className="h-9 w-12 rounded border border-[var(--card-border)] bg-transparent p-0.5"
+                                    aria-label="Custom row border color"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={isCustomHexColor(borderPreviewColor) ? borderPreviewColor : getColorValue(borderPreviewColor)}
+                                    onChange={(event) => {
+                                      const value = event.target.value.trim();
+                                      if (!isCustomHexColor(value)) {
+                                        handlePreviewColorChange(item.slug, value.startsWith("#") ? (value as `#${string}`) : borderPreviewColor);
+                                        return;
+                                      }
+                                      if (owned && purchase) {
+                                        handleBorderColorChange(value);
+                                      } else {
+                                        handlePreviewColorChange(item.slug, value);
+                                      }
+                                    }}
+                                    disabled={owned && savingColor}
+                                    className="w-28 rounded border border-[var(--card-border)] bg-[var(--background-secondary)] px-2 py-1.5 text-xs font-mono text-white"
+                                    aria-label="Custom row border hex color"
+                                  />
+                                </div>
+                              </div>
+
                               {/* Preview */}
-                              {GLOW_COLORS[borderPreviewColor] && (
-                                <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
-                                  <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
-                                  <div
-                                    className="row-border rounded-lg p-3 bg-[var(--background-secondary)]"
-                                    style={{
-                                      "--row-border-color": GLOW_COLORS[borderPreviewColor].color,
-                                    } as React.CSSProperties}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-6 h-6 rounded bg-[var(--background-tertiary)]" />
-                                      <span className="font-bold text-sm">Your Team Name</span>
-                                    </div>
+                              <div className="mt-3 pt-3 border-t border-[var(--background-tertiary)]">
+                                <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Preview</p>
+                                <div
+                                  className="row-border rounded-lg p-3 bg-[var(--background-secondary)]"
+                                  style={{
+                                    "--row-border-color": getColorValue(borderPreviewColor),
+                                  } as React.CSSProperties}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded bg-[var(--background-tertiary)]" />
+                                    <span className="font-bold text-sm">Your Team Name</span>
                                   </div>
                                 </div>
-                              )}
+                              </div>
                             </div>
                           )}
 

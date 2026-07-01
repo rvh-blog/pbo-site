@@ -339,25 +339,43 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                   </div>
 
                   {/* Team Logo / Fallback Initial */}
-                  <LogoFrame
-                    slug={coach.logoFrame?.slug}
-                    colors={coach.logoFrame?.colors}
-                    className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-[var(--background-secondary)] flex items-center justify-center flex-shrink-0 border border-[var(--background-tertiary)] overflow-hidden"
-                  >
-                    {coach.latestTeam?.teamLogoUrl ? (
-                      <Image
-                        src={coach.latestTeam.teamLogoUrl}
-                        alt={coach.latestTeam.teamName}
-                        width={40}
-                        height={40}
-                        className="object-contain"
-                      />
-                    ) : (
-                      <span className="text-white font-bold text-xs sm:text-sm">
-                        {coach.latestTeam?.teamAbbreviation?.substring(0, 2) || coach.name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </LogoFrame>
+                  {coach.logoFrame?.slug ? (
+                    <LogoFrame
+                      slug={coach.logoFrame.slug}
+                      colors={coach.logoFrame.colors}
+                      className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0"
+                    >
+                      {coach.latestTeam?.teamLogoUrl ? (
+                        <Image
+                          src={coach.latestTeam.teamLogoUrl}
+                          alt={coach.latestTeam.teamName}
+                          width={40}
+                          height={40}
+                          className="object-contain"
+                        />
+                      ) : (
+                        <span className="text-white font-bold text-xs sm:text-sm">
+                          {coach.latestTeam?.teamAbbreviation?.substring(0, 2) || coach.name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </LogoFrame>
+                  ) : (
+                    <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-[var(--background-secondary)] flex items-center justify-center flex-shrink-0 border border-[var(--background-tertiary)] overflow-hidden">
+                      {coach.latestTeam?.teamLogoUrl ? (
+                        <Image
+                          src={coach.latestTeam.teamLogoUrl}
+                          alt={coach.latestTeam.teamName}
+                          width={40}
+                          height={40}
+                          className="object-contain"
+                        />
+                      ) : (
+                        <span className="text-white font-bold text-xs sm:text-sm">
+                          {coach.latestTeam?.teamAbbreviation?.substring(0, 2) || coach.name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Name & Team Info */}
                   <div className="flex-1 min-w-0">

@@ -49,7 +49,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       await db
         .update(schema.coaches)
-        .set({ passwordHash })
+        .set({
+          passwordHash,
+          claimedAt: coach.claimedAt ?? new Date().toISOString(),
+        })
         .where(eq(schema.coaches.id, userId));
 
       // Clear all sessions for this user
