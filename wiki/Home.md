@@ -13,6 +13,12 @@ Open this note first in Obsidian. The local graph from this note should show the
 - [[Operations]]
 - [[Feature Map]]
 - [[Fantasy]]
+- [[Draft Planner]]
+- [[Admin And Engagement]]
+- [[Store And Cosmetics]]
+- [[Blog]]
+- [[Public Tools And Stats]]
+- [[Recent Website Updates]]
 
 ## GitHub And Fly
 
@@ -51,6 +57,12 @@ GitHub is the source code and review layer. Fly is the production runtime. The p
 - [[Discord Bot Workflow]]
 - [[Frontend Pages Workflow]]
 - [[Fantasy]]
+- [[Draft Planner]]
+- [[Admin And Engagement]]
+- [[Store And Cosmetics]]
+- [[Blog]]
+- [[Public Tools And Stats]]
+- [[Recent Website Updates]]
 
 ## Runbooks
 

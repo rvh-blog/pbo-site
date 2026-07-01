@@ -56,6 +56,20 @@ Check mobile width for:
 - Tables with horizontal overflow.
 - Buttons with long text.
 - Cards and chart containers.
+- Fun facts pages, especially Season 10 Pokemon and coach fun facts with larger
+  text.
+
+## Recent Feature Pages
+
+Feature-specific notes:
+
+- [[Fantasy]]
+- [[Draft Planner]]
+- [[Admin And Engagement]]
+- [[Store And Cosmetics]]
+- [[Blog]]
+- [[Public Tools And Stats]]
+- [[Recent Website Updates]]
 
 ## See Also
 

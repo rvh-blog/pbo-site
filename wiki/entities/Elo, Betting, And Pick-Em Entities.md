@@ -20,6 +20,12 @@ Currency lives on:
 
 Many settlement flows must handle either a coach account or spectator account.
 
+Current behavior notes:
+
+- Match participation rewards are 10 PBO Coin.
+- New coaches start with 150 PBO Coin.
+- Admin coin grants use a 10 to 500 amount range.
+
 ## Winner Bets
 
 `bets` stores match winner bets.
@@ -59,6 +65,18 @@ Tables:
 - `pick_em_rewards`
 
 Rewards are explicitly tracked. Re-resolution reverses coins and deletes/recreates reward rows.
+
+## Fantasy Rewards
+
+`fantasy_rewards` tracks weekly fantasy placement payouts.
+
+Current tiers:
+
+- 1st: 100 PBO Coin
+- 2nd: 50 PBO Coin
+- 3rd: 25 PBO Coin
+
+Fantasy reward resolution is tied to completed weekly match results for Season 10 and later.
 
 ## Code
 

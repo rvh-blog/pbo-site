@@ -256,6 +256,20 @@ Important rules:
 - Kill/death bet settlement depends on accurate `match_pokemon`.
 - Pokemon not brought means 0 kills for kill bets and loss for both death bet types.
 - Pick-em rewards are tracked in `pick_em_rewards`; re-resolution reverses coins and deletes/recreates reward rows.
+- Fantasy rewards are tracked in `fantasy_rewards`; weekly re-resolution reverses existing rewards before recalculating placement payouts.
+
+## Blog
+
+Blog content uses:
+
+- `blog_posts`
+- `blog_comments`
+
+Coach blog posting permission is stored on `coaches.canPostBlog`. Blog comments may reference a parent comment for replies.
+
+## Admin Audit Logs
+
+Admin audit entries use `admin_audit_logs`. The audit helper can create the table and indexes at runtime if they are missing.
 
 ## Sheets And External Integrations
 

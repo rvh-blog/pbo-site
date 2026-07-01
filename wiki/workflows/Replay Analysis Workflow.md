@@ -36,6 +36,12 @@ Default parser behavior should preserve existing PBO match recording behavior.
 
 The public analyzer can opt into display-focused behavior, such as preserving Mega forms, because it does not write to the database.
 
+Current UI expectations:
+
+- Coach stats should be wide enough to avoid horizontal scrolling on normal desktop layouts.
+- Numeric coach stat values should align centered under their column names.
+- Battle Timeline should appear underneath coach stats and above Key Events.
+
 ## Zoroark
 
 Zoroark/Illusion can make replay attribution unreliable. The parser flags `zoroarkInvolved`.

@@ -57,6 +57,10 @@ Single forfeit:
 - Winner gets match coins; loser does not.
 - Bets are refunded.
 
+Current match participation reward:
+
+- A player receives 10 PBO Coin for playing a game.
+
 Double forfeit:
 
 - `winnerId` is null and `isForfeit` is true.

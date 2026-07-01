@@ -50,6 +50,9 @@ Rules in the current implementation:
 - Starting with the weekly Season 11 flow, a fantasy player cannot reuse the
   same Pokemon from the same team in a later week. The same Pokemon can still be
   used from a different team/division in another week.
+- Saved picks lock individually once that Pokemon's weekly matchup has started.
+  Other unlocked picks for the same weekly entry may still be editable until
+  their own matchup starts.
 
 ## Scoring
 
@@ -69,6 +72,23 @@ Saved fantasy leaderboard results are scored from the selected fantasy week only
 For the Season 10 Week 8 test view, Week 8 result data is intentionally ignored
 so saved rosters stay at 0 points until the Season 11 weekly flow is enabled.
 
+## Rewards
+
+Weekly fantasy rewards are tracked in `fantasy_rewards` and paid in PBO Coin after all matches for an eligible fantasy week are complete.
+
+Reward tiers:
+
+- 1st: 100 PBO Coin
+- 2nd: 50 PBO Coin
+- 3rd: 25 PBO Coin
+
+Reward resolution reverses existing rewards for the week before recalculating when needed. The reward code applies to Season 10 and later.
+
+Relevant files:
+
+- `src/lib/fantasy-rewards.ts`
+- `migrations/add-fantasy-rewards.sql`
+
 ## UI Behavior
 
 - Clicking a My Fantasy Roster slot changes the available Pokemon list to that
@@ -84,9 +104,12 @@ so saved rosters stay at 0 points until the Season 11 weekly flow is enabled.
 - The Pokemon Board is split by Pokemon/team instance and has All plus division
   tabs. The tabs filter client-side without refreshing the page. The board no
   longer shows the Rostered column.
+- The Pokemon Board has a Previously Selected tab beside the standard board
+  tabs. Pokemon/team instances already used by the signed-in user in prior weeks
+  are excluded from All and division tabs and appear only in Previously Selected.
 - The Schedule section shows all games for the current scouting week and has
   client-side All plus division tabs formatted like the Pokemon Board tabs.
-- Admin Pick-Ems now includes Feature Settings toggles for Fantasy and Blog.
+- Engagement/admin settings include Feature Settings toggles for Fantasy and Blog.
   When Fantasy is hidden, navigation and fantasy APIs/pages are unavailable.
 - Slot 6 / Any Division uses the best single team/division instance for each
   Pokemon, not a cumulative total across divisions.
@@ -102,6 +125,7 @@ Main page and client UI:
 
 - `src/app/fantasy/page.tsx`
 - `src/app/fantasy/fantasy-entry-client.tsx`
+- `src/app/fantasy/pokemon-board-client.tsx`
 
 API:
 
@@ -143,6 +167,18 @@ Related hydration cleanup from the same work session:
 - `slot`
 - `created_at`
 
+`fantasy_rewards`
+
+- `id`
+- `entry_id`
+- `season_id`
+- `week`
+- `coach_id`
+- `user_id`
+- `amount`
+- `reason`
+- `created_at`
+
 The local `pbo.db` was migrated during development with:
 
 ```bash
@@ -155,7 +191,11 @@ Existing databases that already have the first fantasy migration need:
 sqlite3 pbo.db ".read migrations/add-fantasy-week-instances.sql"
 ```
 
-Production still needs this migration applied before deployment.
+Fantasy rewards require:
+
+```bash
+sqlite3 pbo.db ".read migrations/add-fantasy-rewards.sql"
+```
 
 ## Verification Already Run
 
@@ -177,22 +217,11 @@ POST while logged out            401
 - The fantasy feature uses `coaches.id` / `users.id` for account ownership.
 - It does not use `season_coaches.id` for fantasy entry ownership.
 - It does still use season-specific Pokemon prices and season match data.
-- The feature currently allows roster edits at any time. A future iteration should add lock rules if fantasy rosters should close before matches or after a deadline.
+- Fantasy roster edits are locked per selected Pokemon once that Pokemon's weekly
+  matchup has started.
 - The fantasy picker filters and scores by the active slot's division. Slot 1
   still falls back to Any Division on Season 10 because Infinity starts in S11.
 - The fantasy picker list sorts by the score shown for the active slot's division.
 - The saved fantasy leaderboard scores saved entries from the selected fantasy
-  week only. A future iteration could add weekly entry snapshots, rewards, and
-  lock windows.
-- Season 11 fantasy is expected to use individual week performance windows once lock rules and weekly scoring are added.
-
-## Dirty Worktree Context
-
-At the time this note was written, the worktree also contained unrelated blog/input changes:
-
-- `src/components/ui/input.tsx`
-- `migrations/add-blog-posts.sql`
-- `src/app/api/blog/`
-- `src/app/blog/`
-
-Do not assume those belong to the fantasy feature unless intentionally included.
+  week only. Weekly rewards are tracked separately in `fantasy_rewards`.
+- Season 11 fantasy is expected to use individual week performance windows.

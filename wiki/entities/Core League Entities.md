@@ -11,6 +11,7 @@ Use for:
 - Global Elo.
 - Auth and claimed accounts.
 - Mod flag.
+- Blog posting permission.
 - PBO coin balance.
 - Store purchases.
 - Coach profile identity.

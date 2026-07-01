@@ -4,14 +4,16 @@
 
 ## Main Responsibilities
 
-- Public league pages: seasons, divisions, schedules, standings, coaches, matches, drafts, leaderboards, and playoffs.
-- Admin tools: seasons, coaches, rosters, transactions, matches, sheets, users, Discord, and pick-ems.
+- Public league pages: seasons, divisions, schedules, standings, coaches, matches, drafts, leaderboards, playoffs, blog, fantasy, draft planner, matchup prep, power rankings, Elo tracker, and stats pages.
+- Admin tools: seasons, coaches, rosters, transactions, matches, sheets, users, Discord, engagement, audit log, and pick-ems.
 - Match result recording and replay-derived stats.
-- Elo, standings, betting, pick-ems, and PBO coin settlement.
+- Elo, standings, betting, pick-ems, fantasy rewards, and PBO coin settlement.
+- Store cosmetics for coach/team presentation, including logo frames, glows, row backgrounds, and row borders.
 - Google Sheets sync for rosters, transactions, and match stats.
 - Wiglett webhooks for draft picks and match results.
 - Discord bot commands and match reporting.
 - Public replay analyzer for any Pokemon Showdown replay.
+- Broadcast overlays for OBS/stream views.
 
 ## Runtime
 

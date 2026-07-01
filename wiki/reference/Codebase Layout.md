@@ -10,11 +10,18 @@ Use this page when deciding where a change belongs.
 - `src/app/seasons`, `src/app/coaches`, `src/app/matches`: public league pages.
 - `src/app/analyzer`: public Showdown replay analyzer.
 - `src/app/broadcast`: broadcast overlay pages.
+- `src/app/fantasy`: fantasy roster, leaderboard, board, and schedule views.
+- `src/app/draft-planner`: public draft planning tool.
+- `src/app/blog`: blog list, post, comments, and post creation pages.
+- `src/app/matchup-prep`: public matchup planning tool.
+- `src/app/power-rankings`: power rankings and slideshow views.
+- `src/app/elo-tracker`: coach Elo history view.
 
 ## Shared Code
 
 - `src/components`: reusable React components.
 - `src/components/ui`: small UI primitives.
+- `src/components/admin`: admin-specific reusable components.
 - `src/lib`: database, services, business logic, sync code, seed/import helpers.
 - `src/hooks`: client hooks.
 

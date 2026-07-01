@@ -34,6 +34,17 @@ See also:
 - Power rankings: `src/app/power-rankings`
 - Broadcast overlay: `src/app/broadcast`
 - Replay analyzer: `src/app/analyzer`
+- Blog: `src/app/blog`
+- Elo tracker: `src/app/elo-tracker`
+- Pokemon stats: `src/app/pokemon/stats`
+
+Feature notes:
+
+- [[Draft Planner]]
+- [[Fantasy]]
+- [[Store And Cosmetics]]
+- [[Blog]]
+- [[Public Tools And Stats]]
 
 ## Admin
 
@@ -48,6 +59,12 @@ See also:
 - Users: `src/app/admin/users`
 - Discord config: `src/app/admin/discord`
 - Pick-ems admin: `src/app/admin/pick-ems`
+- Engagement admin: `src/app/admin/engagement`
+- Admin audit log: `src/app/admin/audit-log`
+
+Admin notes:
+
+- [[Admin And Engagement]]
 
 ## API Routes
 
@@ -64,6 +81,9 @@ See also:
 - Betting: `src/app/api/bets`, `src/app/api/kill-bets`, `src/app/api/death-bets`
 - Pick-ems: `src/app/api/pick-ems`
 - Fantasy entries: `src/app/api/fantasy-entry`
+- Blog: `src/app/api/blog`, `src/app/api/blog/comments`
+- Preferences: `src/app/api/preferences`
+- Search/export/health: `src/app/api/search`, `src/app/api/export`, `src/app/api/health`
 - Broadcast: `src/app/api/broadcast`
 - Wiglett: `src/app/api/integrations/wiglett`
 
