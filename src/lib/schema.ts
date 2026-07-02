@@ -190,6 +190,8 @@ export const matches = sqliteTable("matches", {
   index("idx_matches_season_id").on(table.seasonId),
   index("idx_matches_division_id").on(table.divisionId),
   index("idx_matches_winner_id").on(table.winnerId),
+  index("idx_matches_is_forfeit_winner_id").on(table.isForfeit, table.winnerId),
+  index("idx_matches_season_winner_id").on(table.seasonId, table.winnerId),
 ]);
 
 // Playoff Matches - bracket structure for playoffs
@@ -211,7 +213,10 @@ export const playoffMatches = sqliteTable("playoff_matches", {
   lowerSeedWins: integer("lower_seed_wins").default(0),
   playedAt: text("played_at"),
   matchId: integer("match_id").references(() => matches.id), // Link to matches table for preview/details
-});
+}, (table) => [
+  index("idx_playoff_matches_season_winner_id").on(table.seasonId, table.winnerId),
+  index("idx_playoff_matches_season_round_winner_id").on(table.seasonId, table.round, table.winnerId),
+]);
 
 // Match Pokemon - tracks each pokemon brought to a match
 export const matchPokemon = sqliteTable("match_pokemon", {
@@ -1256,3 +1261,28 @@ export const siteSettings = sqliteTable("site_settings", {
   value: text("value").notNull(),
   updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
 });
+
+export const polls = sqliteTable("polls", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  question: text("question").notNull(),
+  options: text("options", { mode: "json" }).$type<string[]>().notNull(),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const pollVotes = sqliteTable("poll_votes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pollId: integer("poll_id")
+    .notNull()
+    .references(() => polls.id),
+  coachId: integer("coach_id")
+    .notNull()
+    .references(() => coaches.id),
+  optionIndex: integer("option_index").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_poll_votes_poll_id").on(table.pollId),
+  index("idx_poll_votes_coach_id").on(table.coachId),
+]);

@@ -23,6 +23,27 @@ Feature settings managed through Engagement/admin settings include:
 
 These settings live in `site_settings` and are read through `src/lib/site-settings.ts`.
 
+## League Poll Admin
+
+Admins can edit the active league poll from the admin home page. Changes are
+served to the home page Your League box and all coach profile pages through the
+shared poll service.
+
+Current behavior:
+
+- The admin editor controls the question, option list, and active state.
+- Coach users can vote once per poll.
+- Results are hidden until the current coach has voted.
+- Poll visibility can be hidden locally by each viewer; this does not edit the poll.
+
+Relevant files:
+
+- `src/components/admin/poll-admin-card.tsx`
+- `src/components/poll-card.tsx`
+- `src/lib/polls.ts`
+- `src/app/api/admin/poll/route.ts`
+- `src/app/api/poll/route.ts`
+
 ## PBO Coin Admin
 
 Admins can grant PBO Coin in larger ranges than before:

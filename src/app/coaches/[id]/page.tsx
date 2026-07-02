@@ -14,7 +14,9 @@ import { MobileTooltip } from "@/components/mobile-tooltip";
 import { CoachStoreButton } from "@/components/coach-store-button";
 import { LogoFrame } from "@/components/logo-frame";
 import { ProjectMewConfirmation } from "@/components/project-mew-confirmation";
+import { PollCard } from "@/components/poll-card";
 import { getSession } from "@/lib/session";
+import { getActivePoll } from "@/lib/polls";
 import { isProjectMewReleased } from "@/lib/project-mew";
 import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
 import { MATCH_COMPLETION_COINS, STARTING_COACH_COINS } from "@/lib/coin-config";
@@ -824,7 +826,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
       (session?.type === "coach" && session.id === coachId));
 
   // Fetch shared data for placements and playoffs once - include txCounts and pokemonPrices
-  const [coachMatches, coachMatchPokemon, coachTransactions, rawSeasonCoaches, rawMatches, rawPlayoffs, coinBreakdown, coachStorePurchases, txCounts, pokemonPrices] = await Promise.all([
+  const [coachMatches, coachMatchPokemon, coachTransactions, rawSeasonCoaches, rawMatches, rawPlayoffs, coinBreakdown, coachStorePurchases, txCounts, pokemonPrices, activePoll] = await Promise.all([
     getCoachMatches(seasonCoachIds),
     getCoachMatchPokemon(seasonCoachIds),
     getCoachTransactions(seasonCoachIds),
@@ -838,6 +840,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
     }),
     selectedSeasonEntry ? getTransactionCounts(selectedSeasonEntry.id) : Promise.resolve(null),
     selectedSeasonId ? getSeasonPokemonPrices(selectedSeasonId) : Promise.resolve([]),
+    getActivePoll(session),
   ]);
   const allSeasonCoaches = rawSeasonCoaches.filter((sc) =>
     publicDivisionIdSet.has(sc.divisionId)
@@ -1208,6 +1211,8 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
 
   return (
     <div className="space-y-6">
+      {activePoll && <PollCard initialPoll={activePoll} />}
+
       {/* Mobile Championship & Special Badges */}
       {(championships.length > 0 || hasMoneybagsBadge || hasTwitchBadge) && (
         <div className="md:hidden relative p-[2px] rounded-xl bg-gradient-to-br from-[#c9a855] via-[#8b7355] to-[#c9a855]">

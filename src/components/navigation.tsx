@@ -33,6 +33,7 @@ const navItems = [
   { href: "/fantasy", label: "Fantasy" },
   { href: "/blog", label: "Blog" },
   { href: "/leaderboards", label: "Leaderboards" },
+  { href: "/battle-record", label: "Battle Record" },
 ];
 
 export function Navigation() {

@@ -5,9 +5,67 @@ import * as schema from "./schema";
 // Database path: use DATABASE_PATH env var in production, local file in dev
 const dbPath = process.env.DATABASE_PATH || "pbo.db";
 
-const client = createClient({
+const baseClient = createClient({
   url: `file:${dbPath}`,
 });
+
+const slowQueryThresholdMs = Number(
+  process.env.SLOW_DB_QUERY_MS || (process.env.NODE_ENV === "production" ? 250 : 1000)
+);
+
+let slowQueryCount = 0;
+let slowestQueryMs = 0;
+let totalQueryMs = 0;
+
+function getStatementPreview(statement: unknown) {
+  if (typeof statement === "string") return statement;
+  if (statement && typeof statement === "object" && "sql" in statement) {
+    const sql = (statement as { sql?: unknown }).sql;
+    return typeof sql === "string" ? sql : JSON.stringify(statement);
+  }
+  return String(statement);
+}
+
+function recordQueryTiming(kind: "query" | "batch", statement: unknown, durationMs: number) {
+  totalQueryMs += durationMs;
+  slowestQueryMs = Math.max(slowestQueryMs, durationMs);
+
+  if (durationMs < slowQueryThresholdMs) return;
+
+  slowQueryCount++;
+  const preview = getStatementPreview(statement).replace(/\s+/g, " ").slice(0, 220);
+  console.warn(`[DB Slow ${kind}] ${Math.round(durationMs)}ms ${preview}`);
+}
+
+const client = new Proxy(baseClient, {
+  get(target, prop, receiver) {
+    const value = Reflect.get(target, prop, receiver);
+
+    if (prop === "execute" && typeof value === "function") {
+      return async (...args: Parameters<typeof baseClient.execute>) => {
+        const start = performance.now();
+        try {
+          return await value.apply(target, args);
+        } finally {
+          recordQueryTiming("query", args[0], performance.now() - start);
+        }
+      };
+    }
+
+    if (prop === "batch" && typeof value === "function") {
+      return async (...args: Parameters<typeof baseClient.batch>) => {
+        const start = performance.now();
+        try {
+          return await value.apply(target, args);
+        } finally {
+          recordQueryTiming("batch", args[0], performance.now() - start);
+        }
+      };
+    }
+
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+}) as typeof baseClient;
 
 // Initialize SQLite with optimizations for better read performance
 // Run PRAGMA commands to optimize for read-heavy workloads
@@ -36,7 +94,7 @@ let totalRowsRead = 0;
 
 // Custom logger to track queries
 const queryLogger = {
-  logQuery: (query: string, params: unknown[]) => {
+  logQuery: (query: string) => {
     queryCount++;
     // Estimate rows by tracking SELECT queries
     const isSelect = query.trim().toUpperCase().startsWith("SELECT");
@@ -56,10 +114,13 @@ export const db = drizzle(client, {
 
 // Export helper to get query stats
 export function getQueryStats() {
-  return { queryCount, totalRowsRead };
+  return { queryCount, totalRowsRead, slowQueryCount, slowestQueryMs, totalQueryMs, slowQueryThresholdMs };
 }
 
 export function resetQueryStats() {
   queryCount = 0;
   totalRowsRead = 0;
+  slowQueryCount = 0;
+  slowestQueryMs = 0;
+  totalQueryMs = 0;
 }

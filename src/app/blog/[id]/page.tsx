@@ -24,28 +24,39 @@ function formatDate(value: string) {
 }
 
 export default async function BlogPostPage({ params }: PageProps) {
-  const [featureSettings, session] = await Promise.all([
+  const [featureSettings, session, resolvedParams] = await Promise.all([
     getSiteFeatureSettings(),
     getSession(),
+    params,
   ]);
   if (featureSettings.blogUiHidden) {
     notFound();
   }
 
-  const { id } = await params;
+  const { id } = resolvedParams;
   const postId = Number.parseInt(id, 10);
 
   if (!Number.isInteger(postId)) {
     notFound();
   }
 
-  const post = await db.query.blogPosts.findFirst({
-    where: eq(blogPosts.id, postId),
-    with: {
-      authorCoach: true,
-      authorUser: true,
-    },
-  });
+  const [post, comments] = await Promise.all([
+    db.query.blogPosts.findFirst({
+      where: eq(blogPosts.id, postId),
+      with: {
+        authorCoach: true,
+        authorUser: true,
+      },
+    }),
+    db.query.blogComments.findMany({
+      where: eq(blogComments.postId, postId),
+      orderBy: [asc(blogComments.createdAt)],
+      with: {
+        authorCoach: true,
+        authorUser: true,
+      },
+    }),
+  ]);
 
   if (!post || !post.isPublished) {
     notFound();
@@ -54,14 +65,6 @@ export default async function BlogPostPage({ params }: PageProps) {
   const authorName = post.authorCoach?.name || post.authorUser?.username || "PBO Staff";
   const authorHref = post.authorCoach ? `/coaches/${post.authorCoach.id}` : null;
   const canDeletePost = Boolean(session?.isMod);
-  const comments = await db.query.blogComments.findMany({
-    where: eq(blogComments.postId, post.id),
-    orderBy: [asc(blogComments.createdAt)],
-    with: {
-      authorCoach: true,
-      authorUser: true,
-    },
-  });
   const commentItems = comments.map((comment) => ({
     id: comment.id,
     postId: comment.postId,

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { seasons, divisions, pokemon, seasonPokemonPrices, rosters, seasonCoaches } from "@/lib/schema";
+import { seasons, divisions, seasonPokemonPrices } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -100,10 +100,12 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
   const seasonId = parseInt(resolvedParams.id);
-  const [season, session, visibility] = await Promise.all([
+  const [season, session, visibility, pokemonList, rostersByDivision] = await Promise.all([
     getSeason(seasonId),
     getSession(),
     getPublicVisibilityState(),
+    getPokemonWithPrices(seasonId),
+    getRostersByDivision(seasonId),
   ]);
 
   if (!season || (!session?.isMod && !isPublicSeasonVisible(season))) {
@@ -113,9 +115,6 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
   if (!session?.isMod) {
     season.divisions = filterPublicDivisions(season.divisions, visibility);
   }
-
-  const pokemonList = await getPokemonWithPrices(seasonId);
-  const rostersByDivision = await getRostersByDivision(seasonId);
 
   // Get selected division (default to first)
   const selectedDivisionId = resolvedSearchParams.division
@@ -133,32 +132,9 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
   const complexBans = pokemonList.filter((p) => p.complexBanReason);
   const regularPokemon = pokemonList; // All Pokemon appear in price tiers
 
-  // Group Pokemon by price tier
-  const priceTiers = new Map<number, typeof pokemonList>();
-  for (const poke of regularPokemon) {
-    const price = poke.price;
-    if (!priceTiers.has(price)) {
-      priceTiers.set(price, []);
-    }
-    priceTiers.get(price)!.push(poke);
-  }
-
-  // Sort each tier alphabetically
-  for (const [, mons] of priceTiers) {
-    mons.sort((a, b) => a.name.localeCompare(b.name));
-  }
   complexBans.sort((a, b) => a.name.localeCompare(b.name));
 
-  // Get sorted price tiers (highest to lowest), excluding 0-point tier (banned/unavailable)
-  const sortedPrices = Array.from(priceTiers.keys())
-    .filter((price) => price > 0)
-    .sort((a, b) => b - a);
-
-  // Stats (excludes complex bans and 0-point Pokemon from counts)
   const draftablePokemon = regularPokemon.filter((p) => p.price > 0);
-  const totalPokemon = draftablePokemon.length;
-  const takenCount = Object.keys(ownership).length;
-  const availableCount = totalPokemon - takenCount;
 
   return (
     <div className="space-y-6">
