@@ -649,7 +649,7 @@ export function DraftPlanner({
       for (const type of p.types || []) {
         if (draftNeeds.weakTypes.includes(type.toLowerCase())) {
           fitScore += 8;
-          fitTags.push(`${type} buffer`);
+          fitTags.push(`${formatTypeName(type)} buffer`);
         }
       }
 
@@ -923,7 +923,7 @@ export function DraftPlanner({
                 </div>
               </div>
               <div className="rounded-md border border-[var(--background-tertiary)] p-2">
-                <p className="mb-1 text-xs font-bold text-white">Pressure Points</p>
+                <p className="mb-1 text-xs font-bold text-white">Weaknesses</p>
                 <div className="flex flex-wrap gap-1.5">
                   {draftNeeds.weakTypes.length > 0 ? draftNeeds.weakTypes.map((type) => (
                     <span
@@ -931,10 +931,10 @@ export function DraftPlanner({
                       className="rounded px-2 py-1 text-[10px] font-bold text-white"
                       style={{ backgroundColor: TYPE_COLORS[type] }}
                     >
-                      {type}
+                      {formatTypeName(type)}
                     </span>
                   )) : (
-                    <span className="text-xs text-[var(--foreground-muted)]">No major type pressure yet</span>
+                    <span className="text-xs text-[var(--foreground-muted)]">No major weaknesses yet</span>
                   )}
                   {draftNeeds.missingRoles.length === 0 && (
                     <span className="rounded bg-emerald-500/15 px-2 py-1 text-[10px] font-bold text-emerald-300">Core roles covered</span>
@@ -1016,7 +1016,7 @@ export function DraftPlanner({
                   <tbody className="divide-y divide-[var(--background-tertiary)]">
                     {[
                       ["Price", (p: CandidatePokemon) => `${p.price}`],
-                      ["Types", (p: CandidatePokemon) => (p.types || []).join(" / ")],
+                      ["Types", (p: CandidatePokemon) => (p.types || []).map(formatTypeName).join(" / ")],
                       ["Roles", (p: CandidatePokemon) => p.roles.filter((role) => CHECKLIST_DRAFT_ROLE_SET.has(role)).map(formatRole).join(", ") || "Depth"],
                       ["Speed", (p: CandidatePokemon) => `${p.speed || 0}`],
                       ["BST", (p: CandidatePokemon) => `${p.baseStatTotal || 0}`],
@@ -1049,7 +1049,7 @@ export function DraftPlanner({
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {(candidate.types || []).map((type) => (
-                            <span key={type} className={`type-badge type-${type.toLowerCase()} text-[8px] px-1 py-0`}>{type}</span>
+                            <span key={type} className={`type-badge type-${type.toLowerCase()} text-[8px] px-1 py-0`}>{formatTypeName(type)}</span>
                           ))}
                         </div>
                       </div>
@@ -1217,7 +1217,7 @@ export function DraftPlanner({
                       {/* Types - fixed height for consistency */}
                       <div className="flex gap-0.5 justify-center mt-1 flex-wrap min-h-[28px] items-start content-start">
                         {slot.pokemon!.types.map((t) => (
-                          <span key={t} className={`type-badge type-${t.toLowerCase()} text-[7px] px-1 py-0`}>{t}</span>
+                          <span key={t} className={`type-badge type-${t.toLowerCase()} text-[7px] px-1 py-0`}>{formatTypeName(t)}</span>
                         ))}
                       </div>
                       {/* Abilities with tap tooltips */}
@@ -1289,7 +1289,7 @@ export function DraftPlanner({
                     </div>
                     <div className="flex gap-0.5 justify-center mt-1 flex-wrap">
                       {slot.pokemon!.types.map((t) => (
-                        <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0.5`} style={{ fontSize: "clamp(6px, 0.45vw, 8px)" }}>{t}</span>
+                        <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0.5`} style={{ fontSize: "clamp(6px, 0.45vw, 8px)" }}>{formatTypeName(t)}</span>
                       ))}
                     </div>
                     <div className={`mt-1.5 pt-1.5 border-t ${
