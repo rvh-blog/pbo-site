@@ -15,7 +15,9 @@ import { getPublicVisibilityState } from "@/lib/public-visibility";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InfinityReleaseCard } from "@/components/admin/infinity-release-card";
+import { PollAdminCard } from "@/components/admin/poll-admin-card";
 import { ensureAdminAuditLogsTable } from "@/lib/admin-audit";
+import { getAdminPoll } from "@/lib/polls";
 
 type Tone = "success" | "warning" | "error" | "muted" | "info";
 
@@ -131,10 +133,13 @@ function formatAge(iso: string | null | undefined) {
 async function getDashboardData() {
   await ensureAdminAuditLogsTable();
 
-  const currentSeason = await db.query.seasons.findFirst({
-    where: eq(seasons.isCurrent, true),
-    with: { divisions: true },
-  });
+  const [currentSeason, adminPoll] = await Promise.all([
+    db.query.seasons.findFirst({
+      where: eq(seasons.isCurrent, true),
+      with: { divisions: true },
+    }),
+    getAdminPoll(),
+  ]);
 
   if (!currentSeason) {
     const [visibility, recentAudit] = await Promise.all([
@@ -145,7 +150,7 @@ async function getDashboardData() {
       }),
     ]);
 
-    return { currentSeason: null, visibility, recentAudit };
+    return { currentSeason: null, visibility, recentAudit, adminPoll };
   }
 
   const divisionIds = currentSeason.divisions.map((division) => division.id);
@@ -224,6 +229,7 @@ async function getDashboardData() {
 
   return {
     currentSeason,
+    adminPoll,
     visibility,
     recentAudit,
     stats: {
@@ -282,11 +288,22 @@ export default async function AdminDashboard() {
             </Link>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>League Poll</CardTitle>
+            <p className="text-sm text-[var(--foreground-muted)]">
+              Edit the poll shown in the home page Your League box and on coach pages.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <PollAdminCard initialPoll={dashboard.adminPoll} />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const { currentSeason, stats, recentAudit, visibility } = dashboard;
+  const { currentSeason, stats, recentAudit, visibility, adminPoll } = dashboard;
   const actionQueue = [
     stats.pendingMatches > 0 && {
       label: "Enter pending match results",
@@ -558,6 +575,18 @@ export default async function AdminDashboard() {
               isManuallyReleased: visibility.infinityDivisionManuallyReleased,
             }}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>League Poll</CardTitle>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Edit the poll shown in the home page Your League box and on coach pages.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <PollAdminCard initialPoll={adminPoll} />
         </CardContent>
       </Card>
 

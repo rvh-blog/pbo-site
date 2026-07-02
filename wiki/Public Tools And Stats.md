@@ -29,15 +29,56 @@ See [[Draft Planner]].
 
 Leaderboards live at `/leaderboards` and include coach/Pokemon ranking surfaces. Pokemon detail pages can link into the all-time Pokemon ranking source.
 
+Battle Record lives at `/battle-record` and is linked from the header beside
+Leaderboards. It shows all-time coach scoreline records from completed
+non-forfeit matches. Default sorting is descending games played, every column is
+sortable, and the table supports a minimum-games filter.
+
+Battle Record metrics:
+
+- Average Differential Per Game: average match differential across all counted games.
+- Average Win Difference: average positive differential in wins.
+- Average Loss Difference: average negative differential in losses.
+- Winning Percentage: wins divided by counted games.
+- Close Game Win Percentage: win rate in games decided by 1 or 2.
+- Big Win Percentage: 5-0 or 6-0 wins divided by counted games.
+- Last 15: recent win/loss record and percentage across the coach's last 15 counted games.
+
+Battle Record uses coach identity (`coaches.id`) for the row and maps historical
+team rows through `season_coaches.id`. If a coach has no team logo available, it
+falls back to the PBO logo.
+
 The Elo tracker lives at `/elo-tracker` and can be opened with coach-focused query params from coach profile pages.
 
 Relevant files:
 
 - `src/app/leaderboards/page.tsx`
 - `src/app/leaderboards/leaderboards-client.tsx`
+- `src/app/battle-record/page.tsx`
+- `src/app/battle-record/battle-record-table.tsx`
 - `src/app/elo-tracker/page.tsx`
 - `src/app/elo-tracker/elo-tracker-client.tsx`
 - `src/lib/pokemon-leaderboard.ts`
+
+## League Poll
+
+The active league poll appears in the PBO home page Your League box and on coach
+profile pages. Admins edit it from the admin home page.
+
+Expected behavior:
+
+- Coach users can vote once per active poll.
+- Results display only after the current coach has voted.
+- Users who have not voted see the prompt and options without result bars.
+- Spectators/logged-out users cannot vote.
+- Any user can hide the poll locally.
+
+Relevant files:
+
+- `src/components/poll-card.tsx`
+- `src/lib/polls.ts`
+- `src/app/api/poll/route.ts`
+- `src/app/api/admin/poll/route.ts`
 
 ## Pokemon And Coach Stats
 

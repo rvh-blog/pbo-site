@@ -258,6 +258,22 @@ Important rules:
 - Pick-em rewards are tracked in `pick_em_rewards`; re-resolution reverses coins and deletes/recreates reward rows.
 - Fantasy rewards are tracked in `fantasy_rewards`; weekly re-resolution reverses existing rewards before recalculating placement payouts.
 
+## League Polls
+
+Site-wide homepage/profile polls use:
+
+- `polls`: one admin-authored question, JSON option list, and active flag.
+- `poll_votes`: one vote per coach per poll.
+
+The active poll is managed from the admin home page and rendered in the home
+page Your League box plus coach profile pages. Coach users can vote once per
+poll and see results after voting. Users who have not voted should not see
+results. Spectators and logged-out visitors can see the poll prompt but cannot
+vote.
+
+Poll cards can be hidden client-side by the viewer through local storage. The
+hide preference is per poll and is not league data.
+
 ## Blog
 
 Blog content uses:

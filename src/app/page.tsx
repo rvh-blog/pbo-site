@@ -2,6 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { getActivePoll } from "@/lib/polls";
+import { PollCard } from "@/components/poll-card";
 import { SyncedHeightGrid } from "@/components/synced-height-grid";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
 import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
@@ -29,23 +31,24 @@ type OffseasonChampion = {
 };
 
 async function getCurrentSeason() {
-  const currentSeasons = await db.query.seasons.findMany({
-    where: eq(seasons.isCurrent, true),
+  return await db.query.seasons.findFirst({
+    where: and(
+      eq(seasons.isCurrent, true),
+      or(eq(seasons.isPublic, true), isNull(seasons.isPublic))
+    ),
     with: {
       divisions: true,
     },
     orderBy: [desc(seasons.seasonNumber)],
   });
-
-  return currentSeasons.find((season) => season.isPublic !== false) || null;
 }
 
 async function getPreviousSeasonChampions(): Promise<OffseasonChampion[]> {
-  const publicSeasons = (await db.query.seasons.findMany({
+  const latestPublicSeason = await db.query.seasons.findFirst({
+    where: or(eq(seasons.isPublic, true), isNull(seasons.isPublic)),
     orderBy: [desc(seasons.seasonNumber)],
-  })).filter((season) => season.isPublic !== false);
+  });
 
-  const latestPublicSeason = publicSeasons[0];
   if (!latestPublicSeason) {
     return DIVISION_ORDER.map((divisionName) => ({
       divisionId: null,
@@ -114,39 +117,115 @@ type BattleLogItem = {
 };
 
 async function getRecentBattles(): Promise<BattleLogItem[]> {
-  // Run all queries in parallel
-  const [allSeasons, regularMatches, playoffs] = await Promise.all([
-    db.query.seasons.findMany({
-      orderBy: [desc(seasons.seasonNumber)],
-    }),
+  const publicSeasons = await db.query.seasons.findMany({
+    columns: {
+      id: true,
+      seasonNumber: true,
+    },
+    where: or(eq(seasons.isPublic, true), isNull(seasons.isPublic)),
+    orderBy: [desc(seasons.seasonNumber)],
+  });
+  const latestSeasonNumber = publicSeasons[0]?.seasonNumber || 10;
+  const recentSeasonIds = publicSeasons
+    .filter((season) => season.seasonNumber >= latestSeasonNumber - 1)
+    .map((season) => season.id);
+
+  if (recentSeasonIds.length === 0) {
+    return [];
+  }
+
+  const [regularMatches, playoffs] = await Promise.all([
     db.query.matches.findMany({
-      where: isNotNull(matches.winnerId),
+      columns: {
+        id: true,
+        seasonId: true,
+        week: true,
+        coach1SeasonId: true,
+        coach2SeasonId: true,
+        winnerId: true,
+        coach1Differential: true,
+        coach2Differential: true,
+        playedAt: true,
+        endedAt: true,
+      },
+      where: and(
+        isNotNull(matches.winnerId),
+        inArray(matches.seasonId, recentSeasonIds)
+      ),
       with: {
-        coach1: true,
-        coach2: true,
-        division: true,
-        season: true,
+        coach1: {
+          columns: {
+            teamName: true,
+            teamLogoUrl: true,
+          },
+        },
+        coach2: {
+          columns: {
+            teamName: true,
+            teamLogoUrl: true,
+          },
+        },
+        division: {
+          columns: {
+            name: true,
+          },
+        },
+        season: {
+          columns: {
+            seasonNumber: true,
+          },
+        },
       },
     }),
     db.query.playoffMatches.findMany({
-      where: isNotNull(playoffMatches.winnerId),
+      columns: {
+        id: true,
+        matchId: true,
+        seasonId: true,
+        divisionId: true,
+        round: true,
+        higherSeedId: true,
+        lowerSeedId: true,
+        winnerId: true,
+        higherSeedWins: true,
+        lowerSeedWins: true,
+        playedAt: true,
+      },
+      where: and(
+        isNotNull(playoffMatches.winnerId),
+        inArray(playoffMatches.seasonId, recentSeasonIds)
+      ),
       with: {
-        higherSeed: true,
-        lowerSeed: true,
-        division: true,
-        season: true,
+        higherSeed: {
+          columns: {
+            teamName: true,
+            teamLogoUrl: true,
+          },
+        },
+        lowerSeed: {
+          columns: {
+            teamName: true,
+            teamLogoUrl: true,
+          },
+        },
+        division: {
+          columns: {
+            name: true,
+          },
+        },
+        season: {
+          columns: {
+            seasonNumber: true,
+          },
+        },
       },
     }),
   ]);
-
-  const publicSeasons = allSeasons.filter((season) => season.isPublic !== false);
-  const latestSeasonNumber = publicSeasons[0]?.seasonNumber || 10;
 
   // Filter to only recent seasons and sort
   const recentRegularMatches = regularMatches
     .filter(m =>
       m.week <= 100 &&
-      m.season?.isPublic !== false &&
       (m.season?.seasonNumber || 0) >= latestSeasonNumber - 1
     )
     .sort((a, b) => {
@@ -159,7 +238,6 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
 
   const recentPlayoffs = playoffs
     .filter(p =>
-      p.season?.isPublic !== false &&
       (p.season?.seasonNumber || 0) >= latestSeasonNumber - 1
     );
 
@@ -296,9 +374,18 @@ async function getStargazerChampion() {
 async function getCoachTypeUsage(): Promise<Map<number, string[]>> {
   // Get all matchPokemon entries with their Pokemon types and coachId
   const allMatchPokemon = await db.query.matchPokemon.findMany({
+    columns: {},
     with: {
-      pokemon: true,
-      seasonCoach: true,
+      pokemon: {
+        columns: {
+          types: true,
+        },
+      },
+      seasonCoach: {
+        columns: {
+          coachId: true,
+        },
+      },
     },
   });
 
@@ -336,13 +423,14 @@ async function getCoachTypeUsage(): Promise<Map<number, string[]>> {
 
 async function getTopCoaches() {
   // Run all queries in parallel
-  const [coachesList, allCoachesForRank, typeUsage, showcasePurchases] = await Promise.all([
-    db.query.coaches.findMany({
-      orderBy: (c, { desc }) => [desc(c.eloRating)],
-      limit: 10,
-    }),
+  const [allCoachesForRank, typeUsage, showcasePurchases] = await Promise.all([
     // Get all coaches to calculate actual ranks
     db.query.coaches.findMany({
+      columns: {
+        id: true,
+        name: true,
+        eloRating: true,
+      },
       orderBy: (c, { desc }) => [desc(c.eloRating)],
     }),
     getCoachTypeUsage(),
@@ -360,6 +448,7 @@ async function getTopCoaches() {
         )
       ),
   ]);
+  const coachesList = allCoachesForRank.slice(0, 10);
 
   // Build rank map from all coaches
   const rankMap = new Map<number, number>();
@@ -382,6 +471,11 @@ async function getTopCoaches() {
   let additionalShowcaseCoaches: typeof coachesList = [];
   if (additionalShowcaseCoachIds.length > 0) {
     additionalShowcaseCoaches = await db.query.coaches.findMany({
+      columns: {
+        id: true,
+        name: true,
+        eloRating: true,
+      },
       where: inArray(coaches.id, additionalShowcaseCoachIds),
     });
   }
@@ -409,23 +503,30 @@ async function getTopCoaches() {
   ];
 }
 
-async function getHomePersonalization(currentSeasonId: number | null) {
-  const session = await getSession();
+async function getHomePersonalization(currentSeasonPromise: Promise<Awaited<ReturnType<typeof getCurrentSeason>>>) {
+  const [session, currentSeason] = await Promise.all([
+    getSession(),
+    currentSeasonPromise,
+  ]);
 
   if (!session) {
     return null;
   }
 
+  const pollPromise = getActivePoll(session);
+
   if (session.type !== "coach") {
+    const poll = await pollPromise;
     return {
       user: session,
       activeTeam: null,
       nextMatch: null,
       opponent: null,
+      poll,
     };
   }
 
-  const coachTeams = await db.query.seasonCoaches.findMany({
+  const coachTeamsPromise = db.query.seasonCoaches.findMany({
     where: eq(seasonCoaches.coachId, session.id),
     with: {
       division: {
@@ -435,11 +536,12 @@ async function getHomePersonalization(currentSeasonId: number | null) {
       },
     },
   });
+  const [poll, coachTeams] = await Promise.all([pollPromise, coachTeamsPromise]);
 
   const activeTeam = coachTeams.find((team) => {
     const teamSeason = team.division?.season;
     if (!teamSeason) return false;
-    return currentSeasonId ? teamSeason.id === currentSeasonId : teamSeason.isCurrent;
+    return currentSeason ? teamSeason.id === currentSeason.id : teamSeason.isCurrent;
   }) ?? null;
 
   if (!activeTeam?.division?.season) {
@@ -448,6 +550,7 @@ async function getHomePersonalization(currentSeasonId: number | null) {
       activeTeam: null,
       nextMatch: null,
       opponent: null,
+      poll,
     };
   }
 
@@ -478,6 +581,7 @@ async function getHomePersonalization(currentSeasonId: number | null) {
     activeTeam,
     nextMatch,
     opponent,
+    poll,
   };
 }
 
@@ -654,15 +758,16 @@ function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] 
 
 export default async function Home() {
   // Run all queries in parallel for much better performance on network-attached storage
-  const [currentSeason, previousSeasonChampions, recentBattles, stats, topCoaches, stargazerChampion] = await Promise.all([
-    getCurrentSeason(),
+  const currentSeasonPromise = getCurrentSeason();
+  const [currentSeason, previousSeasonChampions, recentBattles, stats, topCoaches, stargazerChampion, personalizedHome] = await Promise.all([
+    currentSeasonPromise,
     getPreviousSeasonChampions(),
     getRecentBattles(),
     getStats(),
     getTopCoaches(),
     getStargazerChampion(),
+    getHomePersonalization(currentSeasonPromise),
   ]);
-  const personalizedHome = await getHomePersonalization(currentSeason?.id ?? null);
   const visibleTopCoaches = topCoaches.slice(0, 5);
   const previousSeasonPlayoffHref = previousSeasonChampions[0]?.seasonId
     ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs`
@@ -806,7 +911,7 @@ export default async function Home() {
             </div>
 
             {personalizedHome.activeTeam ? (
-              <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto] lg:items-center flex-1">
+              <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_minmax(240px,1fr)_auto] lg:items-center flex-1">
                 <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4">
                   <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
                     Next Match
@@ -853,6 +958,8 @@ export default async function Home() {
                     </div>
                   </div>
                 </div>
+
+                <PollCard initialPoll={personalizedHome.poll} compact />
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="grid gap-2">
@@ -933,6 +1040,9 @@ export default async function Home() {
                 >
                   Rulebook
                 </a>
+                <div className="w-full max-w-md">
+                  <PollCard initialPoll={personalizedHome.poll} compact />
+                </div>
               </div>
             )}
           </div>

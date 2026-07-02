@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { seasons, coaches, seasonCoaches } from "@/lib/schema";
+import { seasons, seasonCoaches } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { PickEmsClient } from "./pick-ems-client";
 
@@ -11,6 +11,10 @@ export interface CoachOption {
   teamName: string | null;
   teamLogoUrl: string | null;
   divisionName: string | null;
+}
+
+interface SeasonCoachOption extends CoachOption {
+  seasonId: number | null;
 }
 
 async function getActiveSeason() {
@@ -27,7 +31,7 @@ async function getActiveSeason() {
   return currentSeason || latestSeason;
 }
 
-async function getCoachesForSeason(seasonId: number): Promise<CoachOption[]> {
+async function getActiveCoachOptions(): Promise<SeasonCoachOption[]> {
   // Get all season coaches for this season
   const seasonCoachesList = await db.query.seasonCoaches.findMany({
     where: eq(seasonCoaches.isActive, true),
@@ -41,32 +45,23 @@ async function getCoachesForSeason(seasonId: number): Promise<CoachOption[]> {
     },
   });
 
-  // Filter to just this season's coaches
-  const filtered = seasonCoachesList.filter(
-    (sc) => sc.division?.season?.id === seasonId
-  );
-
-  // Dedupe by coachId (a coach might be in multiple divisions)
-  const coachMap = new Map<number, CoachOption>();
-  for (const sc of filtered) {
-    if (!coachMap.has(sc.coachId)) {
-      coachMap.set(sc.coachId, {
-        id: sc.coachId,
-        name: sc.coach?.name || "Unknown",
-        teamName: sc.teamName,
-        teamLogoUrl: sc.teamLogoUrl,
-        divisionName: sc.division?.name || null,
-      });
-    }
-  }
-
-  return Array.from(coachMap.values()).sort((a, b) =>
+  return seasonCoachesList.map((sc) => ({
+    id: sc.coachId,
+    name: sc.coach?.name || "Unknown",
+    teamName: sc.teamName,
+    teamLogoUrl: sc.teamLogoUrl,
+    divisionName: sc.division?.name || null,
+    seasonId: sc.division?.season?.id ?? null,
+  })).sort((a, b) =>
     a.name.localeCompare(b.name)
   );
 }
 
 export default async function PickEmsPage() {
-  const season = await getActiveSeason();
+  const [season, allCoachOptions] = await Promise.all([
+    getActiveSeason(),
+    getActiveCoachOptions(),
+  ]);
 
   if (!season) {
     return (
@@ -78,7 +73,13 @@ export default async function PickEmsPage() {
     );
   }
 
-  const coachOptions = await getCoachesForSeason(season.id);
+  const coachMap = new Map<number, CoachOption>();
+  for (const { seasonId, ...coach } of allCoachOptions) {
+    if (seasonId === season.id && !coachMap.has(coach.id)) {
+      coachMap.set(coach.id, coach);
+    }
+  }
+  const coachOptions = Array.from(coachMap.values());
 
   return (
     <PickEmsClient

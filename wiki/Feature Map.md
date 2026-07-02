@@ -26,6 +26,7 @@ See also:
 - Division page: `src/app/seasons/[id]/divisions/[divId]/page.tsx`
 - Match details: `src/app/matches/[id]/page.tsx`
 - Coaches: `src/app/coaches`
+- Battle Record: `src/app/battle-record`
 - Leaderboards: `src/app/leaderboards`
 - Draft planner: `src/app/draft-planner`
 - Matchup prep: `src/app/matchup-prep`
@@ -61,6 +62,7 @@ Feature notes:
 - Pick-ems admin: `src/app/admin/pick-ems`
 - Engagement admin: `src/app/admin/engagement`
 - Admin audit log: `src/app/admin/audit-log`
+- League poll editor: `src/components/admin/poll-admin-card.tsx` on `src/app/admin/page.tsx`
 
 Admin notes:
 
@@ -82,6 +84,7 @@ Admin notes:
 - Pick-ems: `src/app/api/pick-ems`
 - Fantasy entries: `src/app/api/fantasy-entry`
 - Blog: `src/app/api/blog`, `src/app/api/blog/comments`
+- League poll: `src/app/api/poll`, `src/app/api/admin/poll`
 - Preferences: `src/app/api/preferences`
 - Search/export/health: `src/app/api/search`, `src/app/api/export`, `src/app/api/health`
 - Broadcast: `src/app/api/broadcast`
@@ -104,6 +107,7 @@ Admin notes:
 - Pokemon name normalization: `src/lib/pokemon-name-utils.ts`
 - Damage calc helpers: `src/lib/damage-calc.ts`
 - Session/auth helpers: `src/lib/session.ts`, `src/lib/auth.ts`
+- League poll service: `src/lib/polls.ts`
 
 ## Discord Bot
 
