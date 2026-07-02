@@ -17,6 +17,7 @@ Replay parsing extracts stats from Pokemon Showdown replay logs.
 
 The parser returns:
 
+- Replay tier.
 - Player usernames.
 - p1/p2 Pokemon stats.
 - Winner.
@@ -31,6 +32,11 @@ The parser returns:
 PBO match recording needs normalized Pokemon names so replay Pokemon match roster Pokemon reliably.
 
 Default parser behavior should preserve existing PBO match recording behavior.
+
+For Season 11, `[Gen 9 Champions] NatDex Draft` is treated as the PBO format.
+That format preserves Mega form names during parsing, including names such as
+`Barbaracle-Mega` and `Floette-Mega`, so replay analyzer output and downstream
+matching can recognize the updated PokeAPI Pokemon records.
 
 ## Public Analyzer
 
@@ -52,6 +58,9 @@ Zoroark/Illusion can make replay attribution unreliable. The parser flags `zoroa
 - p1/p2 must be mapped to actual teams before saving match stats.
 - Hazards/status/weather attribution is complicated and easy to regress.
 - Public analyzer changes should not change PBO match imports unless explicitly intended.
+- Season/format-specific form preservation should be verified against bot and
+  Wiglett match imports before release, because those paths share the replay
+  parser.
 
 ## See Also
 

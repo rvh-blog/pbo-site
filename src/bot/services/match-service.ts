@@ -20,7 +20,10 @@ import { resolveDeathBetsForMatch, refundDeathBetsForMatch } from "@/lib/death-b
 import { getTimeSyncedRoster, type TimeSyncTransaction } from "@/lib/roster-utils";
 import { checkAndAwardPickEmRewards, awardGotwBonus } from "@/lib/pick-em-rewards";
 import { syncDivision } from "@/lib/sheets-sync-all";
-import { normalizePokemonName, pokemonNameKey } from "@/lib/pokemon-name-utils";
+import {
+  pokemonExactLookupKeys,
+  pokemonNormalizedLookupKeys,
+} from "@/lib/pokemon-name-utils";
 
 export interface FixtureOption {
   matchId: number;
@@ -265,21 +268,19 @@ export async function matchUsernamesToCoaches(
     let p2MatchesCoach2 = 0;
 
     for (const replayPoke of p1Team) {
-      const normalizedName = pokemonNameKey(normalizePokemonName(replayPoke.name));
-      if (coach1Roster.some((r) => pokemonNameKey(normalizePokemonName(r.displayName || r.name)) === normalizedName)) {
+      if (coach1Roster.some((r) => pokemonNamesMatch(replayPoke.name, r.displayName || r.name))) {
         p1MatchesCoach1++;
       }
-      if (coach2Roster.some((r) => pokemonNameKey(normalizePokemonName(r.displayName || r.name)) === normalizedName)) {
+      if (coach2Roster.some((r) => pokemonNamesMatch(replayPoke.name, r.displayName || r.name))) {
         p1MatchesCoach2++;
       }
     }
 
     for (const replayPoke of p2Team) {
-      const normalizedName = pokemonNameKey(normalizePokemonName(replayPoke.name));
-      if (coach1Roster.some((r) => pokemonNameKey(normalizePokemonName(r.displayName || r.name)) === normalizedName)) {
+      if (coach1Roster.some((r) => pokemonNamesMatch(replayPoke.name, r.displayName || r.name))) {
         p2MatchesCoach1++;
       }
-      if (coach2Roster.some((r) => pokemonNameKey(normalizePokemonName(r.displayName || r.name)) === normalizedName)) {
+      if (coach2Roster.some((r) => pokemonNamesMatch(replayPoke.name, r.displayName || r.name))) {
         p2MatchesCoach2++;
       }
     }
@@ -943,10 +944,7 @@ export async function buildPokemonDataFromReplay(
 
   // Match coach1's Pokemon
   for (const replayPoke of coach1ReplayTeam) {
-    const normalizedReplayName = pokemonNameKey(normalizePokemonName(replayPoke.name));
-    const matchingRoster = coach1Roster.find(
-      (r) => pokemonNameKey(normalizePokemonName(r.displayName || r.name)) === normalizedReplayName
-    );
+    const matchingRoster = findMatchingRosterPokemon(coach1Roster, replayPoke.name);
     if (matchingRoster) {
       pokemonData.push({
         seasonCoachId: coach1SeasonId,
@@ -974,10 +972,7 @@ export async function buildPokemonDataFromReplay(
 
   // Match coach2's Pokemon
   for (const replayPoke of coach2ReplayTeam) {
-    const normalizedReplayName = pokemonNameKey(normalizePokemonName(replayPoke.name));
-    const matchingRoster = coach2Roster.find(
-      (r) => pokemonNameKey(normalizePokemonName(r.displayName || r.name)) === normalizedReplayName
-    );
+    const matchingRoster = findMatchingRosterPokemon(coach2Roster, replayPoke.name);
     if (matchingRoster) {
       pokemonData.push({
         seasonCoachId: coach2SeasonId,
@@ -1004,4 +999,28 @@ export async function buildPokemonDataFromReplay(
   }
 
   return pokemonData;
+}
+
+function setsIntersect<T>(left: Set<T>, right: Set<T>): boolean {
+  for (const value of left) {
+    if (right.has(value)) return true;
+  }
+  return false;
+}
+
+function pokemonNamesMatch(left: string | null | undefined, right: string | null | undefined): boolean {
+  const leftExactKeys = pokemonExactLookupKeys(left);
+  const rightExactKeys = pokemonExactLookupKeys(right);
+  if (setsIntersect(leftExactKeys, rightExactKeys)) return true;
+
+  const leftNormalizedKeys = pokemonNormalizedLookupKeys(left);
+  const rightNormalizedKeys = pokemonNormalizedLookupKeys(right);
+  return setsIntersect(leftNormalizedKeys, rightNormalizedKeys);
+}
+
+function findMatchingRosterPokemon(
+  roster: Awaited<ReturnType<typeof getCoachRoster>>,
+  replayPokemonName: string
+) {
+  return roster.find((row) => pokemonNamesMatch(replayPokemonName, row.displayName || row.name));
 }

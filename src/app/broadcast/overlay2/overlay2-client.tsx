@@ -124,6 +124,34 @@ function getStaticSpriteUrl(name: string): string {
   return `https://play.pokemonshowdown.com/sprites/ani/${id}.gif`;
 }
 
+function pokemonId(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function getRosterBattleState(
+  pokemon: RosterPokemon,
+  stateMap: Map<string, PokemonBattleState>
+): PokemonBattleState | null {
+  const rosterName = pokemon.displayName || pokemon.name;
+  const normalizedRosterName = normalizePokemonName(rosterName);
+  const direct = stateMap.get(normalizedRosterName);
+  if (direct) return direct;
+
+  const rosterId = pokemonId(rosterName);
+  for (const state of stateMap.values()) {
+    if (
+      normalizePokemonName(state.species) === normalizedRosterName ||
+      normalizePokemonName(state.battleForm) === normalizedRosterName ||
+      pokemonId(state.species) === rosterId ||
+      pokemonId(state.battleForm) === rosterId
+    ) {
+      return state;
+    }
+  }
+
+  return null;
+}
+
 /** Dex sprite overrides — applied after hyphen stripping (dex uses no hyphens
  *  except for forms where the hyphenated name is the actual filename). */
 const DEX_SPRITE_OVERRIDES: Record<string, string> = {
@@ -189,8 +217,7 @@ function mergeMon(
   rp: RosterPokemon,
   stateMap: Map<string, PokemonBattleState>
 ): MergedMon {
-  const norm = normalizePokemonName(rp.displayName || rp.name);
-  const s = stateMap.get(norm);
+  const s = getRosterBattleState(rp, stateMap);
   return {
     name: s?.battleForm || rp.displayName || rp.name,
     sprite: s?.battleForm
@@ -489,8 +516,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
     const brought: RosterPokemon[] = [];
     const unbrought: RosterPokemon[] = [];
     team.roster.forEach((p) => {
-      const norm = normalizePokemonName(p.displayName || p.name);
-      const state = stateMap.get(norm);
+      const state = getRosterBattleState(p, stateMap);
       if (state?.brought) brought.push(p);
       else unbrought.push(p);
     });
@@ -2337,4 +2363,3 @@ function PlaybackControls({
 interface Viewport {
   x: number; y: number; w: number; h: number;
 }
-

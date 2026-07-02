@@ -40,6 +40,7 @@ interface KeyEvent {
 }
 
 interface ParsedReplay {
+  tier: string | null;
   p1Username: string;
   p2Username: string;
   p1Team: PokemonStats[];
@@ -128,6 +129,12 @@ const PIVOT_MOVES = new Set([
   "volt switch",
 ]);
 
+const CHAMPIONS_NATDEX_DRAFT_TIER = "[Gen 9 Champions] NatDex Draft";
+
+function shouldPreserveMegaFormsForTier(tier: string | null) {
+  return tier === CHAMPIONS_NATDEX_DRAFT_TIER;
+}
+
 function isParalysisCantMove(effect: string) {
   const lower = effect.toLowerCase();
   return lower === "par" || lower.includes("paralysis") || lower.includes("fully paralyzed");
@@ -196,6 +203,24 @@ function isMegaPokemonName(name: string): boolean {
   return /-Mega(?:-|$)/.test(name);
 }
 
+function cleanReplayPokemonName(name: string): string {
+  return name
+    .split(",")[0]
+    .trim()
+    .replace(/^\*/, "")
+    .replace(/-\*$/, "")
+    .replace(/-Tera$/, "");
+}
+
+function normalizeReplayPokemonName(name: string, options: { preserveMegaForm?: boolean } = {}): string {
+  const cleaned = cleanReplayPokemonName(name);
+  if (options.preserveMegaForm && isMegaPokemonName(cleaned)) {
+    return cleaned;
+  }
+
+  return normalizePokemonName(name);
+}
+
 function extractNicknameOwner(pokemonRef: string): { player: "p1" | "p2"; nickname: string } | null {
   const match = pokemonRef.match(/^(p[12])a?: (.+)$/);
   if (match) {
@@ -248,8 +273,14 @@ export async function POST(request: NextRequest) {
     }
 
     const lines = log.split("\n");
+    const replayTier = lines
+      .find((line) => line.startsWith("|tier|"))
+      ?.split("|")[2]
+      ?.trim() || null;
+    const preserveReplayMegaForms = preserveMegas || shouldPreserveMegaFormsForTier(replayTier);
 
     const result: ParsedReplay = {
+      tier: replayTier,
       p1Username: "",
       p2Username: "",
       p1Team: [],
@@ -412,9 +443,9 @@ export async function POST(request: NextRequest) {
     };
 
     const applyVisibleFormChange = (parsed: PlayerRef, pokemonInfo: string) => {
-      if (!preserveMegas) return;
+      if (!preserveReplayMegaForms) return;
 
-      const pokemonName = normalizePokemonName(pokemonInfo);
+      const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: true });
       if (!isMegaPokemonName(pokemonName)) return;
 
       const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
@@ -478,7 +509,7 @@ export async function POST(request: NextRequest) {
         case "poke": {
           const player = parts[2];
           const pokemonInfo = parts[3];
-          const pokemonName = normalizePokemonName(pokemonInfo);
+          const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms });
 
           // Detect Zoroark
           if (pokemonName === "Zoroark" || pokemonName === "Zoroark-Hisui") {
@@ -521,7 +552,7 @@ export async function POST(request: NextRequest) {
           const parsed = extractNicknameOwner(pokemonRef);
 
           if (parsed && pokemonInfo) {
-            const pokemonName = normalizePokemonName(pokemonInfo);
+            const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms });
             const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
             let pokemon = team.find((p) => p.name === pokemonName);
 
@@ -599,7 +630,7 @@ export async function POST(request: NextRequest) {
           const parsed = extractNicknameOwner(pokemonRef);
 
           if (parsed && pokemonInfo) {
-            const pokemonName = normalizePokemonName(pokemonInfo);
+            const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms });
 
             if (pokemonName === "Zoroark" || pokemonName === "Zoroark-Hisui") {
               result.zoroarkInvolved = true;

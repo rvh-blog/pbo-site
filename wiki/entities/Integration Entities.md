@@ -34,6 +34,11 @@ Fields:
 
 Reusing a successful `eventId` returns the stored result instead of processing again.
 
+Wiglett match-result processing shares the replay parser with admin and bot
+match recording. Pokemon from replay data are matched to rosters by exact lookup
+first and normalized lookup second so Season 11 Mega forms and updated PokeAPI
+names can resolve without changing Wiglett payload shape.
+
 ## Discord Config
 
 Tables:

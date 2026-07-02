@@ -664,7 +664,6 @@ export function DraftPlanner({
 
       if (price > 0 && (p.baseStatTotal || 0) / price >= 55) {
         fitScore += 5;
-        fitTags.push("Value");
       }
 
       if (fitTags.length === 0) {

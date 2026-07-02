@@ -252,8 +252,8 @@ export function MatchupPrepClient({
   const [statSort, setStatSort] = useState<"hp" | "atk" | "def" | "spa" | "spd" | "spe" | "bst">("spe");
 
   // Speed comparison settings
-  const [speedCalc1, setSpeedCalc1] = useState({ level: 100, ev: 252, iv: 31, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
-  const [speedCalc2, setSpeedCalc2] = useState({ level: 100, ev: 252, iv: 31, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
+  const [speedCalc1, setSpeedCalc1] = useState({ level: 50, ev: 252, iv: 31, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
+  const [speedCalc2, setSpeedCalc2] = useState({ level: 50, ev: 252, iv: 31, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
 
   // Speed section collapse state (mobile only)
   const [speedSectionOpen, setSpeedSectionOpen] = useState<{ base: boolean; compare1: boolean; compare2: boolean }>({ base: true, compare1: false, compare2: false });

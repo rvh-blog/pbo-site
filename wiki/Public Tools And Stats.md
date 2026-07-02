@@ -10,6 +10,9 @@ Matchup Prep lives at `/matchup-prep` and can be opened directly or from match p
 
 It is a planning surface that uses live league data and user preferences. Preferences are saved through `/api/preferences` with the page key `matchup-prep`.
 
+The matchup speed calculator defaults both sides to level 50 for Season 11 and
+later planning. Other speed calculator behavior remains unchanged.
+
 Relevant files:
 
 - `src/app/matchup-prep/page.tsx`
@@ -80,6 +83,16 @@ Relevant files:
 Broadcast tools live at `/broadcast`, `/broadcast/overlay`, and `/broadcast/overlay2`.
 
 The overlay uses match data and Showdown battle rendering code for OBS/stream views. Search results include broadcast/overlay results for related queries.
+
+Current overlay expectations:
+
+- Both overlay versions should recognize the Season 11 Champions NatDex Draft
+  battle format through the shared battle/replay data flow.
+- Roster Pokemon should match battle state by direct normalized name, species,
+  visible battle form, and compact Pokemon id so updated PokeAPI forms and Mega
+  forms are recognized.
+- Hyphenated Showdown sprite ids should be preserved where the sprite endpoint
+  expects them.
 
 Relevant files:
 

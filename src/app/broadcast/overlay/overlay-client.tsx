@@ -159,7 +159,7 @@ const SPRITE_OVERRIDES: Record<string, string> = {
 
 /** Convert a Showdown battle form name to a sprite URL. */
 function getShowdownSpriteUrl(battleForm: string): string {
-  const id = battleForm.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const id = battleForm.toLowerCase().replace(/[^a-z0-9-]/g, "");
   const spriteId = SPRITE_OVERRIDES[id] ?? id;
   return `https://play.pokemonshowdown.com/sprites/gen5/${spriteId}.png`;
 }
@@ -171,6 +171,34 @@ function getTrainerSpriteUrl(avatar: string): string {
   const mapped = AVATAR_NUMBERS[avatar];
   if (mapped) return `https://play.pokemonshowdown.com/sprites/trainers/${mapped}.png`;
   return `https://play.pokemonshowdown.com/sprites/trainers/${avatar}.png`;
+}
+
+function pokemonId(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function getRosterBattleState(
+  poke: RosterPokemon,
+  stateMap: Map<string, PokemonBattleState>
+): PokemonBattleState | null {
+  const rosterName = poke.displayName || poke.name;
+  const normalizedRosterName = normalizePokemonName(rosterName);
+  const direct = stateMap.get(normalizedRosterName);
+  if (direct) return direct;
+
+  const rosterId = pokemonId(rosterName);
+  for (const state of stateMap.values()) {
+    if (
+      normalizePokemonName(state.species) === normalizedRosterName ||
+      normalizePokemonName(state.battleForm) === normalizedRosterName ||
+      pokemonId(state.species) === rosterId ||
+      pokemonId(state.battleForm) === rosterId
+    ) {
+      return state;
+    }
+  }
+
+  return null;
 }
 
 /* ═══════════════════════════════════════════════
@@ -225,8 +253,7 @@ export function OverlayClient({ data, battleUrl }: Props) {
     const active: RosterPokemon[] = [];
     const unbrought: RosterPokemon[] = [];
     team.roster.forEach((p) => {
-      const norm = normalizePokemonName(p.displayName || p.name);
-      const state = stateMap.get(norm);
+      const state = getRosterBattleState(p, stateMap);
       if (state?.brought) active.push(p);
       else unbrought.push(p);
     });
@@ -513,8 +540,7 @@ function TeamHero({ team, avatar, username, color, align }: {
 function SlideStyleCard({ poke, stateMap, teraUsed, color, flipSprite, shadowLeft }: {
   poke: RosterPokemon; stateMap: Map<string, PokemonBattleState>; teraUsed: boolean; color: string; flipSprite?: boolean; shadowLeft?: boolean;
 }) {
-  const norm = normalizePokemonName(poke.displayName || poke.name);
-  const state = stateMap.get(norm);
+  const state = getRosterBattleState(poke, stateMap);
   const hpPercent = state ? (state.maxHp > 0 ? Math.round((state.hp / state.maxHp) * 100) : 0) : 100;
   const hpColor = hpPercent > 50 ? "#22c55e" : hpPercent > 20 ? "#facc15" : "#ef4444";
   const isFainted = state?.fainted;

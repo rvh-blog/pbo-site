@@ -6,6 +6,16 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## July 1, 2026
 
+Season 11 compatibility:
+
+- Replay scraping recognizes `[Gen 9 Champions] NatDex Draft` as the Season 11 Showdown format.
+- Season 11 Champions NatDex Draft replays preserve Mega form names such as `Barbaracle-Mega` and `Floette-Mega`.
+- Parsed replay output includes the replay tier so downstream tools can tell which format produced the data.
+- Broadcast overlays match roster Pokemon against battle state by exact species, battle form, normalized name, and compact Pokemon id.
+- Broadcast overlay sprite lookup preserves hyphenated form names where Showdown sprites require them.
+- Wiglett and bot replay match recording use exact Pokemon lookup first, then normalized lookup, when mapping replay Pokemon back to rosters.
+- Matchup Prep speed calculator defaults to level 50.
+
 Fantasy:
 
 - Weekly fantasy entries now prevent reusing the same Pokemon from the same team in later weeks of the same season.
@@ -22,6 +32,7 @@ Draft planner:
 - Price 0 Pokemon are excluded.
 - The draft board sorts from 20 down to 1 and is scrollable.
 - Tier filters and tier labels were removed.
+- Draft board fit scoring can still consider efficient stat-to-price options, but the visible `Value` tag is no longer shown.
 - Section toggles were added for Needs, Draft Board, Compare, Notes, and Analyzer.
 - Role checklist and draft board role wording were synced.
 
@@ -82,3 +93,7 @@ f5d21ba Improve fantasy, draft planner, and admin tools
 ```
 
 It was pushed to GitHub `main` and deployed to Fly as release `v215`.
+
+The later Season 11 compatibility update adds replay format handling, Mega
+preservation, overlay matching, Wiglett roster matching, and level 50 Matchup
+Prep defaults.
