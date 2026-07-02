@@ -164,6 +164,7 @@ interface Props {
 }
 
 type DraftRole = "hazards" | "removal" | "pivot" | "setup" | "status" | "priority" | "knock";
+const PLANNER_SLOT_COUNT = 11;
 const CHECKLIST_DRAFT_ROLES = ["hazards", "removal", "pivot", "priority"] as const satisfies readonly DraftRole[];
 const CHECKLIST_DRAFT_ROLE_SET = new Set<DraftRole>(CHECKLIST_DRAFT_ROLES);
 
@@ -395,7 +396,7 @@ export function DraftPlanner({
 
   // Initialize slots from roster
   const [slots, setSlots] = useState<RosterSlot[]>(() => {
-    const initialSlots: RosterSlot[] = Array(12).fill(null).map((_, i) => {
+    const initialSlots: RosterSlot[] = Array(PLANNER_SLOT_COUNT).fill(null).map((_, i) => {
       const p = initialRoster[i];
       if (p) {
         const priceInfo = seasonPrices[p.pokemonId];
@@ -494,7 +495,7 @@ export function DraftPlanner({
   function handleMultiLinePaste(startIndex: number, lines: string[]) {
     setSlots(prevSlots => {
       const newSlots = [...prevSlots];
-      for (let i = 0; i < lines.length && startIndex + i < 12; i++) {
+      for (let i = 0; i < lines.length && startIndex + i < PLANNER_SLOT_COUNT; i++) {
         const line = lines[i].trim();
         const match = findPokemonMatch(line, allPokemon);
         const slotIdx = startIndex + i;
