@@ -612,8 +612,8 @@ export function DraftPlanner({
 
   const draftNeeds = useMemo(() => {
     const needs: { label: string; met: boolean }[] = [
-      { label: "Hazard setter", met: teamRoles.has("hazards") },
-      { label: "Hazard removal", met: teamRoles.has("removal") },
+      { label: "Hazard Setter", met: teamRoles.has("hazards") },
+      { label: "Hazard Removal", met: teamRoles.has("removal") },
       { label: "Pivoting", met: teamRoles.has("pivot") },
       { label: "Priority", met: teamRoles.has("priority") },
     ];
@@ -649,7 +649,7 @@ export function DraftPlanner({
       for (const type of p.types || []) {
         if (draftNeeds.weakTypes.includes(type.toLowerCase())) {
           fitScore += 8;
-          fitTags.push(`${formatTypeName(type)} buffer`);
+          fitTags.push(`${formatTypeName(type)} Buffer`);
         }
       }
 
@@ -665,11 +665,6 @@ export function DraftPlanner({
 
       if (price > 0 && (p.baseStatTotal || 0) / price >= 55) {
         fitScore += 5;
-      }
-
-      if (fitTags.length === 0) {
-        const primaryChecklistRole = roles.find((role) => CHECKLIST_DRAFT_ROLE_SET.has(role));
-        fitTags.push(primaryChecklistRole ? formatRole(primaryChecklistRole) : "Depth");
       }
 
       return {
@@ -784,18 +779,94 @@ export function DraftPlanner({
     setTimeout(() => setShareStatus("idle"), 1800);
   }
 
+  function renderTeamRosterPanel() {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)]">
+        <div className="border-b border-[var(--background-tertiary)] bg-[var(--card)] p-3">
+          <h3 className="font-bold text-sm">Team Roster</h3>
+          <p className="text-xs text-[var(--foreground-muted)]">Edit picks while using the draft board</p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          <div>
+            {slots.map((slot, i) => (
+              <div key={i} className="flex items-center gap-1 rounded px-1 py-0.5">
+                <span className="w-4 text-right text-xs text-[var(--foreground-muted)]">
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <PokemonAutocomplete
+                    value={slot.pokemonName}
+                    pokemonId={slot.pokemonId}
+                    allPokemon={allPokemon}
+                    onChange={(id, name) => handleSlotChange(i, id, name)}
+                    onMultiLinePaste={(lines) => handleMultiLinePaste(i, lines)}
+                    hasWarning={!slot.pokemonId && slot.pokemonName !== ""}
+                    warningText={!slot.pokemonId && slot.pokemonName ? `No match` : ""}
+                    placeholder="Type Pokemon name..."
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleTCToggle(i)}
+                  disabled={!slot.pokemonId || slot.teraCaptainCost === null}
+                  className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
+                    slot.isTeraCaptain
+                      ? "bg-[var(--accent)] text-black"
+                      : "bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
+                  } disabled:cursor-not-allowed disabled:opacity-30`}
+                  title={
+                    slot.teraCaptainCost === null
+                      ? "TC not available"
+                      : slot.isTeraCaptain
+                      ? `Remove TC (-${slot.teraCaptainCost})`
+                      : `Make TC (+${slot.teraCaptainCost})`
+                  }
+                >
+                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L2 12l10 10 10-10L12 2z" />
+                  </svg>
+                </button>
+                <span className="w-8 text-right text-xs text-[var(--foreground-muted)]">
+                  {slot.price > 0 ? slot.price : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="border-t border-[var(--background-tertiary)] bg-[var(--card)] p-3">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-sm text-[var(--foreground-muted)]">Budget:</span>
+            <span className="font-mono text-sm">{draftBudget} pts</span>
+          </div>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-sm text-[var(--foreground-muted)]">Spent:</span>
+            <span className="font-mono text-sm text-[var(--error)]">{totalSpent} pts</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-[var(--background-tertiary)] pt-1">
+            <span className="text-sm font-medium">Remaining:</span>
+            <span className={`font-mono font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+              {remainingBudget} pts
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
         width: '100vw',
+        height: 'calc(100vh - 16px)',
+        overflow: 'hidden',
         position: 'relative',
         left: '50%',
         marginLeft: '-50vw',
       }}
     >
-      <div className="poke-card p-4 mx-4 sm:mx-6 mt-2">
+      <div className="poke-card mx-2 mt-2 flex h-[calc(100vh-1rem)] flex-col overflow-hidden p-3 sm:mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[var(--background-tertiary)]">
+        <div className="mb-2 flex shrink-0 items-center justify-between border-b border-[var(--background-tertiary)] pb-2">
           <div className="flex items-center gap-3">
             {coach ? (
               <Link href={`/coaches/${coach.id}`} className="text-[var(--foreground-muted)] hover:text-white transition-colors">
@@ -834,8 +905,8 @@ export function DraftPlanner({
           </button>
         </div>
 
-        <div className="mb-3 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-2">
-          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+        <div className="mb-2 shrink-0 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
+          <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
             <Eye className="h-3.5 w-3.5" />
             Panel Toggles
           </div>
@@ -852,7 +923,7 @@ export function DraftPlanner({
                 type="button"
                 aria-pressed={toggle.enabled}
                 onClick={toggle.onClick}
-                className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-bold transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-bold transition-colors ${
                   toggle.enabled
                     ? "border-[var(--primary)]/40 bg-[var(--primary)]/15 text-white"
                     : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"
@@ -871,12 +942,14 @@ export function DraftPlanner({
           </div>
         </div>
 
-        {/* Draft Command Center */}
-        {(showNeedsPanel || showDraftBoard) && (
-        <div className={`mb-4 grid grid-cols-1 gap-3 ${showNeedsPanel && showDraftBoard ? "xl:grid-cols-[1.1fr_1.4fr]" : ""}`}>
+        <div className={`min-h-0 flex-1 overflow-hidden ${showDraftBoard && showTeamAnalyzer ? "grid gap-2 lg:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.8fr)]" : "flex flex-col"}`}>
+        {/* Draft board and roster workspace */}
+        {showDraftBoard && (
+        <div className={`min-h-0 grid grid-cols-1 gap-2 overflow-hidden ${showTeamAnalyzer ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)]">
           {showNeedsPanel && (
-          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-3">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="shrink-0 border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-white">Draft Needs</h2>
                 <p className="text-xs text-[var(--foreground-muted)]">Budget, roles, and roster gaps</p>
@@ -908,7 +981,7 @@ export function DraftPlanner({
                 <p className="font-mono text-lg font-bold text-white">{watchlist.length}</p>
               </div>
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="rounded-md border border-[var(--background-tertiary)] p-2">
                 <p className="mb-1 text-xs font-bold text-white">Role Checklist</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -946,8 +1019,8 @@ export function DraftPlanner({
           )}
 
           {showDraftBoard && (
-          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-3">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-h-0 flex-1 flex-col bg-[var(--card)] p-2">
+            <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-white">Draft Board</h2>
                 <p className="text-xs text-[var(--foreground-muted)]">Filter, compare, watchlist, and add picks</p>
@@ -958,47 +1031,47 @@ export function DraftPlanner({
               </div>
             </div>
 
-            <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+            <div className="mb-2 grid shrink-0 grid-cols-1 gap-2 md:grid-cols-3">
               <label className="relative md:col-span-2 xl:col-span-1">
                 <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--foreground-subtle)]" />
                 <input
                   value={candidateSearch}
                   onChange={(e) => setCandidateSearch(e.target.value)}
                   placeholder="Search Pokemon"
-                  className="w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] py-2 pl-7 pr-2 text-sm text-white placeholder:text-[var(--foreground-subtle)]"
+                  className="w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] py-1.5 pl-7 pr-2 text-sm text-white placeholder:text-[var(--foreground-subtle)]"
                 />
               </label>
-              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-2 text-sm text-white">
+              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
                 <option value="all">All types</option>
                 {ALL_TYPES.map((type) => <option key={type} value={type}>{formatTypeName(type)}</option>)}
               </select>
-              <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as "all" | DraftRole)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-2 text-sm text-white">
+              <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as "all" | DraftRole)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
                 <option value="all">All roles</option>
                 {CHECKLIST_DRAFT_ROLES.map((role) => <option key={role} value={role}>{formatRole(role)}</option>)}
               </select>
             </div>
 
-            <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-2">
+            <div className="mb-2 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Price: {maxPrice}</span>
                 <input type="range" min="0" max="20" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full" />
               </label>
-              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-2">
+              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Min Speed: {minSpeed}</span>
                 <input type="range" min="0" max="160" step="5" value={minSpeed} onChange={(e) => setMinSpeed(Number(e.target.value))} className="w-full" />
               </label>
-              <button type="button" onClick={() => setAvailableOnly(!availableOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-bold transition-colors ${availableOnly ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
+              <button type="button" onClick={() => setAvailableOnly(!availableOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-bold transition-colors ${availableOnly ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
                 {availableOnly ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 Available only
               </button>
-              <button type="button" onClick={() => setFitOnly(!fitOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-bold transition-colors ${fitOnly ? "border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent)]" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
+              <button type="button" onClick={() => setFitOnly(!fitOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-bold transition-colors ${fitOnly ? "border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent)]" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
                 <Star className="h-4 w-4" />
                 Fits team
               </button>
             </div>
 
             {showComparePanel && comparePokemon.length > 0 && (
-              <div className="mb-3 overflow-x-auto rounded-md border border-[var(--background-tertiary)]">
+              <div className="mb-2 shrink-0 overflow-x-auto rounded-md border border-[var(--background-tertiary)]">
                 <table className="w-full min-w-[520px] text-xs">
                   <thead>
                     <tr className="bg-[var(--background-secondary)] text-[var(--foreground-muted)]">
@@ -1017,7 +1090,7 @@ export function DraftPlanner({
                     {[
                       ["Price", (p: CandidatePokemon) => `${p.price}`],
                       ["Types", (p: CandidatePokemon) => (p.types || []).map(formatTypeName).join(" / ")],
-                      ["Roles", (p: CandidatePokemon) => p.roles.filter((role) => CHECKLIST_DRAFT_ROLE_SET.has(role)).map(formatRole).join(", ") || "Depth"],
+                      ["Roles", (p: CandidatePokemon) => p.roles.filter((role) => CHECKLIST_DRAFT_ROLE_SET.has(role)).map(formatRole).join(", ") || "-"],
                       ["Speed", (p: CandidatePokemon) => `${p.speed || 0}`],
                       ["BST", (p: CandidatePokemon) => `${p.baseStatTotal || 0}`],
                     ].map(([label, getValue]) => (
@@ -1031,7 +1104,7 @@ export function DraftPlanner({
               </div>
             )}
 
-            <div className="grid max-h-[620px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
               {filteredCandidates.map((candidate) => {
                 const isPlanned = plannedPokemonIds.has(candidate.id);
                 const isWatched = watchlist.includes(candidate.id);
@@ -1054,11 +1127,13 @@ export function DraftPlanner({
                         </div>
                       </div>
                     </div>
-                    <div className="mb-2 flex flex-wrap gap-1">
-                      {candidate.fitTags.map((tag) => (
-                        <span key={tag} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">{tag}</span>
-                      ))}
-                    </div>
+                    {candidate.fitTags.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-1">
+                        {candidate.fitTags.map((tag) => (
+                          <span key={tag} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">{tag}</span>
+                        ))}
+                      </div>
+                    )}
                     <div className="mb-2 grid grid-cols-3 gap-1 text-center text-[10px]">
                       <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">SPE</span><span className="font-bold text-white">{candidate.speed || 0}</span></div>
                       <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">BST</span><span className="font-bold text-white">{candidate.baseStatTotal || 0}</span></div>
@@ -1089,94 +1164,22 @@ export function DraftPlanner({
             </div>
           </div>
           )}
+          </div>
+          {showTeamAnalyzer && (
+            <aside className="min-h-0 overflow-hidden">
+              {renderTeamRosterPanel()}
+            </aside>
+          )}
         </div>
         )}
 
-        {/* Main Layout: Team List on left, everything else on right */}
+        {/* Team analyzer */}
         {showTeamAnalyzer && (
-        <div className="flex flex-col lg:flex-row gap-3">
-          {/* Left: Team List + Budget - 18% of width on desktop */}
-          <div className="w-full lg:w-[18%] lg:min-w-[180px] lg:max-w-[280px] lg:shrink-0 flex flex-col">
-            <div className="p-3 border-b border-[var(--background-tertiary)] bg-[var(--card)] rounded-t">
-              <h3 className="font-bold text-sm">Team Roster</h3>
-              <p className="text-xs text-[var(--foreground-muted)]">Edit to plan trades or explore draft options</p>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              <div>
-                {slots.map((slot, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-1 py-0.5 px-1 rounded"
-                  >
-                    <span className="text-xs text-[var(--foreground-muted)] w-4 text-right">
-                      {i + 1}
-                    </span>
-                    <div className="flex-1">
-                      <PokemonAutocomplete
-                        value={slot.pokemonName}
-                        pokemonId={slot.pokemonId}
-                        allPokemon={allPokemon}
-                        onChange={(id, name) => handleSlotChange(i, id, name)}
-                        onMultiLinePaste={(lines) => handleMultiLinePaste(i, lines)}
-                        hasWarning={!slot.pokemonId && slot.pokemonName !== ""}
-                        warningText={!slot.pokemonId && slot.pokemonName ? `No match` : ""}
-                        placeholder="Type Pokemon name..."
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleTCToggle(i)}
-                      disabled={!slot.pokemonId || slot.teraCaptainCost === null}
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        slot.isTeraCaptain
-                          ? "bg-[var(--accent)] text-black"
-                          : "bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
-                      } disabled:opacity-30 disabled:cursor-not-allowed`}
-                      title={
-                        slot.teraCaptainCost === null
-                          ? "TC not available"
-                          : slot.isTeraCaptain
-                          ? `Remove TC (-${slot.teraCaptainCost})`
-                          : `Make TC (+${slot.teraCaptainCost})`
-                      }
-                    >
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2L2 12l10 10 10-10L12 2z" />
-                      </svg>
-                    </button>
-                    <span className="text-xs text-[var(--foreground-muted)] w-8 text-right">
-                      {slot.price > 0 ? slot.price : ""}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* Budget */}
-            <div className="p-3 border-t border-[var(--background-tertiary)] bg-[var(--card)] rounded-b">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-[var(--foreground-muted)]">Budget:</span>
-                <span className="font-mono text-sm">{draftBudget} pts</span>
-              </div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-[var(--foreground-muted)]">Spent:</span>
-                <span className="font-mono text-sm text-[var(--error)]">{totalSpent} pts</span>
-              </div>
-              <div className="flex items-center justify-between pt-1 border-t border-[var(--background-tertiary)]">
-                <span className="text-sm font-medium">Remaining:</span>
-                <span className={`font-mono font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
-                  {remainingBudget} pts
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Divider - mobile only */}
-          <div className="lg:hidden border-t border-[var(--background-tertiary)]" />
-
-          {/* Right: Sprite Overview + Type Chart | Stats | Moves */}
-          <div className="flex-1 min-w-0">
+        <div className="min-h-0 overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             {/* Sprite Overview - responsive grid on mobile, dynamic columns on desktop */}
-            <div className="mb-4">
+            <div className="mb-2">
               {/* Mobile grid (hidden on lg+) */}
               {/* Click-away overlay to close tooltips */}
               {expandedAbility && (
@@ -1268,7 +1271,7 @@ export function DraftPlanner({
                     className={`relative flex flex-col bg-[var(--card)] border rounded-lg ${
                       slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                     }`}
-                    style={{ padding: "clamp(6px, 0.5vw, 12px)" }}
+                    style={{ padding: "clamp(4px, 0.4vw, 8px)" }}
                   >
                     {/* Tera Captain Badge */}
                     {slot.isTeraCaptain && (
@@ -1282,17 +1285,17 @@ export function DraftPlanner({
                       src={slot.pokemon!.spriteUrl || ""}
                       alt=""
                       className="object-contain mx-auto"
-                      style={{ width: "clamp(40px, 4vw, 64px)", height: "clamp(40px, 4vw, 64px)", transform: "scale(1.4)" }}
+                      style={{ width: "clamp(30px, 3vw, 46px)", height: "clamp(30px, 3vw, 46px)", transform: "scale(1.35)" }}
                     />
-                    <div className="text-white text-center font-medium mt-1 truncate" style={{ fontSize: "clamp(10px, 0.7vw, 14px)" }}>
+                    <div className="text-white text-center font-medium mt-0.5 truncate" style={{ fontSize: "clamp(9px, 0.6vw, 12px)" }}>
                       {slot.pokemon!.displayName}
                     </div>
-                    <div className="flex gap-0.5 justify-center mt-1 flex-wrap">
+                    <div className="mt-0.5 flex flex-wrap justify-center gap-0.5">
                       {slot.pokemon!.types.map((t) => (
                         <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0.5`} style={{ fontSize: "clamp(6px, 0.45vw, 8px)" }}>{formatTypeName(t)}</span>
                       ))}
                     </div>
-                    <div className={`mt-1.5 pt-1.5 border-t ${
+                    <div className={`mt-1 border-t pt-1 ${
                       slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                     }`}>
                       {slot.pokemon!.abilities.map((a, abilityIdx) => {
@@ -1325,11 +1328,11 @@ export function DraftPlanner({
             </div>
 
             {/* Divider - mobile only */}
-            <div className="lg:hidden border-t border-[var(--background-tertiary)] mb-4" />
+            <div className="lg:hidden border-t border-[var(--background-tertiary)] mb-2" />
 
             {/* Type Chart | Stats | Moves - stacked on mobile, side by side on desktop */}
             {roster.length > 0 && (
-            <div className={`flex flex-col lg:flex-row gap-4 lg:gap-3 lg:items-stretch transition-opacity duration-200 ${prefsLoaded ? "opacity-100" : "opacity-0"}`}>
+            <div className={`flex min-h-0 flex-col gap-2 transition-opacity duration-200 ${prefsLoaded ? "opacity-100" : "opacity-0"}`}>
           {/* Type Chart - Mobile (transposed: types as rows, Pokemon as columns) */}
           <div className="w-full lg:hidden bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 overflow-hidden min-h-[400px]">
             <table className="text-[9px] w-full table-fixed" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
@@ -1400,7 +1403,7 @@ export function DraftPlanner({
           </div>
 
           {/* Type Chart - Desktop (original: Pokemon as rows, types as columns) - 45% of row */}
-          <div className="hidden lg:block lg:flex-[4.5] lg:min-w-0 overflow-hidden bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 lg:min-h-[280px]">
+          <div className="hidden overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:block lg:min-h-0">
             <table className="w-full table-fixed" style={{ borderSpacing: "1px", borderCollapse: "separate", fontSize: "clamp(8px, 0.6vw, 10px)" }}>
               <colgroup>
                 <col style={{ width: "24px" }} />
@@ -1546,7 +1549,7 @@ export function DraftPlanner({
           </div>
 
           {/* Stats Table - Desktop - 30% of row */}
-          <div className="hidden lg:flex lg:flex-[3] lg:min-w-0 bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 flex-col overflow-hidden lg:min-h-[280px]">
+          <div className="hidden flex-col overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:flex lg:min-h-0">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-[var(--foreground-muted)]" style={{ fontSize: "clamp(9px, 0.7vw, 12px)" }}>SORT:</span>
               <select value={statSort} onChange={(e) => setStatSort(e.target.value as typeof statSort)} className="px-1.5 py-0.5 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white" style={{ fontSize: "clamp(9px, 0.7vw, 12px)" }}>
@@ -1631,7 +1634,7 @@ export function DraftPlanner({
           </div>
 
           {/* Move Coverage - 25% of row on desktop - uses relative/absolute to not affect row height */}
-          <div className="w-full lg:flex-[2.5] lg:min-w-0 lg:relative bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] overflow-hidden min-h-[300px] lg:min-h-[280px]">
+          <div className="min-h-[300px] w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:relative lg:h-44 lg:min-h-0">
             {/* Mobile: normal flow */}
             <div className="lg:hidden p-1.5 flex flex-col">
               {/* Search/Add Move */}
@@ -1765,8 +1768,10 @@ export function DraftPlanner({
             )}
           </div>
         </div>
+        </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

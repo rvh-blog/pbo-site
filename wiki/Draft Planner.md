@@ -15,6 +15,9 @@ The draft planner is a public planning tool at `/draft-planner`. It is intention
 - Tier language such as Premium, Starter, and Value is not shown in the draft board.
 - Type filter labels are capitalized for readability.
 - The tier filter has been removed.
+- The planner uses a fixed-height workspace so the page itself does not need to scroll on desktop.
+- The Team Roster sits to the right of the Draft Board so users can edit roster slots while browsing candidates.
+- The team analyzer sits on the far right side of the page on desktop, with its dense panels scrolling internally as needed.
 
 ## Panel Toggles
 
@@ -49,4 +52,3 @@ Current removed role wording includes:
 ## Change Notes
 
 When changing draft planner filtering, remember that this page is a planning surface, not the official roster source. Do not block planner additions just because a Pokemon is already drafted by a real team.
-
