@@ -98,6 +98,38 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+.poke-card,
+.section-title,
+.section-title > *,
+main {
+  min-width: 0;
+}
+
+main {
+  max-width: 100%;
+}
+
+main *,
+main *::before,
+main *::after {
+  min-width: 0;
+}
+
+main img,
+main svg,
+main video,
+main canvas {
+  max-width: 100%;
+}
+
+main :where(p, h1, h2, h3, h4, h5, h6, a, button, label, li) {
+  overflow-wrap: break-word;
+}
+
+.poke-card {
+  overflow-wrap: break-word;
+}
+
 /* Retro pixel font class */
 .font-pixel {
   font-family: 'Press Start 2P', monospace;

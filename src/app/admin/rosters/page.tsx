@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { BulkRosterEditor } from "@/components/admin/bulk-roster-editor";
+import { getSeasonFormat } from "@/lib/season-format";
 
 interface Coach {
   id: number;
@@ -24,6 +25,7 @@ interface Division {
 interface Season {
   id: number;
   name: string;
+  seasonNumber: number;
   draftBudget: number;
   isCurrent: boolean;
   divisions: Division[];
@@ -78,6 +80,7 @@ export default function AdminRostersPage() {
   const [selectedDivisionId, setSelectedDivisionId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [showBulkEditor, setShowBulkEditor] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState("");
 
   // Form state for adding coach to season
   const [newEntry, setNewEntry] = useState({
@@ -130,20 +133,18 @@ export default function AdminRostersPage() {
 
   // Filter season coaches by selected division
   const filteredSeasonCoaches = useMemo(() => {
-    if (selectedDivisionId === "all") return seasonCoaches;
-    return seasonCoaches.filter((sc) => sc.divisionId === parseInt(selectedDivisionId));
-  }, [seasonCoaches, selectedDivisionId]);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedSeason) {
-      fetchSeasonCoaches(selectedSeason.id);
-      fetchPokemonForSeason(selectedSeason.id);
-    }
-  }, [selectedSeason]);
+    const byDivision = selectedDivisionId === "all"
+      ? seasonCoaches
+      : seasonCoaches.filter((sc) => sc.divisionId === parseInt(selectedDivisionId));
+    const query = rosterSearch.trim().toLowerCase();
+    if (!query) return byDivision;
+    return byDivision.filter((sc) =>
+      sc.teamName.toLowerCase().includes(query) ||
+      sc.teamAbbreviation?.toLowerCase().includes(query) ||
+      sc.coach?.name.toLowerCase().includes(query) ||
+      sc.division?.name.toLowerCase().includes(query)
+    );
+  }, [seasonCoaches, selectedDivisionId, rosterSearch]);
 
   // When coach is selected, load their existing teams
   useEffect(() => {
@@ -217,6 +218,17 @@ export default function AdminRostersPage() {
     const data = await res.json();
     setPokemonList(data);
   }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedSeason) {
+      fetchSeasonCoaches(selectedSeason.id);
+      fetchPokemonForSeason(selectedSeason.id);
+    }
+  }, [selectedSeason]);
 
   async function handleAddCoachToSeason(e: React.FormEvent) {
     e.preventDefault();
@@ -363,6 +375,12 @@ export default function AdminRostersPage() {
     return coaches.filter((c) => !activeCoachIds.includes(c.id));
   }, [coaches, seasonCoaches, replacingTeam]);
 
+  const selectedSeasonFormat = getSeasonFormat(selectedSeason?.seasonNumber);
+  const replacementWeekOptions = Array.from(
+    { length: selectedSeasonFormat.regularSeasonWeeks },
+    (_, i) => i + 1
+  );
+
   function handleSelectExistingTeam(team: ExistingTeam) {
     setNewEntry((prev) => ({
       ...prev,
@@ -447,6 +465,41 @@ export default function AdminRostersPage() {
 
       {selectedSeason && (
         <>
+          {selectedSeasonFormat.teamsPerDivision && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Season Format Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-5">
+                  {selectedSeason.divisions.map((division) => {
+                    const teamCount = seasonCoaches.filter((sc) => sc.divisionId === division.id && sc.isActive).length;
+                    const complete = teamCount === selectedSeasonFormat.teamsPerDivision;
+                    return (
+                      <div
+                        key={division.id}
+                        className={`rounded-lg border p-3 ${
+                          complete
+                            ? "border-[var(--success)]/40 bg-[var(--success)]/10"
+                            : "border-[var(--warning)]/40 bg-[var(--warning)]/10"
+                        }`}
+                      >
+                        <p className="truncate text-sm font-semibold text-white">{division.name}</p>
+                        <p className={`mt-1 text-lg font-bold ${complete ? "text-[var(--success)]" : "text-[var(--warning)]"}`}>
+                          {teamCount}/{selectedSeasonFormat.teamsPerDivision}
+                        </p>
+                        <p className="text-xs text-[var(--foreground-muted)]">active teams</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-xs text-[var(--foreground-muted)]">
+                  Season 11+ target: {selectedSeasonFormat.expectedDivisions} divisions, {selectedSeasonFormat.teamsPerDivision} teams each, {selectedSeasonFormat.regularSeasonWeeks} regular weeks, {selectedSeasonFormat.playoffRounds} playoff rounds.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Add Coach to Season */}
           <Card>
             <CardHeader>
@@ -693,6 +746,14 @@ export default function AdminRostersPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="mb-4">
+                <Label>Search Teams</Label>
+                <Input
+                  value={rosterSearch}
+                  onChange={(event) => setRosterSearch(event.target.value)}
+                  placeholder="Search team, coach, abbreviation, or division"
+                />
+              </div>
               {filteredSeasonCoaches.length === 0 ? (
                 <p className="text-[var(--foreground-muted)] text-center py-4">
                   No coaches assigned to this {selectedDivisionId === "all" ? "season" : "division"} yet.
@@ -905,7 +966,7 @@ export default function AdminRostersPage() {
                   }
                 >
                   <option value="">Select week</option>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((week) => (
+                  {replacementWeekOptions.map((week) => (
                     <option key={week} value={week}>
                       Week {week}
                     </option>

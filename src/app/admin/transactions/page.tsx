@@ -108,6 +108,7 @@ export default function AdminTransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [seasonPrices, setSeasonPrices] = useState<Map<number, SeasonPokemonPrice>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [transactionSearch, setTransactionSearch] = useState("");
 
   // Transaction counts per team
   const [teamCounts, setTeamCounts] = useState<Record<number, TransactionCounts>>({});
@@ -130,27 +131,6 @@ export default function AdminTransactionsPage() {
     countsAgainstLimit: true,
     notes: "",
   });
-
-
-  useEffect(() => {
-    fetchSeasons();
-  }, []);
-
-  useEffect(() => {
-    if (selectedSeason) {
-      fetchSeasonData(selectedSeason.id);
-    }
-  }, [selectedSeason]);
-
-  // Refetch free agents when division changes (FA pool is division-specific)
-  useEffect(() => {
-    if (selectedSeason && selectedDivision) {
-      fetchFreeAgents(selectedSeason.id, selectedDivision.id);
-    } else if (selectedSeason) {
-      // No division selected - fetch all (for display purposes, but require division for transactions)
-      fetchFreeAgents(selectedSeason.id);
-    }
-  }, [selectedDivision, selectedSeason]);
 
   async function fetchSeasons() {
     const res = await fetch("/api/seasons");
@@ -204,16 +184,36 @@ export default function AdminTransactionsPage() {
     setSeasonCoaches(activeCoaches);
     setTransactions(txData);
 
-    // Fetch transaction counts for each team
-    const counts: Record<number, TransactionCounts> = {};
-    for (const coach of activeCoaches) {
-      const countRes = await fetch(
-        `/api/transactions?action=counts&seasonCoachId=${coach.id}`
-      );
-      counts[coach.id] = await countRes.json();
-    }
+    // Fetch transaction counts for each team in parallel.
+    const countEntries = await Promise.all(
+      activeCoaches.map(async (coach: SeasonCoach) => {
+        const countRes = await fetch(`/api/transactions?action=counts&seasonCoachId=${coach.id}`);
+        return [coach.id, await countRes.json()] as const;
+      })
+    );
+    const counts = Object.fromEntries(countEntries);
     setTeamCounts(counts);
   }
+
+  useEffect(() => {
+    fetchSeasons();
+  }, []);
+
+  useEffect(() => {
+    if (selectedSeason) {
+      fetchSeasonData(selectedSeason.id);
+    }
+  }, [selectedSeason]);
+
+  // Refetch free agents when division changes (FA pool is division-specific)
+  useEffect(() => {
+    if (selectedSeason && selectedDivision) {
+      fetchFreeAgents(selectedSeason.id, selectedDivision.id);
+    } else if (selectedSeason) {
+      // No division selected - fetch all (for display purposes, but require division for transactions)
+      fetchFreeAgents(selectedSeason.id);
+    }
+  }, [selectedDivision, selectedSeason]);
 
 
   // Get teams for P2P (sorted alphabetically)
@@ -300,9 +300,23 @@ export default function AdminTransactionsPage() {
       );
       filtered = transactions.filter((tx) => divisionCoachIds.has(tx.seasonCoachId));
     }
+    const query = transactionSearch.trim().toLowerCase();
+    if (query) {
+      filtered = filtered.filter((tx) =>
+        tx.type.toLowerCase().includes(query) ||
+        tx.week.toString().includes(query) ||
+        tx.seasonCoach?.teamName.toLowerCase().includes(query) ||
+        tx.seasonCoach?.coach?.name.toLowerCase().includes(query) ||
+        tx.tradingPartner?.teamName.toLowerCase().includes(query) ||
+        tx.tradingPartner?.coach?.name.toLowerCase().includes(query) ||
+        tx.notes?.toLowerCase().includes(query) ||
+        tx.pokemonInDetails?.some((pokemon) => (pokemon.displayName || pokemon.name).toLowerCase().includes(query)) ||
+        tx.pokemonOutDetails?.some((pokemon) => (pokemon.displayName || pokemon.name).toLowerCase().includes(query))
+      );
+    }
     // Sort by id descending (latest first)
     return [...filtered].sort((a, b) => b.id - a.id);
-  }, [transactions, selectedDivision, seasonCoaches]);
+  }, [transactions, selectedDivision, seasonCoaches, transactionSearch]);
 
   // Handle P2P Trade
   async function handleP2PTrade(e: React.FormEvent) {
@@ -921,6 +935,14 @@ export default function AdminTransactionsPage() {
               <CardTitle>Transaction History ({filteredTransactions.length})</CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="mb-4">
+                <Label>Search Transactions</Label>
+                <Input
+                  value={transactionSearch}
+                  onChange={(event) => setTransactionSearch(event.target.value)}
+                  placeholder="Search team, coach, Pokemon, type, week, or notes"
+                />
+              </div>
               {filteredTransactions.length === 0 ? (
                 <p className="text-[var(--foreground-muted)] text-center py-4">
                   No transactions recorded yet.

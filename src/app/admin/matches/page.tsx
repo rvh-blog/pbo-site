@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { computeAndSortStandings } from "@/lib/standings-sort";
+import { getSeasonFormat } from "@/lib/season-format";
 
 interface Coach {
   id: number;
@@ -42,6 +43,7 @@ interface Division {
 interface Season {
   id: number;
   name: string;
+  seasonNumber: number;
   isCurrent: boolean;
   isSchedulePublic?: boolean;
   divisions: Division[];
@@ -149,6 +151,15 @@ type MatchPokemonPayload = {
 
 type TabType = "schedule" | "results" | "playoffs";
 
+type ScheduleEntry = { week: number; team1: string; team2: string };
+
+interface ScheduleValidation {
+  validRows: Array<ScheduleEntry & { coach1SeasonId: number; coach2SeasonId: number }>;
+  skippedRows: number;
+  weeks: number[];
+  issues: string[];
+}
+
 function getSeasonCoachName(coaches: SeasonCoach[], id: number | null | undefined) {
   if (!id) return "TBD";
   return coaches.find((coach) => coach.id === id)?.teamName || `Season coach ${id}`;
@@ -163,6 +174,7 @@ export default function AdminMatchesPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [playoffMatches, setPlayoffMatches] = useState<PlayoffMatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [matchSearch, setMatchSearch] = useState("");
 
   // Schedule CSV upload
   const [scheduleCsvFile, setScheduleCsvFile] = useState("");
@@ -394,35 +406,95 @@ export default function AdminMatchesPage() {
     reader.readAsText(file);
   }
 
+  function validateScheduleUpload(
+    entries: ScheduleEntry[],
+    coachesInDiv: SeasonCoach[],
+    season: Season
+  ): ScheduleValidation {
+    const seasonFormat = getSeasonFormat(season.seasonNumber);
+    const teamByName = new Map(coachesInDiv.map((coach) => [coach.teamName.toLowerCase(), coach]));
+    const issues: string[] = [];
+    const validRows: ScheduleValidation["validRows"] = [];
+    let skippedRows = 0;
+
+    for (const entry of entries) {
+      const coach1 = teamByName.get(entry.team1.toLowerCase());
+      const coach2 = teamByName.get(entry.team2.toLowerCase());
+      if (!coach1 || !coach2) {
+        skippedRows++;
+        continue;
+      }
+      if (coach1.id === coach2.id) {
+        issues.push(`Week ${entry.week}: ${entry.team1} is scheduled against itself.`);
+        continue;
+      }
+      validRows.push({
+        ...entry,
+        coach1SeasonId: coach1.id,
+        coach2SeasonId: coach2.id,
+      });
+    }
+
+    const weeks = [...new Set(validRows.map((match) => match.week))].sort((a, b) => a - b);
+    const expectedTeams = seasonFormat.teamsPerDivision;
+    const expectedWeeks = seasonFormat.regularSeasonWeeks;
+    const expectedFixtures = seasonFormat.fixturesPerRegularWeek;
+
+    if (expectedTeams && coachesInDiv.length !== expectedTeams) {
+      issues.push(`${season.name} expects ${expectedTeams} teams in each division; ${coachesInDiv.length} are assigned to this division.`);
+    }
+
+    if (expectedFixtures) {
+      const expectedMatches = expectedFixtures * expectedWeeks;
+      if (validRows.length !== expectedMatches) {
+        issues.push(`Expected ${expectedMatches} valid regular-season matches (${expectedFixtures} per week for ${expectedWeeks} weeks); found ${validRows.length}.`);
+      }
+
+      const expectedWeekList = Array.from({ length: expectedWeeks }, (_, i) => i + 1);
+      const invalidWeeks = weeks.filter((week) => !expectedWeekList.includes(week));
+      const missingWeeks = expectedWeekList.filter((week) => !weeks.includes(week));
+      if (invalidWeeks.length > 0) issues.push(`Regular-season uploads can only use weeks 1-${expectedWeeks}; found week ${invalidWeeks.join(", ")}.`);
+      if (missingWeeks.length > 0) issues.push(`Missing week${missingWeeks.length === 1 ? "" : "s"} ${missingWeeks.join(", ")}.`);
+
+      for (const week of expectedWeekList) {
+        const weekMatches = validRows.filter((match) => match.week === week);
+        const teamsThisWeek = new Set<number>();
+        for (const match of weekMatches) {
+          if (teamsThisWeek.has(match.coach1SeasonId)) {
+            issues.push(`Week ${week}: ${match.team1} appears more than once.`);
+          }
+          if (teamsThisWeek.has(match.coach2SeasonId)) {
+            issues.push(`Week ${week}: ${match.team2} appears more than once.`);
+          }
+          teamsThisWeek.add(match.coach1SeasonId);
+          teamsThisWeek.add(match.coach2SeasonId);
+        }
+        if (weekMatches.length !== expectedFixtures) {
+          issues.push(`Week ${week} should have ${expectedFixtures} matches; found ${weekMatches.length}.`);
+        }
+      }
+    }
+
+    return { validRows, skippedRows, weeks, issues };
+  }
+
   async function handleUploadSchedule() {
     if (!selectedSeason || !selectedDivision || schedulePreview.length === 0) return;
 
     const coachesInDiv = seasonCoaches.filter((sc) => sc.divisionId === selectedDivision.id);
-    const scheduleData = schedulePreview.map((entry) => {
-      const coach1 = coachesInDiv.find(
-        (sc) => sc.teamName.toLowerCase() === entry.team1.toLowerCase()
-      );
-      const coach2 = coachesInDiv.find(
-        (sc) => sc.teamName.toLowerCase() === entry.team2.toLowerCase()
-      );
-      return {
-        week: entry.week,
-        team1: entry.team1,
-        team2: entry.team2,
-        coach1SeasonId: coach1?.id,
-        coach2SeasonId: coach2?.id,
-      };
-    });
-
-    const validSchedule = scheduleData.filter((s) => s.coach1SeasonId && s.coach2SeasonId);
+    const validation = validateScheduleUpload(schedulePreview, coachesInDiv, selectedSeason);
+    const validSchedule = validation.validRows;
 
     if (validSchedule.length === 0) {
       setScheduleCsvError("No valid matches found. Make sure team names match exactly.");
       return;
     }
 
-    const skippedRows = scheduleData.length - validSchedule.length;
-    const weeks = [...new Set(validSchedule.map((match) => match.week))].sort((a, b) => a - b);
+    if (validation.issues.length > 0) {
+      setScheduleCsvError(validation.issues.join(" "));
+      return;
+    }
+
     if (
       !confirm(
         [
@@ -430,8 +502,8 @@ export default function AdminMatchesPage() {
           "",
           `Season: ${selectedSeason.name}`,
           `Division: ${selectedDivision.name}`,
-          `Weeks: ${weeks.join(", ")}`,
-          `Skipped rows: ${skippedRows}`,
+          `Weeks: ${validation.weeks.join(", ")}`,
+          `Skipped rows: ${validation.skippedRows}`,
           "Affected data: schedule match rows. Existing matches are not removed.",
         ].join("\n")
       )
@@ -439,8 +511,8 @@ export default function AdminMatchesPage() {
       return;
     }
 
-    for (const match of validSchedule) {
-      await fetch("/api/matches", {
+    await Promise.all(validSchedule.map((match) =>
+      fetch("/api/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -450,8 +522,8 @@ export default function AdminMatchesPage() {
           coach1SeasonId: match.coach1SeasonId,
           coach2SeasonId: match.coach2SeasonId,
         }),
-      });
-    }
+      })
+    ));
 
     setSchedulePreview([]);
     setScheduleCsvFile("");
@@ -1250,6 +1322,21 @@ export default function AdminMatchesPage() {
   const coachesInDivision = selectedDivision
     ? seasonCoaches.filter((sc) => sc.divisionId === selectedDivision.id)
     : seasonCoaches;
+  const scheduleValidation = selectedSeason && selectedDivision && schedulePreview.length > 0
+    ? validateScheduleUpload(schedulePreview, coachesInDivision, selectedSeason)
+    : null;
+  const displayedMatches = useMemo(() => {
+    const query = matchSearch.trim().toLowerCase();
+    if (!query) return matches;
+    return matches.filter((match) =>
+      match.week.toString().includes(query) ||
+      match.division?.name.toLowerCase().includes(query) ||
+      match.coach1?.teamName.toLowerCase().includes(query) ||
+      match.coach2?.teamName.toLowerCase().includes(query) ||
+      match.coach1?.coach?.name.toLowerCase().includes(query) ||
+      match.coach2?.coach?.name.toLowerCase().includes(query)
+    );
+  }, [matches, matchSearch]);
 
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
@@ -1420,36 +1507,37 @@ export default function AdminMatchesPage() {
                     {schedulePreview.length > 0 && (
                       <div className="space-y-2">
                         <p className="font-medium">Preview ({schedulePreview.length} matches):</p>
-                        {(() => {
-                          const teamsByName = new Set(coachesInDivision.map((coach) => coach.teamName.toLowerCase()));
-                          const validRows = schedulePreview.filter(
-                            (entry) =>
-                              teamsByName.has(entry.team1.toLowerCase()) &&
-                              teamsByName.has(entry.team2.toLowerCase())
-                          );
-                          const weeks = [...new Set(validRows.map((entry) => entry.week))].sort((a, b) => a - b);
-
-                          return (
-                            <div className="grid gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] p-3 text-sm sm:grid-cols-4">
-                              <div>
-                                <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Target</p>
-                                <p className="font-medium">{selectedDivision.name}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Valid rows</p>
-                                <p className="font-medium text-[var(--success)]">{validRows.length}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Skipped rows</p>
-                                <p className="font-medium text-[var(--warning)]">{schedulePreview.length - validRows.length}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Weeks</p>
-                                <p className="font-medium">{weeks.length > 0 ? weeks.join(", ") : "None"}</p>
-                              </div>
-                            </div>
-                          );
-                        })()}
+                        <div className="grid gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] p-3 text-sm sm:grid-cols-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Target</p>
+                            <p className="font-medium">{selectedDivision.name}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Valid rows</p>
+                            <p className="font-medium text-[var(--success)]">{scheduleValidation?.validRows.length ?? 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Skipped rows</p>
+                            <p className="font-medium text-[var(--warning)]">{scheduleValidation?.skippedRows ?? 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-[var(--foreground-muted)]">Weeks</p>
+                            <p className="font-medium">{scheduleValidation && scheduleValidation.weeks.length > 0 ? scheduleValidation.weeks.join(", ") : "None"}</p>
+                          </div>
+                        </div>
+                        {scheduleValidation && scheduleValidation.issues.length > 0 && (
+                          <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 p-3 text-sm text-[var(--error)]">
+                            <p className="font-semibold">Fix before upload:</p>
+                            <ul className="mt-2 list-disc space-y-1 pl-5">
+                              {scheduleValidation.issues.slice(0, 8).map((issue) => (
+                                <li key={issue}>{issue}</li>
+                              ))}
+                            </ul>
+                            {scheduleValidation.issues.length > 8 && (
+                              <p className="mt-2 text-xs">+{scheduleValidation.issues.length - 8} more issue{scheduleValidation.issues.length - 8 === 1 ? "" : "s"}</p>
+                            )}
+                          </div>
+                        )}
                         <div className="max-h-60 overflow-y-auto space-y-1">
                           {schedulePreview.map((entry, i) => (
                             <div key={i} className="text-sm p-2 rounded bg-[var(--background-secondary)]">
@@ -1457,7 +1545,9 @@ export default function AdminMatchesPage() {
                             </div>
                           ))}
                         </div>
-                        <Button onClick={handleUploadSchedule}>Upload Schedule</Button>
+                        <Button onClick={handleUploadSchedule} disabled={!!scheduleValidation?.issues.length}>
+                          Upload Schedule
+                        </Button>
                       </div>
                     )}
                   </>
@@ -1842,16 +1932,28 @@ export default function AdminMatchesPage() {
               {/* Matches List */}
               <Card>
                 <CardHeader>
-                  <CardTitle>All Matches ({matches.length})</CardTitle>
+                  <CardTitle>All Matches ({displayedMatches.length}/{matches.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <div className="mb-4">
+                    <Label>Search Matches</Label>
+                    <Input
+                      value={matchSearch}
+                      onChange={(event) => setMatchSearch(event.target.value)}
+                      placeholder="Search week, division, team, or coach"
+                    />
+                  </div>
                   {matches.length === 0 ? (
                     <p className="text-[var(--foreground-muted)] text-center py-4">
                       No matches scheduled. Upload a schedule first.
                     </p>
+                  ) : displayedMatches.length === 0 ? (
+                    <p className="text-[var(--foreground-muted)] text-center py-4">
+                      No matches match that search.
+                    </p>
                   ) : (
                     <div className="space-y-2">
-                      {matches.map((match) => (
+                      {displayedMatches.map((match) => (
                         <div
                           key={match.id}
                           className={`flex items-center justify-between p-3 rounded-lg ${

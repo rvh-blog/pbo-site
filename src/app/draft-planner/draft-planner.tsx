@@ -201,6 +201,7 @@ type DraftRole = "hazards" | "removal" | "pivot" | "setup" | "status" | "priorit
 const PLANNER_SLOT_COUNT = 11;
 const CHECKLIST_DRAFT_ROLES = ["hazards", "removal", "pivot", "priority"] as const satisfies readonly DraftRole[];
 const CHECKLIST_DRAFT_ROLE_SET = new Set<DraftRole>(CHECKLIST_DRAFT_ROLES);
+type StatFocus = "none" | "price" | "hp" | "attack" | "defense" | "specialAttack" | "specialDefense" | "speed" | "baseStatTotal";
 
 interface CandidatePokemon extends SimplePokemon {
   price: number;
@@ -328,9 +329,11 @@ export function DraftPlanner({
   const [moveSearch, setMoveSearch] = useState("");
   const [candidateSearch, setCandidateSearch] = useState("");
   const [selectedType, setSelectedType] = useState("all");
-  const [selectedRole, setSelectedRole] = useState<"all" | DraftRole>("all");
+  const [statFocus, setStatFocus] = useState<StatFocus>("none");
+  const [statFocusAsc, setStatFocusAsc] = useState(false);
   const [maxPrice, setMaxPrice] = useState(20);
   const [minSpeed, setMinSpeed] = useState(0);
+  const [maxSpeed, setMaxSpeed] = useState(160);
   const [availableOnly, setAvailableOnly] = useState(true);
   const [fitOnly, setFitOnly] = useState(false);
   const [watchlist, setWatchlist] = useState<number[]>([]);
@@ -659,18 +662,15 @@ export function DraftPlanner({
       for (const type of p.types || []) {
         if (draftNeeds.weakTypes.includes(type.toLowerCase())) {
           fitScore += 8;
-          fitTags.push(`${formatTypeName(type)} Buffer`);
         }
       }
 
       if ((p.speed || 0) >= 100 && avgStats.speed < 90) {
         fitScore += 8;
-        fitTags.push("Adds Speed");
       }
 
       if (price > 0 && openSlots > 0 && price <= Math.max(1, avgRemainingPerSlot)) {
         fitScore += 6;
-        fitTags.push("Budget Fit");
       }
 
       if (price > 0 && (p.baseStatTotal || 0) / price >= 55) {
@@ -695,17 +695,21 @@ export function DraftPlanner({
       .filter((p) => !availableOnly || !plannedPokemonIds.has(p.id))
       .filter((p) => !fitOnly || p.fitScore > 0)
       .filter((p) => selectedType === "all" || (p.types || []).map((type) => type.toLowerCase()).includes(selectedType))
-      .filter((p) => selectedRole === "all" || p.roles.includes(selectedRole))
       .filter((p) => p.price <= maxPrice)
       .filter((p) => (p.speed || 0) >= minSpeed)
+      .filter((p) => (p.speed || 0) <= maxSpeed)
       .filter((p) => !search || (p.displayName || p.name).toLowerCase().includes(search) || p.name.toLowerCase().includes(search))
       .sort((a, b) => {
-        if (b.price !== a.price) return b.price - a.price;
         if (watchlist.includes(a.id) !== watchlist.includes(b.id)) return watchlist.includes(a.id) ? -1 : 1;
+        if (statFocus !== "none" && b[statFocus] !== a[statFocus]) {
+          const statCompare = (b[statFocus] || 0) - (a[statFocus] || 0);
+          return statFocusAsc ? -statCompare : statCompare;
+        }
+        if (b.price !== a.price) return b.price - a.price;
         if (b.fitScore !== a.fitScore) return b.fitScore - a.fitScore;
         return (a.displayName || a.name).localeCompare(b.displayName || b.name);
       });
-  }, [availableOnly, candidateSearch, candidates, fitOnly, maxPrice, minSpeed, plannedPokemonIds, selectedRole, selectedType, watchlist]);
+  }, [availableOnly, candidateSearch, candidates, fitOnly, maxPrice, maxSpeed, minSpeed, plannedPokemonIds, selectedType, statFocus, statFocusAsc, watchlist]);
 
   const comparePokemon = useMemo(
     () => compareIds.map((id) => candidates.find((p) => p.id === id)).filter((p): p is CandidatePokemon => Boolean(p)),
@@ -921,14 +925,14 @@ export function DraftPlanner({
                 type="button"
                 aria-pressed={toggle.enabled}
                 onClick={toggle.onClick}
-                className={`inline-flex items-center justify-between gap-1.5 rounded-md border px-2 py-1 text-xs font-bold transition-colors sm:justify-start ${
+                className={`inline-flex min-w-0 items-center justify-between gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold transition-colors sm:justify-start sm:text-xs ${
                   toggle.enabled
                     ? "border-[var(--primary)]/40 bg-[var(--primary)]/15 text-white"
                     : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"
                 }`}
               >
-                <span>{toggle.label}</span>
-                <span className={`rounded px-1.5 py-0.5 text-[9px] uppercase ${
+                <span className="min-w-0 truncate">{toggle.label}</span>
+                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase ${
                   toggle.enabled
                     ? "bg-emerald-500/20 text-emerald-300"
                     : "bg-[var(--background)] text-[var(--foreground-subtle)]"
@@ -1029,7 +1033,7 @@ export function DraftPlanner({
               </div>
             </div>
 
-            <div className="mb-2 grid shrink-0 grid-cols-1 gap-2 md:grid-cols-3">
+            <div className="mb-2 grid shrink-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <label className="relative md:col-span-2 xl:col-span-1">
                 <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--foreground-subtle)]" />
                 <input
@@ -1043,20 +1047,40 @@ export function DraftPlanner({
                 <option value="all">All types</option>
                 {ALL_TYPES.map((type) => <option key={type} value={type}>{formatTypeName(type)}</option>)}
               </select>
-              <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as "all" | DraftRole)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
-                <option value="all">All roles</option>
-                {CHECKLIST_DRAFT_ROLES.map((role) => <option key={role} value={role}>{formatRole(role)}</option>)}
+              <select value={statFocus} onChange={(e) => setStatFocus(e.target.value as StatFocus)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
+                <option value="none">No stat focus</option>
+                <option value="price">Points</option>
+                <option value="hp">HP</option>
+                <option value="attack">Attack</option>
+                <option value="defense">Defense</option>
+                <option value="specialAttack">Sp. Atk</option>
+                <option value="specialDefense">Sp. Def</option>
+                <option value="speed">Speed</option>
+                <option value="baseStatTotal">BST</option>
               </select>
+              <button
+                type="button"
+                onClick={() => setStatFocusAsc((current) => !current)}
+                disabled={statFocus === "none"}
+                className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                title="Toggle stat focus sort direction"
+              >
+                {statFocusAsc ? "Asc" : "Desc"}
+              </button>
             </div>
 
-            <div className="mb-2 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-2 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
               <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Price: {maxPrice}</span>
                 <input type="range" min="0" max="20" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full" />
               </label>
               <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Min Speed: {minSpeed}</span>
-                <input type="range" min="0" max="160" step="5" value={minSpeed} onChange={(e) => setMinSpeed(Number(e.target.value))} className="w-full" />
+                <input type="range" min="0" max="160" step="5" value={minSpeed} onChange={(e) => setMinSpeed(Math.min(Number(e.target.value), maxSpeed))} className="w-full" />
+              </label>
+              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
+                <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Speed: {maxSpeed}</span>
+                <input type="range" min="0" max="160" step="5" value={maxSpeed} onChange={(e) => setMaxSpeed(Math.max(Number(e.target.value), minSpeed))} className="w-full" />
               </label>
               <button type="button" onClick={() => setAvailableOnly(!availableOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-bold transition-colors ${availableOnly ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
                 {availableOnly ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -1145,14 +1169,15 @@ export function DraftPlanner({
                         className="mb-2 h-16 w-full resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
                       />
                     )}
-                    <div className="grid grid-cols-1 gap-1 min-[380px]:grid-cols-3">
-                      <button type="button" onClick={() => toggleWatchlist(candidate.id)} className={`rounded px-2 py-1.5 text-xs font-bold ${isWatched ? "bg-[var(--accent)] text-black" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
-                        {isWatched ? "Remove from Watchlist" : "Add to Watchlist"}
+                    <div className="grid grid-cols-3 gap-1">
+                      <button type="button" onClick={() => toggleWatchlist(candidate.id)} className={`min-w-0 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isWatched ? "bg-[var(--accent)] text-black" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                        <span className="sm:hidden">{isWatched ? "Saved" : "Watch"}</span>
+                        <span className="hidden sm:inline">{isWatched ? "Remove from Watchlist" : "Add to Watchlist"}</span>
                       </button>
-                      <button type="button" onClick={() => toggleCompare(candidate.id)} className={`rounded px-2 py-1.5 text-xs font-bold ${isCompared ? "bg-sky-500/20 text-sky-200" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                      <button type="button" onClick={() => toggleCompare(candidate.id)} className={`min-w-0 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isCompared ? "bg-sky-500/20 text-sky-200" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
                         Compare
                       </button>
-                      <button type="button" disabled={openSlots === 0 || isPlanned} onClick={() => addCandidateToNextSlot(candidate)} className="rounded bg-[var(--primary)] px-2 py-1.5 text-xs font-bold text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+                      <button type="button" disabled={openSlots === 0 || isPlanned} onClick={() => addCandidateToNextSlot(candidate)} className="min-w-0 rounded bg-[var(--primary)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:text-xs">
                         Add
                       </button>
                     </div>
@@ -1629,18 +1654,23 @@ export function DraftPlanner({
             <button
               onClick={savePreferences}
               disabled={saveStatus === "saving"}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--background-tertiary)] hover:bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white rounded transition-colors disabled:opacity-50"
+              className="flex shrink-0 items-center gap-1.5 rounded bg-[var(--background-tertiary)] px-2 py-1.5 text-[11px] text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-secondary)] hover:text-white disabled:opacity-50 sm:px-3 sm:text-xs"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
-              {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Defaults"}
+              <span className="sm:hidden">
+                {saveStatus === "saving" ? "Saving" : saveStatus === "saved" ? "Saved" : "Save"}
+              </span>
+              <span className="hidden sm:inline">
+                {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Defaults"}
+              </span>
             </button>
             <div className="flex-1 border-t border-[var(--background-tertiary)]" />
           </div>
 
-          {/* Move Coverage - 25% of row on desktop - uses relative/absolute to not affect row height */}
-          <div className="min-h-[300px] w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:relative lg:h-44 lg:min-h-0">
+          {/* Move Coverage - uses relative/absolute on desktop to control panel height */}
+          <div className="min-h-[300px] w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:relative lg:h-64 lg:min-h-0">
             {/* Mobile: normal flow */}
             <div className="lg:hidden p-1.5 flex flex-col">
               {/* Search/Add Move */}
@@ -1682,7 +1712,7 @@ export function DraftPlanner({
                 )}
               </div>
               {/* Move List - Mobile */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1px" }}>
+              <div className="max-h-[52dvh] overflow-y-auto" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1px" }}>
                 {moveCoverage.map(({ move, pokemon }) => {
                   const moveType = moveTypes[move];
                   return (

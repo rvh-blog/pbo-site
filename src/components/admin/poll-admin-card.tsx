@@ -8,12 +8,21 @@ interface AdminPollData {
   question: string;
   options: string[];
   isActive: boolean;
+  totalVotes: number;
+  results: Array<{
+    index: number;
+    label: string;
+    votes: number;
+    percentage: number;
+  }>;
 }
 
 export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
   const [question, setQuestion] = useState(initialPoll.question);
   const [options, setOptions] = useState(initialPoll.options.length >= 2 ? initialPoll.options : ["", ""]);
   const [isActive, setIsActive] = useState(initialPoll.isActive);
+  const [totalVotes, setTotalVotes] = useState(initialPoll.totalVotes);
+  const [results, setResults] = useState(initialPoll.results);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -46,12 +55,55 @@ export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
       setQuestion(data.poll.question);
       setOptions(data.poll.options.length >= 2 ? data.poll.options : ["", ""]);
       setIsActive(data.poll.isActive);
+      setTotalVotes(data.poll.totalVotes);
+      setResults(data.poll.results);
       setMessage("Poll saved.");
     });
   }
 
+  const resultRows = results.length > 0
+    ? results
+    : options
+        .map((label, index) => ({ index, label: label.trim(), votes: 0, percentage: 0 }))
+        .filter((result) => result.label);
+
   return (
     <div className="space-y-4 rounded-lg border border-[var(--background-tertiary)] p-4">
+      <div className="rounded-lg border-2 border-[var(--primary)]/30 bg-[var(--background)]/60 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-bold text-white">Current Results</h4>
+            <p className="text-xs text-[var(--foreground-muted)]">Aggregate vote totals only.</p>
+          </div>
+          <span className="rounded bg-[var(--background-secondary)] px-2 py-1 text-xs font-bold text-[var(--foreground-muted)]">
+            {totalVotes} vote{totalVotes === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {resultRows.length > 0 ? (
+          <div className="space-y-2">
+            {resultRows.map((result) => (
+              <div key={result.index}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate font-bold text-white">{result.label}</span>
+                  <span className="shrink-0 font-mono text-[var(--foreground-muted)]">
+                    {Math.round(result.percentage * 10) / 10}% ({result.votes})
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-[var(--background-tertiary)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--primary)] transition-all"
+                    style={{ width: `${Math.min(100, Math.max(0, result.percentage))}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--foreground-subtle)]">Save poll options to see results here.</p>
+        )}
+      </div>
+
       <div className="grid gap-2">
         <label className="text-xs font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Question</label>
         <input

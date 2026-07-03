@@ -24,6 +24,8 @@ export interface AdminPollData {
   question: string;
   options: string[];
   isActive: boolean;
+  totalVotes: number;
+  results: PollOptionResult[];
 }
 
 let ensuredPollTables = false;
@@ -126,14 +128,37 @@ export async function getAdminPoll(): Promise<AdminPollData> {
       question: "",
       options: ["", ""],
       isActive: false,
+      totalVotes: 0,
+      results: [],
     };
+  }
+
+  const optionLabels = parseOptions(poll.options);
+  const votes = await db.query.pollVotes.findMany({
+    where: eq(pollVotes.pollId, poll.id),
+  });
+  const totalVotes = votes.length;
+  const voteCounts = new Map<number, number>();
+
+  for (const vote of votes) {
+    voteCounts.set(vote.optionIndex, (voteCounts.get(vote.optionIndex) ?? 0) + 1);
   }
 
   return {
     id: poll.id,
     question: poll.question,
-    options: parseOptions(poll.options),
+    options: optionLabels,
     isActive: poll.isActive,
+    totalVotes,
+    results: optionLabels.map((label, index) => {
+      const count = voteCounts.get(index) ?? 0;
+      return {
+        index,
+        label,
+        votes: count,
+        percentage: totalVotes > 0 ? (count / totalVotes) * 100 : 0,
+      };
+    }),
   };
 }
 

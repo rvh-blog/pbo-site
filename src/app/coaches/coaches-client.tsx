@@ -36,6 +36,8 @@ type Match = {
   coach1SeasonId: number;
   coach2SeasonId: number;
   winnerId: number | null;
+  coach1Differential: number | null;
+  coach2Differential: number | null;
   isForfeit: boolean;
   divisionId: number;
   seasonId: number;
@@ -61,12 +63,18 @@ type Props = {
   seasons: Season[];
 };
 
+type SortKey = "elo" | "name" | "wins" | "winRate" | "differential" | "games" | "seasons";
+type SortDirection = "asc" | "desc";
+
 export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions, seasons }: Props) {
   const [includeForfeits, setIncludeForfeits] = useState(true);
   const [showAllTimeStats, setShowAllTimeStats] = useState(true); // true = all-time, false = filtered
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null);
   const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("elo");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // Get divisions for selected season
   const filteredDivisions = useMemo(() => {
@@ -119,16 +127,22 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
 
       let wins = 0;
       let losses = 0;
+      let differential = 0;
 
       for (const match of relevantMatches) {
-        const mySeasonCoachId = statsSeasonCoachIds.includes(match.coach1SeasonId)
-          ? match.coach1SeasonId
-          : match.coach2SeasonId;
+        const isCoach1 = statsSeasonCoachIds.includes(match.coach1SeasonId);
+        const mySeasonCoachId = isCoach1 ? match.coach1SeasonId : match.coach2SeasonId;
 
         if (match.winnerId === mySeasonCoachId) {
           wins++;
         } else if (match.winnerId) {
           losses++;
+        }
+
+        if (match.winnerId) {
+          differential += isCoach1
+            ? match.coach1Differential ?? 0
+            : match.coach2Differential ?? 0;
         }
       }
 
@@ -140,6 +154,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
         totalWins: wins,
         totalLosses: losses,
         winRate,
+        differential,
         gamesPlayed,
         hasMatchesInFilter,
       };
@@ -160,8 +175,46 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
       filtered = filtered.filter(c => c.isActive);
     }
 
-    return filtered.sort((a, b) => b.eloRating - a.eloRating);
-  }, [coachesWithStats, selectedSeasonId, selectedDivisionId, showActiveOnly]);
+    const normalizedSearch = search.trim().toLowerCase();
+    if (normalizedSearch) {
+      filtered = filtered.filter((coach) =>
+        coach.name.toLowerCase().includes(normalizedSearch) ||
+        coach.latestTeam?.teamName.toLowerCase().includes(normalizedSearch) ||
+        coach.latestTeam?.teamAbbreviation?.toLowerCase().includes(normalizedSearch)
+      );
+    }
+
+    return [...filtered].sort((a, b) => {
+      let base = 0;
+      switch (sortKey) {
+        case "name":
+          base = a.name.localeCompare(b.name);
+          break;
+        case "wins":
+          base = a.totalWins - b.totalWins;
+          break;
+        case "winRate":
+          base = a.winRate - b.winRate;
+          break;
+        case "differential":
+          base = a.differential - b.differential;
+          break;
+        case "games":
+          base = a.gamesPlayed - b.gamesPlayed;
+          break;
+        case "seasons":
+          base = a.seasons - b.seasons;
+          break;
+        case "elo":
+        default:
+          base = a.eloRating - b.eloRating;
+          break;
+      }
+
+      const sorted = sortDirection === "asc" ? base : -base;
+      return sorted || b.eloRating - a.eloRating || a.name.localeCompare(b.name);
+    });
+  }, [coachesWithStats, selectedSeasonId, selectedDivisionId, showActiveOnly, search, sortDirection, sortKey]);
 
   return (
     <div className="space-y-6">
@@ -173,7 +226,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
               Coaches
             </h1>
             <p className="text-sm text-[var(--foreground-muted)] mt-1">
-              All coaches ranked by ELO rating
+              Search, filter, and sort coach records.
             </p>
           </div>
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)]">
@@ -225,7 +278,40 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                       : "All coaches"}
                   </span>
                 </summary>
-              <div className="mobile-collapsible-content flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
+              <div className="mobile-collapsible-content flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                <label className="min-w-0 sm:w-52">
+                  <span className="sr-only">Search coaches</span>
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search coach or team"
+                    className="w-full rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  />
+                </label>
+
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:w-auto">
+                  <select
+                    value={sortKey}
+                    onChange={(event) => setSortKey(event.target.value as SortKey)}
+                    className="min-w-0 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  >
+                    <option value="elo">Sort: Elo</option>
+                    <option value="name">Sort: Name</option>
+                    <option value="wins">Sort: Wins</option>
+                    <option value="winRate">Sort: Win %</option>
+                    <option value="differential">Sort: Diff</option>
+                    <option value="games">Sort: Games</option>
+                    <option value="seasons">Sort: Seasons</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setSortDirection((current) => current === "asc" ? "desc" : "asc")}
+                    className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white"
+                  >
+                    {sortDirection === "asc" ? "Asc" : "Desc"}
+                  </button>
+                </div>
+
                 {/* Filter Dropdowns Row */}
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                   <span className="text-[10px] sm:text-xs text-[var(--foreground-muted)] whitespace-nowrap">Filter:</span>
@@ -398,27 +484,41 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                       )}
                     </p>
                     {/* Stats - Mobile (below name) */}
-                    <p className="md:hidden text-[10px] text-[var(--foreground-muted)] mt-0.5">
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-[var(--foreground-muted)] md:hidden">
+                      <span>{coach.gamesPlayed} GP</span>
                       <span className="text-[var(--success)] font-medium">{coach.totalWins}W</span>
                       <span className="mx-1">-</span>
                       <span className="text-[var(--error)] font-medium">{coach.totalLosses}L</span>
-                      <span className="ml-1.5 text-[var(--foreground-subtle)]">({coach.winRate}%)</span>
+                      <span>{coach.winRate}%</span>
+                      <span className={coach.differential >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}>
+                        {coach.differential > 0 ? "+" : ""}{coach.differential}
+                      </span>
                     </p>
                   </div>
 
                   {/* Stats - Desktop */}
-                  <div className="hidden md:flex items-center gap-6 text-sm">
-                    <div className="text-center w-12">
+                  <div className="hidden md:grid grid-cols-5 items-center gap-3 text-sm">
+                    <div className="w-14 text-center">
+                      <p className="font-bold text-white">{coach.gamesPlayed}</p>
+                      <p className="text-[10px] text-[var(--foreground-muted)]">GP</p>
+                    </div>
+                    <div className="w-14 text-center">
                       <p className="font-bold text-[var(--success)]">{coach.totalWins}</p>
                       <p className="text-[10px] text-[var(--foreground-muted)]">W</p>
                     </div>
-                    <div className="text-center w-12">
+                    <div className="w-14 text-center">
                       <p className="font-bold text-[var(--error)]">{coach.totalLosses}</p>
                       <p className="text-[10px] text-[var(--foreground-muted)]">L</p>
                     </div>
-                    <div className="text-center w-12">
+                    <div className="w-14 text-center">
                       <p className="font-bold">{coach.winRate}%</p>
                       <p className="text-[10px] text-[var(--foreground-muted)]">Win</p>
+                    </div>
+                    <div className="w-14 text-center">
+                      <p className={`font-bold ${coach.differential >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                        {coach.differential > 0 ? "+" : ""}{coach.differential}
+                      </p>
+                      <p className="text-[10px] text-[var(--foreground-muted)]">Diff</p>
                     </div>
                   </div>
 

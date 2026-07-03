@@ -4,6 +4,57 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 3, 2026
+
+Battle Record:
+
+- Battle Record remains a dedicated page and does not replace coach fun facts.
+- The table includes coach ranking numbers, centered sortable columns, minimum-games filtering, and default sorting by games played descending.
+- Coach logos fall back to the PBO logo when a coach/team logo is missing.
+- Close Game Win Percentage displays as `X% (wins/losses)` and includes only close games in the parenthetical record.
+- Big Win Percentage displays as `X% (number of big wins)`.
+- Close Game Win Percentage and Big Win Percentage include hover definitions.
+- Last 15 results were added as a table column.
+
+Draft planner:
+
+- Removed visible `Buffer` and `Check` wording.
+- Visible fit tags are limited to role checklist tags.
+- Draft board filters now include speed range and stat focus.
+- Draft board sorting supports ascending/descending order, including points.
+- The move coverage panel is taller while remaining mobile-compatible.
+- Mobile text wrapping and compact labels were tightened to prevent overflow.
+
+Coaches and mobile layout:
+
+- The coaches page now supports search and multiple sort modes.
+- Coach list cards show compact performance stats and differential information.
+- Global mobile overflow safeguards were added for page content while preserving intentional horizontal scrolling areas.
+
+League poll:
+
+- Admin poll results now appear in the League Poll section of the admin dashboard.
+- Admin results show aggregate percentages and vote counts only; voter identities are not shown.
+
+Season 11+ format:
+
+- Season 11 and later are modeled as 80 total players: 5 divisions with 16 players per division.
+- The PBO season format is 8 regular-season weeks followed by 3 playoff rounds.
+- A shared season format helper now centralizes these Season 11+ assumptions.
+- Admin schedule upload validation checks 16 teams per division, 64 regular-season matches, weeks 1-8 only, 8 matches per week, duplicate weekly team appearances, and self-match rows.
+- Admin schedule uploads create valid match rows in parallel.
+- Admin rosters show Season 11+ division status counts such as `16/16`.
+- Admin matches, rosters, and transactions gained search fields to make 80-player seasons easier to manage.
+- Admin transaction count loading now runs in parallel across teams.
+- Google Sheets match-stat sync uses the shared Season 11+ format and supports 8 fixtures per week for 16-team divisions.
+- Wiglett match submissions validate against the same PBO week format: regular weeks 1-8 and playoff weeks 101-103.
+
+Verification notes:
+
+- `npx.cmd tsc --noEmit` passes.
+- Local admin routes for matches, rosters, and transactions return 200.
+- Targeted ESLint passes for the shared season format, Sheets match-stat sync, and Wiglett integration files.
+
 ## July 2, 2026
 
 Navigation and stats:

@@ -22,6 +22,7 @@ import {
   pokemonExactLookupKeys,
   pokemonNormalizedLookupKeys,
 } from "@/lib/pokemon-name-utils";
+import { getSeasonFormat } from "@/lib/season-format";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -377,6 +378,7 @@ async function resolveMatch(payload: JsonRecord, divisionId: number) {
 
   const week = getNumber(payload, ["week", "matchWeek"]);
   if (!week) throw new WiglettIntegrationError("week or matchId is required for match results");
+  await validateWiglettWeek(divisionId, week);
 
   const { teamA, teamB } = await resolveMatchTeams(divisionId, payload);
   const found = await db.query.matches.findMany({
@@ -396,6 +398,22 @@ async function resolveMatch(payload: JsonRecord, divisionId: number) {
   }
 
   return match;
+}
+
+async function validateWiglettWeek(divisionId: number, week: number) {
+  const division = await db.query.divisions.findFirst({
+    where: eq(divisions.id, divisionId),
+    with: { season: true },
+  });
+  const format = getSeasonFormat(division?.season?.seasonNumber);
+  const regularWeekValid = week >= 1 && week <= format.regularSeasonWeeks;
+  const playoffWeekValid = week >= 101 && week <= 100 + format.playoffRounds;
+
+  if (!regularWeekValid && !playoffWeekValid) {
+    throw new WiglettIntegrationError(
+      `Week ${week} is outside the PBO format: weeks 1-${format.regularSeasonWeeks}, then playoff weeks 101-${100 + format.playoffRounds}`
+    );
+  }
 }
 
 async function resolveWinnerId(divisionId: number, payload: JsonRecord): Promise<number | undefined> {

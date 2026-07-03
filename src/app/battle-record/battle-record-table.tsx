@@ -154,7 +154,60 @@ export function BattleRecordTable({ records }: { records: BattleRecordRow[] }) {
         </p>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="grid gap-3 p-3 sm:hidden">
+        {sortedRecords.map((coach, index) => (
+          <div
+            key={coach.coachId}
+            className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/55 p-3"
+          >
+            <div className="mb-3 flex min-w-0 items-center gap-3">
+              <div className="w-7 shrink-0 text-center font-mono text-sm font-bold text-[var(--foreground-subtle)]">
+                {index + 1}
+              </div>
+              {coach.logoUrl ? (
+                <Image src={coach.logoUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" />
+              ) : (
+                <Image src="/images/pbo-logo.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" />
+              )}
+              <Link href={`/coaches/${coach.coachId}`} className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-white">{coach.coachName}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+                  {coach.games} games
+                </div>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="rounded bg-[var(--background-secondary)] px-2 py-2">
+                <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Win %</div>
+                <div className="font-mono text-sm font-bold text-white">{formatPercentage(coach.winningPercentage)}</div>
+              </div>
+              <div className="rounded bg-[var(--background-secondary)] px-2 py-2">
+                <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Avg Diff</div>
+                <div className="font-mono text-sm font-bold text-white">{formatSignedDecimal(coach.averageDifferential)}</div>
+              </div>
+              <div className="rounded bg-[var(--background-secondary)] px-2 py-2">
+                <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Last 15</div>
+                <div className="font-mono text-xs text-white">{formatLast15Record(coach)}</div>
+              </div>
+              <div className="rounded bg-[var(--background-secondary)] px-2 py-2">
+                <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Close</div>
+                <div className="font-mono text-xs text-[var(--foreground-muted)]">{formatCloseGameRecord(coach)}</div>
+              </div>
+              <div className="rounded bg-[var(--background-secondary)] px-2 py-2">
+                <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Avg Win</div>
+                <div className="font-mono text-xs text-[var(--success)]">{formatSignedDecimal(coach.averageWinDifference)}</div>
+              </div>
+              <div className="rounded bg-[var(--background-secondary)] px-2 py-2">
+                <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Avg Loss</div>
+                <div className="font-mono text-xs text-[var(--error)]">{formatSignedDecimal(coach.averageLossDifference)}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[1180px] border-collapse text-center">
           <thead>
             <tr className="border-b border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">

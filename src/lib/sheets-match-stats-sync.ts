@@ -6,6 +6,7 @@ import {
   divisions,
 } from "@/lib/schema";
 import { eq } from "drizzle-orm";
+import { getSeasonFormat, LEGACY_REGULAR_SEASON_WEEKS, SEASON_11_FIXTURES_PER_WEEK } from "@/lib/season-format";
 
 // Match Stats sheet structure:
 // - Week columns: C(2), Q(16), AE(30), AS(44), BG(58), BU(72), CI(86), CW(100) - 14 columns apart
@@ -23,7 +24,6 @@ const WEEK_COL_SPACING = 14; // 14 columns between week starts
 const FIXTURE_START_ROW = 5; // First fixture at row 5 (1-indexed)
 const FIXTURE_ROW_SPACING = 13; // 13 rows between fixtures
 const LEGACY_FIXTURES_PER_WEEK = 7;
-const S11_FIXTURES_PER_WEEK = 8;
 
 // Column offsets within a fixture (from week start column):
 // Team 1: Pokemon=0, Kills=1, Deaths=2
@@ -260,19 +260,20 @@ function colIdxToLetter(idx: number): string {
  */
 async function getFixturePositions(
   spreadsheetId: string,
-  fixturesPerWeek: number
+  fixturesPerWeek: number,
+  regularWeeks: number
 ): Promise<Map<string, SheetFixturePosition>> {
   const positions = new Map<string, SheetFixturePosition>();
 
-  // Read the Match Stats sheet - need enough range to cover all weeks and fixtures
-  // 8 weeks * 14 cols = 112 cols. S11+ can use 8 fixtures (16 teams);
-  // legacy seasons keep the 7-fixture template.
-  const fixtureRangeEndRow = fixturesPerWeek >= S11_FIXTURES_PER_WEEK ? 110 : 100;
-  const data = await readSheetRange(spreadsheetId, `Match Stats!A1:DZ${fixtureRangeEndRow}`);
+  // Read the Match Stats sheet - enough rows for 16-team divisions and the
+  // fixed 8-week regular season.
+  const fixtureRangeEndRow = fixturesPerWeek >= SEASON_11_FIXTURES_PER_WEEK ? 110 : 100;
+  const fixtureRangeEndCol = colIdxToLetter(WEEK_START_COL + Math.max(regularWeeks - 1, 0) * WEEK_COL_SPACING + T2_POKEMON_OFFSET);
+  const data = await readSheetRange(spreadsheetId, `Match Stats!A1:${fixtureRangeEndCol}${fixtureRangeEndRow}`);
   if (!data) return positions;
 
   // Iterate through each week and fixture
-  for (let week = 1; week <= 8; week++) {
+  for (let week = 1; week <= regularWeeks; week++) {
     const weekColIdx = WEEK_START_COL + (week - 1) * WEEK_COL_SPACING;
 
     for (let fixture = 0; fixture < fixturesPerWeek; fixture++) {
@@ -436,17 +437,20 @@ export async function syncMatchStatsToSheet(
       with: { season: true },
     });
     const seasonNumber = division?.season?.seasonNumber ?? 0;
-    const fixturesPerWeek = seasonNumber >= 11 ? S11_FIXTURES_PER_WEEK : LEGACY_FIXTURES_PER_WEEK;
+    const seasonFormat = getSeasonFormat(seasonNumber);
+    const fixturesPerWeek = seasonFormat.fixturesPerRegularWeek ?? LEGACY_FIXTURES_PER_WEEK;
+    const regularSeasonWeeks = seasonFormat.regularSeasonWeeks ?? LEGACY_REGULAR_SEASON_WEEKS;
 
-    // 1-3. Fetch data (use pre-built mapping if provided)
+    // 1-3. Fetch data in parallel.
     console.log("Fetching fixture positions and match data...");
     const [pokemonNameMapping, fixturePositions, matchDataList] = await Promise.all([
       options?.pokemonNameMapping
         ? Promise.resolve(options.pokemonNameMapping)
         : buildPokemonNameMapping(spreadsheetId),
-      getFixturePositions(spreadsheetId, fixturesPerWeek),
+      getFixturePositions(spreadsheetId, fixturesPerWeek, regularSeasonWeeks),
       getDivisionMatches(divisionId),
     ]);
+
     console.log(`Loaded ${pokemonNameMapping.size} Pokemon mappings, ${fixturePositions.size} fixtures, ${matchDataList.length} matches`);
 
     // 4. Build batch updates

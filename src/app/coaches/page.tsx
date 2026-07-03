@@ -82,6 +82,8 @@ async function getCoachesData() {
     coach1SeasonId: m.coach1SeasonId,
     coach2SeasonId: m.coach2SeasonId,
     winnerId: m.winnerId,
+    coach1Differential: m.coach1Differential,
+    coach2Differential: m.coach2Differential,
     isForfeit: m.isForfeit === true,
     divisionId: m.divisionId,
     seasonId: m.seasonId,

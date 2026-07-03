@@ -1400,7 +1400,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
                     </div>
                   }
                 >
-                  <div className="px-4 py-3 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--primary)]/30 shadow-lg min-w-[280px] sm:min-w-[320px]">
+                  <div className="max-w-[calc(100vw-2rem)] rounded-lg border-2 border-[var(--primary)]/30 bg-[var(--background-secondary)] px-4 py-3 shadow-lg sm:min-w-[320px]">
                     <p className="text-xs font-bold text-[var(--primary)] uppercase tracking-wide mb-3">Pick-Ems Rewards</p>
 
                     {/* Overall Rewards */}
