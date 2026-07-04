@@ -768,7 +768,7 @@ export default async function Home() {
     getStargazerChampion(),
     getHomePersonalization(currentSeasonPromise),
   ]);
-  const visibleTopCoaches = topCoaches.slice(0, 5);
+  const visibleTopCoaches = topCoaches.filter((coach, index) => index < 5 || coach.isShowcase);
   const previousSeasonPlayoffHref = previousSeasonChampions[0]?.seasonId
     ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs`
     : "/seasons";
@@ -911,7 +911,7 @@ export default async function Home() {
             </div>
 
             {personalizedHome.activeTeam ? (
-              <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_minmax(240px,1fr)_auto] lg:items-center flex-1">
+              <div className="grid w-full gap-3 lg:w-auto lg:max-w-[760px] lg:grid-cols-[minmax(0,240px)_minmax(0,260px)] lg:items-start lg:justify-end xl:max-w-[920px] xl:grid-cols-[220px_240px_minmax(260px,320px)_auto]">
                 <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4">
                   <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
                     Next Match
@@ -1011,24 +1011,25 @@ export default async function Home() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex w-full flex-col gap-3 lg:w-auto lg:max-w-[560px] lg:items-end">
+                <div className="flex flex-wrap gap-2 lg:justify-end">
                 {personalizedHome.user.type === "coach" && (
                   <Link
                     href={`/coaches/${personalizedHome.user.id}`}
-                    className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    className="inline-flex w-fit items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
                   >
                     My Coach Page
                   </Link>
                 )}
                 <Link
                   href="/seasons"
-                  className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  className="inline-flex w-fit items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
                 >
                   Browse Seasons
                 </Link>
                 <Link
                   href="/pick-ems"
-                  className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  className="inline-flex w-fit items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
                 >
                   Pick-Ems
                 </Link>
@@ -1036,10 +1037,11 @@ export default async function Home() {
                   href={RULEBOOK_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  className="inline-flex w-fit items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
                 >
                   Rulebook
                 </a>
+                </div>
                 <div className="w-full max-w-md">
                   <PollCard initialPoll={personalizedHome.poll} compact />
                 </div>
@@ -1223,8 +1225,15 @@ export default async function Home() {
 
                         {/* Name and Type Badges */}
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-sm text-[var(--foreground-muted)] group-hover:text-white transition-colors truncate">
-                            {coach.name}
+                          <div className="flex items-center gap-2">
+                            <div className="font-bold text-sm text-[var(--foreground-muted)] group-hover:text-white transition-colors truncate">
+                              {coach.name}
+                            </div>
+                            {coach.isShowcase && (
+                              <span className="shrink-0 rounded bg-[var(--primary)]/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[var(--primary)]">
+                                Showcase
+                              </span>
+                            )}
                           </div>
                           {/* Type Badges - based on most used Pokemon types */}
                           <div className="flex gap-1 mt-1">

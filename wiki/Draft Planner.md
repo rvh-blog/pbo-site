@@ -15,9 +15,10 @@ The draft planner is a public planning tool at `/draft-planner`. It is intention
 - Tier language such as Premium, Starter, and Value is not shown in the draft board.
 - Type filter labels are capitalized for readability.
 - The tier filter has been removed.
-- The planner uses a fixed-height workspace so the page itself does not need to scroll on desktop.
+- The planner can extend vertically on desktop when dense panels are shown.
 - The Team Roster sits to the right of the Draft Board so users can edit roster slots while browsing candidates.
-- The team analyzer sits on the far right side of the page on desktop, with its dense panels scrolling internally as needed.
+- The Team Analyzer is its own standalone section under the Draft Needs/Draft Board workspace.
+- Dense analyzer tables use stable text sizes and horizontal/internal scrolling instead of viewport-width text scaling, so mobile and unusual aspect ratios remain readable.
 
 ## Panel Toggles
 

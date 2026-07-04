@@ -63,6 +63,26 @@ interface StoreModalProps {
   onBalanceChange: (newBalance: number) => void;
 }
 
+function PboCoinIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" fill="#facc15" />
+      <circle cx="12" cy="12" r="8" fill="#f59e0b" opacity="0.55" />
+      <circle cx="12" cy="12" r="10" fill="none" stroke="#fde68a" strokeWidth="1.5" />
+      <text
+        x="12"
+        y="16"
+        textAnchor="middle"
+        fontSize="11"
+        fontWeight="900"
+        fill="#713f12"
+      >
+        P
+      </text>
+    </svg>
+  );
+}
+
 export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreModalProps) {
   const [items, setItems] = useState<StoreItem[]>([]);
   const [inventory, setInventory] = useState<Purchase[]>([]);
@@ -437,11 +457,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
               <h2 className="text-xl font-bold">PBO Store</h2>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--accent)]/20 border border-[var(--accent)]/30">
-              <svg className="w-4 h-4 text-[var(--accent)]" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.3"/>
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
-                <text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="bold" fill="currentColor">P</text>
-              </svg>
+              <PboCoinIcon className="h-4 w-4" />
               <span className="text-sm font-bold text-[var(--accent)]">{balance}</span>
             </div>
           </div>
@@ -637,11 +653,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                                             </span>
                                           ) : (
                                             <span className="flex items-center gap-1">
-                                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                                                <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.3"/>
-                                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
-                                                <text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="bold" fill="currentColor">P</text>
-                                              </svg>
+                                              <PboCoinIcon className="h-3.5 w-3.5" />
                                               {item.price}
                                             </span>
                                           )}
@@ -1261,11 +1273,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                           {/* Action Row */}
                           <div className="flex items-center justify-between mt-3">
                             <div className="flex items-center gap-1 text-sm font-medium text-[var(--accent)]">
-                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                                <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.3"/>
-                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
-                                <text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="bold" fill="currentColor">P</text>
-                              </svg>
+                              <PboCoinIcon className="h-3.5 w-3.5" />
                               <span className="font-bold">{item.price}</span>
                             </div>
 

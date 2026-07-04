@@ -35,6 +35,7 @@ Current behavior:
 - Coach users can vote once per poll.
 - Results are hidden until the current coach has voted.
 - Poll visibility can be hidden locally by each viewer; this does not edit the poll.
+- Hidden polls leave a compact placeholder with an Unhide control so viewers can restore the poll on the home page or coach profile pages.
 
 Relevant files:
 

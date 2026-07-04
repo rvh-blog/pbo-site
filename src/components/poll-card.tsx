@@ -32,12 +32,18 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
   );
   const [isPending, startTransition] = useTransition();
 
-  if (!poll || isHidden) return null;
+  if (!poll) return null;
 
   function hidePoll() {
     if (!poll) return;
     localStorage.setItem(`pbo-hidden-poll-${poll.id}`, "true");
     setIsHidden(true);
+  }
+
+  function unhidePoll() {
+    if (!poll) return;
+    localStorage.removeItem(`pbo-hidden-poll-${poll.id}`);
+    setIsHidden(false);
   }
 
   function vote(optionIndex: number) {
@@ -59,6 +65,30 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
 
       setPoll(data.poll);
     });
+  }
+
+  if (isHidden) {
+    return (
+      <div className={`rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 ${compact ? "p-4" : "p-5"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
+              League Poll
+            </div>
+            <p className="mt-1 truncate text-xs text-[var(--foreground-muted)]">
+              Poll hidden
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={unhidePoll}
+            className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)] transition-colors hover:text-white"
+          >
+            Unhide
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

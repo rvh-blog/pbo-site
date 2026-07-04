@@ -40,6 +40,8 @@ Relevant files:
 
 Logo frames are store cosmetics rendered through `src/components/logo-frame.tsx`.
 
+Logo frame price displays should use the same gold PBO Coin symbol treatment as the rest of the store UI.
+
 Champion Gold is earned-only:
 
 - Slug: `logo-frame-champion-gold`

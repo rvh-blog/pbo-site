@@ -796,14 +796,14 @@ export function DraftPlanner({
   function renderTeamRosterPanel() {
     return (
       <div className="flex min-h-0 flex-col overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:h-full lg:overflow-hidden">
-        <div className="border-b border-[var(--background-tertiary)] bg-[var(--card)] p-3">
+        <div className="border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
           <h3 className="font-bold text-sm">Team Roster</h3>
-          <p className="text-xs text-[var(--foreground-muted)]">Edit picks while using the draft board</p>
+          <p className="text-[11px] text-[var(--foreground-muted)]">Edit picks while drafting</p>
         </div>
-        <div className="max-h-[60dvh] overflow-y-auto p-2 lg:max-h-none lg:flex-1">
+        <div className="max-h-[52dvh] overflow-y-auto p-1.5 lg:max-h-none lg:flex-1">
           <div>
             {slots.map((slot, i) => (
-              <div key={i} className="flex items-center gap-1 rounded px-1 py-0.5">
+              <div key={i} className="flex items-center gap-1 rounded px-1 py-px">
                 <span className="w-4 text-right text-xs text-[var(--foreground-muted)]">
                   {i + 1}
                 </span>
@@ -826,7 +826,7 @@ export function DraftPlanner({
                   type="button"
                   onClick={() => handleSlotChange(i, null, "")}
                   disabled={!slot.pokemonId && !slot.pokemonName}
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[var(--background-secondary)] text-orange-400 transition-colors hover:bg-[var(--background-tertiary)] hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-30"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[var(--background-secondary)] text-orange-400 transition-colors hover:bg-[var(--background-tertiary)] hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-30"
                   title="Remove Pokemon"
                   aria-label={`Remove Pokemon from slot ${i + 1}`}
                 >
@@ -858,7 +858,7 @@ export function DraftPlanner({
 
   return (
     <div
-      className="min-h-[calc(100dvh-16px)] overflow-y-auto lg:h-[calc(100vh-16px)] lg:overflow-hidden"
+      className="min-h-[calc(100dvh-16px)] overflow-y-auto"
       style={{
         width: '100vw',
         position: 'relative',
@@ -866,7 +866,7 @@ export function DraftPlanner({
         marginLeft: '-50vw',
       }}
     >
-      <div className="poke-card mx-2 mt-2 flex min-h-[calc(100dvh-1rem)] flex-col overflow-visible p-2 sm:mx-4 sm:p-3 lg:h-[calc(100vh-1rem)] lg:overflow-hidden">
+      <div className="poke-card mx-2 mt-2 flex min-h-[calc(100dvh-1rem)] flex-col overflow-visible p-2 sm:mx-4 sm:p-3">
         {/* Header */}
         <div className="mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-[var(--background-tertiary)] pb-2">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -932,7 +932,7 @@ export function DraftPlanner({
                 }`}
               >
                 <span className="min-w-0 truncate">{toggle.label}</span>
-                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase ${
+                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase ${
                   toggle.enabled
                     ? "bg-emerald-500/20 text-emerald-300"
                     : "bg-[var(--background)] text-[var(--foreground-subtle)]"
@@ -944,14 +944,14 @@ export function DraftPlanner({
           </div>
         </div>
 
-        <div className={`min-h-0 overflow-visible lg:flex-1 lg:overflow-hidden ${showDraftBoard && showTeamAnalyzer ? "grid gap-2 lg:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.8fr)]" : "flex flex-col"}`}>
+        <div className="flex min-h-0 flex-col gap-1.5 overflow-visible lg:flex-1 lg:overflow-y-auto lg:pr-1">
         {/* Draft board and roster workspace */}
         {showDraftBoard && (
-        <div className={`min-h-0 grid grid-cols-1 gap-2 overflow-visible lg:overflow-hidden ${showTeamAnalyzer ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
+        <div className={`min-h-0 grid grid-cols-1 gap-1.5 overflow-visible lg:overflow-hidden ${showTeamAnalyzer ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
           <div className="flex min-h-0 min-w-0 flex-col overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:overflow-hidden">
           {showNeedsPanel && (
-          <div className="shrink-0 border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="shrink-0 border-b border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-white">Draft Needs</h2>
                 <p className="text-xs text-[var(--foreground-muted)]">Budget, roles, and roster gaps</p>
@@ -965,26 +965,26 @@ export function DraftPlanner({
                 {shareStatus === "copied" ? "Copied" : "Copy Plan"}
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div className="rounded-md bg-[var(--background-secondary)] p-2">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              <div className="rounded-md bg-[var(--background-secondary)] p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Remaining</p>
-                <p className={`font-mono text-lg font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{remainingBudget}</p>
+                <p className={`font-mono text-base font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{remainingBudget}</p>
               </div>
-              <div className="rounded-md bg-[var(--background-secondary)] p-2">
+              <div className="rounded-md bg-[var(--background-secondary)] p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Open Slots</p>
-                <p className="font-mono text-lg font-bold text-white">{openSlots}</p>
+                <p className="font-mono text-base font-bold text-white">{openSlots}</p>
               </div>
-              <div className="rounded-md bg-[var(--background-secondary)] p-2">
+              <div className="rounded-md bg-[var(--background-secondary)] p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Avg Slot</p>
-                <p className="font-mono text-lg font-bold text-[var(--accent)]">{openSlots > 0 ? avgRemainingPerSlot : "-"}</p>
+                <p className="font-mono text-base font-bold text-[var(--accent)]">{openSlots > 0 ? avgRemainingPerSlot : "-"}</p>
               </div>
-              <div className="rounded-md bg-[var(--background-secondary)] p-2">
+              <div className="rounded-md bg-[var(--background-secondary)] p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Watchlist</p>
-                <p className="font-mono text-lg font-bold text-white">{watchlist.length}</p>
+                <p className="font-mono text-base font-bold text-white">{watchlist.length}</p>
               </div>
             </div>
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="rounded-md border border-[var(--background-tertiary)] p-2">
+            <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <div className="rounded-md border border-[var(--background-tertiary)] p-1.5">
                 <p className="mb-1 text-xs font-bold text-white">Role Checklist</p>
                 <div className="flex flex-wrap gap-1.5">
                   {draftNeeds.roleNeeds.map((need) => (
@@ -997,7 +997,7 @@ export function DraftPlanner({
                   ))}
                 </div>
               </div>
-              <div className="rounded-md border border-[var(--background-tertiary)] p-2">
+              <div className="rounded-md border border-[var(--background-tertiary)] p-1.5">
                 <p className="mb-1 text-xs font-bold text-white">Weaknesses</p>
                 <div className="flex flex-wrap gap-1.5">
                   {draftNeeds.weakTypes.length > 0 ? draftNeeds.weakTypes.map((type) => (
@@ -1021,8 +1021,8 @@ export function DraftPlanner({
           )}
 
           {showDraftBoard && (
-          <div className="flex min-h-0 flex-col bg-[var(--card)] p-2 lg:flex-1">
-            <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <div className="flex min-h-0 flex-col bg-[var(--card)] p-1.5 lg:flex-1">
+            <div className="mb-1.5 flex shrink-0 flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-white">Draft Board</h2>
                 <p className="text-xs text-[var(--foreground-muted)]">Filter, compare, watchlist, and add picks</p>
@@ -1033,7 +1033,7 @@ export function DraftPlanner({
               </div>
             </div>
 
-            <div className="mb-2 grid shrink-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-1.5 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <label className="relative md:col-span-2 xl:col-span-1">
                 <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--foreground-subtle)]" />
                 <input
@@ -1069,7 +1069,7 @@ export function DraftPlanner({
               </button>
             </div>
 
-            <div className="mb-2 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
               <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Price: {maxPrice}</span>
                 <input type="range" min="0" max="20" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full" />
@@ -1126,15 +1126,15 @@ export function DraftPlanner({
               </div>
             )}
 
-            <div className="grid min-h-[320px] max-h-[70dvh] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:min-h-0 lg:max-h-none lg:flex-1 xl:grid-cols-3">
+            <div className="grid min-h-[260px] max-h-[52dvh] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:min-h-0 lg:flex-1 xl:grid-cols-3">
               {filteredCandidates.map((candidate) => {
                 const isPlanned = plannedPokemonIds.has(candidate.id);
                 const isWatched = watchlist.includes(candidate.id);
                 const isCompared = compareIds.includes(candidate.id);
                 return (
-                  <div key={candidate.id} className={`min-w-0 rounded-lg border p-3 ${isPlanned ? "border-[var(--accent)]/50 bg-[var(--accent)]/10" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"}`}>
-                    <div className="mb-2 flex items-start gap-2">
-                      <OptimizedPlannerImage src={candidate.spriteUrl} alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" />
+                  <div key={candidate.id} className={`min-w-0 rounded-lg border p-2 ${isPlanned ? "border-[var(--accent)]/50 bg-[var(--accent)]/10" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"}`}>
+                    <div className="mb-1.5 flex items-start gap-2">
+                      <OptimizedPlannerImage src={candidate.spriteUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <Link href={`/pokemon/${candidate.id}`} className="break-words text-sm font-bold text-white hover:text-[var(--primary)]">
@@ -1144,19 +1144,19 @@ export function DraftPlanner({
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {(candidate.types || []).map((type) => (
-                            <span key={type} className={`type-badge type-${type.toLowerCase()} text-[8px] px-1 py-0`}>{formatTypeName(type)}</span>
+                            <span key={type} className={`type-badge type-${type.toLowerCase()} px-1 py-0 text-[10px]`}>{formatTypeName(type)}</span>
                           ))}
                         </div>
                       </div>
                     </div>
                     {candidate.fitTags.length > 0 && (
-                      <div className="mb-2 flex flex-wrap gap-1">
+                      <div className="mb-1.5 flex flex-wrap gap-1">
                         {candidate.fitTags.map((tag) => (
                           <span key={tag} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">{tag}</span>
                         ))}
                       </div>
                     )}
-                    <div className="mb-2 grid grid-cols-3 gap-1 text-center text-[10px]">
+                    <div className="mb-1.5 grid grid-cols-3 gap-1 text-center text-[10px]">
                       <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">SPE</span><span className="font-bold text-white">{candidate.speed || 0}</span></div>
                       <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">BST</span><span className="font-bold text-white">{candidate.baseStatTotal || 0}</span></div>
                       <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">FIT</span><span className="font-bold text-white">{candidate.fitScore}</span></div>
@@ -1166,7 +1166,7 @@ export function DraftPlanner({
                         value={notes[candidate.id] || ""}
                         onChange={(e) => setNotes((current) => ({ ...current, [candidate.id]: e.target.value }))}
                         placeholder="Watchlist notes"
-                        className="mb-2 h-16 w-full resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
+                        className="mb-1.5 h-12 w-full resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
                       />
                     )}
                     <div className="grid grid-cols-3 gap-1">
@@ -1198,11 +1198,15 @@ export function DraftPlanner({
 
         {/* Team analyzer */}
         {showTeamAnalyzer && (
-        <div className="min-h-0 overflow-visible lg:overflow-hidden">
-        <div className="flex min-h-0 flex-col overflow-visible lg:h-full lg:overflow-hidden">
+        <section className="w-full shrink-0 overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:overflow-hidden">
+          <div className="border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
+            <h3 className="font-bold text-sm text-white">Team Analyzer</h3>
+            <p className="text-[11px] text-[var(--foreground-muted)]">Type chart, stats, abilities, and move coverage</p>
+          </div>
+        <div className="flex min-h-0 flex-col overflow-visible p-1.5 lg:max-h-[72dvh] lg:overflow-hidden">
           <div className="overflow-visible pr-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
             {/* Sprite Overview - responsive grid on mobile, dynamic columns on desktop */}
-            <div className="mb-2">
+            <div className="mb-1.5">
               {/* Mobile grid (hidden on lg+) */}
               {/* Click-away overlay to close tooltips */}
               {expandedAbility && (
@@ -1245,7 +1249,7 @@ export function DraftPlanner({
                       {/* Types - fixed height for consistency */}
                       <div className="flex gap-0.5 justify-center mt-1 flex-wrap min-h-[28px] items-start content-start">
                         {slot.pokemon!.types.map((t) => (
-                          <span key={t} className={`type-badge type-${t.toLowerCase()} text-[7px] px-1 py-0`}>{formatTypeName(t)}</span>
+                          <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0 text-[10px]`}>{formatTypeName(t)}</span>
                         ))}
                       </div>
                       {/* Abilities with tap tooltips */}
@@ -1263,7 +1267,7 @@ export function DraftPlanner({
                                   e.stopPropagation();
                                   setExpandedAbility(isExpanded ? null : { slotIdx: idx, abilityIdx });
                                 }}
-                                className={`w-full text-[9px] text-[var(--foreground-muted)] text-center capitalize py-0.5 truncate ${
+                                className={`w-full truncate py-0.5 text-center text-[10px] capitalize text-[var(--foreground-muted)] ${
                                   abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
                                 } ${description ? "active:bg-[var(--background-tertiary)]" : ""}`}
                               >
@@ -1272,7 +1276,7 @@ export function DraftPlanner({
                               {isExpanded && description && (
                                 <div className={`absolute bottom-full ${tooltipAlign} mb-1 z-50 w-44`}>
                                   <div className="px-2 py-1.5 rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] shadow-lg">
-                                    <p className="text-[9px] font-bold text-white capitalize mb-0.5">{a.name.replace(/-/g, " ")}</p>
+                                    <p className="mb-0.5 text-[10px] font-bold capitalize text-white">{a.name.replace(/-/g, " ")}</p>
                                     <p className="text-[10px] text-[var(--foreground-muted)] leading-tight">{description}</p>
                                   </div>
                                 </div>
@@ -1287,7 +1291,7 @@ export function DraftPlanner({
               </div>
               {/* Desktop grid (hidden below lg) */}
               <div
-                className="hidden lg:grid gap-[clamp(4px,0.5vw,8px)]"
+                className="hidden gap-1.5 lg:grid"
                 style={{ gridTemplateColumns: `repeat(${Math.min(slots.filter(s => s.pokemon).length || 1, 6)}, minmax(0, 1fr))` }}
               >
                 {slots.filter(slot => slot.pokemon).map((slot, idx) => (
@@ -1295,8 +1299,7 @@ export function DraftPlanner({
                     key={idx}
                     className={`relative flex min-w-0 flex-col bg-[var(--card)] border rounded-lg ${
                       slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
-                    }`}
-                    style={{ padding: "clamp(4px, 0.4vw, 8px)" }}
+                    } p-1.5`}
                   >
                     {/* Tera Captain Badge */}
                     {slot.isTeraCaptain && (
@@ -1311,15 +1314,14 @@ export function DraftPlanner({
                       alt=""
                       width={46}
                       height={46}
-                      className="object-contain mx-auto"
-                      style={{ width: "clamp(30px, 3vw, 46px)", height: "clamp(30px, 3vw, 46px)", transform: "scale(1.35)" }}
+                      className="mx-auto h-10 w-10 object-contain scale-125"
                     />
-                    <div className="min-w-0 text-white text-center font-medium mt-0.5 truncate" style={{ fontSize: "clamp(9px, 0.6vw, 12px)" }}>
+                    <div className="mt-0.5 min-w-0 truncate text-center text-xs font-medium text-white">
                       {slot.pokemon!.displayName}
                     </div>
                     <div className="mt-0.5 flex flex-wrap justify-center gap-0.5">
                       {slot.pokemon!.types.map((t) => (
-                        <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0.5`} style={{ fontSize: "clamp(6px, 0.45vw, 8px)" }}>{formatTypeName(t)}</span>
+                        <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0 text-[10px]`}>{formatTypeName(t)}</span>
                       ))}
                     </div>
                     <div className={`mt-1 min-w-0 border-t pt-1 ${
@@ -1334,13 +1336,13 @@ export function DraftPlanner({
                               abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
                             }`}
                           >
-                            <div className="min-w-0 text-[var(--foreground-muted)] text-center capitalize py-0.5 cursor-help truncate" style={{ fontSize: "clamp(8px, 0.55vw, 11px)" }}>
+                            <div className="min-w-0 cursor-help truncate py-0.5 text-center text-[10px] capitalize text-[var(--foreground-muted)]">
                               {a.name.replace(/-/g, " ")}
                             </div>
                             {description && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/tooltip:block z-50">
                                 <div className="px-2 py-1.5 rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] shadow-lg w-48">
-                                  <p className="text-[9px] font-bold text-white capitalize mb-1">{a.name.replace(/-/g, " ")}</p>
+                                  <p className="mb-1 text-[10px] font-bold capitalize text-white">{a.name.replace(/-/g, " ")}</p>
                                   <p className="text-[10px] text-[var(--foreground-muted)]">{description}</p>
                                 </div>
                               </div>
@@ -1361,8 +1363,8 @@ export function DraftPlanner({
             {roster.length > 0 && (
             <div className={`flex min-h-0 flex-col gap-2 transition-opacity duration-200 ${prefsLoaded ? "opacity-100" : "opacity-0"}`}>
           {/* Type Chart - Mobile (transposed: types as rows, Pokemon as columns) */}
-          <div className="w-full lg:hidden bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 overflow-hidden min-h-[400px]">
-            <table className="text-[9px] w-full table-fixed" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+          <div className="w-full overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:hidden">
+            <table className="w-full min-w-[560px] table-fixed text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
               <colgroup>
                 <col style={{ width: "32px" }} />
                 {roster.map((_, idx) => (
@@ -1380,8 +1382,8 @@ export function DraftPlanner({
                       <OptimizedPlannerImage src={p.spriteUrl} alt={p.displayName} title={p.displayName} width={20} height={20} className="w-5 h-5 object-contain mx-auto scale-[1.4]" />
                     </td>
                   ))}
-                  <td className="p-0.5 bg-[var(--background-secondary)] rounded text-[var(--foreground-muted)] text-[9px] text-center">+/-</td>
-                  <td className="p-0.5 bg-[var(--background-secondary)] rounded text-[var(--foreground-muted)] text-[9px] text-center">#</td>
+                  <td className="rounded bg-[var(--background-secondary)] p-0.5 text-center text-[10px] text-[var(--foreground-muted)]">+/-</td>
+                  <td className="rounded bg-[var(--background-secondary)] p-0.5 text-center text-[10px] text-[var(--foreground-muted)]">#</td>
                 </tr>
                 {/* Type rows */}
                 {ALL_TYPES.map((type) => {
@@ -1390,7 +1392,7 @@ export function DraftPlanner({
                   return (
                     <tr key={type}>
                       <td
-                        className="px-0.5 py-1 text-[8px] font-bold text-white rounded text-center"
+                        className="rounded px-0.5 py-1 text-center text-[10px] font-bold text-white"
                         style={{ backgroundColor: TYPE_COLORS[type] }}
                       >
                         {type.slice(0, 3).toUpperCase()}
@@ -1407,7 +1409,7 @@ export function DraftPlanner({
                         );
                       })}
                       <td
-                        className={`p-0.5 text-center text-[8px] font-bold rounded ${
+                        className={`rounded p-0.5 text-center text-[10px] font-bold ${
                           overall === "very_resist" || overall === "resist"
                             ? "bg-[#38761d] text-[#d9ead3]"
                             : overall === "very_weak" || overall === "weak"
@@ -1428,8 +1430,8 @@ export function DraftPlanner({
           </div>
 
           {/* Type Chart - Desktop (original: Pokemon as rows, types as columns) - 45% of row */}
-          <div className="hidden overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:block lg:min-h-0">
-            <table className="w-full table-fixed" style={{ borderSpacing: "1px", borderCollapse: "separate", fontSize: "clamp(8px, 0.6vw, 10px)" }}>
+          <div className="hidden overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:block lg:min-h-0">
+            <table className="w-full min-w-[620px] table-fixed text-[10px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
               <colgroup>
                 <col style={{ width: "24px" }} />
                 {ALL_TYPES.map((_, i) => <col key={i} />)}
@@ -1444,8 +1446,7 @@ export function DraftPlanner({
                         title={p.displayName}
                         width={24}
                         height={24}
-                        className="object-contain"
-                        style={{ width: "clamp(16px, 1.5vw, 24px)", height: "clamp(16px, 1.5vw, 24px)", transform: "scale(1.4)" }}
+                        className="h-6 w-6 object-contain scale-125"
                       />
                     </td>
                     {ALL_TYPES.map((type) => {
@@ -1464,7 +1465,7 @@ export function DraftPlanner({
                 {roster.length > 0 && (
                   <>
                     <tr>
-                      <td className="p-0.5 bg-[var(--background-secondary)] rounded text-[var(--foreground-muted)] text-center" style={{ fontSize: "clamp(7px, 0.55vw, 10px)" }}>+/-</td>
+                      <td className="rounded bg-[var(--background-secondary)] p-0.5 text-center text-[10px] text-[var(--foreground-muted)]">+/-</td>
                       {ALL_TYPES.map((type) => {
                         const { overall } = typeChart[type];
                         return (
@@ -1476,8 +1477,7 @@ export function DraftPlanner({
                                 : overall === "very_weak" || overall === "weak"
                                 ? "bg-[#990000] text-[#f4cccc]"
                                 : "bg-[var(--background-secondary)]"
-                            }`}
-                            style={{ fontSize: "clamp(7px, 0.55vw, 10px)" }}
+                            } text-[10px]`}
                           >
                             {overall === "very_resist" ? "++" : overall === "resist" ? "+" : overall === "very_weak" ? "--" : overall === "weak" ? "-" : ""}
                           </td>
@@ -1489,19 +1489,19 @@ export function DraftPlanner({
                       {ALL_TYPES.map((type) => (
                         <td
                           key={type}
-                          className="p-0.5 font-bold text-center text-white rounded"
-                          style={{ backgroundColor: TYPE_COLORS[type], fontSize: "clamp(7px, 0.55vw, 10px)" }}
+                          className="rounded p-0.5 text-center text-[10px] font-bold text-white"
+                          style={{ backgroundColor: TYPE_COLORS[type] }}
                         >
                           {type.slice(0, 3).toUpperCase()}
                         </td>
                       ))}
                     </tr>
                     <tr>
-                      <td className="p-0.5 bg-[var(--background-secondary)] rounded text-[var(--foreground-muted)] text-center" style={{ fontSize: "clamp(8px, 0.7vw, 11px)" }}>#</td>
+                      <td className="rounded bg-[var(--background-secondary)] p-0.5 text-center text-[10px] text-[var(--foreground-muted)]">#</td>
                       {ALL_TYPES.map((type) => {
                         const count = roster.filter(p => p.types.map(t => t.toLowerCase()).includes(type)).length;
                         return (
-                          <td key={type} className="p-0.5 text-center font-medium bg-[var(--background-secondary)] rounded text-white" style={{ fontSize: "clamp(10px, 0.8vw, 14px)" }}>
+                          <td key={type} className="rounded bg-[var(--background-secondary)] p-0.5 text-center text-xs font-medium text-white">
                             {count > 0 ? count : ""}
                           </td>
                         );
@@ -1517,7 +1517,7 @@ export function DraftPlanner({
           <div className="lg:hidden border-t border-[var(--background-tertiary)]" />
 
           {/* Stats Table - Mobile (compressed) */}
-          <div className="w-full lg:hidden bg-[var(--card)] rounded-lg border border-[var(--background-tertiary)] p-1.5 flex flex-col min-h-[200px]">
+          <div className="flex w-full flex-col overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:hidden">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] text-[var(--foreground-muted)]">SORT:</span>
               <select value={statSort} onChange={(e) => setStatSort(e.target.value as typeof statSort)} className="px-1.5 py-0.5 text-[11px] bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white">
@@ -1531,7 +1531,7 @@ export function DraftPlanner({
               </select>
               <button onClick={() => setStatSortAsc(!statSortAsc)} className="text-[14px] text-[var(--foreground-muted)] hover:text-white transition-colors px-1">{statSortAsc ? "↑" : "↓"}</button>
             </div>
-            <table className="text-[9px] w-full" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+            <table className="w-full min-w-[520px] text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
               <thead>
                 <tr className="text-[var(--foreground-muted)]">
                   <th className="text-left px-1 py-1.5 font-normal bg-[var(--background-secondary)] rounded w-7"></th>
@@ -1562,10 +1562,10 @@ export function DraftPlanner({
               </tbody>
             </table>
             {roster.length > 0 && (
-              <table className="text-[9px] mt-2 pt-2 border-t border-[var(--background-tertiary)] w-full" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+              <table className="mt-2 w-full min-w-[520px] border-t border-[var(--background-tertiary)] pt-2 text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
                 <tbody>
                   <tr>
-                    <td className="px-0.5 py-1.5 text-[var(--foreground-muted)] bg-[var(--background-secondary)] rounded text-[8px] w-7">Avg</td>
+                    <td className="w-7 rounded bg-[var(--background-secondary)] px-0.5 py-1.5 text-[10px] text-[var(--foreground-muted)]">Avg</td>
                     <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.hp}</td>
                     <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.attack}</td>
                     <td className="text-center text-[var(--foreground-muted)] px-1 py-1.5 bg-[var(--background-secondary)] rounded">{avgStats.defense}</td>
@@ -1580,10 +1580,10 @@ export function DraftPlanner({
           </div>
 
           {/* Stats Table - Desktop - 30% of row */}
-          <div className="hidden flex-col overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:flex lg:min-h-0">
+          <div className="hidden flex-col overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:flex lg:min-h-0">
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[var(--foreground-muted)]" style={{ fontSize: "clamp(9px, 0.7vw, 12px)" }}>SORT:</span>
-              <select value={statSort} onChange={(e) => setStatSort(e.target.value as typeof statSort)} className="px-1.5 py-0.5 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white" style={{ fontSize: "clamp(9px, 0.7vw, 12px)" }}>
+              <span className="text-xs text-[var(--foreground-muted)]">SORT:</span>
+              <select value={statSort} onChange={(e) => setStatSort(e.target.value as typeof statSort)} className="rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-1.5 py-0.5 text-xs text-white">
                 <option value="speed">SPE</option>
                 <option value="hp">HP</option>
                 <option value="attack">ATK</option>
@@ -1592,9 +1592,9 @@ export function DraftPlanner({
                 <option value="specialDefense">SPD</option>
                 <option value="baseStatTotal">BST</option>
               </select>
-              <button onClick={() => setStatSortAsc(!statSortAsc)} className="text-[var(--foreground-muted)] hover:text-white transition-colors px-1" style={{ fontSize: "clamp(12px, 1vw, 16px)" }}>{statSortAsc ? "↑" : "↓"}</button>
+              <button onClick={() => setStatSortAsc(!statSortAsc)} className="px-1 text-sm text-[var(--foreground-muted)] transition-colors hover:text-white">{statSortAsc ? "↑" : "↓"}</button>
             </div>
-            <table className="w-full table-fixed" style={{ borderSpacing: "1px", borderCollapse: "separate", fontSize: "clamp(8px, 0.6vw, 11px)" }}>
+            <table className="w-full min-w-[480px] table-fixed text-[11px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
               <colgroup>
                 <col style={{ width: "30%" }} />
                 <col /><col /><col /><col /><col /><col /><col />
@@ -1627,7 +1627,7 @@ export function DraftPlanner({
               </tbody>
             </table>
             {roster.length > 0 && (
-              <table className="w-full table-fixed mt-auto pt-1.5" style={{ borderSpacing: "1px", borderCollapse: "separate", fontSize: "clamp(8px, 0.6vw, 11px)" }}>
+              <table className="mt-auto w-full min-w-[480px] table-fixed pt-1.5 text-[11px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
                 <colgroup>
                   <col style={{ width: "30%" }} />
                   <col /><col /><col /><col /><col /><col /><col />
@@ -1670,7 +1670,7 @@ export function DraftPlanner({
           </div>
 
           {/* Move Coverage - uses relative/absolute on desktop to control panel height */}
-          <div className="min-h-[300px] w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:relative lg:h-64 lg:min-h-0">
+          <div className="min-h-[260px] w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:relative lg:h-56 lg:min-h-0">
             {/* Mobile: normal flow */}
             <div className="lg:hidden p-1.5 flex flex-col">
               {/* Search/Add Move */}
@@ -1716,7 +1716,7 @@ export function DraftPlanner({
                 {moveCoverage.map(({ move, pokemon }) => {
                   const moveType = moveTypes[move];
                   return (
-                    <div key={move} className="flex" style={{ fontSize: "9px" }}>
+                    <div key={move} className="flex text-[10px]">
                       <span
                         className="w-[38%] shrink-0 px-1 py-1 flex items-center justify-center text-white font-medium capitalize truncate rounded"
                         style={{ backgroundColor: moveType ? TYPE_COLORS[moveType] : "var(--background-tertiary)" }}
@@ -1750,8 +1750,7 @@ export function DraftPlanner({
                   }}
                   onFocus={() => setShowMoveDropdown(true)}
                   onBlur={() => setTimeout(() => setShowMoveDropdown(false), 150)}
-                  className="w-full px-2 py-1 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white placeholder-[var(--foreground-subtle)]"
-                  style={{ fontSize: "clamp(9px, 0.6vw, 11px)" }}
+                  className="w-full rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1 text-xs text-white placeholder-[var(--foreground-subtle)]"
                 />
                 {showMoveDropdown && filteredMoves.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded shadow-lg max-h-48 overflow-y-auto">
@@ -1779,7 +1778,7 @@ export function DraftPlanner({
                 {moveCoverage.map(({ move, pokemon }) => {
                   const moveType = moveTypes[move];
                   return (
-                    <div key={move} className="flex" style={{ fontSize: "clamp(8px, 0.6vw, 11px)" }}>
+                    <div key={move} className="flex text-[11px]">
                       <span
                         className="w-[42%] shrink-0 px-1 py-1 flex items-center justify-center text-white font-medium capitalize truncate rounded"
                         style={{ backgroundColor: moveType ? TYPE_COLORS[moveType] : "var(--background-tertiary)" }}
@@ -1795,8 +1794,7 @@ export function DraftPlanner({
                             title={p.displayName}
                             width={24}
                             height={24}
-                            className="object-contain"
-                            style={{ width: "clamp(16px, 1.4vw, 24px)", height: "clamp(16px, 1.4vw, 24px)", transform: "scale(1.2)" }}
+                            className="h-5 w-5 object-contain scale-110"
                           />
                         )) : <span className="text-[var(--foreground-subtle)]">—</span>}
                       </div>
@@ -1813,7 +1811,7 @@ export function DraftPlanner({
             )}
           </div>
         </div>
-        </div>
+        </section>
         )}
       </div>
     </div>

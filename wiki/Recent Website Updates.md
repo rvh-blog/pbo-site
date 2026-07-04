@@ -6,6 +6,27 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## July 3, 2026
 
+Home page:
+
+- The Your League action chips are sized to their text instead of stretching across the row.
+- The active-team Your League cards use bounded desktop columns.
+- Player Showcase Slot owners now remain visible in the home page Top Trainers list even when they are outside the normal top five, and they display a Showcase badge.
+
+League poll:
+
+- Hidden home page and coach page polls now render a compact placeholder with an Unhide control.
+
+Store and cosmetics:
+
+- Store PBO Coin icons now use the shared gold coin treatment, including logo frame prices.
+
+Draft planner:
+
+- The Team Analyzer is now a standalone section below the Draft Needs/Draft Board workspace.
+- The draft planner page can extend vertically instead of clipping the Analyzer on desktop.
+- Analyzer text sizing no longer depends on viewport width; dense tables scroll instead of shrinking text for mobile and unusual aspect ratios.
+- The planner layout was condensed with tighter panel spacing, shorter candidate cards, and internal scrolling for dense sections.
+
 Battle Record:
 
 - Battle Record remains a dedicated page and does not replace coach fun facts.
