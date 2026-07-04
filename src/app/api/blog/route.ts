@@ -27,6 +27,17 @@ function isValidImageUrl(value: string) {
   }
 }
 
+function isUnsupportedImageUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const parts = url.pathname.split("/").filter(Boolean);
+    return host === "imgur.com" && (parts[0] === "a" || parts[0] === "gallery");
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   const featureSettings = await getSiteFeatureSettings();
   if (featureSettings.blogUiHidden) {
@@ -92,6 +103,13 @@ export async function POST(request: NextRequest) {
     if (imageUrl && !isValidImageUrl(imageUrl)) {
       return NextResponse.json(
         { error: "Image must be a valid http(s) URL or site-relative path" },
+        { status: 400 }
+      );
+    }
+
+    if (imageUrl && isUnsupportedImageUrl(imageUrl)) {
+      return NextResponse.json(
+        { error: "Imgur album/gallery links cannot be used as blog images. Upload the image or use a direct i.imgur.com image URL." },
         { status: 400 }
       );
     }

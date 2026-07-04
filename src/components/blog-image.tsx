@@ -1,55 +1,84 @@
+"use client";
+
+import { useState } from "react";
+
 interface BlogImageProps {
   src: string;
   variant: "card" | "post";
 }
 
-function getImgurEmbedUrl(src: string) {
+type ImageResolution = {
+  imageSrc: string | null;
+  message?: string;
+};
+
+function resolveImageSrc(src: string): ImageResolution {
   try {
     const url = new URL(src);
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
 
-    if (host !== "imgur.com") return null;
+    if (host === "i.imgur.com") {
+      return { imageSrc: src };
+    }
+
+    if (host !== "imgur.com") {
+      return { imageSrc: src };
+    }
 
     const parts = url.pathname.split("/").filter(Boolean);
-    const type = parts[0];
-    const id = parts[1];
+    const [typeOrId, maybeId] = parts;
 
-    if ((type === "a" || type === "gallery") && id) {
-      return `https://imgur.com/${type}/${id}/embed`;
+    if ((typeOrId === "a" || typeOrId === "gallery") && maybeId) {
+      return {
+        imageSrc: null,
+        message: "Imgur gallery links cannot be displayed here. Use the direct i.imgur.com image URL or upload the image.",
+      };
+    }
+
+    if (typeOrId) {
+      const imageMatch = typeOrId.match(/^([a-zA-Z0-9]+)(\.(png|jpe?g|webp|gif))?$/);
+      if (imageMatch) {
+        const id = imageMatch[1];
+        const extension = imageMatch[2] || ".png";
+        return { imageSrc: `https://i.imgur.com/${id}${extension}` };
+      }
     }
   } catch {
-    return null;
+    return { imageSrc: src };
   }
 
-  return null;
+  return {
+    imageSrc: null,
+    message: "This image URL is not a direct image file.",
+  };
 }
 
 export function BlogImage({ src, variant }: BlogImageProps) {
-  const imgurEmbedUrl = getImgurEmbedUrl(src);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const resolved = resolveImageSrc(src);
   const isCard = variant === "card";
 
-  if (imgurEmbedUrl) {
+  if (!resolved.imageSrc || loadFailed) {
     return (
-      <iframe
-        src={imgurEmbedUrl}
-        title="Blog post image"
-        loading="lazy"
+      <div
         className={
           isCard
-            ? "h-64 w-full border-0 bg-black"
-            : "h-[520px] max-h-[70vh] w-full border-0 bg-black"
+            ? "flex h-48 w-full items-center justify-center bg-[var(--background-secondary)] px-4 text-center text-xs text-[var(--foreground-muted)]"
+            : "flex min-h-48 w-full items-center justify-center rounded-lg bg-[var(--background-secondary)] px-4 text-center text-sm text-[var(--foreground-muted)]"
         }
-        allowFullScreen
-      />
+      >
+        {resolved.message || "This image could not be loaded. Use a direct image URL or upload the image."}
+      </div>
     );
   }
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={resolved.imageSrc}
       alt=""
       loading="lazy"
+      onError={() => setLoadFailed(true)}
       className={
         isCard
           ? "h-48 w-full object-cover"

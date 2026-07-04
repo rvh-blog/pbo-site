@@ -4,6 +4,24 @@ import { ChangeEvent, FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Label, TextArea } from "@/components/ui/input";
 
+function getImageUrlWarning(value: string) {
+  if (!value.trim()) return null;
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const parts = url.pathname.split("/").filter(Boolean);
+
+    if (host === "imgur.com" && (parts[0] === "a" || parts[0] === "gallery")) {
+      return "Imgur album/gallery links do not expose a direct image file. Upload the image here or use the direct i.imgur.com URL.";
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -12,6 +30,7 @@ export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const imageUrlWarning = getImageUrlWarning(imageUrl);
 
   async function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -48,6 +67,12 @@ export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    if (canPostImages && imageUrlWarning) {
+      setError(imageUrlWarning);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -126,6 +151,11 @@ export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
               className="mt-3 max-h-48 w-full rounded-lg bg-[var(--background-secondary)] object-contain"
             />
           )}
+          {imageUrlWarning && (
+            <p className="mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/10 px-3 py-2 text-xs font-semibold text-[var(--warning)]">
+              {imageUrlWarning}
+            </p>
+          )}
           <p className="mt-2 text-xs text-[var(--foreground-subtle)]">
             Optional. Uploading stores the image on the site so it does not depend on external embeds.
           </p>
@@ -161,7 +191,7 @@ export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
         <button
           type="submit"
           className="btn-retro py-2 px-5 text-[10px]"
-          disabled={isSubmitting}
+          disabled={isSubmitting || Boolean(imageUrlWarning)}
         >
           {isSubmitting ? "Posting..." : "Publish Post"}
         </button>
