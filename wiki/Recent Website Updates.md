@@ -29,16 +29,33 @@ Blog:
 
 - Blog post image rendering now supports direct image URLs and Imgur album/gallery URLs.
 - Imgur album/gallery links render as embedded albums instead of broken image tags.
+- Admin blog authors can upload images directly from the new post form. Uploaded images are stored under `/images/blog/...` and saved as the post image URL.
 
 Home page:
 
 - The synced home page grid now recalculates desktop height after resizing and clears the synced height on mobile widths.
 - Shrinking the page and returning to full screen should restore the original desktop layout.
+- The Your League box was condensed and centered, with action links aligned in the middle.
+- The Your League action grid uses responsive wrapping so boxes do not overlap as the viewport aspect ratio changes.
+- A Draft Board action was added under Match Prep.
+
+Admin:
+
+- Admin rosters now blocks unsafe season coach removal with a clear blocker list instead of silently failing.
+- Admin rosters includes a Move Division action for season coaches. Moves are allowed only when division-scoped data such as matches or playoff bracket rows will not be left inconsistent.
+- Admin season editing now supports uploading, replacing, and clearing division logos. Uploaded logos are stored under `/images/divisions/...`.
+- Admin schedule upload now shows a disabled Upload Schedule CSV control with instructions until a division is selected, then shows the real CSV upload control.
+
+Season 11 cleanup:
+
+- The local fake Season 11 setup no longer copies Season 10 schedules into Season 11.
+- The local fake Season 11 setup no longer copies test rosters into Ottawa Donphans or Richmond Ragingbolts.
+- Season 11 Palafin draft board import handling now maps Palafin to Palafin-Hero so Palafin-Hero can keep its 17-point price separately from regular Palafin.
 
 Verification notes:
 
 - `npx tsc --noEmit` passes.
-- Targeted ESLint passes for changed files, with only the existing `draft-board-grid.tsx` `<img>` warnings.
+- Targeted ESLint passes for changed files where run; some admin pages still have pre-existing lint warnings unrelated to these changes.
 - Local route checks passed for `/`, `/seasons/15/draft?division=46`, `/draft-planner`, and `/draft-planner?season=15`.
 
 ## July 3, 2026

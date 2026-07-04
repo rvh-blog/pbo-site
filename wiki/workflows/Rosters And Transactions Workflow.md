@@ -16,6 +16,22 @@ Rosters are current state. Transactions are history used to reconstruct previous
 
 Do not infer current roster only from transactions. Transactions are used to reverse future changes for historical views.
 
+## Season Coach Removal And Division Moves
+
+`season_coaches.id` is the team identity for one season/division. Removing or moving one row can affect many other tables.
+
+Admin rosters supports guarded removal:
+
+- Hard removal deletes roster rows and the `season_coaches` row only when no dependent season data references it.
+- Removal is blocked when matches, playoff rows, match Pokemon, kill events, transactions, pick-ems, fantasy picks, bets, kill bets, death bets, or replacement links reference the team.
+- The UI should surface the blocker list returned by the API instead of refreshing as if the delete succeeded.
+
+Admin rosters also supports guarded division moves:
+
+- Moves must stay inside the same season.
+- Moves are blocked when matches or playoff rows already reference the team, because those rows are division-scoped.
+- If a post-schedule move is needed, build an explicit migration tool that updates related match/division data intentionally.
+
 ## Historical Roster
 
 Historical roster views use match week plus transaction history.

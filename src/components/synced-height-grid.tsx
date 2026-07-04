@@ -14,7 +14,7 @@ export function SyncedHeightGrid({ leftContent, rightContent, mobileMiddleConten
 
   useEffect(() => {
     let frameId: number | null = null;
-    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+    const desktopQuery = window.matchMedia("(min-width: 1024px) and (min-aspect-ratio: 4/3)");
 
     const updateHeight = () => {
       if (frameId !== null) {
@@ -54,9 +54,9 @@ export function SyncedHeightGrid({ leftContent, rightContent, mobileMiddleConten
   }, []);
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6 items-start">
+    <div className="synced-home-grid">
       {/* Left Column: Battle Log */}
-      <div className="lg:col-span-2" ref={leftRef}>
+      <div ref={leftRef}>
         {leftContent}
       </div>
 

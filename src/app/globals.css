@@ -109,12 +109,6 @@ main {
   max-width: 100%;
 }
 
-main *,
-main *::before,
-main *::after {
-  min-width: 0;
-}
-
 main img,
 main svg,
 main video,
@@ -470,6 +464,71 @@ main :where(p, h1, h2, h3, h4, h5, h6, a, button, label, li) {
 
 .stat-card:hover {
   border-color: #475569;
+}
+
+.synced-home-grid {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (min-width: 1024px) and (min-aspect-ratio: 4/3) {
+  .synced-home-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  }
+}
+
+@media (min-width: 1280px) and (min-aspect-ratio: 4/3) {
+  .synced-home-grid {
+    grid-template-columns: minmax(0, 1fr) 400px;
+  }
+}
+
+.your-league-layout {
+  display: grid;
+  gap: 1.25rem;
+  align-items: center;
+  text-align: center;
+}
+
+.your-league-layout > *,
+.your-league-actions-grid > *,
+.your-league-actions-grid a,
+.your-league-actions-grid button {
+  min-width: 0;
+}
+
+.your-league-actions-grid {
+  display: grid;
+  width: 100%;
+  gap: 0.75rem;
+  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.your-league-actions-grid > * {
+  align-self: stretch;
+}
+
+.your-league-link-grid a {
+  display: flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.15;
+}
+
+@media (min-width: 1024px) and (min-aspect-ratio: 4/3) {
+  .your-league-layout {
+    grid-template-columns: minmax(220px, 1fr) minmax(0, 2.8fr);
+    align-items: center;
+  }
+}
+
+@media (min-width: 1280px) and (min-aspect-ratio: 4/3) {
+  .your-league-actions-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  }
 }
 
 .mobile-section-nav {

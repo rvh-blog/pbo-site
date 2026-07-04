@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Label, TextArea } from "@/components/ui/input";
 
@@ -10,7 +10,40 @@ export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
   const [content, setContent] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+
+    setError(null);
+    setIsUploadingImage(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("title", title || "blog-image");
+
+    try {
+      const response = await fetch("/api/admin/blog-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Failed to upload image");
+        return;
+      }
+
+      setImageUrl(data.imageUrl);
+    } catch {
+      setError("Failed to upload image");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,15 +99,35 @@ export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
       {canPostImages && (
         <div>
           <Label htmlFor="imageUrl">Image URL</Label>
-          <Input
-            id="imageUrl"
-            value={imageUrl}
-            onChange={(event) => setImageUrl(event.target.value)}
-            maxLength={1000}
-            placeholder="https://example.com/image.png"
-          />
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Input
+              id="imageUrl"
+              value={imageUrl}
+              onChange={(event) => setImageUrl(event.target.value)}
+              maxLength={1000}
+              placeholder="/images/blog/example.png or https://example.com/image.png"
+            />
+            <label className="btn-retro-secondary flex cursor-pointer items-center justify-center px-4 py-2 text-[10px]">
+              {isUploadingImage ? "Uploading..." : "Upload Image"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                disabled={isUploadingImage || isSubmitting}
+                onChange={handleImageUpload}
+              />
+            </label>
+          </div>
+          {imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt=""
+              className="mt-3 max-h-48 w-full rounded-lg bg-[var(--background-secondary)] object-contain"
+            />
+          )}
           <p className="mt-2 text-xs text-[var(--foreground-subtle)]">
-            Optional. Only admins can add images to blog posts.
+            Optional. Uploading stores the image on the site so it does not depend on external embeds.
           </p>
         </div>
       )}

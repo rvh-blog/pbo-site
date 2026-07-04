@@ -69,7 +69,7 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
 
   if (isHidden) {
     return (
-      <div className={`rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 ${compact ? "p-4" : "p-5"}`}>
+      <div className={`rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 ${compact ? "p-3" : "p-5"}`}>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
@@ -92,7 +92,7 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
   }
 
   return (
-    <div className={`rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 ${compact ? "p-4" : "p-5"}`}>
+    <div className={`rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 ${compact ? "p-3" : "p-5"}`}>
       <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
         <div className="flex items-center justify-between gap-3">
           <span>League Poll</span>
@@ -106,7 +106,7 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
         </div>
       </div>
       <h3 className="mt-2 text-sm font-bold text-white">{poll.question}</h3>
-      <div className="mt-3 space-y-2">
+      <div className={`${compact ? "mt-2 space-y-1.5" : "mt-3 space-y-2"}`}>
         {poll.options.map((option) => {
           const selected = poll.selectedOptionIndex === option.index;
           const showResults = poll.selectedOptionIndex !== null;
@@ -117,7 +117,7 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
               type="button"
               onClick={() => vote(option.index)}
               disabled={!poll.canVote || isPending}
-              className={`w-full rounded border p-2 text-left transition-colors ${
+              className={`w-full rounded border text-left transition-colors ${compact ? "p-1.5" : "p-2"} ${
                 selected
                   ? "border-[var(--primary)] bg-[var(--primary)]/15"
                   : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]/70 hover:border-white/30"
@@ -143,7 +143,7 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
           );
         })}
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-[var(--foreground-subtle)]">
+      <div className={`${compact ? "mt-2" : "mt-3"} flex items-center justify-between gap-3 text-[11px] text-[var(--foreground-subtle)]`}>
         <span>{poll.selectedOptionIndex !== null ? `${poll.totalVotes} vote${poll.totalVotes === 1 ? "" : "s"}` : "Vote to reveal results"}</span>
         {!poll.canVote && <span>Coach login required to vote</span>}
       </div>

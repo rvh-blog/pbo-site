@@ -85,6 +85,18 @@ Relevant files:
 - `src/components/deciding-turns-panel.tsx`
 - `src/lib/site-settings.ts`
 
+## Division Logo Uploads
+
+Admins can upload division logos from `Admin -> Seasons` while editing a season. Each division row has Add/Replace/Clear controls.
+
+Uploaded files are saved under `/images/divisions/...` and the returned path is stored on `divisions.logoUrl`.
+
+Relevant files:
+
+- `src/app/admin/seasons/page.tsx`
+- `src/app/api/admin/division-logo/route.ts`
+- `src/app/api/seasons/route.ts`
+
 ## Infinity Release Controls
 
 The Infinity Division has public visibility controls so it can stay hidden until the scheduled reveal or an admin manual release.

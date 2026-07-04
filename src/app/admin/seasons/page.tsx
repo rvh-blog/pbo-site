@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -55,6 +56,7 @@ export default function AdminSeasonsPage() {
   const [editDraftBoard, setEditDraftBoard] = useState<DraftBoardEntry[]>([]);
   const [editCsvFileName, setEditCsvFileName] = useState("");
   const [editCsvError, setEditCsvError] = useState("");
+  const [uploadingDivisionId, setUploadingDivisionId] = useState<number | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function AdminSeasonsPage() {
       }
 
       return { entries, error: null };
-    } catch (e) {
+    } catch {
       return { entries: [], error: "Failed to parse CSV file" };
     }
   }
@@ -222,6 +224,7 @@ export default function AdminSeasonsPage() {
         divisions: editDivisions.map((d, i) => ({
           id: d.id,
           name: d.name,
+          logoUrl: d.logoUrl,
           displayOrder: i,
         })),
         draftBoard: editDraftBoard.length > 0 ? editDraftBoard : undefined,
@@ -313,6 +316,44 @@ export default function AdminSeasonsPage() {
     const newDivisions = [...editDivisions];
     newDivisions[index] = { ...newDivisions[index], name: value };
     setEditDivisions(newDivisions);
+  }
+
+  function updateEditDivisionLogo(index: number, logoUrl: string | null) {
+    const newDivisions = [...editDivisions];
+    newDivisions[index] = { ...newDivisions[index], logoUrl };
+    setEditDivisions(newDivisions);
+  }
+
+  async function handleDivisionLogoUpload(index: number, file: File | null) {
+    if (!file || !editSeason) return;
+
+    const division = editDivisions[index];
+    if (!division) return;
+
+    setUploadingDivisionId(division.id);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("divisionName", division.name);
+    formData.append("seasonNumber", String(editSeason.seasonNumber));
+
+    try {
+      const response = await fetch("/api/admin/division-logo", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        alert(result.error || "Failed to upload division logo");
+        return;
+      }
+
+      updateEditDivisionLogo(index, result.logoUrl);
+    } catch {
+      alert("Failed to upload division logo");
+    } finally {
+      setUploadingDivisionId(null);
+    }
   }
 
   function addEditDivision() {
@@ -607,7 +648,7 @@ export default function AdminSeasonsPage() {
                         <Label>Divisions (in order of prestige)</Label>
                         <div className="space-y-2 mt-2">
                           {editDivisions.map((div, index) => (
-                            <div key={div.id} className="flex gap-2 items-center">
+                            <div key={div.id} className="flex flex-col gap-2 rounded-lg bg-[var(--background-secondary)] p-3 md:flex-row md:items-center">
                               <span className="text-sm text-[var(--foreground-muted)] w-6">
                                 {index + 1}.
                               </span>
@@ -616,6 +657,48 @@ export default function AdminSeasonsPage() {
                                 onChange={(e) => updateEditDivisionName(index, e.target.value)}
                                 placeholder={`Division ${index + 1}`}
                               />
+                              <div className="flex items-center gap-2 md:min-w-80">
+                                {div.logoUrl ? (
+                                  <Image
+                                    src={div.logoUrl}
+                                    alt={`${div.name} logo`}
+                                    width={36}
+                                    height={36}
+                                    className="h-9 w-9 rounded object-contain bg-[var(--card)]"
+                                  />
+                                ) : (
+                                  <div className="h-9 w-9 rounded bg-[var(--card)]" />
+                                )}
+                                <input
+                                  id={`division-logo-${div.id}`}
+                                  type="file"
+                                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    handleDivisionLogoUpload(index, e.target.files?.[0] || null);
+                                    e.currentTarget.value = "";
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={uploadingDivisionId === div.id}
+                                  onClick={() => document.getElementById(`division-logo-${div.id}`)?.click()}
+                                >
+                                  {uploadingDivisionId === div.id ? "Uploading..." : div.logoUrl ? "Replace Logo" : "Add Logo"}
+                                </Button>
+                                {div.logoUrl && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateEditDivisionLogo(index, null)}
+                                  >
+                                    Clear
+                                  </Button>
+                                )}
+                              </div>
                               {editDivisions.length > 1 && (
                                 <Button
                                   type="button"

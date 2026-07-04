@@ -131,7 +131,11 @@ export async function PUT(request: NextRequest) {
       if (div.id > 0) {
         // Update existing division
         await db.update(divisions)
-          .set({ name: div.name, displayOrder: div.displayOrder })
+          .set({
+            name: div.name,
+            logoUrl: div.logoUrl || null,
+            displayOrder: div.displayOrder,
+          })
           .where(eq(divisions.id, div.id));
         updatedIds.add(div.id);
       } else {
@@ -139,6 +143,7 @@ export async function PUT(request: NextRequest) {
         await db.insert(divisions).values({
           seasonId: id,
           name: div.name,
+          logoUrl: div.logoUrl || null,
           displayOrder: div.displayOrder,
         });
       }

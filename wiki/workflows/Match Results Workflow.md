@@ -10,6 +10,19 @@ Match results are the highest-risk write path in the app.
 - Bot match service: `src/bot/services/match-service.ts`
 - Wiglett match result: `src/lib/wiglett-integration.ts`
 
+## Schedule Upload
+
+Regular-season schedules are uploaded from the Schedule tab on the admin matches page.
+
+Current behavior:
+
+- An admin must select a season and a specific division before uploading.
+- The upload format is CSV with `week`, `team1`, and `team2` columns.
+- The page shows a disabled Upload Schedule CSV control with instructions until a division is selected.
+- Season 11+ validation expects 16 teams per division, 8 regular-season weeks, and 8 fixtures per week.
+
+Schedules are division-scoped. Moving teams after schedule upload requires updating affected match rows, not just changing `season_coaches.divisionId`.
+
 ## Result Cascade
 
 When a result is recorded, the app may update:

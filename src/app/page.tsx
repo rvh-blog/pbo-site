@@ -814,7 +814,7 @@ export default async function Home() {
 
           {/* League Pass Card */}
           {currentSeason && (
-            <div className="w-full max-w-lg mx-auto transform hover:scale-[1.02] transition-transform duration-300">
+            <div className="w-full max-w-3xl mx-auto transform hover:scale-[1.02] transition-transform duration-300">
               <div className="league-pass">
                 <div className="league-pass-inner flex flex-col justify-between">
                   {/* Background Pattern */}
@@ -894,25 +894,25 @@ export default async function Home() {
       </section>
 
       {personalizedHome && (
-        <section className="poke-card p-5 sm:p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+        <section className="poke-card p-4 sm:p-5">
+          <div className="your-league-layout">
             <div className="min-w-0">
-              <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-2">
+              <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-1.5">
                 Your League
               </p>
-              <h2 className="font-pixel text-sm sm:text-base text-white leading-relaxed">
-                Welcome back, {personalizedHome.user.name}
+              <h2 className="font-bold text-base text-white leading-tight">
+                Welcome, {personalizedHome.user.name}
               </h2>
-              <p className="mt-3 text-sm text-[var(--foreground-muted)]">
+              <p className="mt-1.5 text-xs text-[var(--foreground-muted)]">
                 {personalizedHome.activeTeam
-                  ? "Jump back into your active team, upcoming matchup, and prep tools."
+                  ? "Active team, next matchup, and prep links."
                   : "No active-season team is linked to this account right now."}
               </p>
             </div>
 
             {personalizedHome.activeTeam ? (
-              <div className="grid w-full gap-3 lg:w-auto lg:max-w-[760px] lg:grid-cols-[minmax(0,240px)_minmax(0,260px)] lg:items-start lg:justify-end xl:max-w-[920px] xl:grid-cols-[220px_240px_minmax(260px,320px)_auto]">
-                <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4">
+              <div className="your-league-actions-grid">
+                <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-3">
                   <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
                     Next Match
                   </div>
@@ -933,7 +933,7 @@ export default async function Home() {
                   )}
                 </div>
 
-                <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4">
+                <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-3">
                   <div className="flex items-center gap-3 min-w-0">
                     {personalizedHome.activeTeam.teamLogoUrl ? (
                       <Image
@@ -961,7 +961,7 @@ export default async function Home() {
 
                 <PollCard initialPoll={personalizedHome.poll} compact />
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="your-league-link-grid grid grid-cols-2 gap-2 min-w-0">
                   <div className="grid gap-2">
                     <Link
                       href={`/seasons/${personalizedHome.activeTeam.division!.season!.id}/divisions/${personalizedHome.activeTeam.divisionId}`}
@@ -975,6 +975,14 @@ export default async function Home() {
                     >
                       Match Prep
                     </Link>
+                    {currentSeason && (
+                      <Link
+                        href={`/seasons/${currentSeason.id}/draft`}
+                        className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                      >
+                        Draft Board
+                      </Link>
+                    )}
                   </div>
                   <div className="grid gap-2 content-start">
                     <Link

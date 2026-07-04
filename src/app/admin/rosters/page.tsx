@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- Existing admin form synchronization uses effect-driven state updates. */
+
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,6 +111,10 @@ export default function AdminRostersPage() {
     teamAbbreviation: "",
     teamLogoUrl: "",
   });
+
+  // Move division state
+  const [movingTeam, setMovingTeam] = useState<SeasonCoach | null>(null);
+  const [moveDivisionId, setMoveDivisionId] = useState("");
 
   // Mid-season replacement state
   const [replacingTeam, setReplacingTeam] = useState<SeasonCoach | null>(null);
@@ -284,11 +290,22 @@ export default function AdminRostersPage() {
   }
 
   async function handleRemoveSeasonCoach(seasonCoachId: number) {
-    if (!confirm("Remove this coach from the season? This will delete their roster."))
+    if (!confirm("Remove this coach from the season? This will only work when no matches, transactions, bets, or other season history reference the team."))
       return;
-    await fetch(`/api/rosters?seasonCoachId=${seasonCoachId}`, {
+
+    const res = await fetch(`/api/rosters?seasonCoachId=${seasonCoachId}`, {
       method: "DELETE",
     });
+    const result = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const blockers = Array.isArray(result.blockers)
+        ? `\n\nBlocking data:\n${result.blockers.map((blocker: string) => `- ${blocker}`).join("\n")}`
+        : "";
+      alert(`${result.error || "Unable to remove coach."}${blockers}`);
+      return;
+    }
+
     if (selectedSeason) {
       fetchSeasonCoaches(selectedSeason.id);
     }
@@ -320,6 +337,44 @@ export default function AdminRostersPage() {
     });
 
     setEditingTeam(null);
+    if (selectedSeason) {
+      fetchSeasonCoaches(selectedSeason.id);
+    }
+  }
+
+  function startMoveDivision(sc: SeasonCoach) {
+    const targetDivision = selectedSeason?.divisions.find(
+      (division) => division.id !== sc.divisionId
+    );
+
+    setMovingTeam(sc);
+    setMoveDivisionId(targetDivision ? String(targetDivision.id) : "");
+  }
+
+  async function handleMoveDivision(e: React.FormEvent) {
+    e.preventDefault();
+    if (!movingTeam || !moveDivisionId) return;
+
+    const res = await fetch("/api/rosters", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "moveSeasonCoachDivision",
+        seasonCoachId: movingTeam.id,
+        divisionId: parseInt(moveDivisionId),
+      }),
+    });
+    const result = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const blockers = Array.isArray(result.blockers)
+        ? `\n\nBlocking data:\n${result.blockers.map((blocker: string) => `- ${blocker}`).join("\n")}`
+        : "";
+      alert(`${result.error || "Unable to move coach."}${blockers}`);
+      return;
+    }
+
+    setMovingTeam(null);
     if (selectedSeason) {
       fetchSeasonCoaches(selectedSeason.id);
     }
@@ -801,6 +856,14 @@ export default function AdminRostersPage() {
                               >
                                 Replace
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => startMoveDivision(sc)}
+                                disabled={!selectedSeason || selectedSeason.divisions.length < 2}
+                              >
+                                Move Division
+                              </Button>
                             </>
                           )}
                           {!sc.isActive && (
@@ -925,6 +988,53 @@ export default function AdminRostersPage() {
                   Cancel
                 </Button>
                 <Button type="submit">Save Changes</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Move Division Modal */}
+      {movingTeam && selectedSeason && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-[var(--card)] rounded-lg p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-bold mb-2">Move Division</h2>
+            <p className="text-sm text-[var(--foreground-muted)] mb-4">
+              Move <strong>{movingTeam.teamName}</strong> from {movingTeam.division?.name}
+              to another division in {selectedSeason.name}.
+            </p>
+            <form onSubmit={handleMoveDivision} className="space-y-4">
+              <div>
+                <Label>Target Division</Label>
+                <Select
+                  value={moveDivisionId}
+                  onChange={(e) => setMoveDivisionId(e.target.value)}
+                >
+                  <option value="">Select division</option>
+                  {selectedSeason.divisions
+                    .filter((division) => division.id !== movingTeam.divisionId)
+                    .map((division) => (
+                      <option key={division.id} value={division.id}>
+                        {division.name}
+                      </option>
+                    ))}
+                </Select>
+              </div>
+              <div className="p-3 rounded-lg bg-[var(--background-secondary)] text-sm text-[var(--foreground-muted)]">
+                This is allowed only before the team has division-scoped data like matches or playoff bracket rows.
+                The roster and team details move with the coach.
+              </div>
+              <div className="flex gap-3 justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setMovingTeam(null)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!moveDivisionId}>
+                  Move Team
+                </Button>
               </div>
             </form>
           </div>

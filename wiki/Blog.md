@@ -27,7 +27,7 @@ Post rules:
 - Title is required and limited to 120 characters.
 - Content must be at least 20 characters and no more than 20000 characters.
 - Excerpts are generated from post content.
-- Only admins can attach an image URL to a blog post.
+- Only admins can attach an image to a blog post.
 - Admins can delete blog posts.
 
 Coach blog permission is stored on `coaches.canPostBlog` and can be toggled through admin user/coach tooling.
@@ -46,6 +46,8 @@ Supported URL types:
 
 - Direct image URLs render as normal images.
 - Imgur album/gallery/page URLs render in an embedded iframe so album links do not appear as broken images.
+
+Admins can also upload images from the new post form. The upload endpoint stores files under `/images/blog/...` and returns a site-relative path that is saved as `blog_posts.imageUrl`.
 
 ## Database Tables
 

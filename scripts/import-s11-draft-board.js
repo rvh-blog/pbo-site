@@ -79,6 +79,7 @@ function getExternalAliases(name) {
     gourgeist: ["Gourgeist-Average"],
     pumpkaboo: ["Pumpkaboo-Average"],
     basculin: ["Basculin-Red-Striped"],
+    palafin: ["Palafin-Hero"],
   };
 
   for (const alias of fixedAliases[key] || []) aliases.add(alias);

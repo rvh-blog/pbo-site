@@ -3,13 +3,19 @@ import { db } from "@/lib/db";
 import {
   rosters,
   seasonCoaches,
-  coaches,
   divisions,
-  seasons,
-  pokemon,
   matches,
+  playoffMatches,
+  matchPokemon,
+  killEvents,
+  transactions,
+  pickEmPicks,
+  fantasyEntryPicks,
+  bets,
+  killBets,
+  deathBets,
 } from "@/lib/schema";
-import { eq, and, inArray, gte } from "drizzle-orm";
+import { eq, and, inArray, gte, or } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 
@@ -28,6 +34,131 @@ type BulkUpdateTeam = {
   isDeleted?: boolean;
   roster?: RosterInput[];
 };
+
+async function getSeasonCoachRemovalBlockers(seasonCoachId: number) {
+  const blockers: string[] = [];
+
+  const referencedAsReplacement = await db.query.seasonCoaches.findFirst({
+    where: eq(seasonCoaches.replacedById, seasonCoachId),
+  });
+  if (referencedAsReplacement) {
+    blockers.push("another season coach uses this team as its replacement link");
+  }
+
+  const scheduledOrPlayedMatch = await db.query.matches.findFirst({
+    where: or(
+      eq(matches.coach1SeasonId, seasonCoachId),
+      eq(matches.coach2SeasonId, seasonCoachId),
+      eq(matches.winnerId, seasonCoachId)
+    ),
+  });
+  if (scheduledOrPlayedMatch) {
+    blockers.push("matches, standings, or recorded results reference this team");
+  }
+
+  const playoffMatch = await db.query.playoffMatches.findFirst({
+    where: or(
+      eq(playoffMatches.higherSeedId, seasonCoachId),
+      eq(playoffMatches.lowerSeedId, seasonCoachId),
+      eq(playoffMatches.winnerId, seasonCoachId)
+    ),
+  });
+  if (playoffMatch) {
+    blockers.push("playoff bracket rows reference this team");
+  }
+
+  const matchPokemonRow = await db.query.matchPokemon.findFirst({
+    where: eq(matchPokemon.seasonCoachId, seasonCoachId),
+  });
+  if (matchPokemonRow) {
+    blockers.push("match Pokemon stats reference this team");
+  }
+
+  const killEvent = await db.query.killEvents.findFirst({
+    where: or(
+      eq(killEvents.killerSeasonCoachId, seasonCoachId),
+      eq(killEvents.victimSeasonCoachId, seasonCoachId)
+    ),
+  });
+  if (killEvent) {
+    blockers.push("kill event history references this team");
+  }
+
+  const transaction = await db.query.transactions.findFirst({
+    where: or(
+      eq(transactions.seasonCoachId, seasonCoachId),
+      eq(transactions.tradingPartnerSeasonCoachId, seasonCoachId)
+    ),
+  });
+  if (transaction) {
+    blockers.push("transaction history references this team");
+  }
+
+  const pickEmPick = await db.query.pickEmPicks.findFirst({
+    where: eq(pickEmPicks.predictedWinnerId, seasonCoachId),
+  });
+  if (pickEmPick) {
+    blockers.push("pick-em predictions reference this team");
+  }
+
+  const fantasyPick = await db.query.fantasyEntryPicks.findFirst({
+    where: eq(fantasyEntryPicks.seasonCoachId, seasonCoachId),
+  });
+  if (fantasyPick) {
+    blockers.push("fantasy entries reference this team");
+  }
+
+  const bet = await db.query.bets.findFirst({
+    where: eq(bets.predictedWinnerId, seasonCoachId),
+  });
+  if (bet) {
+    blockers.push("match bets reference this team");
+  }
+
+  const killBet = await db.query.killBets.findFirst({
+    where: eq(killBets.seasonCoachId, seasonCoachId),
+  });
+  if (killBet) {
+    blockers.push("kill bets reference this team");
+  }
+
+  const deathBet = await db.query.deathBets.findFirst({
+    where: eq(deathBets.seasonCoachId, seasonCoachId),
+  });
+  if (deathBet) {
+    blockers.push("death bets reference this team");
+  }
+
+  return blockers;
+}
+
+async function getSeasonCoachMoveBlockers(seasonCoachId: number) {
+  const blockers: string[] = [];
+
+  const scheduledOrPlayedMatch = await db.query.matches.findFirst({
+    where: or(
+      eq(matches.coach1SeasonId, seasonCoachId),
+      eq(matches.coach2SeasonId, seasonCoachId),
+      eq(matches.winnerId, seasonCoachId)
+    ),
+  });
+  if (scheduledOrPlayedMatch) {
+    blockers.push("matches already reference this team; move or rebuild the schedule first");
+  }
+
+  const playoffMatch = await db.query.playoffMatches.findFirst({
+    where: or(
+      eq(playoffMatches.higherSeedId, seasonCoachId),
+      eq(playoffMatches.lowerSeedId, seasonCoachId),
+      eq(playoffMatches.winnerId, seasonCoachId)
+    ),
+  });
+  if (playoffMatch) {
+    blockers.push("playoff bracket rows already reference this team");
+  }
+
+  return blockers;
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -220,6 +351,70 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   }
 
+  if (action === "moveSeasonCoachDivision") {
+    const { seasonCoachId, divisionId } = data;
+
+    if (!seasonCoachId || !divisionId) {
+      return NextResponse.json(
+        { error: "Season coach ID and target division are required" },
+        { status: 400 }
+      );
+    }
+
+    const seasonCoach = await db.query.seasonCoaches.findFirst({
+      where: eq(seasonCoaches.id, seasonCoachId),
+      with: { division: true },
+    });
+
+    if (!seasonCoach) {
+      return NextResponse.json(
+        { error: "Season coach not found" },
+        { status: 404 }
+      );
+    }
+
+    const targetDivision = await db.query.divisions.findFirst({
+      where: eq(divisions.id, divisionId),
+    });
+
+    if (!targetDivision) {
+      return NextResponse.json(
+        { error: "Target division not found" },
+        { status: 404 }
+      );
+    }
+
+    if (targetDivision.seasonId !== seasonCoach.division.seasonId) {
+      return NextResponse.json(
+        { error: "Target division must be in the same season" },
+        { status: 400 }
+      );
+    }
+
+    if (seasonCoach.divisionId === divisionId) {
+      return NextResponse.json(seasonCoach);
+    }
+
+    const blockers = await getSeasonCoachMoveBlockers(seasonCoachId);
+    if (blockers.length > 0) {
+      return NextResponse.json(
+        {
+          error: "This team cannot be moved safely because it already has division-scoped data.",
+          blockers,
+        },
+        { status: 409 }
+      );
+    }
+
+    const [result] = await db
+      .update(seasonCoaches)
+      .set({ divisionId })
+      .where(eq(seasonCoaches.id, seasonCoachId))
+      .returning();
+
+    return NextResponse.json(result);
+  }
+
   if (action === "midSeasonReplacement") {
     const { originalSeasonCoachId, newCoachId, newTeamName, newTeamLogoUrl, newTeamAbbreviation, replacementWeek } = data;
 
@@ -379,6 +574,13 @@ export async function POST(request: NextRequest) {
       for (const team of typedTeams) {
         // Handle deleted teams
         if (team.isDeleted && team.id) {
+          const blockers = await getSeasonCoachRemovalBlockers(team.id);
+          if (blockers.length > 0) {
+            throw new Error(
+              `Cannot safely remove ${team.teamName}: ${blockers.join("; ")}`
+            );
+          }
+
           // Delete rosters first
           await db.delete(rosters).where(eq(rosters.seasonCoachId, team.id));
           // Delete season coach
@@ -550,13 +752,36 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (seasonCoachId) {
+    const parsedSeasonCoachId = parseInt(seasonCoachId);
+    const seasonCoach = await db.query.seasonCoaches.findFirst({
+      where: eq(seasonCoaches.id, parsedSeasonCoachId),
+    });
+
+    if (!seasonCoach) {
+      return NextResponse.json(
+        { error: "Season coach not found" },
+        { status: 404 }
+      );
+    }
+
+    const blockers = await getSeasonCoachRemovalBlockers(parsedSeasonCoachId);
+    if (blockers.length > 0) {
+      return NextResponse.json(
+        {
+          error: "This coach cannot be removed safely because other season data still references this team.",
+          blockers,
+        },
+        { status: 409 }
+      );
+    }
+
     // Delete all rosters for a season coach
     await db
       .delete(rosters)
-      .where(eq(rosters.seasonCoachId, parseInt(seasonCoachId)));
+      .where(eq(rosters.seasonCoachId, parsedSeasonCoachId));
     await db
       .delete(seasonCoaches)
-      .where(eq(seasonCoaches.id, parseInt(seasonCoachId)));
+      .where(eq(seasonCoaches.id, parsedSeasonCoachId));
     return NextResponse.json({ success: true });
   }
 

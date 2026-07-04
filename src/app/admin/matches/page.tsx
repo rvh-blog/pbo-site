@@ -1427,7 +1427,7 @@ export default function AdminMatchesPage() {
                   }}
                   className="w-48"
                 >
-                  <option value="">All divisions</option>
+                  <option value="">Select a division</option>
                   {selectedSeason.divisions.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -1476,7 +1476,17 @@ export default function AdminMatchesPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {!selectedDivision ? (
-                  <p className="text-[var(--warning)]">Please select a division to upload a schedule.</p>
+                  <div className="rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-4">
+                    <p className="text-sm font-medium text-[var(--warning)]">
+                      Select a division above before uploading a schedule.
+                    </p>
+                    <p className="mt-2 text-xs text-[var(--foreground-muted)]">
+                      Schedules are uploaded one division at a time with a CSV containing: week, team1, team2.
+                    </p>
+                    <Button className="mt-4" variant="outline" disabled>
+                      Upload Schedule CSV
+                    </Button>
+                  </div>
                 ) : (
                   <>
                     <div>
@@ -1495,7 +1505,7 @@ export default function AdminMatchesPage() {
                           className="hidden"
                         />
                         <Button variant="outline" onClick={() => scheduleFileRef.current?.click()}>
-                          Choose CSV File
+                          Upload Schedule CSV
                         </Button>
                         {scheduleCsvFile && <span className="text-sm">{scheduleCsvFile}</span>}
                       </div>
