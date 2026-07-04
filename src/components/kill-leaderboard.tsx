@@ -37,7 +37,13 @@ export function KillLeaderboard({
   const leaderboard = filter === "combined" ? combined : filter === "regular" ? regular : playoffs;
 
   return (
-    <div className="poke-card p-4 sm:p-6 flex flex-col h-full">
+    <div
+      className="poke-card p-4 sm:p-6 flex flex-col h-full"
+      style={{
+        borderColor: `${divisionColor}44`,
+        background: `linear-gradient(180deg, ${divisionColor}0f, transparent 42%)`,
+      }}
+    >
       <div className="section-title !mb-4 !flex-col !items-start sm:!flex-row sm:!items-center sm:!justify-between !gap-3 sm:!gap-2">
         <div className="flex items-center gap-2">
           <div className="section-title-icon" style={{ background: divisionColor, boxShadow: `0 4px 0 ${divisionShadow}` }}>

@@ -24,6 +24,8 @@ export const metadata = {
 };
 
 const DIVISION_COLORS: Record<string, string> = {
+  Infinity: "#E2A3C7",
+  Infinty: "#E2A3C7",
   Stargazer: "#3b82f6",
   Sunset: "#fb923c",
   Crystal: "#c084fc",

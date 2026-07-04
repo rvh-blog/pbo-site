@@ -359,7 +359,13 @@ export default async function DivisionPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="poke-card p-4 sm:p-6">
+      <div
+        className="poke-card p-4 sm:p-6"
+        style={{
+          borderColor: `${divisionColor}55`,
+          background: `linear-gradient(135deg, ${divisionColor}12, transparent 45%)`,
+        }}
+      >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
             {/* Breadcrumb */}
@@ -378,13 +384,16 @@ export default async function DivisionPage({ params }: PageProps) {
                 {division.season?.name}
               </Link>
               <span className="text-[var(--foreground-subtle)]">/</span>
-              <span className="text-[var(--foreground-subtle)]">{division.name}</span>
+              <span style={{ color: divisionColor }}>{division.name}</span>
             </div>
 
             {/* Title */}
             <div className="flex items-center gap-4">
               {division.logoUrl && (
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] flex items-center justify-center">
+                <div
+                  className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--background-secondary)] border-2 flex items-center justify-center"
+                  style={{ borderColor: `${divisionColor}66`, boxShadow: `0 0 18px ${divisionColor}22` }}
+                >
                   <Image
                     src={division.logoUrl}
                     alt={division.name}
@@ -394,7 +403,10 @@ export default async function DivisionPage({ params }: PageProps) {
                   />
                 </div>
               )}
-              <h1 className="font-pixel text-lg sm:text-xl md:text-2xl text-white leading-relaxed">
+              <h1
+                className="font-pixel text-lg sm:text-xl md:text-2xl leading-relaxed"
+                style={{ color: divisionColor }}
+              >
                 {division.name} Division
               </h1>
             </div>
@@ -440,7 +452,14 @@ export default async function DivisionPage({ params }: PageProps) {
       {/* Side by Side Tables */}
       <SyncedHeightContainer
         leftContent={
-          <div id="standings" className="scroll-mt-32 poke-card p-4 sm:p-6 flex flex-col h-full">
+          <div
+            id="standings"
+            className="scroll-mt-32 poke-card p-4 sm:p-6 flex flex-col h-full"
+            style={{
+              borderColor: `${divisionColor}44`,
+              background: `linear-gradient(180deg, ${divisionColor}0f, transparent 42%)`,
+            }}
+          >
             <div className="section-title !mb-4">
               <div className="section-title-icon" style={{ background: divisionColor, boxShadow: `0 4px 0 ${divisionShadow}` }}>
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -540,6 +559,8 @@ export default async function DivisionPage({ params }: PageProps) {
         <ScheduleSection
           schedule={division.season?.isSchedulePublic === false ? {} : schedule}
           maxWeek={division.season?.isSchedulePublic === false ? 0 : maxWeek}
+          divisionColor={divisionColor}
+          divisionShadow={divisionShadow}
         />
       </div>
     </div>

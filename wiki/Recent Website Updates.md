@@ -170,6 +170,33 @@ Deployment notes:
 - Apply `migrations/add-polls.sql`.
 - Apply `migrations/add-performance-indexes.sql`.
 
+## July 4, 2026
+
+Coaches page:
+
+- The public Coaches page now has a desktop table layout with sortable columns for coach, team, games played, wins, losses, win percentage, differential, seasons, and Elo.
+- Current-season coach filtering is exposed as a visible `All / Active / Inactive` button group.
+- Active status uses the latest season's active `season_coaches` rows, so inactive/replaced teams are not treated as active merely because they belong to the current season.
+
+Infinity division color:
+
+- Infinity uses division color `#E2A3C7`.
+- Infinity uses darker shadow color `#B85A8D`.
+- Division color lookup accepts the saved spelling `Infinity`, a defensive `Infinty` alias, and case-insensitive matches.
+- Infinity color is applied across shared division color helpers, home page division accents, season overview standings cards, division detail headers, standings panels, kill leaders panels, schedule panels, fantasy, power rankings, slideshow data, and broadcast overlay data.
+
+Broadcast and overlays:
+
+- Broadcast setup now uses the normal seasons API so logged-in mods can select hidden/private divisions such as Infinity.
+- Public callers remain filtered by the seasons API visibility rules.
+- Overlay division context treats Infinity as a top-tier division.
+
+Admin uploads and production data:
+
+- Admin image upload limits for blog images, division logos, and team logos are now 10MB.
+- Production was migrated to include the missing fantasy entry tables so safe coach removal checks no longer fail on `fantasy_entry_picks`.
+- Season 11 National Dex move overrides were normalized to site move names so moves like `stealth-rock` resolve correctly for Mega Excadrill and other Pokemon.
+
 ## July 1, 2026
 
 Season 11 compatibility:

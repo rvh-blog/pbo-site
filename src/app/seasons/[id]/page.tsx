@@ -13,11 +13,24 @@ import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
 const DIVISION_COLORS: Record<string, string> = {
+  "Infinity": "#E2A3C7",
+  "Infinty": "#E2A3C7",
   "Stargazer": "#3b82f6",
   "Sunset": "#fb923c",
   "Crystal": "#c084fc",
   "Neon": "#4ade80",
 };
+
+function getDivisionColor(name: string | null | undefined) {
+  const normalizedName = name?.trim().toLowerCase();
+  if (!normalizedName) return undefined;
+
+  const colorKey = Object.keys(DIVISION_COLORS).find(
+    (divisionName) => divisionName.toLowerCase() === normalizedName
+  );
+
+  return colorKey ? DIVISION_COLORS[colorKey] : undefined;
+}
 
 type BattleLogItem = {
   id: number;
@@ -567,13 +580,16 @@ export default async function SeasonPage({ params }: PageProps) {
       {/* Division Quick Links */}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0">
         {season.divisions.map((div) => {
-          const divColor = DIVISION_COLORS[div.name];
+          const divColor = getDivisionColor(div.name);
           return (
             <Link
               key={div.id}
               href={`/seasons/${season.id}/divisions/${div.id}`}
               className="flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] transition-all font-bold text-sm group"
-              style={{ borderBottomColor: divColor ? `${divColor}66` : undefined }}
+              style={divColor ? {
+                borderColor: `${divColor}55`,
+                backgroundColor: `${divColor}12`,
+              } : undefined}
             >
               {div.logoUrl && (
                 <div className="w-6 h-6 rounded overflow-hidden bg-[var(--background-tertiary)] flex items-center justify-center">
@@ -586,7 +602,10 @@ export default async function SeasonPage({ params }: PageProps) {
                   />
                 </div>
               )}
-              <span className="text-[var(--foreground-muted)] group-hover:text-white transition-colors">
+              <span
+                className="transition-colors group-hover:text-white"
+                style={{ color: divColor || "var(--foreground-muted)" }}
+              >
                 {div.name}
               </span>
             </Link>
@@ -622,7 +641,7 @@ export default async function SeasonPage({ params }: PageProps) {
                   const finals = divPlayoffs.find(p => p.round === 3);
                   const champion = finals?.winner;
                   const inProgress = divPlayoffs.length > 0 && !champion;
-                  const divColor = DIVISION_COLORS[div.name];
+                  const divColor = getDivisionColor(div.name);
 
                   return (
                     <div
@@ -667,7 +686,7 @@ export default async function SeasonPage({ params }: PageProps) {
       <div className="grid gap-4 sm:gap-8 lg:grid-cols-2">
         {season.divisions.map((div, divIndex) => {
             const standings = allStandings[divIndex];
-            const divColor = DIVISION_COLORS[div.name];
+            const divColor = getDivisionColor(div.name);
             return (
               <div
                 key={div.id}
@@ -676,6 +695,10 @@ export default async function SeasonPage({ params }: PageProps) {
                 <Link
                   href={`/seasons/${season.id}/divisions/${div.id}`}
                   className="block px-6 py-4 bg-[var(--background-secondary)] hover:bg-[var(--background-tertiary)] transition-colors border-b border-[var(--background-tertiary)]"
+                  style={divColor ? {
+                    borderBottomColor: `${divColor}55`,
+                    backgroundColor: `${divColor}10`,
+                  } : undefined}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -690,9 +713,24 @@ export default async function SeasonPage({ params }: PageProps) {
                           />
                         </div>
                       )}
-                      <h2 className="font-pixel text-sm text-white">{div.name}</h2>
+                      <h2
+                        className="font-pixel text-sm"
+                        style={{ color: divColor || "white" }}
+                      >
+                        {div.name}
+                      </h2>
                     </div>
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase transition-colors" style={{ color: divColor || 'var(--foreground-muted)' }}>
+                    <div
+                      className="flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-bold uppercase transition-colors"
+                      style={divColor ? {
+                        color: divColor,
+                        backgroundColor: `${divColor}18`,
+                        borderColor: `${divColor}55`,
+                      } : {
+                        color: "var(--foreground-muted)",
+                        borderColor: "var(--background-tertiary)",
+                      }}
+                    >
                       <span>Full Standings</span>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -700,7 +738,9 @@ export default async function SeasonPage({ params }: PageProps) {
                     </div>
                   </div>
                 </Link>
-                <div className="h-[2px] shrink-0" style={{ background: `linear-gradient(to right, ${divColor}, ${divColor}20)` }} />
+                {divColor && (
+                  <div className="h-[2px] shrink-0" style={{ background: `linear-gradient(to right, ${divColor}, ${divColor}20)` }} />
+                )}
                 <div className="p-4 pt-3 sm:p-6 sm:pt-4">
                   {standings.length === 0 ? (
                     <p className="text-[var(--foreground-muted)] text-center py-4">

@@ -47,7 +47,7 @@ export default function BroadcastSetupPage() {
 
   // Fetch seasons on mount
   useEffect(() => {
-    fetch("/api/seasons?publicOnly=true")
+    fetch("/api/seasons")
       .then((r) => r.json())
       .then((data: Season[]) => {
         setSeasons(data);

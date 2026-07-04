@@ -528,7 +528,7 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
   const divisionInfo = {
     name: division.name,
     logoUrl: division.logoUrl,
-    color: DIVISION_COLORS[division.name] || "#64748b",
+    color: getDivisionColor(division.name),
   };
 
   const seasonInfo = {
@@ -546,8 +546,21 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
 }
 
 const DIVISION_COLORS: Record<string, string> = {
+  Infinity: "#E2A3C7",
+  Infinty: "#E2A3C7",
   Stargazer: "#3b82f6",
   Sunset: "#fb923c",
   Crystal: "#c084fc",
   Neon: "#4ade80",
 };
+
+function getDivisionColor(name: string | null | undefined) {
+  const normalizedName = name?.trim().toLowerCase();
+  if (!normalizedName) return "#64748b";
+
+  const colorKey = Object.keys(DIVISION_COLORS).find(
+    (divisionName) => divisionName.toLowerCase() === normalizedName
+  );
+
+  return colorKey ? DIVISION_COLORS[colorKey] : "#64748b";
+}

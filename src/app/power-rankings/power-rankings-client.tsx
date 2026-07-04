@@ -21,11 +21,24 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 const DIVISION_COLORS: Record<string, string> = {
+  Infinity: "#E2A3C7",
+  Infinty: "#E2A3C7",
   Stargazer: "#3b82f6",
   Sunset: "#fb923c",
   Crystal: "#c084fc",
   Neon: "#4ade80",
 };
+
+function getDivisionColor(name: string | null | undefined) {
+  const normalizedName = name?.trim().toLowerCase();
+  if (!normalizedName) return "#64748b";
+
+  const colorKey = Object.keys(DIVISION_COLORS).find(
+    (divisionName) => divisionName.toLowerCase() === normalizedName
+  );
+
+  return colorKey ? DIVISION_COLORS[colorKey] : "#64748b";
+}
 
 interface Season {
   id: number;
@@ -170,8 +183,7 @@ export function PowerRankingsClient({ seasons, preloadedData }: Props) {
   const selectedDivision = selectedSeason?.divisions.find(
     (d) => d.id === selectedDivisionId
   );
-  const divisionColor =
-    selectedDivision ? DIVISION_COLORS[selectedDivision.name] || "#64748b" : "#64748b";
+  const divisionColor = getDivisionColor(selectedDivision?.name);
 
   // Load teams when division changes
   const loadTeams = useCallback(
@@ -363,7 +375,7 @@ export function PowerRankingsClient({ seasons, preloadedData }: Props) {
           </h2>
           <div className="flex flex-wrap gap-2">
             {selectedSeason.divisions.map((div) => {
-              const color = DIVISION_COLORS[div.name] || "#64748b";
+              const color = getDivisionColor(div.name);
               const isSelected = selectedDivisionId === div.id;
               return (
                 <button

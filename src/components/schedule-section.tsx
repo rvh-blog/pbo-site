@@ -50,6 +50,8 @@ interface Match {
 interface ScheduleSectionProps {
   schedule: Record<number, Match[]>;
   maxWeek: number;
+  divisionColor?: string;
+  divisionShadow?: string;
 }
 
 // Helper to get display label for a week number
@@ -88,7 +90,12 @@ function formatSchedule(isoString: string): string {
   });
 }
 
-export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
+export function ScheduleSection({
+  schedule,
+  maxWeek,
+  divisionColor = "var(--accent)",
+  divisionShadow = "#b45309",
+}: ScheduleSectionProps) {
   const [selectedWeek, setSelectedWeek] = useState(() => getInitialWeek(schedule, maxWeek));
   const [expandedMatches, setExpandedMatches] = useState<Set<number>>(new Set());
   const [now, setNow] = useState<number | null>(null);
@@ -119,10 +126,16 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
   };
 
   return (
-    <div className="poke-card p-0 overflow-hidden">
-      <div className="p-6 border-b-2 border-[var(--background-tertiary)]">
+    <div
+      className="poke-card p-0 overflow-hidden"
+      style={{
+        borderColor: `${divisionColor}44`,
+        background: `linear-gradient(180deg, ${divisionColor}0f, transparent 42%)`,
+      }}
+    >
+      <div className="p-6 border-b-2" style={{ borderBottomColor: `${divisionColor}44` }}>
         <div className="section-title !mb-0">
-          <div className="section-title-icon !bg-[var(--accent)]" style={{ boxShadow: '0 4px 0 #b45309' }}>
+          <div className="section-title-icon" style={{ background: divisionColor, boxShadow: `0 4px 0 ${divisionShadow}` }}>
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
@@ -132,7 +145,7 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
       </div>
 
       {/* Week Selector */}
-      <div className="p-3 sm:p-4 border-b-2 border-[var(--background-tertiary)]">
+      <div className="p-3 sm:p-4 border-b-2" style={{ borderBottomColor: `${divisionColor}33` }}>
         <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 scrollbar-thin">
           {weeks.map((week) => (
             <button
@@ -141,10 +154,13 @@ export function ScheduleSection({ schedule, maxWeek }: ScheduleSectionProps) {
               className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${
                 selectedWeek === week
                   ? week > 100
-                    ? "bg-[var(--accent)] text-black border-[var(--accent)]"
-                    : "bg-[var(--primary)] text-white border-[var(--primary)]"
+                    ? "text-white"
+                    : "text-white"
                   : "bg-[var(--background-secondary)] border-[var(--background-tertiary)] hover:border-[var(--primary)]"
               }`}
+              style={selectedWeek === week
+                ? { backgroundColor: divisionColor, borderColor: divisionColor }
+                : undefined}
             >
               {getWeekLabel(week)}
             </button>

@@ -10,6 +10,8 @@ import { computeAndSortStandings } from "@/lib/standings-sort";
 
 // Division hierarchy (1 = top, 4 = bottom)
 const DIVISION_TIERS: Record<string, number> = {
+  "Infinity": 1,
+  "Infinty": 1,
   "Stargazer": 1,
   "Sunset": 2,
   "Crystal": 3,

@@ -44,7 +44,9 @@ async function getCoachesData() {
     });
 
     const latestTeam = participations[0] || null;
-    const isActive = participations.some(sp => sp.division?.season?.id === latestSeasonId);
+    const isActive = participations.some(sp =>
+      sp.division?.season?.id === latestSeasonId && sp.isActive
+    );
 
     return {
       id: coach.id,

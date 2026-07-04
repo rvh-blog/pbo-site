@@ -63,13 +63,14 @@ type Props = {
   seasons: Season[];
 };
 
-type SortKey = "elo" | "name" | "wins" | "winRate" | "differential" | "games" | "seasons";
+type SortKey = "elo" | "name" | "team" | "wins" | "losses" | "winRate" | "differential" | "games" | "seasons";
 type SortDirection = "asc" | "desc";
+type ActiveFilter = "all" | "active" | "inactive";
 
 export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions, seasons }: Props) {
   const [includeForfeits, setIncludeForfeits] = useState(true);
   const [showAllTimeStats, setShowAllTimeStats] = useState(true); // true = all-time, false = filtered
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null);
   const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -171,8 +172,10 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
     }
 
     // Filter by active status
-    if (showActiveOnly) {
+    if (activeFilter === "active") {
       filtered = filtered.filter(c => c.isActive);
+    } else if (activeFilter === "inactive") {
+      filtered = filtered.filter(c => !c.isActive);
     }
 
     const normalizedSearch = search.trim().toLowerCase();
@@ -193,8 +196,14 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
         case "wins":
           base = a.totalWins - b.totalWins;
           break;
+        case "losses":
+          base = a.totalLosses - b.totalLosses;
+          break;
         case "winRate":
           base = a.winRate - b.winRate;
+          break;
+        case "team":
+          base = (a.latestTeam?.teamName ?? "").localeCompare(b.latestTeam?.teamName ?? "");
           break;
         case "differential":
           base = a.differential - b.differential;
@@ -214,7 +223,37 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
       const sorted = sortDirection === "asc" ? base : -base;
       return sorted || b.eloRating - a.eloRating || a.name.localeCompare(b.name);
     });
-  }, [coachesWithStats, selectedSeasonId, selectedDivisionId, showActiveOnly, search, sortDirection, sortKey]);
+  }, [coachesWithStats, selectedSeasonId, selectedDivisionId, activeFilter, search, sortDirection, sortKey]);
+
+  function setSort(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => current === "asc" ? "desc" : "asc");
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection(nextKey === "name" || nextKey === "team" ? "asc" : "desc");
+  }
+
+  function renderSortHeader(label: string, column: SortKey, align: "left" | "center" | "right" = "left") {
+    const active = sortKey === column;
+
+    return (
+      <button
+        key={column}
+        type="button"
+        onClick={() => setSort(column)}
+        className={`flex w-full items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)] transition-colors hover:text-white ${
+          align === "center" ? "justify-center text-center" : align === "right" ? "justify-end text-right" : "justify-start text-left"
+        }`}
+      >
+        <span>{label}</span>
+        <span className={active ? "text-[var(--primary)]" : "text-[var(--foreground-subtle)]"}>
+          {active ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -255,15 +294,39 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
         <div className="poke-card p-0 overflow-hidden">
           {/* Section Header with Filters */}
           <div className="p-4 sm:p-6 border-b-2 border-[var(--background-tertiary)]">
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div className="flex flex-col gap-4">
               {/* Title */}
-              <div className="section-title !mb-0 shrink-0">
-                <div className="section-title-icon">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="section-title !mb-0 shrink-0">
+                  <div className="section-title-icon">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <h3>ELO Rankings</h3>
                 </div>
-                <h3>ELO Rankings</h3>
+
+                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">
+                    Current Season Coaches
+                  </span>
+                  <div className="flex w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] sm:w-auto">
+                    {(["all", "active", "inactive"] as const).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setActiveFilter(value)}
+                        className={`flex-1 px-3 py-2 text-[10px] font-bold uppercase transition-colors sm:flex-none sm:text-xs ${
+                          activeFilter === value
+                            ? "bg-[var(--primary)] text-white"
+                            : "text-[var(--foreground-muted)] hover:text-white"
+                        }`}
+                      >
+                        {value === "all" ? "All" : value === "active" ? "Active" : "Inactive"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Filters & Toggles */}
@@ -297,7 +360,9 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                   >
                     <option value="elo">Sort: Elo</option>
                     <option value="name">Sort: Name</option>
+                    <option value="team">Sort: Team</option>
                     <option value="wins">Sort: Wins</option>
+                    <option value="losses">Sort: Losses</option>
                     <option value="winRate">Sort: Win %</option>
                     <option value="differential">Sort: Diff</option>
                     <option value="games">Sort: Games</option>
@@ -384,36 +449,32 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                     </button>
                   </label>
 
-                  {/* Active Only Toggle */}
-                  <label className="flex items-center gap-1.5 sm:gap-2 cursor-pointer">
-                    <span className="text-[10px] sm:text-xs text-[var(--foreground-muted)] whitespace-nowrap">Active</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={showActiveOnly}
-                      onClick={() => setShowActiveOnly(!showActiveOnly)}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2 focus:ring-offset-[var(--background)] ${
-                        showActiveOnly ? 'bg-[var(--primary)]' : 'bg-[var(--background-tertiary)]'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
-                          showActiveOnly ? 'translate-x-[18px]' : 'translate-x-[3px]'
-                        }`}
-                      />
-                    </button>
-                  </label>
                 </div>
               </div>
               </details>
             </div>
           </div>
 
+          <div className="hidden border-b-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)]/70 px-4 py-3 md:grid md:grid-cols-[3rem_3rem_minmax(10rem,1.3fr)_7rem_minmax(10rem,1fr)_4rem_4rem_4rem_5rem_5rem_5rem_5rem] md:items-center md:gap-3">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Rank</div>
+            <div aria-hidden="true" />
+            {renderSortHeader("Coach", "name")}
+            <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Status</div>
+            {renderSortHeader("Team", "team")}
+            {renderSortHeader("GP", "games", "center")}
+            {renderSortHeader("W", "wins", "center")}
+            {renderSortHeader("L", "losses", "center")}
+            {renderSortHeader("Win %", "winRate", "center")}
+            {renderSortHeader("Diff", "differential", "center")}
+            {renderSortHeader("Seasons", "seasons", "center")}
+            {renderSortHeader("ELO", "elo", "right")}
+          </div>
+
           {/* Coach List */}
           <div className="divide-y-2 divide-[var(--background-tertiary)]">
             {displayedCoaches.map((coach, index) => (
               <Link key={coach.id} href={`/coaches/${coach.id}`} className="block group">
-                <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 hover:bg-[var(--background-secondary)]/50 transition-colors">
+                <div className="flex items-center gap-2 p-3 transition-colors hover:bg-[var(--background-secondary)]/50 sm:gap-4 sm:p-4 md:grid md:grid-cols-[3rem_3rem_minmax(10rem,1.3fr)_7rem_minmax(10rem,1fr)_4rem_4rem_4rem_5rem_5rem_5rem_5rem] md:items-center md:gap-3">
                   {/* Rank */}
                   <div className={`rank-badge w-5 h-5 sm:w-8 sm:h-8 text-[10px] sm:text-sm flex-shrink-0 ${
                     index === 0 ? 'rank-1' :
@@ -468,7 +529,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                     <h3 className="font-bold text-xs sm:text-sm group-hover:text-[var(--primary)] transition-colors truncate">
                       {coach.name}
                     </h3>
-                    <p className="text-[10px] sm:text-xs text-[var(--foreground-muted)] truncate">
+                    <p className="text-[10px] sm:text-xs text-[var(--foreground-muted)] truncate md:hidden">
                       {coach.latestTeam ? (
                         <>
                           {coach.latestTeam.teamName}
@@ -496,34 +557,52 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                     </p>
                   </div>
 
+                  <div className="hidden md:flex justify-center">
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${
+                      coach.isActive
+                        ? "border-[var(--success)]/40 bg-[var(--success)]/10 text-[var(--success)]"
+                        : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${coach.isActive ? "bg-[var(--success)]" : "bg-[var(--foreground-subtle)]"}`} />
+                      {coach.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+
+                  <div className="hidden min-w-0 md:block">
+                    <p className="truncate text-sm font-medium text-white">
+                      {coach.latestTeam?.teamName ?? "No team"}
+                    </p>
+                    <p className="truncate text-[10px] text-[var(--foreground-muted)]">
+                      {coach.latestTeam?.divisionName ?? `${coach.seasons} season${coach.seasons !== 1 ? "s" : ""}`}
+                    </p>
+                  </div>
+
                   {/* Stats - Desktop */}
-                  <div className="hidden md:grid grid-cols-5 items-center gap-3 text-sm">
-                    <div className="w-14 text-center">
+                  <div className="hidden md:contents text-sm">
+                    <div className="text-center">
                       <p className="font-bold text-white">{coach.gamesPlayed}</p>
-                      <p className="text-[10px] text-[var(--foreground-muted)]">GP</p>
                     </div>
-                    <div className="w-14 text-center">
+                    <div className="text-center">
                       <p className="font-bold text-[var(--success)]">{coach.totalWins}</p>
-                      <p className="text-[10px] text-[var(--foreground-muted)]">W</p>
                     </div>
-                    <div className="w-14 text-center">
+                    <div className="text-center">
                       <p className="font-bold text-[var(--error)]">{coach.totalLosses}</p>
-                      <p className="text-[10px] text-[var(--foreground-muted)]">L</p>
                     </div>
-                    <div className="w-14 text-center">
+                    <div className="text-center">
                       <p className="font-bold">{coach.winRate}%</p>
-                      <p className="text-[10px] text-[var(--foreground-muted)]">Win</p>
                     </div>
-                    <div className="w-14 text-center">
+                    <div className="text-center">
                       <p className={`font-bold ${coach.differential >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
                         {coach.differential > 0 ? "+" : ""}{coach.differential}
                       </p>
-                      <p className="text-[10px] text-[var(--foreground-muted)]">Diff</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-bold text-white">{coach.seasons}</p>
                     </div>
                   </div>
 
                   {/* ELO */}
-                  <div className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg font-mono font-bold text-xs sm:text-sm flex-shrink-0 ${
+                  <div className={`justify-self-end px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg font-mono font-bold text-xs sm:text-sm flex-shrink-0 ${
                     coach.eloRating >= 1100
                       ? "bg-[var(--success)]/10 text-[var(--success)] border border-[var(--success)]/30"
                       : coach.eloRating <= 900
@@ -534,7 +613,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                   </div>
 
                   {/* Arrow - Desktop only */}
-                  <div className="hidden sm:block opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all flex-shrink-0">
+                  <div className="hidden opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all flex-shrink-0">
                     <svg className="w-4 h-4 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
