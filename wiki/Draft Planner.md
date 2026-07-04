@@ -7,9 +7,10 @@ The draft planner is a public planning tool at `/draft-planner`. It is intention
 ## Current Behavior
 
 - The draft board is sorted by price from highest to lowest.
-- The max supported planner price is 20.
+- The max supported planner price is 19 for the current Season 11 ruleset.
 - Pokemon priced at 0 are excluded from the draft board.
-- Complex banned or unavailable Pokemon should not be treated as draftable.
+- Complex-ban notes from `season_pokemon_prices.complex_ban_reason` are shown on candidate cards.
+- Pokemon with invalid season prices should not be treated as draftable.
 - The board is scrollable from the highest price group down to 1 point.
 - Drafted ownership labels are not shown in the planner.
 - Tier language such as Premium, Starter, and Value is not shown in the draft board.
@@ -53,3 +54,5 @@ Current removed role wording includes:
 ## Change Notes
 
 When changing draft planner filtering, remember that this page is a planning surface, not the official roster source. Do not block planner additions just because a Pokemon is already drafted by a real team.
+
+Season-specific pricing comes from `season_pokemon_prices`. When a new ruleset changes max price, Tera handling, or complex bans, update both the import data and the planner UI constraints so they stay aligned.

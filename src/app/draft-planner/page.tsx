@@ -209,11 +209,12 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
         : [];
 
   // Build price lookup
-  const seasonPrices: Record<number, { price: number; teraCaptainCost: number | null }> = {};
+  const seasonPrices: Record<number, { price: number; teraCaptainCost: number | null; complexBanReason: string | null }> = {};
   for (const sp of seasonPricesData) {
     seasonPrices[sp.pokemonId] = {
       price: sp.price,
       teraCaptainCost: sp.teraCaptainCost,
+      complexBanReason: sp.complexBanReason,
     };
   }
 

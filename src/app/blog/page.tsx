@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
+import { BlogImage } from "@/components/blog-image";
 
 export const dynamic = "force-dynamic";
 
@@ -100,12 +101,7 @@ export default async function BlogPage() {
                   </div>
                   {post.imageUrl && (
                     <div className="mt-4 overflow-hidden rounded border border-white/10 bg-black/30">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={post.imageUrl}
-                        alt=""
-                        className="h-48 w-full object-cover"
-                      />
+                      <BlogImage src={post.imageUrl} variant="card" />
                     </div>
                   )}
                   {post.excerpt && (

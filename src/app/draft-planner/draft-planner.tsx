@@ -175,6 +175,7 @@ interface RosterSlot {
 interface SeasonPriceInfo {
   price: number;
   teraCaptainCost: number | null;
+  complexBanReason: string | null;
 }
 
 interface Season {
@@ -206,6 +207,7 @@ type StatFocus = "none" | "price" | "hp" | "attack" | "defense" | "specialAttack
 interface CandidatePokemon extends SimplePokemon {
   price: number;
   teraCaptainCost: number | null;
+  complexBanReason: string | null;
   roles: DraftRole[];
   fitScore: number;
   fitTags: string[];
@@ -331,7 +333,7 @@ export function DraftPlanner({
   const [selectedType, setSelectedType] = useState("all");
   const [statFocus, setStatFocus] = useState<StatFocus>("none");
   const [statFocusAsc, setStatFocusAsc] = useState(false);
-  const [maxPrice, setMaxPrice] = useState(20);
+  const [maxPrice, setMaxPrice] = useState(19);
   const [minSpeed, setMinSpeed] = useState(0);
   const [maxSpeed, setMaxSpeed] = useState(160);
   const [availableOnly, setAvailableOnly] = useState(true);
@@ -681,6 +683,7 @@ export function DraftPlanner({
         ...p,
         price,
         teraCaptainCost: priceInfo?.teraCaptainCost ?? null,
+        complexBanReason: priceInfo?.complexBanReason ?? null,
         roles,
         fitScore,
         fitTags: Array.from(new Set(fitTags)).slice(0, 4),
@@ -1072,7 +1075,7 @@ export function DraftPlanner({
             <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
               <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Price: {maxPrice}</span>
-                <input type="range" min="0" max="20" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full" />
+                <input type="range" min="0" max="19" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full" />
               </label>
               <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Min Speed: {minSpeed}</span>
@@ -1146,6 +1149,14 @@ export function DraftPlanner({
                           {(candidate.types || []).map((type) => (
                             <span key={type} className={`type-badge type-${type.toLowerCase()} px-1 py-0 text-[10px]`}>{formatTypeName(type)}</span>
                           ))}
+                          {candidate.complexBanReason && (
+                            <span
+                              className="rounded border border-[var(--warning)]/30 bg-[var(--warning)]/20 px-1 py-0 text-[10px] font-bold text-[var(--warning)]"
+                              title={`No ${candidate.complexBanReason}`}
+                            >
+                              No {candidate.complexBanReason}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

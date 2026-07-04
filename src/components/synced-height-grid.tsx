@@ -13,15 +13,44 @@ export function SyncedHeightGrid({ leftContent, rightContent, mobileMiddleConten
   const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
 
   useEffect(() => {
+    let frameId: number | null = null;
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+
     const updateHeight = () => {
-      if (leftRef.current) {
-        setMaxHeight(leftRef.current.offsetHeight);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
       }
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+
+        if (!desktopQuery.matches) {
+          setMaxHeight(undefined);
+          return;
+        }
+
+        setMaxHeight(leftRef.current?.offsetHeight);
+      });
     };
 
     updateHeight();
     window.addEventListener("resize", updateHeight);
-    return () => window.removeEventListener("resize", updateHeight);
+
+    desktopQuery.addEventListener("change", updateHeight);
+
+    const resizeObserver = new ResizeObserver(updateHeight);
+    if (leftRef.current) {
+      resizeObserver.observe(leftRef.current);
+    }
+
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      window.removeEventListener("resize", updateHeight);
+      desktopQuery.removeEventListener("change", updateHeight);
+      resizeObserver.disconnect();
+    };
   }, []);
 
   return (

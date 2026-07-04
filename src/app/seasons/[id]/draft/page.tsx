@@ -131,6 +131,7 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
   // Complex bans shown separately as a warning, but also appear in regular tiers
   const complexBans = pokemonList.filter((p) => p.complexBanReason);
   const regularPokemon = pokemonList; // All Pokemon appear in price tiers
+  const hasTeraData = pokemonList.some((p) => p.teraBanned || p.teraCaptainCost !== null);
 
   complexBans.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -212,14 +213,18 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
       <div className="poke-card p-4">
         <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--foreground-muted)]">
           <span className="font-bold text-white uppercase text-[10px]">Legend:</span>
-          <div className="flex items-center gap-1.5">
-            <span className="px-1.5 py-0.5 rounded bg-[var(--error)]/20 text-[var(--error)] font-bold border border-[var(--error)]/30">B</span>
-            <span>Tera Banned</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="px-1.5 py-0.5 rounded bg-[var(--accent)]/20 text-[var(--accent)] font-bold border border-[var(--accent)]/30">3</span>
-            <span>Tera Captain Cost</span>
-          </div>
+          {hasTeraData && (
+            <>
+              <div className="flex items-center gap-1.5">
+                <span className="px-1.5 py-0.5 rounded bg-[var(--error)]/20 text-[var(--error)] font-bold border border-[var(--error)]/30">B</span>
+                <span>Tera Banned</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="px-1.5 py-0.5 rounded bg-[var(--accent)]/20 text-[var(--accent)] font-bold border border-[var(--accent)]/30">3</span>
+                <span>Tera Captain Cost</span>
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-1.5">
             <span className="px-1.5 py-0.5 rounded bg-[var(--primary)] text-white font-bold text-[10px]">ABC</span>
             <span>Taken by Team</span>

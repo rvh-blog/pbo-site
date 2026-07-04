@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { blogComments, blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
+import { BlogImage } from "@/components/blog-image";
 import { BlogDeleteButton } from "./blog-delete-button";
 import { BlogCommentForm } from "./blog-comment-form";
 import { BlogCommentsList } from "./blog-comments-list";
@@ -114,12 +115,7 @@ export default async function BlogPostPage({ params }: PageProps) {
       <div className="poke-card p-4 sm:p-8">
         {post.imageUrl && (
           <div className="mb-6 overflow-hidden rounded border border-white/10 bg-black/30">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={post.imageUrl}
-              alt=""
-              className="max-h-[520px] w-full object-contain"
-            />
+            <BlogImage src={post.imageUrl} variant="post" />
           </div>
         )}
         <div className="whitespace-pre-wrap break-words text-[var(--foreground)] leading-8">

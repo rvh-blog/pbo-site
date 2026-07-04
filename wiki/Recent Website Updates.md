@@ -4,6 +4,43 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 4, 2026
+
+Season 11 launch checks:
+
+- Season 11 is the current public season with public schedules.
+- Season 11 uses a 115-point draft budget.
+- The Season 11 draft board imports from the S11 Tiers sheet into `season_pokemon_prices`.
+- Season 11 draft prices are capped at 19 points; 20- and 21-point sheet columns are ignored.
+- Season 11 ignores Tera data: no Tera captain costs, no Tera banned flags, and no S11 roster Tera captain flags.
+- The Season 11 draft board hides Tera legend labels when the season has no Tera data.
+- Complex bans are represented with `complex_ban_reason` and shown on the draft board and planner candidate cards.
+- Confirmed complex bans include Mega Blastoise, Mega Kangaskhan, Mega Greninja, Mega Barbaracle, Zygarde, and Zygarde-10%.
+- Wiglett is present in the Season 11 board at 1 point.
+- S11 team remaining budgets were recalculated from the 115-point budget and current roster prices.
+
+Draft planner:
+
+- The default no-season planner view follows the newest/current season, so it now opens against Season 11.
+- The max price slider caps at 19.
+- Candidate cards show complex-ban notes such as `No Shell Smash`.
+
+Blog:
+
+- Blog post image rendering now supports direct image URLs and Imgur album/gallery URLs.
+- Imgur album/gallery links render as embedded albums instead of broken image tags.
+
+Home page:
+
+- The synced home page grid now recalculates desktop height after resizing and clears the synced height on mobile widths.
+- Shrinking the page and returning to full screen should restore the original desktop layout.
+
+Verification notes:
+
+- `npx tsc --noEmit` passes.
+- Targeted ESLint passes for changed files, with only the existing `draft-board-grid.tsx` `<img>` warnings.
+- Local route checks passed for `/`, `/seasons/15/draft?division=46`, `/draft-planner`, and `/draft-planner?season=15`.
+
 ## July 3, 2026
 
 Home page:

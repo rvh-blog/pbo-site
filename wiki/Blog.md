@@ -38,6 +38,15 @@ Signed-in users can comment on blog posts. Comments support replies through `par
 
 Admins can delete comments. Deleting a parent comment also deletes direct replies.
 
+## Images
+
+Blog post image URLs are rendered through `BlogImage`.
+
+Supported URL types:
+
+- Direct image URLs render as normal images.
+- Imgur album/gallery/page URLs render in an embedded iframe so album links do not appear as broken images.
+
 ## Database Tables
 
 - `blog_posts`
