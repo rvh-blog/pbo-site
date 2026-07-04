@@ -7,6 +7,7 @@ primary_region = "iad"
   NODE_ENV = "production"
   DATABASE_PATH = "/data/pbo.db"
   GOOGLE_APPLICATION_CREDENTIALS = "/data/google-credentials/pbo-site-2c91419be737.json"
+  UPLOADS_DIR = "/data/uploads"
 
 [http_service]
   internal_port = 3000

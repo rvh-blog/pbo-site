@@ -52,8 +52,9 @@ export async function POST(request: NextRequest) {
   const seasonSlug = slugify(seasonNumber);
   const divisionSlug = slugify(divisionName) || "division";
   const fileName = `${seasonSlug}-${divisionSlug}-${Date.now()}.${extension}`;
-  const relativePath = `/images/divisions/${fileName}`;
-  const uploadDir = path.join(process.cwd(), "public", "images", "divisions");
+  const relativePath = `/uploads/divisions/${fileName}`;
+  const uploadRoot = process.env.UPLOADS_DIR || path.join(process.cwd(), "public", "uploads");
+  const uploadDir = path.join(uploadRoot, "divisions");
   const uploadPath = path.join(uploadDir, fileName);
 
   await mkdir(uploadDir, { recursive: true });

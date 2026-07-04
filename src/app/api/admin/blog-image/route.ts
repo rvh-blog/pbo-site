@@ -48,8 +48,9 @@ export async function POST(request: NextRequest) {
   }
 
   const fileName = `${slugify(title) || "blog-image"}-${Date.now()}.${extension}`;
-  const relativePath = `/images/blog/${fileName}`;
-  const uploadDir = path.join(process.cwd(), "public", "images", "blog");
+  const relativePath = `/uploads/blog/${fileName}`;
+  const uploadRoot = process.env.UPLOADS_DIR || path.join(process.cwd(), "public", "uploads");
+  const uploadDir = path.join(uploadRoot, "blog");
   const uploadPath = path.join(uploadDir, fileName);
 
   await mkdir(uploadDir, { recursive: true });
