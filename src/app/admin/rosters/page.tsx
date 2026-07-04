@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- Existing admin form synchronization uses effect-driven state updates. */
-
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,6 +81,7 @@ export default function AdminRostersPage() {
   const [loading, setLoading] = useState(true);
   const [showBulkEditor, setShowBulkEditor] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
+  const [uploadingTeamLogoTarget, setUploadingTeamLogoTarget] = useState<string | null>(null);
 
   // Form state for adding coach to season
   const [newEntry, setNewEntry] = useState({
@@ -257,6 +256,41 @@ export default function AdminRostersPage() {
     setUseExistingTeam(false);
     if (selectedSeason) {
       fetchSeasonCoaches(selectedSeason.id);
+    }
+  }
+
+  async function uploadTeamLogo(
+    file: File | null,
+    teamName: string,
+    target: string,
+    onUploaded: (logoUrl: string) => void
+  ) {
+    if (!file || !selectedSeason) return;
+
+    setUploadingTeamLogoTarget(target);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("teamName", teamName || "team");
+    formData.append("seasonNumber", String(selectedSeason.seasonNumber));
+
+    try {
+      const response = await fetch("/api/admin/team-logo", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        alert(result.error || "Failed to upload team logo");
+        return;
+      }
+
+      onUploaded(result.logoUrl);
+    } catch {
+      alert("Failed to upload team logo");
+    } finally {
+      setUploadingTeamLogoTarget(null);
     }
   }
 
@@ -655,14 +689,22 @@ export default function AdminRostersPage() {
                     />
                   </div>
                   <div>
-                    <Label>Team Logo URL</Label>
-                    <Input
-                      value={newEntry.teamLogoUrl}
-                      onChange={(e) =>
-                        setNewEntry({ ...newEntry, teamLogoUrl: e.target.value })
-                      }
-                      placeholder="https://example.com/logo.png"
-                    />
+                    <Label>Team Logo</Label>
+                    <label className="btn-retro-secondary mt-1 flex cursor-pointer items-center justify-center px-4 py-2 text-[10px]">
+                      {uploadingTeamLogoTarget === "new" ? "Uploading..." : newEntry.teamLogoUrl ? "Replace Logo" : "Upload Logo"}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                        className="hidden"
+                        disabled={uploadingTeamLogoTarget !== null}
+                        onChange={(e) => {
+                          uploadTeamLogo(e.target.files?.[0] || null, newEntry.teamName, "new", (logoUrl) =>
+                            setNewEntry((prev) => ({ ...prev, teamLogoUrl: logoUrl }))
+                          );
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -678,6 +720,14 @@ export default function AdminRostersPage() {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
                     />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNewEntry((prev) => ({ ...prev, teamLogoUrl: "" }))}
+                    >
+                      Clear Logo
+                    </Button>
                   </div>
                 )}
 
@@ -957,14 +1007,22 @@ export default function AdminRostersPage() {
                 />
               </div>
               <div>
-                <Label>Team Logo URL</Label>
-                <Input
-                  value={editTeamForm.teamLogoUrl}
-                  onChange={(e) =>
-                    setEditTeamForm({ ...editTeamForm, teamLogoUrl: e.target.value })
-                  }
-                  placeholder="https://example.com/logo.png"
-                />
+                <Label>Team Logo</Label>
+                <label className="btn-retro-secondary mt-1 flex cursor-pointer items-center justify-center px-4 py-2 text-[10px]">
+                  {uploadingTeamLogoTarget === "edit" ? "Uploading..." : editTeamForm.teamLogoUrl ? "Replace Logo" : "Upload Logo"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                    className="hidden"
+                    disabled={uploadingTeamLogoTarget !== null}
+                    onChange={(e) => {
+                      uploadTeamLogo(e.target.files?.[0] || null, editTeamForm.teamName, "edit", (logoUrl) =>
+                        setEditTeamForm((prev) => ({ ...prev, teamLogoUrl: logoUrl }))
+                      );
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                </label>
               </div>
               {editTeamForm.teamLogoUrl && (
                 <div className="flex items-center gap-3">
@@ -977,6 +1035,14 @@ export default function AdminRostersPage() {
                       (e.target as HTMLImageElement).style.display = "none";
                     }}
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditTeamForm((prev) => ({ ...prev, teamLogoUrl: "" }))}
+                  >
+                    Clear Logo
+                  </Button>
                 </div>
               )}
               <div className="flex gap-3 justify-end">
@@ -1108,14 +1174,40 @@ export default function AdminRostersPage() {
                 />
               </div>
               <div>
-                <Label>New Team Logo URL</Label>
-                <Input
-                  value={replacementForm.newTeamLogoUrl}
-                  onChange={(e) =>
-                    setReplacementForm({ ...replacementForm, newTeamLogoUrl: e.target.value })
-                  }
-                  placeholder="https://example.com/logo.png"
-                />
+                <Label>New Team Logo</Label>
+                <label className="btn-retro-secondary mt-1 flex cursor-pointer items-center justify-center px-4 py-2 text-[10px]">
+                  {uploadingTeamLogoTarget === "replacement" ? "Uploading..." : replacementForm.newTeamLogoUrl ? "Replace Logo" : "Upload Logo"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                    className="hidden"
+                    disabled={uploadingTeamLogoTarget !== null}
+                    onChange={(e) => {
+                      uploadTeamLogo(e.target.files?.[0] || null, replacementForm.newTeamName, "replacement", (logoUrl) =>
+                        setReplacementForm((prev) => ({ ...prev, newTeamLogoUrl: logoUrl }))
+                      );
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {replacementForm.newTeamLogoUrl && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="text-sm text-[var(--foreground-muted)]">Preview:</span>
+                    <img
+                      src={replacementForm.newTeamLogoUrl}
+                      alt="Logo preview"
+                      className="w-10 h-10 object-contain rounded"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setReplacementForm((prev) => ({ ...prev, newTeamLogoUrl: "" }))}
+                    >
+                      Clear Logo
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="p-3 rounded-lg bg-[var(--background-secondary)] text-sm">
                 <p className="font-medium mb-1">What happens:</p>
