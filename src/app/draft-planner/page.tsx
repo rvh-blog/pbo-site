@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { coaches, seasonCoaches, pokemon, seasonPokemonPrices, seasons } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { DraftPlanner } from "./draft-planner";
+import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
 
 interface PageProps {
   searchParams: Promise<{ coach?: string; season?: string }>;
@@ -207,6 +208,21 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
             where: eq(seasonPokemonPrices.seasonId, selectedSeasonId),
           })
         : [];
+  const seasonMoves = selectedSeasonId
+    ? await getSeasonPokemonMovesMap(selectedSeasonId)
+    : new Map<number, string[]>();
+
+  const allPokemonForSeason = allPokemon.map((poke) => ({
+    ...poke,
+    moves: movesForSeasonPokemon(poke.id, poke.moves, seasonMoves),
+  }));
+
+  if (rosterData.length > 0) {
+    rosterData = rosterData.map((poke) => ({
+      ...poke,
+      moves: movesForSeasonPokemon(poke.pokemonId, poke.moves, seasonMoves),
+    }));
+  }
 
   // Build price lookup
   const seasonPrices: Record<number, { price: number; teraCaptainCost: number | null; complexBanReason: string | null }> = {};
@@ -237,7 +253,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
       teamLogo={teamLogo}
       roster={rosterData}
       draftBudget={draftBudget}
-      allPokemon={allPokemon}
+      allPokemon={allPokemonForSeason}
       moveTypes={moveTypes}
       abilityDescriptions={abilityDescriptions}
       seasonPrices={seasonPrices}

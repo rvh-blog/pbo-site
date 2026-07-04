@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { name, seasonNumber, draftBudget, isCurrent, isPublic, divisionNames, draftBoard } = body;
+  const { name, seasonNumber, draftBudget, isCurrent, isPublic, movesetFormat, divisionNames, draftBoard } = body;
 
   if (!name) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
       draftBudget: draftBudget || 100,
       isCurrent: isCurrent || false,
       isPublic: isPublic !== false, // Default to true
+      movesetFormat: movesetFormat === "national-dex" ? "national-dex" : "scarlet-violet",
     })
     .returning();
 
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const body = await request.json();
-  const { id, name, seasonNumber, draftBudget, isCurrent, isPublic, isSchedulePublic, divisions: divisionUpdates, draftBoard } = body;
+  const { id, name, seasonNumber, draftBudget, isCurrent, isPublic, isSchedulePublic, movesetFormat, divisions: divisionUpdates, draftBoard } = body;
 
   if (!id) {
     return NextResponse.json({ error: "ID is required" }, { status: 400 });
@@ -111,6 +112,9 @@ export async function PUT(request: NextRequest) {
   if (isCurrent !== undefined) updateData.isCurrent = isCurrent;
   if (isPublic !== undefined) updateData.isPublic = isPublic;
   if (isSchedulePublic !== undefined) updateData.isSchedulePublic = isSchedulePublic;
+  if (movesetFormat !== undefined) {
+    updateData.movesetFormat = movesetFormat === "national-dex" ? "national-dex" : "scarlet-violet";
+  }
 
   const [season] = await db
     .update(seasons)

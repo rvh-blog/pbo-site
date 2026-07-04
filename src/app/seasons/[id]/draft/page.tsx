@@ -7,6 +7,7 @@ import Image from "next/image";
 import { DraftBoardGrid } from "@/components/draft-board-grid";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -30,12 +31,15 @@ async function getSeason(id: number) {
 }
 
 async function getPokemonWithPrices(seasonId: number) {
-  const prices = await db.query.seasonPokemonPrices.findMany({
-    where: eq(seasonPokemonPrices.seasonId, seasonId),
-    with: {
-      pokemon: true,
-    },
-  });
+  const [prices, seasonMoves] = await Promise.all([
+    db.query.seasonPokemonPrices.findMany({
+      where: eq(seasonPokemonPrices.seasonId, seasonId),
+      with: {
+        pokemon: true,
+      },
+    }),
+    getSeasonPokemonMovesMap(seasonId),
+  ]);
 
   return prices.map((p) => ({
     id: p.pokemon.id,
@@ -43,7 +47,7 @@ async function getPokemonWithPrices(seasonId: number) {
     displayName: p.pokemon.displayName,
     spriteUrl: p.pokemon.spriteUrl,
     types: p.pokemon.types,
-    moves: p.pokemon.moves,
+    moves: movesForSeasonPokemon(p.pokemon.id, p.pokemon.moves, seasonMoves),
     price: p.price,
     teraBanned: p.teraBanned,
     teraCaptainCost: p.teraCaptainCost,

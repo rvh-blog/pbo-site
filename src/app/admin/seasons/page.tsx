@@ -20,6 +20,7 @@ interface Season {
   draftBudget: number;
   isCurrent: boolean;
   isPublic: boolean;
+  movesetFormat: "scarlet-violet" | "national-dex";
   divisions: Division[];
 }
 
@@ -30,6 +31,8 @@ interface DraftBoardEntry {
   teraCaptainCost: number | null;
   complexBanReason: string | null;
 }
+
+type MovesetFormat = "scarlet-violet" | "national-dex";
 
 export default function AdminSeasonsPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -43,6 +46,7 @@ export default function AdminSeasonsPage() {
     draftBudget: 100,
     isCurrent: false,
     isPublic: false,
+    movesetFormat: "scarlet-violet" as MovesetFormat,
     divisionNames: ["Stargazer", "Sunset", "Crystal", "Neon"],
   });
   const [newSeasonDraftBoard, setNewSeasonDraftBoard] = useState<DraftBoardEntry[]>([]);
@@ -194,6 +198,7 @@ export default function AdminSeasonsPage() {
       draftBudget: 100,
       isCurrent: false,
       isPublic: false,
+      movesetFormat: "scarlet-violet",
       divisionNames: ["Stargazer", "Sunset", "Crystal", "Neon"],
     });
     setNewSeasonDraftBoard([]);
@@ -221,6 +226,7 @@ export default function AdminSeasonsPage() {
         draftBudget: editSeason.draftBudget,
         isCurrent: editSeason.isCurrent,
         isPublic: editSeason.isPublic,
+        movesetFormat: editSeason.movesetFormat,
         divisions: editDivisions.map((d, i) => ({
           id: d.id,
           name: d.name,
@@ -437,6 +443,23 @@ export default function AdminSeasonsPage() {
                   }
                 />
               </div>
+              <div>
+                <Label htmlFor="movesetFormat">Moveset Format</Label>
+                <select
+                  id="movesetFormat"
+                  value={newSeason.movesetFormat}
+                  onChange={(e) =>
+                    setNewSeason({
+                      ...newSeason,
+                      movesetFormat: e.target.value as MovesetFormat,
+                    })
+                  }
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
+                >
+                  <option value="scarlet-violet">Scarlet/Violet</option>
+                  <option value="national-dex">National Dex</option>
+                </select>
+              </div>
               <div className="flex flex-col gap-2 justify-end">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -610,6 +633,22 @@ export default function AdminSeasonsPage() {
                               })
                             }
                           />
+                        </div>
+                        <div>
+                          <Label>Moveset Format</Label>
+                          <select
+                            value={editSeason.movesetFormat}
+                            onChange={(e) =>
+                              setEditSeason({
+                                ...editSeason,
+                                movesetFormat: e.target.value as MovesetFormat,
+                              })
+                            }
+                            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
+                          >
+                            <option value="scarlet-violet">Scarlet/Violet</option>
+                            <option value="national-dex">National Dex</option>
+                          </select>
                         </div>
                         <div className="flex flex-col gap-2 justify-end">
                           <label className="flex items-center gap-2 cursor-pointer">
@@ -791,6 +830,9 @@ export default function AdminSeasonsPage() {
                           </div>
                           <p className="text-sm text-[var(--foreground-muted)]">
                             Budget: {season.draftBudget} points
+                          </p>
+                          <p className="text-sm text-[var(--foreground-muted)]">
+                            Movesets: {season.movesetFormat === "national-dex" ? "National Dex" : "Scarlet/Violet"}
                           </p>
                           <div className="flex flex-wrap gap-2 mt-2">
                             {season.divisions.map((div) => (

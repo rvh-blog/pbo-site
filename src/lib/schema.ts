@@ -29,6 +29,7 @@ export const seasons = sqliteTable("seasons", {
   isPublic: integer("is_public", { mode: "boolean" }).default(true),
   isSchedulePublic: integer("is_schedule_public", { mode: "boolean" }).default(true),
   draftBudget: integer("draft_budget").default(100),
+  movesetFormat: text("moveset_format").notNull().default("scarlet-violet"),
 });
 
 // Divisions table
@@ -130,6 +131,22 @@ export const seasonPokemonPrices = sqliteTable("season_pokemon_prices", {
 }, (table) => [
   index("idx_season_pokemon_prices_season_id").on(table.seasonId),
   index("idx_season_pokemon_prices_pokemon_id").on(table.pokemonId),
+]);
+
+export const seasonPokemonMoves = sqliteTable("season_pokemon_moves", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  pokemonId: integer("pokemon_id")
+    .notNull()
+    .references(() => pokemon.id),
+  moves: text("moves", { mode: "json" }).$type<string[]>().notNull(),
+  source: text("source").notNull().default("manual"),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+}, (table) => [
+  index("idx_season_pokemon_moves_season_id").on(table.seasonId),
 ]);
 
 // Rosters - pokemon owned by coaches per season

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+/* eslint-disable @typescript-eslint/no-explicit-any -- Existing matchup prep data shaping uses broad Drizzle result objects. */
 import {
   seasons,
   matches,
@@ -13,6 +14,7 @@ import {
 import { eq, desc, and, or, inArray } from "drizzle-orm";
 import { MatchupPrepClient } from "./matchup-prep-client";
 import { getTimeSyncedRoster } from "@/lib/roster-utils";
+import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +88,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
   let coach1DroppedPokemon: any[] = [];
   let coach2DroppedPokemon: any[] = [];
   let divisionMatches: any[] = [];
-  let teamSidePurchases: { coach1BlueTeam: boolean; coach1RedTeam: boolean; coach2BlueTeam: boolean; coach2RedTeam: boolean } = {
+  const teamSidePurchases: { coach1BlueTeam: boolean; coach1RedTeam: boolean; coach2BlueTeam: boolean; coach2RedTeam: boolean } = {
     coach1BlueTeam: false,
     coach1RedTeam: false,
     coach2BlueTeam: false,
@@ -196,6 +198,10 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
     };
   }
 
+  const seasonMoves = matchData
+    ? await getSeasonPokemonMovesMap(matchData.seasonId)
+    : new Map<number, string[]>();
+
   // Build price lookup maps
   const pricesBySeasonPokemon = new Map<string, { price: number; teraCost: number | null }>();
   for (const p of allPrices) {
@@ -254,7 +260,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
               specialDefense: r.pokemon.specialDefense || 0,
               speed: r.pokemon.speed || 0,
               baseStatTotal: r.pokemon.baseStatTotal || 0,
-              moves: r.pokemon.moves || [],
+              moves: movesForSeasonPokemon(r.pokemon.id, r.pokemon.moves, seasonMoves),
             }
           : null,
       };
@@ -277,7 +283,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
         specialDefense: p.specialDefense || 0,
         speed: p.speed || 0,
         baseStatTotal: p.baseStatTotal || 0,
-        moves: p.moves || [],
+        moves: movesForSeasonPokemon(p.id, p.moves, seasonMoves),
         price: priceData?.price || 0,
         teraCost: priceData?.teraCost || 0,
         isDropped: false,
