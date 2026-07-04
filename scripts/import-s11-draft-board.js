@@ -301,9 +301,6 @@ function findPokemon(name, pokemonLookup) {
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  if (!fs.existsSync(CSV_PATH)) {
-    throw new Error(`CSV not found: ${CSV_PATH}`);
-  }
 
   const db = new Database(DB_PATH);
   await ensureRequiredPokemon(db, apply);
