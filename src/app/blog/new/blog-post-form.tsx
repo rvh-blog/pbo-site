@@ -105,7 +105,7 @@ export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
               value={imageUrl}
               onChange={(event) => setImageUrl(event.target.value)}
               maxLength={1000}
-              placeholder="/images/blog/example.png or https://example.com/image.png"
+              placeholder="/uploads/blog/example.png or https://example.com/image.png"
             />
             <label className="btn-retro-secondary flex cursor-pointer items-center justify-center px-4 py-2 text-[10px]">
               {isUploadingImage ? "Uploading..." : "Upload Image"}
