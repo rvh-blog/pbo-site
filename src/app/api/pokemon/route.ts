@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { pokemon, seasonPokemonPrices, seasons } from "@/lib/schema";
+import { pokemon, seasonPokemonPrices } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
+
+const READ_CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+};
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -23,12 +27,13 @@ export async function GET(request: NextRequest) {
         price: p.seasonPrices[0]?.price ?? null,
         teraCaptainCost: p.seasonPrices[0]?.teraCaptainCost ?? null,
         teraBanned: p.seasonPrices[0]?.teraBanned ?? false,
-      }))
+      })),
+      { headers: READ_CACHE_HEADERS }
     );
   }
 
   const allPokemon = await db.select().from(pokemon);
-  return NextResponse.json(allPokemon);
+  return NextResponse.json(allPokemon, { headers: READ_CACHE_HEADERS });
 }
 
 export async function POST(request: NextRequest) {

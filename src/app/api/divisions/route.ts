@@ -5,6 +5,14 @@ import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
+const PUBLIC_READ_CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=30, s-maxage=120, stale-while-revalidate=300",
+};
+
+const PRIVATE_READ_CACHE_HEADERS = {
+  "Cache-Control": "private, no-store",
+};
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const seasonId = searchParams.get("seasonId");
@@ -24,11 +32,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         filterPublicDivisions(divisionsList, visibility).filter((division) =>
           division.season ? isPublicSeasonVisible(division.season) : false
-        )
+        ),
+        { headers: PUBLIC_READ_CACHE_HEADERS }
       );
     }
 
-    return NextResponse.json(divisionsList);
+    return NextResponse.json(divisionsList, { headers: PRIVATE_READ_CACHE_HEADERS });
   }
 
   const allDivisions = await db.query.divisions.findMany({
@@ -40,11 +49,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       filterPublicDivisions(allDivisions, visibility).filter((division) =>
         division.season ? isPublicSeasonVisible(division.season) : false
-      )
+      ),
+      { headers: PUBLIC_READ_CACHE_HEADERS }
     );
   }
 
-  return NextResponse.json(allDivisions);
+  return NextResponse.json(allDivisions, { headers: PRIVATE_READ_CACHE_HEADERS });
 }
 
 export async function PUT(request: NextRequest) {

@@ -35,6 +35,20 @@ type BulkUpdateTeam = {
   roster?: RosterInput[];
 };
 
+const PUBLIC_READ_CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=30, s-maxage=120, stale-while-revalidate=300",
+};
+
+const PRIVATE_READ_CACHE_HEADERS = {
+  "Cache-Control": "private, no-store",
+};
+
+function rosterJson(data: unknown, canSeePrivate: boolean) {
+  return NextResponse.json(data, {
+    headers: canSeePrivate ? PRIVATE_READ_CACHE_HEADERS : PUBLIC_READ_CACHE_HEADERS,
+  });
+}
+
 async function getSeasonCoachRemovalBlockers(seasonCoachId: number) {
   const blockers: string[] = [];
 
@@ -183,7 +197,7 @@ export async function GET(request: NextRequest) {
         !seasonCoach.division.season ||
         !isPublicSeasonVisible(seasonCoach.division.season)
       ) {
-        return NextResponse.json([]);
+        return rosterJson([], canSeePrivate);
       }
     }
 
@@ -193,7 +207,7 @@ export async function GET(request: NextRequest) {
         pokemon: true,
       },
     });
-    return NextResponse.json(roster);
+    return rosterJson(roster, canSeePrivate);
   }
 
   const divisionId = searchParams.get("divisionId");
@@ -213,17 +227,18 @@ export async function GET(request: NextRequest) {
     });
 
     if (!canSeePrivate) {
-      return NextResponse.json(
+      return rosterJson(
         seasonCoachesList.filter((seasonCoach) =>
           seasonCoach.division &&
           isDivisionPubliclyVisible(seasonCoach.division, visibility) &&
           seasonCoach.division.season &&
           isPublicSeasonVisible(seasonCoach.division.season)
-        )
+        ),
+        canSeePrivate
       );
     }
 
-    return NextResponse.json(seasonCoachesList);
+    return rosterJson(seasonCoachesList, canSeePrivate);
   }
 
   if (seasonId) {
@@ -242,7 +257,7 @@ export async function GET(request: NextRequest) {
     const divisionIds = visibleSeasonDivisions.map((d) => d.id);
 
     if (divisionIds.length === 0) {
-      return NextResponse.json([]);
+      return rosterJson([], canSeePrivate);
     }
 
     // Get all season coaches with their rosters for all divisions in the season
@@ -258,7 +273,7 @@ export async function GET(request: NextRequest) {
         },
       },
     });
-    return NextResponse.json(seasonCoachesList);
+    return rosterJson(seasonCoachesList, canSeePrivate);
   }
 
   const allRosters = await db.query.rosters.findMany({
@@ -274,7 +289,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (!canSeePrivate) {
-    return NextResponse.json(
+    return rosterJson(
       allRosters.filter((roster) => {
         const division = roster.seasonCoach?.division;
         return (
@@ -283,11 +298,12 @@ export async function GET(request: NextRequest) {
           division.season &&
           isPublicSeasonVisible(division.season)
         );
-      })
+      }),
+      canSeePrivate
     );
   }
 
-  return NextResponse.json(allRosters);
+  return rosterJson(allRosters, canSeePrivate);
 }
 
 // Add a season coach (assign coach to division)

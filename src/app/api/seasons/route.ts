@@ -5,6 +5,14 @@ import { eq, and } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 
+const PUBLIC_READ_CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=30, s-maxage=120, stale-while-revalidate=300",
+};
+
+const PRIVATE_READ_CACHE_HEADERS = {
+  "Cache-Control": "private, no-store",
+};
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const publicOnly = searchParams.get("publicOnly") === "true";
@@ -28,11 +36,12 @@ export async function GET(request: NextRequest) {
         .map((season) => ({
           ...season,
           divisions: filterPublicDivisions(season.divisions, visibility),
-        }))
+        })),
+      { headers: PUBLIC_READ_CACHE_HEADERS }
     );
   }
 
-  return NextResponse.json(allSeasons);
+  return NextResponse.json(allSeasons, { headers: PRIVATE_READ_CACHE_HEADERS });
 }
 
 export async function POST(request: NextRequest) {

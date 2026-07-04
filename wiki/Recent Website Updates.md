@@ -6,6 +6,14 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## July 4, 2026
 
+Performance:
+
+- Public read APIs for Pokemon, seasons, divisions, rosters, and standings now send short cache headers so repeat visits and shared edge caches can reuse safe public data briefly.
+- Mod/admin-visible season, division, and roster responses remain `no-store` so private data is not cached.
+- SQLite startup skips write-style optimization during `next build`, reducing build-time database lock warnings.
+- Runtime startup now ensures additional read indexes exist for common public lookups, standings, roster reads, coach-removal safety checks, bets, pick-ems, and season Pokemon prices.
+- Added `migrations/add-public-read-performance-indexes.sql` and mirrored the index definitions in `src/lib/schema.ts`.
+
 Season 11 launch checks:
 
 - Season 11 is the current public season with public schedules.

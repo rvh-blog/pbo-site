@@ -30,7 +30,9 @@ export const seasons = sqliteTable("seasons", {
   isSchedulePublic: integer("is_schedule_public", { mode: "boolean" }).default(true),
   draftBudget: integer("draft_budget").default(100),
   movesetFormat: text("moveset_format").notNull().default("scarlet-violet"),
-});
+}, (table) => [
+  index("idx_seasons_current_public_number").on(table.isCurrent, table.isPublic, table.seasonNumber),
+]);
 
 // Divisions table
 export const divisions = sqliteTable("divisions", {
@@ -43,6 +45,7 @@ export const divisions = sqliteTable("divisions", {
   displayOrder: integer("display_order").default(0),
 }, (table) => [
   index("idx_divisions_season_id").on(table.seasonId),
+  index("idx_divisions_season_order").on(table.seasonId, table.displayOrder),
 ]);
 
 // Season Coaches - links coaches to divisions per season
@@ -63,6 +66,8 @@ export const seasonCoaches = sqliteTable("season_coaches", {
 }, (table) => [
   index("idx_season_coaches_coach_id").on(table.coachId),
   index("idx_season_coaches_division_id").on(table.divisionId),
+  index("idx_season_coaches_division_active").on(table.divisionId, table.isActive),
+  index("idx_season_coaches_replaced_by_id").on(table.replacedById),
 ]);
 
 // Pokemon table
@@ -131,6 +136,7 @@ export const seasonPokemonPrices = sqliteTable("season_pokemon_prices", {
 }, (table) => [
   index("idx_season_pokemon_prices_season_id").on(table.seasonId),
   index("idx_season_pokemon_prices_pokemon_id").on(table.pokemonId),
+  index("idx_season_pokemon_prices_season_pokemon").on(table.seasonId, table.pokemonId),
 ]);
 
 export const seasonPokemonMoves = sqliteTable("season_pokemon_moves", {
@@ -168,6 +174,7 @@ export const rosters = sqliteTable("rosters", {
 }, (table) => [
   index("idx_rosters_season_coach_id").on(table.seasonCoachId),
   index("idx_rosters_pokemon_id").on(table.pokemonId),
+  index("idx_rosters_season_coach_pokemon").on(table.seasonCoachId, table.pokemonId),
 ]);
 
 // Matches table
@@ -207,6 +214,9 @@ export const matches = sqliteTable("matches", {
   index("idx_matches_season_id").on(table.seasonId),
   index("idx_matches_division_id").on(table.divisionId),
   index("idx_matches_winner_id").on(table.winnerId),
+  index("idx_matches_coach1_season_id").on(table.coach1SeasonId),
+  index("idx_matches_coach2_season_id").on(table.coach2SeasonId),
+  index("idx_matches_division_week").on(table.divisionId, table.week),
   index("idx_matches_is_forfeit_winner_id").on(table.isForfeit, table.winnerId),
   index("idx_matches_season_winner_id").on(table.seasonId, table.winnerId),
 ]);
@@ -231,6 +241,9 @@ export const playoffMatches = sqliteTable("playoff_matches", {
   playedAt: text("played_at"),
   matchId: integer("match_id").references(() => matches.id), // Link to matches table for preview/details
 }, (table) => [
+  index("idx_playoff_matches_division_id").on(table.divisionId),
+  index("idx_playoff_matches_higher_seed_id").on(table.higherSeedId),
+  index("idx_playoff_matches_lower_seed_id").on(table.lowerSeedId),
   index("idx_playoff_matches_season_winner_id").on(table.seasonId, table.winnerId),
   index("idx_playoff_matches_season_round_winner_id").on(table.seasonId, table.round, table.winnerId),
 ]);
@@ -297,7 +310,9 @@ export const killEvents = sqliteTable("kill_events", {
 }, (table) => [
   index("idx_kill_events_match_id").on(table.matchId),
   index("idx_kill_events_killer_pokemon_id").on(table.killerPokemonId),
+  index("idx_kill_events_killer_season_coach_id").on(table.killerSeasonCoachId),
   index("idx_kill_events_victim_pokemon_id").on(table.victimPokemonId),
+  index("idx_kill_events_victim_season_coach_id").on(table.victimSeasonCoachId),
   index("idx_kill_events_move_id").on(table.moveId),
 ]);
 
@@ -352,6 +367,7 @@ export const transactions = sqliteTable("transactions", {
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
 }, (table) => [
   index("idx_transactions_season_coach_id").on(table.seasonCoachId),
+  index("idx_transactions_trading_partner_season_coach_id").on(table.tradingPartnerSeasonCoachId),
   index("idx_transactions_season_id").on(table.seasonId),
 ]);
 
@@ -631,6 +647,7 @@ export const pickEmPicks = sqliteTable("pick_em_picks", {
 }, (table) => [
   index("idx_pick_em_picks_participant_id").on(table.participantId),
   index("idx_pick_em_picks_match_id").on(table.matchId),
+  index("idx_pick_em_picks_predicted_winner_id").on(table.predictedWinnerId),
 ]);
 
 // Fantasy Entries - saved fantasy rosters for signed-in coaches or spectators
@@ -1051,6 +1068,7 @@ export const bets = sqliteTable("bets", {
   index("idx_bets_coach_id").on(table.coachId),
   index("idx_bets_user_id").on(table.userId),
   index("idx_bets_match_id").on(table.matchId),
+  index("idx_bets_predicted_winner_id").on(table.predictedWinnerId),
   index("idx_bets_status").on(table.status),
 ]);
 
@@ -1192,6 +1210,7 @@ export const killBets = sqliteTable("kill_bets", {
   index("idx_kill_bets_user_id").on(table.userId),
   index("idx_kill_bets_match_id").on(table.matchId),
   index("idx_kill_bets_pokemon_id").on(table.pokemonId),
+  index("idx_kill_bets_season_coach_id").on(table.seasonCoachId),
   index("idx_kill_bets_status").on(table.status),
 ]);
 
@@ -1246,6 +1265,7 @@ export const deathBets = sqliteTable("death_bets", {
   index("idx_death_bets_user_id").on(table.userId),
   index("idx_death_bets_match_id").on(table.matchId),
   index("idx_death_bets_pokemon_id").on(table.pokemonId),
+  index("idx_death_bets_season_coach_id").on(table.seasonCoachId),
   index("idx_death_bets_status").on(table.status),
 ]);
 
