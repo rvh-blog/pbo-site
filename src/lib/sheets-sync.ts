@@ -1,8 +1,10 @@
-import { google } from "googleapis";
+import { google, sheets_v4 } from "googleapis";
 import path from "path";
 
 // Sheet configuration
-const CREDENTIALS_PATH = path.join(process.cwd(), ".secrets", "google-credentials", "pbo-site-2c91419be737.json");
+const CREDENTIALS_PATH =
+  process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+  path.join(process.cwd(), ".secrets", "google-credentials", "pbo-site-2c91419be737.json");
 
 // Initialize the Google Sheets API client
 async function getSheetsClient() {
@@ -11,8 +13,7 @@ async function getSheetsClient() {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
   
-  const client = await auth.getClient();
-  return google.sheets({ version: "v4", auth: client as any });
+  return google.sheets({ version: "v4", auth });
 }
 
 // Read a range from the sheet
@@ -80,7 +81,7 @@ export async function getSheetIdMap(spreadsheetId: string): Promise<Map<string, 
 // Execute a batchUpdate with formatting requests (updateBorders, etc.)
 export async function batchUpdateFormatting(
   spreadsheetId: string,
-  requests: any[]
+  requests: sheets_v4.Schema$Request[]
 ) {
   if (requests.length === 0) return;
   const sheets = await getSheetsClient();
