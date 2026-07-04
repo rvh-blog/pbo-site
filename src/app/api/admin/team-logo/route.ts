@@ -10,6 +10,8 @@ const ALLOWED_TYPES: Record<string, string> = {
   "image/gif": "gif",
   "image/svg+xml": "svg",
 };
+const MAX_IMAGE_UPLOAD_MB = 10;
+const MAX_IMAGE_UPLOAD_BYTES = MAX_IMAGE_UPLOAD_MB * 1024 * 1024;
 
 function slugify(value: string) {
   return value
@@ -42,9 +44,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (file.size > 3 * 1024 * 1024) {
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
     return NextResponse.json(
-      { error: "Image must be 3MB or smaller" },
+      { error: `Image must be ${MAX_IMAGE_UPLOAD_MB}MB or smaller` },
       { status: 400 }
     );
   }
