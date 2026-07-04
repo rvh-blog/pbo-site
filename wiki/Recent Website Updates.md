@@ -10,6 +10,8 @@ Performance:
 
 - Public read APIs for Pokemon, seasons, divisions, rosters, and standings now send short cache headers so repeat visits and shared edge caches can reuse safe public data briefly.
 - Mod/admin-visible season, division, and roster responses remain `no-store` so private data is not cached.
+- Public API cache windows were strengthened: Pokemon now caches longer because reference data changes rarely, while seasons, divisions, rosters, and standings use moderate shared-cache windows.
+- Static `/images/...` assets now send cache headers for faster repeat page loads.
 - SQLite startup skips write-style optimization during `next build`, reducing build-time database lock warnings.
 - Runtime startup now ensures additional read indexes exist for common public lookups, standings, roster reads, coach-removal safety checks, bets, pick-ems, and season Pokemon prices.
 - Added `migrations/add-public-read-performance-indexes.sql` and mirrored the index definitions in `src/lib/schema.ts`.

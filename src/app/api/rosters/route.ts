@@ -36,7 +36,7 @@ type BulkUpdateTeam = {
 };
 
 const PUBLIC_READ_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=30, s-maxage=120, stale-while-revalidate=300",
+  "Cache-Control": "public, max-age=120, s-maxage=600, stale-while-revalidate=1800",
 };
 
 const PRIVATE_READ_CACHE_HEADERS = {

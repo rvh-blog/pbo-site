@@ -4,7 +4,7 @@ import { pokemon, seasonPokemonPrices } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 
 const READ_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+  "Cache-Control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
 };
 
 export async function GET(request: NextRequest) {
