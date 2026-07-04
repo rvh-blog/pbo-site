@@ -40,6 +40,16 @@ async function getLearnsetMoves(dex, name) {
 async function main() {
   const db = new Database(dbPath);
   const dex = Dex.forGen(9);
+  const moveNameById = new Map(
+    db
+      .prepare("select name from moves")
+      .all()
+      .map((move) => [move.name.replace(/[^a-z0-9]/gi, "").toLowerCase(), move.name])
+  );
+
+  function normalizeMoveNames(moves) {
+    return moves.map((move) => moveNameById.get(move) || move).sort();
+  }
 
   const season = db
     .prepare("select id, name, season_number from seasons where season_number = ?")
@@ -72,7 +82,8 @@ async function main() {
 
   for (const row of rows) {
     const dexName = localToDexName(row.name, row.displayName);
-    const { moves, source } = await getLearnsetMoves(dex, dexName);
+    const { moves: rawMoves, source } = await getLearnsetMoves(dex, dexName);
+    const moves = normalizeMoveNames(rawMoves);
     if (moves.length > 0) withMoves++;
     else missing.push(row.displayName || row.name);
 
