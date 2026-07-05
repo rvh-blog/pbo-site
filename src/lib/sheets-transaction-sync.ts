@@ -1,7 +1,8 @@
 import { readSheetRange, batchWriteToSheet, isSyncEnabled } from "./sheets-sync";
 import { db } from "@/lib/db";
 import { transactions, seasonCoaches, pokemon, divisions } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { pokemonExactLookupKeys } from "@/lib/pokemon-name-utils";
 
 // Transaction area in Source sheet:
 // - Row 3: Headers
@@ -315,6 +316,10 @@ function convertPokemonName(
 ): string {
   const mapped = mapping.get(dbName.toLowerCase());
   if (mapped) return mapped;
+  for (const key of pokemonExactLookupKeys(dbName, { friendlyMegaNames: true })) {
+    const aliasMapped = mapping.get(key);
+    if (aliasMapped) return aliasMapped;
+  }
   return dbName;
 }
 

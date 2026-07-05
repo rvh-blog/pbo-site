@@ -16,10 +16,14 @@ The draft planner is a public planning tool at `/draft-planner`. It is intention
 - Tier language such as Premium, Starter, and Value is not shown in the draft board.
 - Type filter labels are capitalized for readability.
 - The tier filter has been removed.
+- Pokemon already placed in the current plan are excluded from the candidate list.
+- Candidate cards include Add and Hide actions. Hide removes only that Pokemon from the viewer's candidate list until it is shown again.
+- Hidden Pokemon can be restored with the Show Hidden control.
 - The planner can extend vertically on desktop when dense panels are shown.
 - The Team Roster sits to the right of the Draft Board so users can edit roster slots while browsing candidates.
 - The Team Analyzer is its own standalone section under the Draft Needs/Draft Board workspace.
 - Dense analyzer tables use stable text sizes and horizontal/internal scrolling instead of viewport-width text scaling, so mobile and unusual aspect ratios remain readable.
+- Notes and hidden Pokemon are saved to `/api/preferences` for signed-in users and fall back to local storage when the viewer is not signed in.
 
 ## Panel Toggles
 

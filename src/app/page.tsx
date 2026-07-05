@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import { getActivePoll } from "@/lib/polls";
 import { PollCard } from "@/components/poll-card";
 import { SyncedHeightGrid } from "@/components/synced-height-grid";
+import { HomeLiveDraftRefresh } from "@/components/home-live-draft-refresh";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
 import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
 
@@ -22,6 +23,11 @@ const DIVISION_COLORS: Record<string, string> = {
 const DIVISION_ORDER = ["Stargazer", "Sunset", "Crystal", "Neon"] as const;
 const DRAFT_DIVISION_ORDER = ["Infinity", "Stargazer", "Sunset", "Crystal", "Neon"] as const;
 const RULEBOOK_URL = "https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal";
+
+function normalizeDivisionName(name: string) {
+  const normalized = name.trim().toLowerCase();
+  return normalized === "infinty" ? "infinity" : normalized;
+}
 
 type OffseasonChampion = {
   divisionId: number | null;
@@ -132,6 +138,7 @@ type RecentDraftPick = {
 };
 
 type DivisionRecentDraftPicks = {
+  seasonId: number;
   divisionId: number;
   divisionName: string;
   logoUrl: string | null;
@@ -352,8 +359,8 @@ async function getRecentDraftPicksByDivision(
   if (!currentSeason) return [];
 
   const sortedDivisions = [...currentSeason.divisions].sort((a, b) => {
-    const aOrder = DRAFT_DIVISION_ORDER.findIndex((name) => name.toLowerCase() === a.name.toLowerCase());
-    const bOrder = DRAFT_DIVISION_ORDER.findIndex((name) => name.toLowerCase() === b.name.toLowerCase());
+    const aOrder = DRAFT_DIVISION_ORDER.findIndex((name) => normalizeDivisionName(name) === normalizeDivisionName(a.name));
+    const bOrder = DRAFT_DIVISION_ORDER.findIndex((name) => normalizeDivisionName(name) === normalizeDivisionName(b.name));
     const normalizedA = aOrder === -1 ? 99 : aOrder;
     const normalizedB = bOrder === -1 ? 99 : bOrder;
     if (normalizedA !== normalizedB) return normalizedA - normalizedB;
@@ -423,6 +430,7 @@ async function getRecentDraftPicksByDivision(
   }
 
   return sortedDivisions.map((division) => ({
+    seasonId: currentSeason.id,
     divisionId: division.id,
     divisionName: division.name,
     logoUrl: division.logoUrl,
@@ -776,6 +784,7 @@ function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPi
 
   return (
     <section className="poke-card p-4 sm:p-6">
+      <HomeLiveDraftRefresh />
       <div className="section-title">
         <div className="section-title-icon">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -787,7 +796,8 @@ function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPi
 
       <div className="grid gap-4 lg:grid-cols-5">
         {divisions.map((division) => {
-          const divisionColor = DIVISION_COLORS[division.divisionName] ?? "var(--primary)";
+          const divisionName = division.divisionName.trim();
+          const divisionColor = DIVISION_COLORS[divisionName] ?? "var(--primary)";
 
           return (
             <div
@@ -811,12 +821,22 @@ function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPi
                   <div className="h-7 w-7 shrink-0 rounded bg-[var(--background-tertiary)]" />
                 )}
                 <div className="min-w-0">
-                  <h4 className="truncate text-sm font-bold uppercase text-white">{division.divisionName}</h4>
+                  <h4 className="truncate text-sm font-bold uppercase text-white">{divisionName}</h4>
                   <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
                     Latest 10
                   </p>
                 </div>
               </div>
+
+              <Link
+                href={`/seasons/${division.seasonId}/draft?division=${division.divisionId}`}
+                className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-[var(--background-tertiary)] bg-[var(--background)]/70 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)] transition-colors hover:border-[var(--primary)] hover:text-white"
+              >
+                Draft Board
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </Link>
 
               {division.picks.length > 0 ? (
                 <div className="space-y-2">
@@ -1184,7 +1204,7 @@ export default async function Home() {
                     </Link>
                     {currentSeason && (
                       <Link
-                        href={`/seasons/${currentSeason.id}/draft`}
+                        href={`/seasons/${currentSeason.id}/draft?division=${personalizedHome.activeTeam.divisionId}`}
                         className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
                       >
                         Draft Board

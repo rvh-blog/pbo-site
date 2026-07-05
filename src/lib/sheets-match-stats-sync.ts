@@ -7,6 +7,7 @@ import {
 } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { getSeasonFormat, LEGACY_REGULAR_SEASON_WEEKS, SEASON_11_FIXTURES_PER_WEEK } from "@/lib/season-format";
+import { pokemonExactLookupKeys, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
 
 // Match Stats sheet structure:
 // - Week columns: C(2), Q(16), AE(30), AS(44), BG(58), BU(72), CI(86), CW(100) - 14 columns apart
@@ -68,7 +69,8 @@ interface SheetFixturePosition {
  * by reading the Pokédex sheet (same as roster sync)
  */
 async function buildPokemonNameMapping(
-  spreadsheetId: string
+  spreadsheetId: string,
+  options: { friendlyMegaNames?: boolean } = {}
 ): Promise<Map<string, string>> {
   const mapping = new Map<string, string>();
 
@@ -84,6 +86,9 @@ async function buildPokemonNameMapping(
 
     if (smogonName && displayName && displayName !== "-") {
       mapping.set(smogonName.toLowerCase(), displayName);
+      for (const key of pokemonExactLookupKeys(smogonName, options)) {
+        mapping.set(key, displayName);
+      }
     }
   }
 
@@ -225,6 +230,9 @@ async function buildPokemonNameMapping(
 
   for (const [dbName, sheetName] of Object.entries(manualMappings)) {
     mapping.set(dbName.toLowerCase(), sheetName);
+    for (const key of pokemonExactLookupKeys(dbName, options)) {
+      mapping.set(key, sheetName);
+    }
   }
 
   return mapping;
@@ -239,6 +247,10 @@ function convertPokemonName(
 ): string {
   const mapped = mapping.get(dbName.toLowerCase());
   if (mapped) return mapped;
+  for (const key of pokemonExactLookupKeys(dbName, { friendlyMegaNames: true })) {
+    const aliasMapped = mapping.get(key);
+    if (aliasMapped) return aliasMapped;
+  }
   return dbName;
 }
 
@@ -446,7 +458,9 @@ export async function syncMatchStatsToSheet(
     const [pokemonNameMapping, fixturePositions, matchDataList] = await Promise.all([
       options?.pokemonNameMapping
         ? Promise.resolve(options.pokemonNameMapping)
-        : buildPokemonNameMapping(spreadsheetId),
+        : buildPokemonNameMapping(spreadsheetId, {
+            friendlyMegaNames: shouldUseFriendlyMegaNamesForSeason(seasonNumber),
+          }),
       getFixturePositions(spreadsheetId, fixturesPerWeek, regularSeasonWeeks),
       getDivisionMatches(divisionId),
     ]);

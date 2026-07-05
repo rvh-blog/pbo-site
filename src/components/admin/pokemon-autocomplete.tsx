@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
+import { formatPokemonDisplayName, pokemonSearchAliases } from "@/lib/pokemon-name-utils";
 
 interface Pokemon {
   id: number;
@@ -19,11 +21,11 @@ interface PokemonAutocompleteProps {
   warningText: string;
   placeholder?: string;
   disabled?: boolean;
+  friendlyMegaNames?: boolean;
 }
 
 export function PokemonAutocomplete({
   value,
-  pokemonId,
   allPokemon,
   onChange,
   onMultiLinePaste,
@@ -31,6 +33,7 @@ export function PokemonAutocomplete({
   warningText,
   placeholder = "Type Pokemon name...",
   disabled = false,
+  friendlyMegaNames = false,
 }: PokemonAutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState(value);
@@ -61,11 +64,10 @@ export function PokemonAutocomplete({
   // Filter suggestions
   const suggestions = searchText.trim()
     ? allPokemon
-        .filter((p) =>
-          (p.displayName || p.name)
-            .toLowerCase()
-            .includes(searchText.toLowerCase())
-        )
+        .filter((p) => {
+          const lowerSearch = searchText.toLowerCase();
+          return pokemonSearchAliases(p.name, p.displayName, { friendlyMegaNames }).some((alias) => alias.includes(lowerSearch));
+        })
         .slice(0, 10)
     : [];
 
@@ -81,7 +83,7 @@ export function PokemonAutocomplete({
   }
 
   function handleSelect(pokemon: Pokemon) {
-    const displayName = pokemon.displayName || pokemon.name;
+    const displayName = formatPokemonDisplayName(pokemon.name, pokemon.displayName, { friendlyMegaNames });
     setSearchText(displayName);
     onChange(pokemon.id, displayName);
     setIsOpen(false);
@@ -173,14 +175,16 @@ export function PokemonAutocomplete({
               className="w-full px-2 py-1.5 flex items-center gap-2 hover:bg-[var(--background-secondary)] text-left"
             >
               {pokemon.spriteUrl && (
-                <img
+                <Image
                   src={pokemon.spriteUrl}
                   alt=""
-                  className="w-6 h-6 object-contain"
+                  width={24}
+                  height={24}
+                  className="h-6 w-6 object-contain"
                 />
               )}
               <span className="text-sm text-[var(--foreground)]">
-                {pokemon.displayName || pokemon.name}
+                {formatPokemonDisplayName(pokemon.name, pokemon.displayName, { friendlyMegaNames })}
               </span>
             </button>
           ))}
@@ -193,30 +197,24 @@ export function PokemonAutocomplete({
 // Helper function to find a Pokemon match from text
 export function findPokemonMatch(
   text: string,
-  pokemon: Pokemon[]
+  pokemon: Pokemon[],
+  options: { friendlyMegaNames?: boolean } = {}
 ): Pokemon | null {
   if (!text) return null;
   const lower = text.toLowerCase().trim();
 
-  // Exact match on displayName
-  let match = pokemon.find(
-    (p) => p.displayName?.toLowerCase() === lower
-  );
-  if (match) return match;
-
-  // Exact match on name
-  match = pokemon.find((p) => p.name.toLowerCase() === lower);
+  let match = pokemon.find((p) => pokemonSearchAliases(p.name, p.displayName, options).includes(lower));
   if (match) return match;
 
   // Case-insensitive contains match
   match = pokemon.find((p) =>
-    (p.displayName || p.name).toLowerCase().includes(lower)
+    pokemonSearchAliases(p.name, p.displayName, options).some((alias) => alias.includes(lower))
   );
   if (match) return match;
 
   // Reverse contains (search term contains pokemon name)
   match = pokemon.find((p) =>
-    lower.includes((p.displayName || p.name).toLowerCase())
+    pokemonSearchAliases(p.name, p.displayName, options).some((alias) => lower.includes(alias))
   );
 
   return match || null;

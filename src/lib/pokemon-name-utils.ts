@@ -12,6 +12,45 @@ export function pokemonNameKey(value: unknown): string {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+type PokemonNameOptions = {
+  friendlyMegaNames?: boolean;
+};
+
+function titleCasePokemonPart(part: string) {
+  if (!part) return part;
+  return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+}
+
+export function shouldUseFriendlyMegaNamesForSeason(seasonNumber: number | null | undefined) {
+  return (seasonNumber ?? 0) >= 11;
+}
+
+export function formatPokemonDisplayName(
+  name: string | null | undefined,
+  displayName?: string | null,
+  options: PokemonNameOptions = {}
+) {
+  const rawName = (displayName || name || "").trim();
+  if (!rawName) return "";
+  if (!options.friendlyMegaNames) return rawName;
+
+  const normalized = rawName.toLowerCase().replace(/_/g, "-").replace(/\s+/g, "-");
+  const parts = normalized.split("-").filter(Boolean);
+
+  if (parts[0] === "mega" && parts.length > 1) {
+    return ["Mega", ...parts.slice(1).map(titleCasePokemonPart)].join(" ");
+  }
+
+  const megaIndex = parts.indexOf("mega");
+  if (megaIndex > 0) {
+    const base = parts.slice(0, megaIndex).map(titleCasePokemonPart).join(" ");
+    const suffix = parts.slice(megaIndex + 1).map((part) => part.toUpperCase()).join(" ");
+    return ["Mega", base, suffix].filter(Boolean).join(" ");
+  }
+
+  return rawName;
+}
+
 export function normalizePokemonName(name: string): string {
   let normalized = cleanPokemonNameInput(name);
 
@@ -128,7 +167,10 @@ const EXTERNAL_NAME_ALIASES: Record<string, string[]> = {
   paldeantauroswater: ["Tauros-Paldea-Aqua"],
 };
 
-export function pokemonExactLookupKeys(name: string | null | undefined): Set<string> {
+export function pokemonExactLookupKeys(
+  name: string | null | undefined,
+  options: PokemonNameOptions = {}
+): Set<string> {
   const keys = new Set<string>();
   if (!name) return keys;
 
@@ -140,15 +182,59 @@ export function pokemonExactLookupKeys(name: string | null | undefined): Set<str
     keys.add(pokemonNameKey(alias));
   }
 
+  const cleanedParts = cleaned.toLowerCase().replace(/_/g, "-").replace(/\s+/g, "-").split("-").filter(Boolean);
+  const megaIndex = cleanedParts.indexOf("mega");
+  if (options.friendlyMegaNames && megaIndex >= 0) {
+    const baseParts = cleanedParts.filter((part) => part !== "mega");
+    const megaAliases = [
+      ["mega", ...baseParts].join("-"),
+      [...baseParts, "mega"].join("-"),
+      ["mega", ...baseParts].join(" "),
+      [...baseParts, "mega"].join(" "),
+      formatPokemonDisplayName(cleaned, null, options),
+    ];
+
+    for (const alias of megaAliases) {
+      keys.add(pokemonNameKey(alias));
+    }
+  }
+
   return keys;
 }
 
-export function pokemonNormalizedLookupKeys(name: string | null | undefined): Set<string> {
-  const keys = pokemonExactLookupKeys(name);
+export function pokemonNormalizedLookupKeys(
+  name: string | null | undefined,
+  options: PokemonNameOptions = {}
+): Set<string> {
+  const keys = pokemonExactLookupKeys(name, options);
   if (!name) return keys;
 
   const normalizedKey = pokemonNameKey(normalizePokemonName(name));
   if (normalizedKey) keys.add(normalizedKey);
 
   return keys;
+}
+
+export function pokemonSearchAliases(
+  name: string | null | undefined,
+  displayName?: string | null,
+  options: PokemonNameOptions = {}
+): string[] {
+  const aliases = new Set<string>();
+  const rawName = (name || "").trim();
+  const rawDisplayName = (displayName || "").trim();
+  const friendlyName = formatPokemonDisplayName(rawName, rawDisplayName, options);
+
+  for (const value of [rawName, rawDisplayName, friendlyName]) {
+    if (!value) continue;
+    const lower = value.toLowerCase();
+    aliases.add(lower);
+    aliases.add(lower.replace(/[-_]/g, " "));
+  }
+
+  for (const key of pokemonExactLookupKeys(rawDisplayName || rawName, options)) {
+    aliases.add(key);
+  }
+
+  return Array.from(aliases);
 }

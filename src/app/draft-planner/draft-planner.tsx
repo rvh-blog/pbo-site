@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect, type CSSProperties } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, EyeOff, Filter, Search, Share2, Star, X } from "lucide-react";
+import { Eye, Filter, Search, Share2, Star, X } from "lucide-react";
 import { PokemonAutocomplete, findPokemonMatch } from "@/components/admin/pokemon-autocomplete";
 import { DraftRulesDisclaimer } from "@/components/draft-rules-disclaimer";
+import { formatPokemonDisplayName, pokemonSearchAliases, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
 
 // Type effectiveness chart
 const TYPE_CHART: Record<string, Record<string, number>> = {
@@ -182,6 +183,7 @@ interface SeasonPriceInfo {
 interface Season {
   id: number;
   name: string;
+  seasonNumber: number | null;
   draftBudget: number | null;
 }
 
@@ -314,6 +316,10 @@ function formatRole(role: DraftRole) {
   return labels[role];
 }
 
+function getPokemonLabel(pokemon: { name: string; displayName?: string | null }, friendlyMegaNames: boolean) {
+  return formatPokemonDisplayName(pokemon.name, pokemon.displayName, { friendlyMegaNames });
+}
+
 export function DraftPlanner({
   coach,
   teamName,
@@ -337,11 +343,11 @@ export function DraftPlanner({
   const [maxPrice, setMaxPrice] = useState(19);
   const [minSpeed, setMinSpeed] = useState(0);
   const [maxSpeed, setMaxSpeed] = useState(160);
-  const [availableOnly, setAvailableOnly] = useState(true);
   const [fitOnly, setFitOnly] = useState(false);
   const [watchlist, setWatchlist] = useState<number[]>([]);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [compareIds, setCompareIds] = useState<number[]>([]);
+  const [hiddenPokemonIds, setHiddenPokemonIds] = useState<number[]>([]);
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
   const [showNeedsPanel, setShowNeedsPanel] = useState(true);
   const [showDraftBoard, setShowDraftBoard] = useState(true);
@@ -358,6 +364,47 @@ export function DraftPlanner({
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const latestPreferencesRef = useRef<string>("");
+  const selectedSeasonNumber = allSeasons.find((season) => season.id === currentSeasonId)?.seasonNumber ?? null;
+  const friendlyMegaNames = shouldUseFriendlyMegaNamesForSeason(selectedSeasonNumber);
+
+  const getDraftPlannerPreferences = useCallback(() => {
+    return {
+      statSort,
+      statSortAsc,
+      trackedMoves,
+      notes,
+      hiddenPokemonIds,
+    };
+  }, [hiddenPokemonIds, notes, statSort, statSortAsc, trackedMoves]);
+
+  const saveDraftPlannerPreferences = useCallback(async (options: { keepalive?: boolean } = {}) => {
+    const preferences = getDraftPlannerPreferences();
+
+    await fetch("/api/preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        page: "draft-planner",
+        preferences,
+      }),
+      keepalive: options.keepalive,
+    });
+  }, [getDraftPlannerPreferences]);
+
+  const flushDraftPlannerPreferences = useCallback((payload: string) => {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon("/api/preferences", new Blob([payload], { type: "application/json" }));
+      return;
+    }
+
+    fetch("/api/preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {});
+  }, []);
 
   // Load preferences on mount
   useEffect(() => {
@@ -370,6 +417,8 @@ export function DraftPlanner({
             if (data.preferences.statSort) setStatSort(data.preferences.statSort);
             if (data.preferences.statSortAsc !== undefined) setStatSortAsc(data.preferences.statSortAsc);
             if (data.preferences.trackedMoves) setTrackedMoves(data.preferences.trackedMoves);
+            if (data.preferences.notes) setNotes(data.preferences.notes);
+            if (data.preferences.hiddenPokemonIds) setHiddenPokemonIds(data.preferences.hiddenPokemonIds);
           }
         }
     } catch {
@@ -385,8 +434,10 @@ export function DraftPlanner({
     try {
       const savedWatchlist = localStorage.getItem("draft-planner-watchlist");
       const savedNotes = localStorage.getItem("draft-planner-notes");
+      const savedHiddenPokemon = localStorage.getItem("draft-planner-hidden-pokemon");
       if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
       if (savedNotes) setNotes(JSON.parse(savedNotes));
+      if (savedHiddenPokemon) setHiddenPokemonIds(JSON.parse(savedHiddenPokemon));
     } catch {
       // Local planner notes are optional.
     }
@@ -408,28 +459,61 @@ export function DraftPlanner({
     }
   }, [notes]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("draft-planner-hidden-pokemon", JSON.stringify(hiddenPokemonIds));
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [hiddenPokemonIds]);
+
+  useEffect(() => {
+    latestPreferencesRef.current = JSON.stringify({
+      page: "draft-planner",
+      preferences: getDraftPlannerPreferences(),
+    });
+  }, [getDraftPlannerPreferences]);
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
+
+    const saveTimeout = window.setTimeout(() => {
+      saveDraftPlannerPreferences().catch(() => {});
+    }, 800);
+
+    return () => window.clearTimeout(saveTimeout);
+  }, [prefsLoaded, saveDraftPlannerPreferences]);
+
+  useEffect(() => {
+    function saveOnExit() {
+      if (!latestPreferencesRef.current) return;
+      flushDraftPlannerPreferences(latestPreferencesRef.current);
+    }
+
+    function saveWhenHidden() {
+      if (document.visibilityState === "hidden") {
+        saveOnExit();
+      }
+    }
+
+    document.addEventListener("visibilitychange", saveWhenHidden);
+    window.addEventListener("pagehide", saveOnExit);
+    window.addEventListener("beforeunload", saveOnExit);
+
+    return () => {
+      document.removeEventListener("visibilitychange", saveWhenHidden);
+      window.removeEventListener("pagehide", saveOnExit);
+      window.removeEventListener("beforeunload", saveOnExit);
+    };
+  }, [flushDraftPlannerPreferences]);
+
   // Save preferences
   const savePreferences = async () => {
     setSaveStatus("saving");
     try {
-      const res = await fetch("/api/preferences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          page: "draft-planner",
-          preferences: {
-            statSort,
-            statSortAsc,
-            trackedMoves,
-          },
-        }),
-      });
-      if (res.ok) {
-        setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2000);
-      } else {
-        setSaveStatus("idle");
-      }
+      await saveDraftPlannerPreferences();
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
     } catch {
       setSaveStatus("idle");
     }
@@ -443,7 +527,7 @@ export function DraftPlanner({
         const priceInfo = seasonPrices[p.pokemonId];
         return {
           pokemonId: p.pokemonId,
-          pokemonName: p.displayName,
+          pokemonName: getPokemonLabel(p, friendlyMegaNames),
           isTeraCaptain: p.isTeraCaptain,
           price: p.price,
           teraCaptainCost: priceInfo?.teraCaptainCost ?? null,
@@ -487,7 +571,7 @@ export function DraftPlanner({
           rosterId: 0,
           pokemonId: pData.id,
           name: pData.name,
-          displayName: pData.displayName || pData.name,
+          displayName: getPokemonLabel(pData, friendlyMegaNames),
           spriteUrl: pData.spriteUrl,
           artworkUrl: pData.artworkUrl || null,
           types: (pData.types || []) as string[],
@@ -514,7 +598,7 @@ export function DraftPlanner({
       const newSlots = [...prevSlots];
       for (let i = 0; i < lines.length && startIndex + i < PLANNER_SLOT_COUNT; i++) {
         const line = lines[i].trim();
-        const match = findPokemonMatch(line, allPokemon);
+        const match = findPokemonMatch(line, allPokemon, { friendlyMegaNames });
         const slotIdx = startIndex + i;
 
         if (match) {
@@ -528,7 +612,7 @@ export function DraftPlanner({
 
           newSlots[slotIdx] = {
             pokemonId: match.id,
-            pokemonName: match.displayName || match.name,
+            pokemonName: getPokemonLabel(match, friendlyMegaNames),
             isTeraCaptain: false,
             price,
             teraCaptainCost,
@@ -536,7 +620,7 @@ export function DraftPlanner({
               rosterId: 0,
               pokemonId: pData.id,
               name: pData.name,
-              displayName: pData.displayName || pData.name,
+              displayName: getPokemonLabel(pData, friendlyMegaNames),
               spriteUrl: pData.spriteUrl,
               artworkUrl: pData.artworkUrl || null,
               types: (pData.types || []) as string[],
@@ -697,13 +781,14 @@ export function DraftPlanner({
     const search = candidateSearch.trim().toLowerCase();
     return candidates
       .filter((p) => p.price >= 1)
-      .filter((p) => !availableOnly || !plannedPokemonIds.has(p.id))
+      .filter((p) => !plannedPokemonIds.has(p.id))
+      .filter((p) => !hiddenPokemonIds.includes(p.id))
       .filter((p) => !fitOnly || p.fitScore > 0)
       .filter((p) => selectedType === "all" || (p.types || []).map((type) => type.toLowerCase()).includes(selectedType))
       .filter((p) => p.price <= maxPrice)
       .filter((p) => (p.speed || 0) >= minSpeed)
       .filter((p) => (p.speed || 0) <= maxSpeed)
-      .filter((p) => !search || (p.displayName || p.name).toLowerCase().includes(search) || p.name.toLowerCase().includes(search))
+      .filter((p) => !search || pokemonSearchAliases(p.name, p.displayName, { friendlyMegaNames }).some((alias) => alias.includes(search)))
       .sort((a, b) => {
         if (watchlist.includes(a.id) !== watchlist.includes(b.id)) return watchlist.includes(a.id) ? -1 : 1;
         if (statFocus !== "none" && b[statFocus] !== a[statFocus]) {
@@ -712,9 +797,9 @@ export function DraftPlanner({
         }
         if (b.price !== a.price) return b.price - a.price;
         if (b.fitScore !== a.fitScore) return b.fitScore - a.fitScore;
-        return (a.displayName || a.name).localeCompare(b.displayName || b.name);
+        return getPokemonLabel(a, friendlyMegaNames).localeCompare(getPokemonLabel(b, friendlyMegaNames));
       });
-  }, [availableOnly, candidateSearch, candidates, fitOnly, maxPrice, maxSpeed, minSpeed, plannedPokemonIds, selectedType, statFocus, statFocusAsc, watchlist]);
+  }, [candidateSearch, candidates, fitOnly, friendlyMegaNames, hiddenPokemonIds, maxPrice, maxSpeed, minSpeed, plannedPokemonIds, selectedType, statFocus, statFocusAsc, watchlist]);
 
   const comparePokemon = useMemo(
     () => compareIds.map((id) => candidates.find((p) => p.id === id)).filter((p): p is CandidatePokemon => Boolean(p)),
@@ -756,7 +841,11 @@ export function DraftPlanner({
   function addCandidateToNextSlot(candidate: CandidatePokemon) {
     const nextOpenSlot = slots.findIndex((slot) => !slot.pokemonId);
     if (nextOpenSlot === -1) return;
-    handleSlotChange(nextOpenSlot, candidate.id, candidate.displayName || candidate.name);
+    handleSlotChange(nextOpenSlot, candidate.id, getPokemonLabel(candidate, friendlyMegaNames));
+  }
+
+  function hideCandidate(candidateId: number) {
+    setHiddenPokemonIds((current) => current.includes(candidateId) ? current : [...current, candidateId]);
   }
 
   function toggleWatchlist(pokemonId: number) {
@@ -777,11 +866,11 @@ export function DraftPlanner({
   async function copyDraftPlan() {
     const rosterLines = slots
       .filter((slot) => slot.pokemon)
-      .map((slot, index) => `${index + 1}. ${slot.pokemon!.displayName} - ${slot.price} pts${slot.isTeraCaptain ? " (TC)" : ""}`);
+      .map((slot, index) => `${index + 1}. ${getPokemonLabel(slot.pokemon!, friendlyMegaNames)} - ${slot.price} pts${slot.isTeraCaptain ? " (TC)" : ""}`);
     const watchLines = watchlist
       .map((id) => candidates.find((p) => p.id === id))
       .filter((p): p is CandidatePokemon => Boolean(p))
-      .map((p) => `- ${p.displayName || p.name} (${p.price} pts): ${notes[p.id] || p.fitTags.join(", ")}`);
+      .map((p) => `- ${getPokemonLabel(p, friendlyMegaNames)} (${p.price} pts): ${notes[p.id] || p.fitTags.join(", ")}`);
 
     const text = [
       `${teamName || "Draft Plan"} (${totalSpent}/${draftBudget} pts)`,
@@ -822,6 +911,7 @@ export function DraftPlanner({
                     hasWarning={!slot.pokemonId && slot.pokemonName !== ""}
                     warningText={!slot.pokemonId && slot.pokemonName ? `No match` : ""}
                     placeholder="Type Pokemon name..."
+                    friendlyMegaNames={friendlyMegaNames}
                   />
                 </div>
                 <span className="w-8 text-right text-xs text-[var(--foreground-muted)]">
@@ -1091,13 +1181,22 @@ export function DraftPlanner({
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Speed: {maxSpeed}</span>
                 <input type="range" min="0" max="160" step="5" value={maxSpeed} onChange={(e) => setMaxSpeed(Math.max(Number(e.target.value), minSpeed))} className="w-full" />
               </label>
-              <button type="button" onClick={() => setAvailableOnly(!availableOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-bold transition-colors ${availableOnly ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
-                {availableOnly ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                Available only
-              </button>
               <button type="button" onClick={() => setFitOnly(!fitOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-bold transition-colors ${fitOnly ? "border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent)]" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
                 <Star className="h-4 w-4" />
                 Fits team
+              </button>
+              <button
+                type="button"
+                onClick={() => setHiddenPokemonIds([])}
+                disabled={hiddenPokemonIds.length === 0}
+                className="flex items-center justify-center gap-2 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Show hidden
+                {hiddenPokemonIds.length > 0 && (
+                  <span className="rounded bg-[var(--background)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--accent)]">
+                    {hiddenPokemonIds.length}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -1137,7 +1236,7 @@ export function DraftPlanner({
                       {comparePokemon.map((p) => (
                         <th key={p.id} className="px-2 py-2 text-left">
                           <button type="button" onClick={() => toggleCompare(p.id)} className="flex items-center gap-1 text-white">
-                            {p.displayName || p.name}
+                            {getPokemonLabel(p, friendlyMegaNames)}
                             <X className="h-3 w-3" />
                           </button>
                         </th>
@@ -1174,7 +1273,7 @@ export function DraftPlanner({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <Link href={`/pokemon/${candidate.id}`} className="break-words text-sm font-bold text-white hover:text-[var(--primary)]">
-                            {candidate.displayName || candidate.name}
+                            {getPokemonLabel(candidate, friendlyMegaNames)}
                           </Link>
                           <span className="shrink-0 rounded bg-[var(--background)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--accent)]">{candidate.price}</span>
                         </div>
@@ -1213,7 +1312,7 @@ export function DraftPlanner({
                         className="mb-1.5 h-12 w-full resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
                       />
                     )}
-                    <div className="grid grid-cols-3 gap-1">
+                    <div className="grid grid-cols-4 gap-1">
                       <button type="button" onClick={() => toggleWatchlist(candidate.id)} className={`min-w-0 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isWatched ? "bg-[var(--accent)] text-black" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
                         <span className="sm:hidden">{isWatched ? "Saved" : "Watch"}</span>
                         <span className="hidden sm:inline">{isWatched ? "Remove from Watchlist" : "Add to Watchlist"}</span>
@@ -1223,6 +1322,9 @@ export function DraftPlanner({
                       </button>
                       <button type="button" disabled={openSlots === 0 || isPlanned} onClick={() => addCandidateToNextSlot(candidate)} className="min-w-0 rounded bg-[var(--primary)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:text-xs">
                         Add
+                      </button>
+                      <button type="button" onClick={() => hideCandidate(candidate.id)} className="min-w-0 rounded bg-[var(--background)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-[var(--foreground-muted)] transition-colors hover:text-white sm:px-2 sm:text-xs">
+                        Hide
                       </button>
                     </div>
                   </div>
@@ -1288,7 +1390,7 @@ export function DraftPlanner({
                         className="w-12 h-12 object-contain mx-auto scale-[1.4]"
                       />
                       <div className="text-xs text-white text-center font-medium mt-1 truncate">
-                        {slot.pokemon!.displayName}
+                        {getPokemonLabel(slot.pokemon!, friendlyMegaNames)}
                       </div>
                       {/* Types - fixed height for consistency */}
                       <div className="flex gap-0.5 justify-center mt-1 flex-wrap min-h-[28px] items-start content-start">
@@ -1361,7 +1463,7 @@ export function DraftPlanner({
                       className="mx-auto h-10 w-10 object-contain scale-125"
                     />
                     <div className="mt-0.5 min-w-0 truncate text-center text-xs font-medium text-white">
-                      {slot.pokemon!.displayName}
+                      {getPokemonLabel(slot.pokemon!, friendlyMegaNames)}
                     </div>
                     <div className="mt-0.5 flex flex-wrap justify-center gap-0.5">
                       {slot.pokemon!.types.map((t) => (
@@ -1423,7 +1525,7 @@ export function DraftPlanner({
                   <td className="p-1"></td>
                   {roster.map((p, idx) => (
                     <td key={idx} className="p-0.5 bg-[var(--background-secondary)] rounded text-center">
-                      <OptimizedPlannerImage src={p.spriteUrl} alt={p.displayName} title={p.displayName} width={20} height={20} className="w-5 h-5 object-contain mx-auto scale-[1.4]" />
+                      <OptimizedPlannerImage src={p.spriteUrl} alt={getPokemonLabel(p, friendlyMegaNames)} title={getPokemonLabel(p, friendlyMegaNames)} width={20} height={20} className="w-5 h-5 object-contain mx-auto scale-[1.4]" />
                     </td>
                   ))}
                   <td className="rounded bg-[var(--background-secondary)] p-0.5 text-center text-[10px] text-[var(--foreground-muted)]">+/-</td>
@@ -1486,8 +1588,8 @@ export function DraftPlanner({
                     <td className="p-0.5 bg-[var(--background-secondary)] rounded">
                       <OptimizedPlannerImage
                         src={p.spriteUrl}
-                        alt={p.displayName}
-                        title={p.displayName}
+                        alt={getPokemonLabel(p, friendlyMegaNames)}
+                        title={getPokemonLabel(p, friendlyMegaNames)}
                         width={24}
                         height={24}
                         className="h-6 w-6 object-contain scale-125"
@@ -1592,7 +1694,7 @@ export function DraftPlanner({
                 {sortedForStats.map((p, idx) => (
                   <tr key={idx}>
                     <td className="px-0.5 py-1 text-white bg-[var(--background-tertiary)] rounded w-7">
-                      <OptimizedPlannerImage src={p.spriteUrl} alt={p.displayName} title={p.displayName} width={20} height={20} className="w-5 h-5 object-contain" />
+                      <OptimizedPlannerImage src={p.spriteUrl} alt={getPokemonLabel(p, friendlyMegaNames)} title={getPokemonLabel(p, friendlyMegaNames)} width={20} height={20} className="w-5 h-5 object-contain" />
                     </td>
                     <td className={`text-center px-1 py-1.5 rounded ${statSort === "hp" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.hp}</td>
                     <td className={`text-center px-1 py-1.5 rounded ${statSort === "attack" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.attack}</td>
@@ -1658,7 +1760,7 @@ export function DraftPlanner({
               <tbody>
                 {sortedForStats.map((p, idx) => (
                   <tr key={idx}>
-                    <td className="px-1 py-1 text-white bg-[var(--background-tertiary)] rounded truncate">{p.displayName}</td>
+                    <td className="px-1 py-1 text-white bg-[var(--background-tertiary)] rounded truncate">{getPokemonLabel(p, friendlyMegaNames)}</td>
                     <td className={`text-center px-0.5 py-1 rounded ${statSort === "hp" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.hp}</td>
                     <td className={`text-center px-0.5 py-1 rounded ${statSort === "attack" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.attack}</td>
                     <td className={`text-center px-0.5 py-1 rounded ${statSort === "defense" ? "bg-emerald-500/10 text-emerald-200 font-bold" : "text-[var(--foreground-muted)] bg-[var(--background-tertiary)]"}`}>{p.defense}</td>
@@ -1769,7 +1871,7 @@ export function DraftPlanner({
                       </span>
                       <div className="flex flex-wrap gap-0.5 flex-1 items-center content-center bg-[var(--background-tertiary)] px-1 py-1 rounded-l">
                         {pokemon.length > 0 ? pokemon.map((p) => (
-                          <OptimizedPlannerImage key={p.pokemonId} src={p.spriteUrl} alt={p.displayName} title={p.displayName} width={20} height={20} className="w-5 h-5 object-contain scale-110" />
+                          <OptimizedPlannerImage key={p.pokemonId} src={p.spriteUrl} alt={getPokemonLabel(p, friendlyMegaNames)} title={getPokemonLabel(p, friendlyMegaNames)} width={20} height={20} className="w-5 h-5 object-contain scale-110" />
                         )) : <span className="text-[var(--foreground-subtle)]">—</span>}
                       </div>
                       <button type="button" onClick={() => removeMove(move)} className="w-5 flex items-center justify-center text-[var(--foreground-muted)] hover:text-[var(--error)] bg-[var(--background-tertiary)] rounded-r transition-colors shrink-0" title="Remove move">
@@ -1834,8 +1936,8 @@ export function DraftPlanner({
                           <OptimizedPlannerImage
                             key={p.pokemonId}
                             src={p.spriteUrl}
-                            alt={p.displayName}
-                            title={p.displayName}
+                            alt={getPokemonLabel(p, friendlyMegaNames)}
+                            title={getPokemonLabel(p, friendlyMegaNames)}
                             width={24}
                             height={24}
                             className="h-5 w-5 object-contain scale-110"

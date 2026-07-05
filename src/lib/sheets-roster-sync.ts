@@ -1,4 +1,5 @@
 import { readSheetRange, batchWriteToSheet, isSyncEnabled, getSheetIdMap, batchUpdateFormatting } from "./sheets-sync";
+import type { sheets_v4 } from "googleapis";
 import { db } from "@/lib/db";
 import {
   seasonCoaches,
@@ -10,6 +11,7 @@ import {
   divisions,
 } from "@/lib/schema";
 import { eq, inArray } from "drizzle-orm";
+import { pokemonExactLookupKeys, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
 
 interface TeamRosterData {
   teamAbbr: string;
@@ -35,7 +37,8 @@ interface SheetTeamPosition {
  * by reading the Pokédex sheet
  */
 export async function buildPokemonNameMapping(
-  spreadsheetId: string
+  spreadsheetId: string,
+  options: { friendlyMegaNames?: boolean } = {}
 ): Promise<Map<string, string>> {
   const mapping = new Map<string, string>();
 
@@ -53,6 +56,9 @@ export async function buildPokemonNameMapping(
     if (smogonName && displayName && displayName !== "-") {
       // Map both lowercase smogon name and our DB formats
       mapping.set(smogonName.toLowerCase(), displayName);
+      for (const key of pokemonExactLookupKeys(smogonName, options)) {
+        mapping.set(key, displayName);
+      }
 
       // Also handle common DB format variations
       // Our DB uses: "Slowking-Galar" -> sheet uses "Galarian Slowking"
@@ -199,6 +205,9 @@ export async function buildPokemonNameMapping(
 
   for (const [dbName, sheetName] of Object.entries(manualMappings)) {
     mapping.set(dbName.toLowerCase(), sheetName);
+    for (const key of pokemonExactLookupKeys(dbName, options)) {
+      mapping.set(key, sheetName);
+    }
   }
 
   return mapping;
@@ -214,6 +223,11 @@ function convertPokemonName(
   // Try exact match first (lowercase)
   const mapped = mapping.get(dbName.toLowerCase());
   if (mapped) return mapped;
+
+  for (const key of pokemonExactLookupKeys(dbName, { friendlyMegaNames: true })) {
+    const aliasMapped = mapping.get(key);
+    if (aliasMapped) return aliasMapped;
+  }
 
   // Try without the form suffix for some patterns
   // e.g., "Urshifu-Single-Strike" might just need "Urshifu-Single-Strike"
@@ -231,9 +245,9 @@ async function findTeamPositions(
   const data = await readSheetRange(spreadsheetId, "Rosters!A1:BZ35");
   if (!data) return positions;
 
-  const processRow = (row: any[], headerRow: number) => {
+  const processRow = (row: unknown[], headerRow: number) => {
     if (!row) return;
-    row.forEach((cell: any, idx: number) => {
+    row.forEach((cell: unknown, idx: number) => {
       if (cell && typeof cell === "string" && /^[A-Z0-9_]{2,5}$/.test(cell)) {
         const teamNameIdx = idx - 4;
         const teamName = teamNameIdx >= 0 ? row[teamNameIdx] : null;
@@ -547,7 +561,10 @@ export async function syncRostersToSheet(
     const [pokemonNameMapping, teamPositions, rostersData] = await Promise.all([
       options?.pokemonNameMapping
         ? Promise.resolve(options.pokemonNameMapping)
-        : buildPokemonNameMapping(spreadsheetId),
+        : db.query.divisions.findFirst({ where: eq(divisions.id, divisionId), with: { season: true } })
+            .then((division) => buildPokemonNameMapping(spreadsheetId, {
+              friendlyMegaNames: shouldUseFriendlyMegaNamesForSeason(division?.season?.seasonNumber),
+            })),
       findTeamPositions(spreadsheetId),
       getDivisionRosters(divisionId),
     ]);
@@ -722,7 +739,7 @@ async function syncTeraBordersToTeamSheets(
   const TERA_BORDER = buildBorderStyle("SOLID_THICK", { red: 0, green: 1, blue: 0 }); // #00FF00
   const EMPTY_BORDER = buildBorderStyle("NONE", { red: 0, green: 0, blue: 0 });
 
-  const requests: any[] = [];
+  const requests: sheets_v4.Schema$Request[] = [];
 
   for (const roster of rostersData) {
     // Skip replaced teams — they're no longer in the sheet

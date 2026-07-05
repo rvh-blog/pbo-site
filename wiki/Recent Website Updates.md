@@ -4,6 +4,36 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 5, 2026
+
+Home page:
+
+- Recent Draft Picks now refreshes itself every 15 seconds while the page is visible, so live draft updates appear without a manual browser refresh.
+- Recent Draft Picks division cards now order Infinity before Stargazer.
+- Each Recent Draft Picks division card now includes a Draft Board button that opens that division's draft board directly.
+- The signed-in coach Draft Board shortcut now opens the coach's own division-specific draft board.
+
+Draft planner:
+
+- The planner now excludes Pokemon already placed in the current plan from the candidate list.
+- The old Available Only toggle was removed because the planner is not tied to one official division availability state.
+- Candidate cards now include a Hide button next to Add so users can hide individual Pokemon from their planner view.
+- Hidden Pokemon can be brought back with the Show Hidden control.
+- Planner notes, hidden Pokemon, and defaults save through account preferences when the user is signed in, with browser local storage as a fallback.
+- Planner notes are saved when the user navigates away from or closes the site.
+
+Pokemon names and sheets sync:
+
+- Mega Pokemon display names and aliases now use the central Pokemon name normalizer.
+- Season 11 and later can match variations such as `mega-delphox`, `delphox-mega`, and `Mega Delphox`.
+- Draft Planner, Fantasy, and Google Sheets sync use the central normalizer where mega display aliases are needed.
+- The Season 11+ mega alias behavior is intentionally gated so Season 10 and earlier keep their existing behavior.
+
+Verification notes:
+
+- Targeted ESLint passed for the changed app, component, and sync files.
+- `npx tsc --noEmit` passed.
+
 ## July 4, 2026
 
 Performance:

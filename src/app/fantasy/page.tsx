@@ -16,6 +16,7 @@ import { PokemonBoardClient, type PokemonBoardRow } from "./pokemon-board-client
 import { ScheduleBoardClient, type FantasyScheduleRow } from "./schedule-board-client";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
 import { getSession } from "@/lib/session";
+import { formatPokemonDisplayName, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -92,8 +93,10 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function pokemonName(row: { displayName: string | null; name: string }) {
-  return row.displayName || row.name;
+function pokemonName(row: { displayName: string | null; name: string }, seasonNumber: number) {
+  return formatPokemonDisplayName(row.name, row.displayName, {
+    friendlyMegaNames: shouldUseFriendlyMegaNamesForSeason(seasonNumber),
+  });
 }
 
 function normalizeDivisionName(name: string | null | undefined) {
@@ -108,11 +111,12 @@ function createFantasyRow(
     spriteUrl: string | null;
     types: string[] | null;
   },
-  cost: number | null
+  cost: number | null,
+  seasonNumber: number
 ): PokemonFantasyRow {
   return {
     id: pokemonId,
-    name: pokemonName(pokemon),
+    name: pokemonName(pokemon, seasonNumber),
     spriteUrl: pokemon.spriteUrl,
     types: pokemon.types ?? [],
     cost,
@@ -354,7 +358,7 @@ async function getFantasyData(
     if (!price.pokemon) continue;
     pokemonMap.set(
       price.pokemonId,
-      createFantasyRow(price.pokemonId, price.pokemon, price.price >= 0 ? price.price : null)
+      createFantasyRow(price.pokemonId, price.pokemon, price.price >= 0 ? price.price : null, seasonNumber)
     );
   }
 
@@ -364,7 +368,7 @@ async function getFantasyData(
     }
 
     const row = pokemonMap.get(roster.pokemonId) ??
-      createFantasyRow(roster.pokemonId, roster.pokemon, roster.price);
+      createFantasyRow(roster.pokemonId, roster.pokemon, roster.price, seasonNumber);
 
     row.rosteredTeams.add(roster.seasonCoachId);
     row.teamNames.add(roster.seasonCoach.teamName);
@@ -416,7 +420,7 @@ async function getFantasyData(
         if (!roster.pokemon) continue;
 
         const row = pokemonMap.get(roster.pokemonId) ??
-          createFantasyRow(roster.pokemonId, roster.pokemon, priceByPokemon.get(roster.pokemonId) ?? null);
+          createFantasyRow(roster.pokemonId, roster.pokemon, priceByPokemon.get(roster.pokemonId) ?? null, seasonNumber);
         const divisionName = normalizeDivisionName(team.divisionName);
         rosteredInstanceKeys.add(`${roster.pokemonId}:${team.id}`);
         row.rosteredTeams.add(team.id);
@@ -428,7 +432,7 @@ async function getFantasyData(
 
       for (const pokemon of droppedPokemonDetails) {
         const row = pokemonMap.get(pokemon.id) ??
-          createFantasyRow(pokemon.id, pokemon, priceByPokemon.get(pokemon.id) ?? null);
+          createFantasyRow(pokemon.id, pokemon, priceByPokemon.get(pokemon.id) ?? null, seasonNumber);
         const divisionName = normalizeDivisionName(team.divisionName);
         rosteredInstanceKeys.add(`${pokemon.id}:${team.id}`);
         row.rosteredTeams.add(team.id);
@@ -445,7 +449,7 @@ async function getFantasyData(
     if (!rosteredInstanceKeys.has(`${mp.pokemonId}:${mp.seasonCoachId}`)) continue;
 
     const row = pokemonMap.get(mp.pokemonId) ??
-      createFantasyRow(mp.pokemonId, mp.pokemon, priceByPokemon.get(mp.pokemonId) ?? null);
+      createFantasyRow(mp.pokemonId, mp.pokemon, priceByPokemon.get(mp.pokemonId) ?? null, seasonNumber);
 
     const score = scorePokemonGame(mp);
     row.games += 1;
