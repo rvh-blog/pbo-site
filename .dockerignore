@@ -8,6 +8,11 @@ npm-debug.log
 *.md
 .env*
 pbo.db
+pbo.db-wal
+pbo.db-shm
+*.db
+*.db-wal
+*.db-shm
 data/
 pbo-discord-worker/
 scripts/pokeapi-cache.json
