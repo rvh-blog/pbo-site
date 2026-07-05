@@ -32,6 +32,9 @@ shared poll service.
 Current behavior:
 
 - The admin editor controls the question, option list, and active state.
+- Admins can start a new poll, which deactivates previous polls and resets voting for the new question.
+- Admins can update the current poll for typo fixes or visibility changes.
+- Admins can end the active poll, hiding it from the public home page and coach profile pages.
 - Coach users can vote once per poll.
 - Results are hidden until the current coach has voted.
 - Poll visibility can be hidden locally by each viewer; this does not edit the poll.

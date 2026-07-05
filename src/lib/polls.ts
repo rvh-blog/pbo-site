@@ -162,14 +162,19 @@ export async function getAdminPoll(): Promise<AdminPollData> {
   };
 }
 
-export async function saveAdminPoll(input: { question: string; options: string[]; isActive: boolean }) {
-  await ensurePollTables();
-
+function normalizePollInput(input: { question: string; options: string[] }) {
   const question = input.question.trim();
   const options = input.options.map((option) => option.trim()).filter(Boolean);
   if (!question) throw new Error("Poll question is required.");
   if (options.length < 2) throw new Error("At least two poll options are required.");
 
+  return { question, options };
+}
+
+export async function saveAdminPoll(input: { question: string; options: string[]; isActive: boolean }) {
+  await ensurePollTables();
+
+  const { question, options } = normalizePollInput(input);
   const now = new Date().toISOString();
   const latestPoll = await db.query.polls.findFirst({
     orderBy: [desc(polls.updatedAt)],
@@ -201,6 +206,45 @@ export async function saveAdminPoll(input: { question: string; options: string[]
   });
 
   return Number(result.lastInsertRowid);
+}
+
+export async function createAdminPoll(input: { question: string; options: string[]; isActive?: boolean }) {
+  await ensurePollTables();
+
+  const { question, options } = normalizePollInput(input);
+  const now = new Date().toISOString();
+  const isActive = input.isActive ?? true;
+
+  if (isActive) {
+    await db.update(polls).set({ isActive: false, updatedAt: now });
+  }
+
+  const result = await db.insert(polls).values({
+    question,
+    options,
+    isActive,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return Number(result.lastInsertRowid);
+}
+
+export async function endAdminPoll(pollId?: number | null) {
+  await ensurePollTables();
+
+  const now = new Date().toISOString();
+
+  if (pollId) {
+    await db
+      .update(polls)
+      .set({ isActive: false, updatedAt: now })
+      .where(eq(polls.id, pollId));
+    return pollId;
+  }
+
+  await db.update(polls).set({ isActive: false, updatedAt: now }).where(eq(polls.isActive, true));
+  return null;
 }
 
 export async function voteInPoll(pollId: number, coachId: number, optionIndex: number) {

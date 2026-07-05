@@ -34,6 +34,11 @@ Verification notes:
 - Targeted ESLint passed for the changed app, component, and sync files.
 - `npx tsc --noEmit` passed.
 
+Admin:
+
+- League poll admin now has separate controls to start a new poll, update the current poll, and end the active poll.
+- Starting a new poll deactivates older polls and gives the new question a clean vote history.
+
 ## July 4, 2026
 
 Performance:

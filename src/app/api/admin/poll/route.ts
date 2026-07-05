@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { getAdminPoll, saveAdminPoll } from "@/lib/polls";
+import { createAdminPoll, endAdminPoll, getAdminPoll, saveAdminPoll } from "@/lib/polls";
 
 export async function GET() {
   if (!(await isAuthenticated())) {
@@ -18,11 +18,24 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    await saveAdminPoll({
-      question: String(body?.question ?? ""),
-      options: Array.isArray(body?.options) ? body.options.map(String) : [],
-      isActive: Boolean(body?.isActive),
-    });
+    const action = String(body?.action ?? "update");
+
+    if (action === "end") {
+      const pollId = Number(body?.pollId);
+      await endAdminPoll(Number.isInteger(pollId) ? pollId : null);
+    } else if (action === "create") {
+      await createAdminPoll({
+        question: String(body?.question ?? ""),
+        options: Array.isArray(body?.options) ? body.options.map(String) : [],
+        isActive: Boolean(body?.isActive ?? true),
+      });
+    } else {
+      await saveAdminPoll({
+        question: String(body?.question ?? ""),
+        options: Array.isArray(body?.options) ? body.options.map(String) : [],
+        isActive: Boolean(body?.isActive),
+      });
+    }
 
     const poll = await getAdminPoll();
     return NextResponse.json({ poll });

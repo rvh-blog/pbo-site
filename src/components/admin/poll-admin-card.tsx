@@ -18,6 +18,7 @@ interface AdminPollData {
 }
 
 export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
+  const [pollId, setPollId] = useState(initialPoll.id);
   const [question, setQuestion] = useState(initialPoll.question);
   const [options, setOptions] = useState(initialPoll.options.length >= 2 ? initialPoll.options : ["", ""]);
   const [isActive, setIsActive] = useState(initialPoll.isActive);
@@ -35,7 +36,20 @@ export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
     setOptions((current) => current.filter((_, i) => i !== index));
   }
 
-  function save() {
+  function applyPollState(poll: AdminPollData) {
+    setPollId(poll.id);
+    setQuestion(poll.question);
+    setOptions(poll.options.length >= 2 ? poll.options : ["", ""]);
+    setIsActive(poll.isActive);
+    setTotalVotes(poll.totalVotes);
+    setResults(poll.results);
+  }
+
+  function submit(action: "update" | "create" | "end") {
+    if (action === "end" && pollId && !window.confirm("End this poll and hide it from the public site?")) {
+      return;
+    }
+
     setMessage(null);
     setError(null);
 
@@ -43,7 +57,13 @@ export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
       const response = await fetch("/api/admin/poll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, options, isActive }),
+        body: JSON.stringify({
+          action,
+          pollId,
+          question,
+          options,
+          isActive: action === "create" ? true : isActive,
+        }),
       });
       const data = await response.json();
 
@@ -52,12 +72,14 @@ export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
         return;
       }
 
-      setQuestion(data.poll.question);
-      setOptions(data.poll.options.length >= 2 ? data.poll.options : ["", ""]);
-      setIsActive(data.poll.isActive);
-      setTotalVotes(data.poll.totalVotes);
-      setResults(data.poll.results);
-      setMessage("Poll saved.");
+      applyPollState(data.poll);
+      setMessage(
+        action === "create"
+          ? "New poll started."
+          : action === "end"
+            ? "Poll ended."
+            : "Poll updated."
+      );
     });
   }
 
@@ -76,7 +98,7 @@ export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
             <p className="text-xs text-[var(--foreground-muted)]">Aggregate vote totals only.</p>
           </div>
           <span className="rounded bg-[var(--background-secondary)] px-2 py-1 text-xs font-bold text-[var(--foreground-muted)]">
-            {totalVotes} vote{totalVotes === 1 ? "" : "s"}
+            {isActive ? "Active" : "Inactive"} / {totalVotes} vote{totalVotes === 1 ? "" : "s"}
           </span>
         </div>
 
@@ -152,9 +174,20 @@ export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
         Show this poll on coach pages and the home page
       </label>
 
-      <div className="flex items-center gap-3">
-        <Button type="button" onClick={save} disabled={isPending}>
-          {isPending ? "Saving..." : "Save Poll"}
+      <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-3 text-xs text-[var(--foreground-muted)]">
+        Use <span className="font-bold text-white">Start New Poll</span> when changing the question or options so vote totals reset cleanly.
+        Use <span className="font-bold text-white">Update Current</span> for typo fixes or visibility changes.
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" onClick={() => submit("create")} disabled={isPending}>
+          {isPending ? "Saving..." : "Start New Poll"}
+        </Button>
+        <Button type="button" variant="outline" onClick={() => submit("update")} disabled={isPending}>
+          Update Current
+        </Button>
+        <Button type="button" variant="destructive" onClick={() => submit("end")} disabled={isPending || !pollId || !isActive}>
+          End Poll
         </Button>
         {message && <span className="text-sm text-[var(--success)]">{message}</span>}
         {error && <span className="text-sm text-[var(--error)]">{error}</span>}
