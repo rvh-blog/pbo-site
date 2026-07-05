@@ -59,6 +59,10 @@ export async function buildPokemonNameMapping(
       for (const key of pokemonExactLookupKeys(smogonName, options)) {
         mapping.set(key, displayName);
       }
+      mapping.set(displayName.toLowerCase(), displayName);
+      for (const key of pokemonExactLookupKeys(displayName, options)) {
+        mapping.set(key, displayName);
+      }
 
       // Also handle common DB format variations
       // Our DB uses: "Slowking-Galar" -> sheet uses "Galarian Slowking"

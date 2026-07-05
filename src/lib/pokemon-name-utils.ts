@@ -21,6 +21,65 @@ function titleCasePokemonPart(part: string) {
   return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
 }
 
+function splitPokemonNameParts(name: string): string[] {
+  return name.trim().replace(/_/g, "-").replace(/\s+/g, "-").split("-").filter(Boolean);
+}
+
+function formatPokemonNameParts(parts: string[]): string {
+  return parts.map(titleCasePokemonPart).join("-");
+}
+
+function canonicalizeMegaPokemonName(name: string): string | null {
+  const parts = splitPokemonNameParts(name);
+  const megaIndex = parts.findIndex((part) => part.toLowerCase() === "mega");
+  if (megaIndex < 0) return null;
+
+  const variantSuffixes = new Set(["x", "y"]);
+  let baseParts: string[];
+  let suffixParts: string[];
+
+  if (megaIndex === 0) {
+    const rest = parts.slice(1);
+    const lastPart = rest[rest.length - 1]?.toLowerCase();
+    const hasVariantSuffix = lastPart ? variantSuffixes.has(lastPart) : false;
+    baseParts = hasVariantSuffix ? rest.slice(0, -1) : rest;
+    suffixParts = hasVariantSuffix ? rest.slice(-1) : [];
+  } else {
+    baseParts = parts.slice(0, megaIndex);
+    suffixParts = parts.slice(megaIndex + 1);
+  }
+
+  if (baseParts.length === 0) return null;
+
+  const baseName = formatPokemonNameParts(baseParts);
+  const suffix = suffixParts.map((part) => part.toUpperCase()).join("-");
+  return [baseName, "Mega", suffix].filter(Boolean).join("-");
+}
+
+function megaPokemonNameAliases(name: string): string[] {
+  const canonicalName = canonicalizeMegaPokemonName(name);
+  if (!canonicalName) return [];
+
+  const parts = splitPokemonNameParts(canonicalName);
+  const megaIndex = parts.findIndex((part) => part.toLowerCase() === "mega");
+  if (megaIndex < 0) return [canonicalName];
+
+  const baseParts = parts.slice(0, megaIndex);
+  const suffixParts = parts.slice(megaIndex + 1);
+  const baseHyphen = baseParts.join("-");
+  const baseSpace = baseParts.join(" ");
+  const suffixHyphen = suffixParts.join("-");
+  const suffixSpace = suffixParts.join(" ");
+
+  return [
+    canonicalName,
+    [baseHyphen, "Mega", suffixHyphen].filter(Boolean).join("-"),
+    ["Mega", baseHyphen, suffixHyphen].filter(Boolean).join("-"),
+    [baseSpace, "Mega", suffixSpace].filter(Boolean).join(" "),
+    ["Mega", baseSpace, suffixSpace].filter(Boolean).join(" "),
+  ];
+}
+
 export function shouldUseFriendlyMegaNamesForSeason(seasonNumber: number | null | undefined) {
   return (seasonNumber ?? 0) >= 11;
 }
@@ -53,6 +112,7 @@ export function formatPokemonDisplayName(
 
 export function normalizePokemonName(name: string): string {
   let normalized = cleanPokemonNameInput(name);
+  normalized = canonicalizeMegaPokemonName(normalized) || normalized;
 
   const formMappings: Record<string, string> = {
     "Palafin-Hero": "Palafin",
@@ -179,6 +239,10 @@ export function pokemonExactLookupKeys(
   if (rawKey) keys.add(rawKey);
 
   for (const alias of EXTERNAL_NAME_ALIASES[rawKey] || []) {
+    keys.add(pokemonNameKey(alias));
+  }
+
+  for (const alias of megaPokemonNameAliases(cleaned)) {
     keys.add(pokemonNameKey(alias));
   }
 

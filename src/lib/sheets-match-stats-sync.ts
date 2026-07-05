@@ -89,6 +89,10 @@ async function buildPokemonNameMapping(
       for (const key of pokemonExactLookupKeys(smogonName, options)) {
         mapping.set(key, displayName);
       }
+      mapping.set(displayName.toLowerCase(), displayName);
+      for (const key of pokemonExactLookupKeys(displayName, options)) {
+        mapping.set(key, displayName);
+      }
     }
   }
 
