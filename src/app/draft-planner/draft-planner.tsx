@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff, Filter, Search, Share2, Star, X } from "lucide-react";
 import { PokemonAutocomplete, findPokemonMatch } from "@/components/admin/pokemon-autocomplete";
+import { DraftRulesDisclaimer } from "@/components/draft-rules-disclaimer";
 
 // Type effectiveness chart
 const TYPE_CHART: Record<string, Record<string, number>> = {
@@ -908,6 +909,10 @@ export function DraftPlanner({
             </svg>
             {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Defaults"}
           </button>
+        </div>
+
+        <div className="mb-2 shrink-0">
+          <DraftRulesDisclaimer />
         </div>
 
         <div className="mb-2 shrink-0 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">

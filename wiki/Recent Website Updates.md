@@ -34,6 +34,14 @@ Draft planner:
 - The default no-season planner view follows the newest/current season, so it now opens against Season 11.
 - The max price slider caps at 19.
 - Candidate cards show complex-ban notes such as `No Shell Smash`.
+- The Draft Planner and season Draft Board now share a hideable draft rules disclaimer.
+- The disclaimer includes the 115-point budget, 10-11 Pokemon roster size, 0-2 Mega Pokemon limit, mixed draft timing, Smogon clauses, banned moves, banned legacy items, and Z-Move/Dmax/Tera ban notes.
+- The disclaimer hide/show preference is saved in the viewer's browser.
+
+Standings:
+
+- Full division standings now show only the PBO relegation zone marker by division: Infinity bottom 2, Stargazer bottom 3, Sunset bottom 3, Crystal bottom 3, and no Neon relegation zone.
+- The projected promotion and safe-zone markers were removed from standings.
 
 Blog:
 

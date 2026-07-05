@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { DraftBoardGrid } from "@/components/draft-board-grid";
+import { DraftRulesDisclaimer } from "@/components/draft-rules-disclaimer";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
@@ -192,6 +193,8 @@ export default async function DraftBoardPage({ params, searchParams }: PageProps
           </Link>
         </div>
       </div>
+
+      <DraftRulesDisclaimer />
 
       {/* Division Tabs */}
       <div className="flex flex-wrap gap-2">

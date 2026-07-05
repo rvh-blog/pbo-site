@@ -18,15 +18,25 @@ import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { DivisionMobileSubnav } from "@/components/division-mobile-subnav";
 
-// Division hierarchy (1 = top, 4 = bottom)
-// Stargazer (1) -> Sunset (2) -> Crystal (3) -> Neon (4)
-const DIVISION_TIERS: Record<string, number> = {
-  "Stargazer": 1,
-  "Sunset": 2,
-  "Crystal": 3,
-  "Neon": 4,
+type MovementRule = {
+  relegationCount: number;
 };
 
+// Relegation markers by current standings.
+const DIVISION_MOVEMENT_RULES: Record<string, MovementRule> = {
+  infinity: { relegationCount: 2 },
+  infinty: { relegationCount: 2 },
+  stargazer: { relegationCount: 3 },
+  sunset: { relegationCount: 3 },
+  crystal: { relegationCount: 3 },
+  neon: { relegationCount: 0 },
+};
+
+function getDivisionMovementRule(divisionName: string): MovementRule {
+  return DIVISION_MOVEMENT_RULES[divisionName.toLowerCase()] ?? {
+    relegationCount: 3,
+  };
+}
 
 interface PageProps {
   params: Promise<{ id: string; divId: string }>;
@@ -491,10 +501,11 @@ export default async function DivisionPage({ params }: PageProps) {
                     </div>
                   </div>
                   {standings.map((team, index) => {
-                    const divisionTier = DIVISION_TIERS[division.name] || 2;
-                    const isBottomDivision = divisionTier === 4;
-                    const relegationStartIndex = standings.length - 2;
-                    const isInRelegationZone = !isBottomDivision && index >= relegationStartIndex;
+                    const movementRule = getDivisionMovementRule(division.name);
+                    const relegationCount = Math.min(movementRule.relegationCount, standings.length);
+                    const hasRelegationZone = relegationCount > 0 && standings.length > relegationCount;
+                    const relegationStartIndex = standings.length - relegationCount;
+                    const isInRelegationZone = hasRelegationZone && index >= relegationStartIndex;
 
                     return (
                       <React.Fragment key={team.id}>
@@ -509,20 +520,20 @@ export default async function DivisionPage({ params }: PageProps) {
                           </div>
                         )}
                         {/* Relegation zone divider */}
-                        {!isBottomDivision && index === relegationStartIndex && standings.length > 2 && (
+                        {hasRelegationZone && index === relegationStartIndex && (
                           <div className="flex items-center gap-2 py-2">
-                            <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, transparent, ${divisionColor}80, transparent)` }} />
-                            <span className="text-[10px] font-bold uppercase tracking-wider whitespace-nowrap px-2" style={{ color: `${divisionColor}cc` }}>
+                            <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, var(--error), transparent)" }} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider whitespace-nowrap px-2 text-[var(--error)]">
                               Relegation Zone
                             </span>
-                            <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, transparent, ${divisionColor}80, transparent)` }} />
+                            <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, var(--error), transparent)" }} />
                           </div>
                         )}
                         <StandingsRow
                           team={team}
                           index={index}
                           isInRelegationZone={isInRelegationZone}
-                          isInPromotionZone={index < 8}
+                          isInPromotionZone={false}
                           hasBg={!!(team.coachId && rowBgDataMap.has(team.coachId))}
                           hasBorder={!!(team.coachId && rowBorderDataMap.has(team.coachId))}
                           hasGlow={!!(team.coachId && glowDataMap.has(team.coachId))}
