@@ -348,6 +348,7 @@ export function DraftPlanner({
   const [showComparePanel, setShowComparePanel] = useState(true);
   const [showNotesPanel, setShowNotesPanel] = useState(true);
   const [showTeamAnalyzer, setShowTeamAnalyzer] = useState(true);
+  const [showFitExplanation, setShowFitExplanation] = useState(false);
   const [expandedAbility, setExpandedAbility] = useState<{ slotIdx: number; abilityIdx: number } | null>(null);
   const [trackedMoves, setTrackedMoves] = useState([
     "stealth-rock", "spikes", "toxic-spikes", "sticky-web",
@@ -1098,6 +1099,33 @@ export function DraftPlanner({
                 <Star className="h-4 w-4" />
                 Fits team
               </button>
+            </div>
+
+            <div className="mb-1.5 shrink-0 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)]">
+              <button
+                type="button"
+                onClick={() => setShowFitExplanation((current) => !current)}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white"
+              >
+                <span>What does Fits team / FIT mean?</span>
+                <span className="font-mono text-[10px] uppercase text-[var(--foreground-subtle)]">
+                  {showFitExplanation ? "Hide" : "Show"}
+                </span>
+              </button>
+              {showFitExplanation && (
+                <div className="border-t border-[var(--background-tertiary)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground-muted)]">
+                  <p>
+                    <span className="font-bold text-white">Fits team</span> shows Pokemon with a FIT score above 0. FIT is a planning helper, not an official draft rule.
+                  </p>
+                  <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                    <div className="rounded bg-[var(--background)]/60 px-2 py-1">+12 fills a missing role: hazards, removal, pivot, or priority.</div>
+                    <div className="rounded bg-[var(--background)]/60 px-2 py-1">+8 helps cover one of your current weak types.</div>
+                    <div className="rounded bg-[var(--background)]/60 px-2 py-1">+8 has 100+ Speed when your team average Speed is under 90.</div>
+                    <div className="rounded bg-[var(--background)]/60 px-2 py-1">+6 fits your average remaining points per open slot.</div>
+                    <div className="rounded bg-[var(--background)]/60 px-2 py-1 sm:col-span-2">+5 has strong stat value for its price: base stat total divided by price is at least 55.</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {showComparePanel && comparePokemon.length > 0 && (

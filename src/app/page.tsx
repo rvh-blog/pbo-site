@@ -20,6 +20,7 @@ const DIVISION_COLORS: Record<string, string> = {
 };
 
 const DIVISION_ORDER = ["Stargazer", "Sunset", "Crystal", "Neon"] as const;
+const DRAFT_DIVISION_ORDER = ["Infinity", "Stargazer", "Sunset", "Crystal", "Neon"] as const;
 const RULEBOOK_URL = "https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal";
 
 type OffseasonChampion = {
@@ -116,6 +117,25 @@ type BattleLogItem = {
   playedAt: string | null;
   endedAt: string | null;
   divisionName?: string;
+};
+
+type RecentDraftPick = {
+  rosterId: number;
+  draftOrder: number | null;
+  pokemonName: string;
+  spriteUrl: string | null;
+  price: number;
+  teamName: string;
+  teamAbbreviation: string | null;
+  teamLogoUrl: string | null;
+  coachName: string | null;
+};
+
+type DivisionRecentDraftPicks = {
+  divisionId: number;
+  divisionName: string;
+  logoUrl: string | null;
+  picks: RecentDraftPick[];
 };
 
 async function getRecentBattles(): Promise<BattleLogItem[]> {
@@ -323,6 +343,93 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
   });
 
   return allBattles.slice(0, 8);
+}
+
+async function getRecentDraftPicksByDivision(
+  currentSeasonPromise: Promise<Awaited<ReturnType<typeof getCurrentSeason>>>
+): Promise<DivisionRecentDraftPicks[]> {
+  const currentSeason = await currentSeasonPromise;
+  if (!currentSeason) return [];
+
+  const sortedDivisions = [...currentSeason.divisions].sort((a, b) => {
+    const aOrder = DRAFT_DIVISION_ORDER.findIndex((name) => name.toLowerCase() === a.name.toLowerCase());
+    const bOrder = DRAFT_DIVISION_ORDER.findIndex((name) => name.toLowerCase() === b.name.toLowerCase());
+    const normalizedA = aOrder === -1 ? 99 : aOrder;
+    const normalizedB = bOrder === -1 ? 99 : bOrder;
+    if (normalizedA !== normalizedB) return normalizedA - normalizedB;
+    return (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+  });
+  const divisionIds = sortedDivisions.map((division) => division.id);
+
+  if (divisionIds.length === 0) {
+    return [];
+  }
+
+  const teams = await db.query.seasonCoaches.findMany({
+    where: inArray(seasonCoaches.divisionId, divisionIds),
+    columns: {
+      id: true,
+      divisionId: true,
+      teamName: true,
+      teamAbbreviation: true,
+      teamLogoUrl: true,
+      isActive: true,
+    },
+    with: {
+      coach: {
+        columns: {
+          name: true,
+        },
+      },
+      rosters: {
+        columns: {
+          id: true,
+          draftOrder: true,
+          price: true,
+        },
+        with: {
+          pokemon: {
+            columns: {
+              name: true,
+              displayName: true,
+              spriteUrl: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const picksByDivision = new Map<number, RecentDraftPick[]>();
+
+  for (const team of teams) {
+    if (!team.isActive) continue;
+
+    const divisionPicks = picksByDivision.get(team.divisionId) ?? [];
+    for (const roster of team.rosters) {
+      divisionPicks.push({
+        rosterId: roster.id,
+        draftOrder: roster.draftOrder,
+        pokemonName: roster.pokemon?.displayName || roster.pokemon?.name || "Unknown",
+        spriteUrl: roster.pokemon?.spriteUrl ?? null,
+        price: roster.price,
+        teamName: team.teamName,
+        teamAbbreviation: team.teamAbbreviation,
+        teamLogoUrl: team.teamLogoUrl,
+        coachName: team.coach?.name ?? null,
+      });
+    }
+    picksByDivision.set(team.divisionId, divisionPicks);
+  }
+
+  return sortedDivisions.map((division) => ({
+    divisionId: division.id,
+    divisionName: division.name,
+    logoUrl: division.logoUrl,
+    picks: (picksByDivision.get(division.id) ?? [])
+      .sort((a, b) => b.rosterId - a.rosterId)
+      .slice(0, 10),
+  }));
 }
 
 async function getStats() {
@@ -664,6 +771,99 @@ function StatsStrip({
   );
 }
 
+function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPicks[] }) {
+  if (divisions.length === 0) return null;
+
+  return (
+    <section className="poke-card p-4 sm:p-6">
+      <div className="section-title">
+        <div className="section-title-icon">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </div>
+        <h3>Recent Draft Picks</h3>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-5">
+        {divisions.map((division) => {
+          const divisionColor = DIVISION_COLORS[division.divisionName] ?? "var(--primary)";
+
+          return (
+            <div
+              key={division.divisionId}
+              className="min-w-0 rounded-lg border bg-[var(--background-secondary)]/60 p-3"
+              style={{
+                borderColor: `${divisionColor}44`,
+                boxShadow: `inset 0 1px 0 ${divisionColor}22`,
+              }}
+            >
+              <div className="mb-3 flex items-center gap-2">
+                {division.logoUrl ? (
+                  <Image
+                    src={division.logoUrl}
+                    alt=""
+                    width={28}
+                    height={28}
+                    className="h-7 w-7 shrink-0 rounded object-contain"
+                  />
+                ) : (
+                  <div className="h-7 w-7 shrink-0 rounded bg-[var(--background-tertiary)]" />
+                )}
+                <div className="min-w-0">
+                  <h4 className="truncate text-sm font-bold uppercase text-white">{division.divisionName}</h4>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+                    Latest 10
+                  </p>
+                </div>
+              </div>
+
+              {division.picks.length > 0 ? (
+                <div className="space-y-2">
+                  {division.picks.map((pick) => (
+                    <div
+                      key={pick.rosterId}
+                      className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background)]/55 p-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        {pick.spriteUrl ? (
+                          <Image
+                            src={pick.spriteUrl}
+                            alt=""
+                            width={28}
+                            height={28}
+                            className="h-7 w-7 shrink-0 object-contain"
+                          />
+                        ) : (
+                          <div className="h-7 w-7 shrink-0 rounded bg-[var(--background-tertiary)]" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-xs font-bold text-white">{pick.pokemonName}</div>
+                          <div className="truncate text-[10px] text-[var(--foreground-subtle)]">
+                            {pick.teamAbbreviation || pick.teamName}{pick.coachName ? ` / ${pick.coachName}` : ""}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="font-mono text-xs font-bold text-[var(--accent)]">{pick.price}</div>
+                          <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">pts</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-md border border-dashed border-[var(--background-tertiary)] px-3 py-5 text-center text-xs text-[var(--foreground-muted)]">
+                  No picks recorded yet
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] }) {
   return (
     <section className="poke-card p-5 sm:p-6">
@@ -761,10 +961,11 @@ function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] 
 export default async function Home() {
   // Run all queries in parallel for much better performance on network-attached storage
   const currentSeasonPromise = getCurrentSeason();
-  const [currentSeason, previousSeasonChampions, recentBattles, stats, topCoaches, stargazerChampion, personalizedHome] = await Promise.all([
+  const [currentSeason, previousSeasonChampions, recentBattles, recentDraftPicksByDivision, stats, topCoaches, stargazerChampion, personalizedHome] = await Promise.all([
     currentSeasonPromise,
     getPreviousSeasonChampions(),
     getRecentBattles(),
+    getRecentDraftPicksByDivision(currentSeasonPromise),
     getStats(),
     getTopCoaches(),
     getStargazerChampion(),
@@ -894,6 +1095,10 @@ export default async function Home() {
 
         </div>
       </section>
+
+      {currentSeason && (
+        <RecentDraftPicksPanel divisions={recentDraftPicksByDivision} />
+      )}
 
       {personalizedHome && (
         <section className="poke-card p-4 sm:p-5">
