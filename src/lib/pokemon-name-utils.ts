@@ -186,6 +186,7 @@ export function normalizePokemonName(name: string): string {
   if (normalized.startsWith("Deerling-")) normalized = "Deerling";
   if (normalized.startsWith("Sawsbuck-")) normalized = "Sawsbuck";
   if (normalized.startsWith("Burmy-")) normalized = "Burmy";
+  if (normalized.startsWith("Wormadam-")) normalized = "Wormadam";
 
   return normalized;
 }
@@ -245,8 +246,17 @@ const CANONICAL_FORM_ALIAS_GROUPS: Record<string, string[]> = {
   castform: ["Castform-Sunny", "Castform-Rainy", "Castform-Snowy"],
   cherrim: ["Cherrim-Sunshine", "Cherrim-Overcast"],
   cramorant: ["Cramorant-Gulping", "Cramorant-Gorging"],
-  darmanitan: ["Darmanitan-Zen", "Darmanitan-Standard"],
-  darmanitangalar: ["Darmanitan-Galar-Zen", "Darmanitan-Galar-Standard"],
+  darmanitan: ["Darmanitan-Zen", "Darmanitan-Zen-Mode", "Zen-Mode-Darmanitan", "Darmanitan-Standard"],
+  darmanitangalar: [
+    "Darmanitan-Galar",
+    "Darmanitan-Galar-Zen",
+    "Darmanitan-Galar-Zen-Mode",
+    "Darmanitan-Galar-Standard",
+    "Galarian-Darmanitan",
+    "Galarian-Darmanitan-Zen",
+    "Galarian-Darmanitan-Zen-Mode",
+    "Zen-Mode-Galarian-Darmanitan",
+  ],
   deerling: ["Deerling-Spring", "Deerling-Summer", "Deerling-Autumn", "Deerling-Winter"],
   dudunsparce: ["Dudunsparce-Two-Segment", "Dudunsparce-Three-Segment"],
   eiscue: ["Eiscue-Noice", "Eiscue-Ice"],
@@ -339,6 +349,7 @@ const CANONICAL_FORM_ALIAS_GROUPS: Record<string, string[]> = {
     "Vivillon-Tundra",
   ],
   wishiwashi: ["Wishiwashi-School", "Wishiwashi-Solo"],
+  wormadam: ["Wormadam-Plant", "Wormadam-Sandy", "Wormadam-Trash"],
   xerneas: ["Xerneas-Active", "Xerneas-Neutral"],
   zarude: ["Zarude-Dada"],
   zygarde: ["Zygarde-10%", "Zygarde-50%", "Zygarde-Complete"],
