@@ -33,7 +33,18 @@ Pokemon can be identified by:
 - `pokemonId`
 - `pokemonName`
 
-Name aliases are normalized for common form differences.
+Pokemon names are resolved through `src/lib/pokemon-name-utils.ts`.
+
+- Wiglett draft picks and match Pokemon should use
+  `pokemonExactLookupKeys()` / `pokemonNormalizedLookupKeys()` to match external
+  payload names against DB rows and rosters.
+- If Wiglett sends a new alias or alternate spelling, update the central
+  normalizer/lookup helpers in `pokemon-name-utils.ts`; do not add a
+  Wiglett-specific name normalizer.
+- For Pokemon that PBO drafts as separate forms, Wiglett should send a
+  form-specific name or `pokemonId`. For example, plain `Urshifu` is ambiguous;
+  use `Urshifu-Single-Strike`, `Urshifu-Rapid-Strike`, or an accepted equivalent
+  such as `Single Strike Urshifu`.
 
 ## Match Result Flow
 

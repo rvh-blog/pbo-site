@@ -7,6 +7,8 @@ function cleanPokemonNameInput(name: string): string {
 
 export function pokemonNameKey(value: unknown): string {
   return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[.'’]/g, "")
     .replace(/[^a-z0-9]+/g, "");
@@ -80,6 +82,113 @@ function megaPokemonNameAliases(name: string): string[] {
   ];
 }
 
+function canonicalizeUrshifuName(name: string): string | null {
+  const key = pokemonNameKey(name);
+  if (key === "urshifu" || key === "urshifugmax") return "Urshifu";
+
+  const rapidStrikeKeys = new Set([
+    "urshifurapid",
+    "urshifurapidstrike",
+    "urshifurapidstrikestyle",
+    "urshifurapidstrikegmax",
+    "rapidurshifu",
+    "rapidstrikeurshifu",
+    "rapidstrikestyleurshifu",
+  ]);
+  if (rapidStrikeKeys.has(key)) {
+    return key.endsWith("gmax") ? "Urshifu-Rapid-Strike-Gmax" : "Urshifu-Rapid-Strike";
+  }
+
+  const singleStrikeKeys = new Set([
+    "urshifusingle",
+    "urshifusinglestrike",
+    "urshifusinglestrikestyle",
+    "urshifusinglestrikegmax",
+    "singleurshifu",
+    "singlestrikeurshifu",
+    "singlestrikestyleurshifu",
+  ]);
+  if (singleStrikeKeys.has(key)) {
+    return key.endsWith("gmax") ? "Urshifu-Single-Strike-Gmax" : "Urshifu-Single-Strike";
+  }
+
+  return null;
+}
+
+const NORMALIZED_NAME_ALIASES: Record<string, string> = {
+  ogerpont: "Ogerpon-Teal",
+  ogerponteal: "Ogerpon-Teal",
+  ogerponw: "Ogerpon-Wellspring",
+  ogerponwellspring: "Ogerpon-Wellspring",
+  ogerponh: "Ogerpon-Hearthflame",
+  ogerponhearthflame: "Ogerpon-Hearthflame",
+  ogerponc: "Ogerpon-Cornerstone",
+  ogerponcornerstone: "Ogerpon-Cornerstone",
+  ursalunabm: "Ursaluna-Bloodmoon",
+  ursalunabloodmoon: "Ursaluna-Bloodmoon",
+  ursalunabloodmoonform: "Ursaluna-Bloodmoon",
+  galarianarticuno: "Articuno-Galar",
+  galarianzapdos: "Zapdos-Galar",
+  galarianmoltres: "Moltres-Galar",
+  galarianslowking: "Slowking-Galar",
+  galarianslowbro: "Slowbro-Galar",
+  alolanexeggutor: "Exeggutor-Alola",
+  alolanninetales: "Ninetales-Alola",
+  alolanmuk: "Muk-Alola",
+  alolanraichu: "Raichu-Alola",
+  alolansandslash: "Sandslash-Alola",
+  alolanmarowak: "Marowak-Alola",
+  hisuiansamurott: "Samurott-Hisui",
+  hisuianarcanine: "Arcanine-Hisui",
+  hisuiantyphlosion: "Typhlosion-Hisui",
+  hisuianlilligant: "Lilligant-Hisui",
+  hisuianzoroark: "Zoroark-Hisui",
+  hisuianbraviary: "Braviary-Hisui",
+  hisuiangoodra: "Goodra-Hisui",
+  hisuiandecidueye: "Decidueye-Hisui",
+  paldeanwooper: "Wooper-Paldea",
+  paldeantauros: "Tauros-Paldea-Combat",
+  paldeantaurosfire: "Tauros-Paldea-Blaze",
+  paldeantauroswater: "Tauros-Paldea-Aqua",
+  basculinredstripe: "Basculin-Red-Striped",
+  redstripedbasculin: "Basculin-Red-Striped",
+  redstripebasculin: "Basculin-Red-Striped",
+  basculinbluestripe: "Basculin-Blue-Striped",
+  bluestripedbasculin: "Basculin-Blue-Striped",
+  bluestripebasculin: "Basculin-Blue-Striped",
+  basculinwhitestripe: "Basculin-White-Striped",
+  whitestripedbasculin: "Basculin-White-Striped",
+  whitestripebasculin: "Basculin-White-Striped",
+  averagegourgeist: "Gourgeist-Average",
+  gourgeistaverage: "Gourgeist-Average",
+  largegourgeist: "Gourgeist-Large",
+  gourgeistlarge: "Gourgeist-Large",
+  smallgourgeist: "Gourgeist-Small",
+  gourgeistsmall: "Gourgeist-Small",
+  supergourgeist: "Gourgeist-Super",
+  gourgeistsuper: "Gourgeist-Super",
+  baileoricorio: "Oricorio-Baile",
+  bailestyleoricorio: "Oricorio-Baile",
+  oricoriobaile: "Oricorio-Baile",
+  pauoricorio: "Oricorio-Pau",
+  paustyleoricorio: "Oricorio-Pau",
+  oricoriopau: "Oricorio-Pau",
+  pompomoricorio: "Oricorio-Pom-Pom",
+  pompomstyleoricorio: "Oricorio-Pom-Pom",
+  oricoriopompom: "Oricorio-Pom-Pom",
+  sensuoricorio: "Oricorio-Sensu",
+  sensustyleoricorio: "Oricorio-Sensu",
+  oricoriosensu: "Oricorio-Sensu",
+  averagepumpkaboo: "Pumpkaboo-Average",
+  pumpkabooaverage: "Pumpkaboo-Average",
+  largepumpkaboo: "Pumpkaboo-Large",
+  pumpkaboolarge: "Pumpkaboo-Large",
+  smallpumpkaboo: "Pumpkaboo-Small",
+  pumpkaboosmall: "Pumpkaboo-Small",
+  superpumpkaboo: "Pumpkaboo-Super",
+  pumpkaboosuper: "Pumpkaboo-Super",
+};
+
 export function shouldUseFriendlyMegaNamesForSeason(seasonNumber: number | null | undefined) {
   return (seasonNumber ?? 0) >= 11;
 }
@@ -113,6 +222,8 @@ export function formatPokemonDisplayName(
 export function normalizePokemonName(name: string): string {
   let normalized = cleanPokemonNameInput(name);
   normalized = canonicalizeMegaPokemonName(normalized) || normalized;
+  normalized = canonicalizeUrshifuName(normalized) || normalized;
+  normalized = NORMALIZED_NAME_ALIASES[pokemonNameKey(normalized)] || normalized;
 
   const formMappings: Record<string, string> = {
     "Palafin-Hero": "Palafin",
@@ -160,7 +271,6 @@ export function normalizePokemonName(name: string): string {
   if (normalized.startsWith("Keldeo-")) normalized = "Keldeo";
   if (normalized.startsWith("Greninja-")) normalized = "Greninja";
   if (normalized === "Shaymin-Land") normalized = "Shaymin";
-  if (normalized.startsWith("Urshifu-")) normalized = "Urshifu";
   if (normalized === "Enamorus-Incarnate") normalized = "Enamorus";
   if (normalized === "Landorus-Incarnate") normalized = "Landorus";
   if (normalized === "Tornadus-Incarnate") normalized = "Tornadus";
@@ -191,177 +301,6 @@ export function normalizePokemonName(name: string): string {
   return normalized;
 }
 
-const EXTERNAL_NAME_ALIASES: Record<string, string[]> = {
-  ogerpont: ["Ogerpon-Teal", "Ogerpon"],
-  ogerponteal: ["Ogerpon-Teal", "Ogerpon"],
-  ogerponw: ["Ogerpon-Wellspring"],
-  ogerponwellspring: ["Ogerpon-Wellspring"],
-  ogerponh: ["Ogerpon-Hearthflame"],
-  ogerponhearthflame: ["Ogerpon-Hearthflame"],
-  ogerponc: ["Ogerpon-Cornerstone"],
-  ogerponcornerstone: ["Ogerpon-Cornerstone"],
-  ursalunabm: ["Ursaluna-Bloodmoon"],
-  ursalunabloodmoon: ["Ursaluna-Bloodmoon"],
-  ursalunabloodmoonform: ["Ursaluna-Bloodmoon"],
-  galarianarticuno: ["Articuno-Galar"],
-  galarianzapdos: ["Zapdos-Galar"],
-  galarianmoltres: ["Moltres-Galar"],
-  galarianslowking: ["Slowking-Galar"],
-  galarianslowbro: ["Slowbro-Galar"],
-  alolanexeggutor: ["Exeggutor-Alola"],
-  alolanninetales: ["Ninetales-Alola"],
-  alolanmuk: ["Muk-Alola"],
-  alolanraichu: ["Raichu-Alola"],
-  alolansandslash: ["Sandslash-Alola"],
-  alolanmarowak: ["Marowak-Alola"],
-  hisuiansamurott: ["Samurott-Hisui"],
-  hisuianarcanine: ["Arcanine-Hisui"],
-  hisuiantyphlosion: ["Typhlosion-Hisui"],
-  hisuianlilligant: ["Lilligant-Hisui"],
-  hisuianzoroark: ["Zoroark-Hisui"],
-  hisuianbraviary: ["Braviary-Hisui"],
-  hisuiangoodra: ["Goodra-Hisui"],
-  hisuiandecidueye: ["Decidueye-Hisui"],
-  paldeanwooper: ["Wooper-Paldea"],
-  paldeantauros: ["Tauros-Paldea-Combat"],
-  paldeantaurosfire: ["Tauros-Paldea-Blaze"],
-  paldeantauroswater: ["Tauros-Paldea-Aqua"],
-};
-
-const CANONICAL_FORM_ALIAS_GROUPS: Record<string, string[]> = {
-  aegislash: ["Aegislash-Blade", "Aegislash-Shield"],
-  alcremie: [
-    "Alcremie-Vanilla-Cream",
-    "Alcremie-Ruby-Cream",
-    "Alcremie-Matcha-Cream",
-    "Alcremie-Mint-Cream",
-    "Alcremie-Lemon-Cream",
-    "Alcremie-Salted-Cream",
-    "Alcremie-Ruby-Swirl",
-    "Alcremie-Caramel-Swirl",
-    "Alcremie-Rainbow-Swirl",
-  ],
-  basculegion: ["Basculegion-F", "Basculegion-M", "Basculegion-Female", "Basculegion-Male"],
-  burmy: ["Burmy-Plant", "Burmy-Sandy", "Burmy-Trash"],
-  castform: ["Castform-Sunny", "Castform-Rainy", "Castform-Snowy"],
-  cherrim: ["Cherrim-Sunshine", "Cherrim-Overcast"],
-  cramorant: ["Cramorant-Gulping", "Cramorant-Gorging"],
-  darmanitan: ["Darmanitan-Zen", "Darmanitan-Zen-Mode", "Zen-Mode-Darmanitan", "Darmanitan-Standard"],
-  darmanitangalar: [
-    "Darmanitan-Galar",
-    "Darmanitan-Galar-Zen",
-    "Darmanitan-Galar-Zen-Mode",
-    "Darmanitan-Galar-Standard",
-    "Galarian-Darmanitan",
-    "Galarian-Darmanitan-Zen",
-    "Galarian-Darmanitan-Zen-Mode",
-    "Zen-Mode-Galarian-Darmanitan",
-  ],
-  deerling: ["Deerling-Spring", "Deerling-Summer", "Deerling-Autumn", "Deerling-Winter"],
-  dudunsparce: ["Dudunsparce-Two-Segment", "Dudunsparce-Three-Segment"],
-  eiscue: ["Eiscue-Noice", "Eiscue-Ice"],
-  enamorus: ["Enamorus-Incarnate", "Enamorus-Therian", "Enamorus-I", "Enamorus-T", "Enam-I", "Enam-T"],
-  flabebe: ["Flabebe-Red", "Flabebe-Blue", "Flabebe-Orange", "Flabebe-White", "Flabebe-Yellow"],
-  floette: ["Floette-Red", "Floette-Blue", "Floette-Orange", "Floette-White", "Floette-Yellow"],
-  florges: ["Florges-Red", "Florges-Blue", "Florges-Orange", "Florges-White", "Florges-Yellow"],
-  furfrou: [
-    "Furfrou-Natural",
-    "Furfrou-Heart",
-    "Furfrou-Star",
-    "Furfrou-Diamond",
-    "Furfrou-Debutante",
-    "Furfrou-Matron",
-    "Furfrou-Dandy",
-    "Furfrou-La-Reine",
-    "Furfrou-Kabuki",
-    "Furfrou-Pharaoh",
-  ],
-  gastrodon: ["Gastrodon-East", "Gastrodon-West"],
-  greninja: ["Greninja-Ash", "Greninja-Battle-Bond"],
-  indeedee: ["Indeedee-F", "Indeedee-M", "Indeedee-Female", "Indeedee-Male"],
-  keldeo: ["Keldeo-Ordinary", "Keldeo-Resolute"],
-  landorus: ["Landorus-Incarnate", "Landorus-Therian", "Landorus-I", "Landorus-T", "Lando-I", "Lando-T"],
-  maushold: ["Maushold-Family-of-Three", "Maushold-Family-of-Four"],
-  meowstic: ["Meowstic-F", "Meowstic-M", "Meowstic-Female", "Meowstic-Male"],
-  mimikyu: ["Mimikyu-Busted", "Mimikyu-Disguised"],
-  minior: [
-    "Minior-Meteor",
-    "Minior-Core",
-    "Minior-Red",
-    "Minior-Orange",
-    "Minior-Yellow",
-    "Minior-Green",
-    "Minior-Blue",
-    "Minior-Indigo",
-    "Minior-Violet",
-  ],
-  morpeko: ["Morpeko-Hangry", "Morpeko-Full-Belly"],
-  oinkologne: ["Oinkologne-F", "Oinkologne-M", "Oinkologne-Female", "Oinkologne-Male"],
-  palafin: ["Palafin-Hero", "Palafin-Zero"],
-  pikachu: [
-    "Pikachu-Original",
-    "Pikachu-Hoenn",
-    "Pikachu-Sinnoh",
-    "Pikachu-Unova",
-    "Pikachu-Kalos",
-    "Pikachu-Alola",
-    "Pikachu-Partner",
-    "Pikachu-World",
-    "Pikachu-Cosplay",
-    "Pikachu-Rock-Star",
-    "Pikachu-Belle",
-    "Pikachu-Pop-Star",
-    "Pikachu-PhD",
-    "Pikachu-Libre",
-  ],
-  sawsbuck: ["Sawsbuck-Spring", "Sawsbuck-Summer", "Sawsbuck-Autumn", "Sawsbuck-Winter"],
-  shaymin: ["Shaymin-Land", "Shaymin-Sky"],
-  shellos: ["Shellos-East", "Shellos-West"],
-  sinistcha: ["Sinistcha-Masterpiece", "Sinistcha-Artisan"],
-  sinistea: ["Sinistea-Phony", "Sinistea-Antique"],
-  squawkabilly: ["Squawkabilly-Green", "Squawkabilly-Blue", "Squawkabilly-Yellow", "Squawkabilly-White"],
-  tatsugiri: ["Tatsugiri-Curly", "Tatsugiri-Droopy", "Tatsugiri-Stretchy"],
-  terapagos: ["Terapagos-Normal", "Terapagos-Terastal", "Terapagos-Stellar"],
-  thundurus: ["Thundurus-Incarnate", "Thundurus-Therian", "Thundurus-I", "Thundurus-T", "Thundy-I", "Thundy-T"],
-  tornadus: ["Tornadus-Incarnate", "Tornadus-Therian", "Tornadus-I", "Tornadus-T", "Torn-I", "Torn-T"],
-  unown: "ABCDEFGHIJKLMNOPQRSTUVWXYZ!?".split("").map((form) => `Unown-${form}`),
-  urshifu: ["Urshifu-Single-Strike", "Urshifu-Rapid-Strike", "Urshifu-Single", "Urshifu-Rapid"],
-  vivillon: [
-    "Vivillon-Archipelago",
-    "Vivillon-Continental",
-    "Vivillon-Elegant",
-    "Vivillon-Fancy",
-    "Vivillon-Garden",
-    "Vivillon-High-Plains",
-    "Vivillon-Icy-Snow",
-    "Vivillon-Jungle",
-    "Vivillon-Marine",
-    "Vivillon-Meadow",
-    "Vivillon-Modern",
-    "Vivillon-Monsoon",
-    "Vivillon-Ocean",
-    "Vivillon-Poke-Ball",
-    "Vivillon-Polar",
-    "Vivillon-River",
-    "Vivillon-Sandstorm",
-    "Vivillon-Savanna",
-    "Vivillon-Sun",
-    "Vivillon-Tundra",
-  ],
-  wishiwashi: ["Wishiwashi-School", "Wishiwashi-Solo"],
-  wormadam: ["Wormadam-Plant", "Wormadam-Sandy", "Wormadam-Trash"],
-  xerneas: ["Xerneas-Active", "Xerneas-Neutral"],
-  zarude: ["Zarude-Dada"],
-  zygarde: ["Zygarde-10%", "Zygarde-50%", "Zygarde-Complete"],
-};
-
-const CANONICAL_FORM_ALIASES: Record<string, string[]> = Object.fromEntries(
-  Object.entries(CANONICAL_FORM_ALIAS_GROUPS).map(([key, values]) => [
-    key,
-    values.flatMap((value) => [value, value.replace(/-/g, " ")]),
-  ])
-);
-
 export function pokemonExactLookupKeys(
   name: string | null | undefined,
   options: PokemonNameOptions = {}
@@ -372,14 +311,6 @@ export function pokemonExactLookupKeys(
   const cleaned = cleanPokemonNameInput(name);
   const rawKey = pokemonNameKey(cleaned);
   if (rawKey) keys.add(rawKey);
-
-  for (const alias of EXTERNAL_NAME_ALIASES[rawKey] || []) {
-    keys.add(pokemonNameKey(alias));
-  }
-
-  for (const alias of CANONICAL_FORM_ALIASES[rawKey] || []) {
-    keys.add(pokemonNameKey(alias));
-  }
 
   for (const alias of megaPokemonNameAliases(cleaned)) {
     keys.add(pokemonNameKey(alias));
@@ -401,6 +332,9 @@ export function pokemonExactLookupKeys(
       keys.add(pokemonNameKey(alias));
     }
   }
+
+  const normalizedKey = pokemonNameKey(normalizePokemonName(cleaned));
+  if (normalizedKey) keys.add(normalizedKey);
 
   return keys;
 }
@@ -428,14 +362,11 @@ export function pokemonSearchAliases(
   const rawDisplayName = (displayName || "").trim();
   const friendlyName = formatPokemonDisplayName(rawName, rawDisplayName, options);
 
-  const exactAliasSource = rawDisplayName || rawName;
-  const exactAliasSourceKey = pokemonNameKey(cleanPokemonNameInput(exactAliasSource));
-
   for (const value of [
     rawName,
     rawDisplayName,
     friendlyName,
-    ...(CANONICAL_FORM_ALIASES[exactAliasSourceKey] || []),
+    normalizePokemonName(rawDisplayName || rawName),
   ]) {
     if (!value) continue;
     const lower = value.toLowerCase();

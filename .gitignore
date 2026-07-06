@@ -32,6 +32,7 @@
 # local backups, exports, and generated data
 /backups/
 /data/
+/public/uploads/
 missing_pokemon_data.csv
 scripts/pokeapi-cache.json
 

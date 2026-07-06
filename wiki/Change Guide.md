@@ -112,6 +112,34 @@ When changing sync:
 - Prefer batched reads/writes.
 - Keep roster/transaction sync independent from match result sync where possible.
 
+## Pokemon Name Normalization
+
+The central source of truth for Pokemon name formats is:
+
+- `src/lib/pokemon-name-utils.ts`
+
+Keep name behavior centralized there. If a bug report mentions Pokemon aliases,
+alternate spellings, friendly display names, regional names, Mega names, form
+names, or sheet/Wiglett name formats, update the central normalizer and lookup
+helpers in `pokemon-name-utils.ts`; do not add a separate alias table or local
+normalizer in a caller.
+
+Use the exported helpers consistently:
+
+- Use `normalizePokemonName()` when a flow needs one canonical Pokemon name.
+- Use `pokemonExactLookupKeys()` / `pokemonNormalizedLookupKeys()` when matching
+  external input against DB rows, roster rows, or sheet Pokedex rows.
+- Use `pokemonSearchAliases()` for autocomplete/search surfaces.
+
+Callers such as Sheets sync, Wiglett, bot match recording, replay parsing,
+overlays, draft planner, and autocomplete should all route through these helpers
+so one file stays responsible for name behavior.
+
+Be careful with competitive forms. Some visual or battle-state forms collapse to
+base species, but forms that PBO drafts separately must remain distinguishable.
+For example, `Urshifu-Single-Strike` and `Urshifu-Rapid-Strike` are separate DB
+Pokemon, while replay preview may initially show `Urshifu-*`.
+
 ## Replay Parser Changes
 
 Read:
