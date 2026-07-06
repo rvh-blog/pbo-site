@@ -1,0 +1,58 @@
+-- Backfill abilities for Z-A / Mega Dimension megas from Showdown pokedex
+-- Idempotent: only touches rows whose abilities are still empty
+UPDATE pokemon SET abilities = '[{"name":"magic-bounce","isHidden":false}]' WHERE name = 'Absol-mega-z' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"tough-claws","isHidden":false}]' WHERE name = 'Barbaracle-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"thermal-exchange","isHidden":false},{"name":"ice-body","isHidden":true}]' WHERE name = 'Baxcalibur-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"infiltrator","isHidden":false}]' WHERE name = 'Chandelure-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"bulletproof","isHidden":false}]' WHERE name = 'Chesnaught-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"levitate","isHidden":false}]' WHERE name = 'Chimecho-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"magic-bounce","isHidden":false}]' WHERE name = 'Clefable-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"iron-fist","isHidden":false}]' WHERE name = 'Crabominable-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"bad-dreams","isHidden":false}]' WHERE name = 'Darkrai-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"levitate","isHidden":false}]' WHERE name = 'Delphox-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"regenerator","isHidden":false}]' WHERE name = 'Dragalge-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"multiscale","isHidden":false}]' WHERE name = 'Dragonite-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"berserk","isHidden":false}]' WHERE name = 'Drampa-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"eelevate","isHidden":false}]' WHERE name = 'Eelektross-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"mold-breaker","isHidden":false}]' WHERE name = 'Emboar-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"piercing-drill","isHidden":false}]' WHERE name = 'Excadrill-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"defiant","isHidden":false}]' WHERE name = 'Falinks-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"dragonize","isHidden":false}]' WHERE name = 'Feraligatr-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"fairy-aura","isHidden":false}]' WHERE name = 'Floette-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"snow-warning","isHidden":false}]' WHERE name = 'Froslass-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"sand-force","isHidden":false}]' WHERE name = 'Garchomp-mega-z' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"adaptability","isHidden":false}]' WHERE name = 'Glimmora-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"emergency-exit","isHidden":false}]' WHERE name = 'Golisopod-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"unseen-fist","isHidden":false}]' WHERE name = 'Golurk-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"protean","isHidden":false}]' WHERE name = 'Greninja-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"no-guard","isHidden":false}]' WHERE name = 'Hawlucha-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"flash-fire","isHidden":false},{"name":"flame-body","isHidden":true}]' WHERE name = 'Heatran-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"adaptability","isHidden":false}]' WHERE name = 'Lucario-mega-z' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"soul-heart","isHidden":false}]' WHERE name = 'Magearna-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"soul-heart","isHidden":false}]' WHERE name = 'Magearna-original-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"contrary","isHidden":false}]' WHERE name = 'Malamar-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"mega-sol","isHidden":false}]' WHERE name = 'Meganium-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"fire-mane","isHidden":false}]' WHERE name = 'Pyroar-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"electric-surge","isHidden":false}]' WHERE name = 'Raichu-mega-x' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"no-guard","isHidden":false}]' WHERE name = 'Raichu-mega-y' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"shell-armor","isHidden":false}]' WHERE name = 'Scolipede-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"spicy-spray","isHidden":false}]' WHERE name = 'Scovillain-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"intimidate","isHidden":false}]' WHERE name = 'Scrafty-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"stalwart","isHidden":false}]' WHERE name = 'Skarmory-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"contrary","isHidden":false}]' WHERE name = 'Staraptor-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"huge-power","isHidden":false}]' WHERE name = 'Starmie-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"commander","isHidden":false},{"name":"storm-drain","isHidden":true}]' WHERE name = 'Tatsugiri-curly-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"commander","isHidden":false},{"name":"storm-drain","isHidden":true}]' WHERE name = 'Tatsugiri-droopy-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"commander","isHidden":false},{"name":"storm-drain","isHidden":true}]' WHERE name = 'Tatsugiri-stretchy-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"innards-out","isHidden":false}]' WHERE name = 'Victreebel-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"volt-absorb","isHidden":false}]' WHERE name = 'Zeraora-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"aura-break","isHidden":false}]' WHERE name = 'Zygarde-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+UPDATE pokemon SET abilities = '[{"name":"trace","isHidden":false}]' WHERE name = 'Meowstic-mega' AND (abilities IS NULL OR abilities = '' OR abilities = '[]');
+
+-- New Z-A signature abilities (pokeapi_id = Showdown num, matches official ability index)
+INSERT OR IGNORE INTO abilities (pokeapi_id, name, display_name, short_effect, full_effect, generation) VALUES (315, 'mega-sol', 'Mega Sol', 'This Pokemon''s moves are used as if the effects of Sunny Day were active.', 'This Pokemon''s moves are used as if the effects of Sunny Day were active.', NULL);
+INSERT OR IGNORE INTO abilities (pokeapi_id, name, display_name, short_effect, full_effect, generation) VALUES (312, 'dragonize', 'Dragonize', 'This Pokemon''s Normal-type moves become Dragon type and have 1.2x power.', 'This Pokemon''s Normal-type moves become Dragon-type moves and have their power multiplied by 1.2. This effect comes after other effects that change a move''s type, but before Ion Deluge and Electrify''s effects.', NULL);
+INSERT OR IGNORE INTO abilities (pokeapi_id, name, display_name, short_effect, full_effect, generation) VALUES (311, 'piercing-drill', 'Piercing Drill', 'This Pokemon''s contact moves ignore a target''s protection and deal 1/4 the usual damage.', 'This Pokemon''s contact moves ignore a target''s protection and deal 1/4 the usual damage.', NULL);
+INSERT OR IGNORE INTO abilities (pokeapi_id, name, display_name, short_effect, full_effect, generation) VALUES (313, 'eelevate', 'Eelevate', 'This Pokemon is immune to Ground; +1 to highest stat if it KOes another Pokemon.', 'This Pokemon is immune to Ground-type attacks and the effects of Spikes, Toxic Spikes, Sticky Web, and the Arena Trap Ability. The effects of Gravity, Ingrain, Smack Down, Thousand Arrows, and Iron Ball nullify the immunity. Thousand Arrows can hit this Pokemon as if it did not have this Ability. This Pokemon''s highest stat is raised by 1 stage if it attacks and knocks out another Pokemon. Stat stage changes are not considered. If multiple stats are tied, Attack, Defense, Special Attack, Special Defense, and Speed are prioritized in that order.', NULL);
+INSERT OR IGNORE INTO abilities (pokeapi_id, name, display_name, short_effect, full_effect, generation) VALUES (316, 'fire-mane', 'Fire Mane', 'This Pokemon''s offensive stat is multiplied by 1.5 while using a Fire-type attack.', 'This Pokemon''s offensive stat is multiplied by 1.5 while using a Fire-type attack.', NULL);
+INSERT OR IGNORE INTO abilities (pokeapi_id, name, display_name, short_effect, full_effect, generation) VALUES (318, 'spicy-spray', 'Spicy Spray', 'If this Pokemon is hit by an attack, the attacker becomes burned.', 'If this Pokemon is hit by an attack, the attacker becomes burned.', NULL);
