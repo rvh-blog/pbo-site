@@ -47,6 +47,7 @@ Google Sheets sync mirrors PBO division data into configured spreadsheets.
 - Sheet layout is fragile.
 - Team names and abbreviations are used for placement.
 - Pokemon names depend on the sheet's Pokédex mapping.
+- Season 11+ Pokemon lookup uses the central normalizer in `src/lib/pokemon-name-utils.ts`, including hyphenated and spaced aliases for form names such as Urshifu Single/Rapid Strike and Tornadus/Landorus/Thundurus/Enamorus Incarnate.
 - Template changes can silently skip or misplace data.
 - Roster sync uses time-synced roster logic.
 

@@ -26,6 +26,7 @@ Pokemon names and sheets sync:
 
 - Mega Pokemon display names and aliases now use the central Pokemon name normalizer.
 - Season 11 and later can match variations such as `mega-delphox`, `delphox-mega`, and `Mega Delphox`.
+- The central normalizer now advertises both hyphenated and spaced form aliases for differentiated Pokemon, including `urshifu-single-strike`, `urshifu rapid strike`, `tornadus-incarnate`, and similar form names.
 - Draft Planner, Fantasy, and Google Sheets sync use the central normalizer where mega display aliases are needed.
 - The Season 11+ mega alias behavior is intentionally gated so Season 10 and earlier keep their existing behavior.
 
