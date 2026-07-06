@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { pokemon, seasonPokemonPrices } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
+import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 
 const READ_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+  "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
 };
 
 export async function GET(request: NextRequest) {
@@ -13,13 +14,16 @@ export async function GET(request: NextRequest) {
 
   if (seasonId) {
     // Get pokemon with prices for specific season
-    const allPokemon = await db.query.pokemon.findMany({
-      with: {
-        seasonPrices: {
-          where: eq(seasonPokemonPrices.seasonId, parseInt(seasonId)),
+    const [allPokemon, aliasMaps] = await Promise.all([
+      db.query.pokemon.findMany({
+        with: {
+          seasonPrices: {
+            where: eq(seasonPokemonPrices.seasonId, parseInt(seasonId)),
+          },
         },
-      },
-    });
+      }),
+      getPokemonAliasMaps(),
+    ]);
 
     return NextResponse.json(
       allPokemon.map((p) => ({
@@ -27,13 +31,20 @@ export async function GET(request: NextRequest) {
         price: p.seasonPrices[0]?.price ?? null,
         teraCaptainCost: p.seasonPrices[0]?.teraCaptainCost ?? null,
         teraBanned: p.seasonPrices[0]?.teraBanned ?? false,
+        nameAliases: customPokemonAliasesForRow(p, aliasMaps),
       })),
       { headers: READ_CACHE_HEADERS }
     );
   }
 
-  const allPokemon = await db.select().from(pokemon);
-  return NextResponse.json(allPokemon, { headers: READ_CACHE_HEADERS });
+  const [allPokemon, aliasMaps] = await Promise.all([
+    db.select().from(pokemon),
+    getPokemonAliasMaps(),
+  ]);
+  return NextResponse.json(
+    allPokemon.map((p) => ({ ...p, nameAliases: customPokemonAliasesForRow(p, aliasMaps) })),
+    { headers: READ_CACHE_HEADERS }
+  );
 }
 
 export async function POST(request: NextRequest) {

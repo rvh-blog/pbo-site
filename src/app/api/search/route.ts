@@ -3,6 +3,8 @@ import { coaches, seasons, divisions, seasonCoaches, pokemon, moves } from "@/li
 import { and, like, or, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicVisibilityState } from "@/lib/public-visibility";
+import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
+import { pokemonSearchAliases } from "@/lib/pokemon-name-utils";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -137,23 +139,34 @@ export async function GET(request: NextRequest) {
     )
     .limit(8);
 
-  // Search pokemon
-  const pokemonResults = await db
-    .select({
-      id: pokemon.id,
-      name: pokemon.name,
-      displayName: pokemon.displayName,
-      spriteUrl: pokemon.spriteUrl,
+  // Search Pokemon, including admin-configured aliases.
+  const [allPokemonForSearch, aliasMaps] = await Promise.all([
+    db
+      .select({
+        id: pokemon.id,
+        name: pokemon.name,
+        displayName: pokemon.displayName,
+        spriteUrl: pokemon.spriteUrl,
+      })
+      .from(pokemon),
+    getPokemonAliasMaps(),
+  ]);
+  const pokemonResults = allPokemonForSearch
+    .map((row) => ({
+      ...row,
+      aliases: [
+        ...pokemonSearchAliases(row.name, row.displayName),
+        ...customPokemonAliasesForRow(row, aliasMaps),
+      ].map((alias) => alias.toLowerCase()),
+    }))
+    .filter((row) => row.aliases.some((alias) => alias.includes(query)))
+    .sort((a, b) => {
+      const aExact = a.aliases.some((alias) => alias === query) ? 0 : 1;
+      const bExact = b.aliases.some((alias) => alias === query) ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+      return (a.displayName || a.name).localeCompare(b.displayName || b.name);
     })
-    .from(pokemon)
-    .where(
-      or(
-        like(sql`lower(${pokemon.name})`, searchPattern),
-        like(sql`lower(${pokemon.displayName})`, searchPattern)
-      )
-    )
-    .orderBy(sql`CASE WHEN lower(${pokemon.name}) = ${query} OR lower(${pokemon.displayName}) = ${query} THEN 0 ELSE 1 END`)
-    .limit(8);
+    .slice(0, 8);
 
   // Search for draft boards if query matches "draft"
   let draftResults: { id: number; name: string }[] = [];

@@ -4,6 +4,8 @@ import { useRef, useEffect, useState } from "react";
 import { useShowdownBattle, type RosterPokemon, type PokemonBattleState } from "@/hooks/use-showdown-battle";
 import type { BattleSceneHandle } from "./battle-scene";
 import { normalizePokemonName } from "@/lib/battle-event-parser";
+import { pokemonNamesMatchForClient } from "@/lib/pokemon-name-client";
+import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene } from "./battle-scene";
 import Image from "next/image";
 import { Swords, Mic } from "lucide-react";
@@ -30,6 +32,7 @@ export interface OverlayData {
   seasonName: string;
   divisionName: string;
   divisionColor: string;
+  pokemonNameAliases?: SerializedPokemonAliasMaps;
   team1: TeamData;
   team2: TeamData;
 }
@@ -179,7 +182,8 @@ function pokemonId(value: string) {
 
 function getRosterBattleState(
   poke: RosterPokemon,
-  stateMap: Map<string, PokemonBattleState>
+  stateMap: Map<string, PokemonBattleState>,
+  pokemonNameAliases?: SerializedPokemonAliasMaps | null
 ): PokemonBattleState | null {
   const rosterName = poke.displayName || poke.name;
   const normalizedRosterName = normalizePokemonName(rosterName);
@@ -189,8 +193,8 @@ function getRosterBattleState(
   const rosterId = pokemonId(rosterName);
   for (const state of stateMap.values()) {
     if (
-      normalizePokemonName(state.species) === normalizedRosterName ||
-      normalizePokemonName(state.battleForm) === normalizedRosterName ||
+      pokemonNamesMatchForClient(state.species, rosterName, pokemonNameAliases) ||
+      pokemonNamesMatchForClient(state.battleForm, rosterName, pokemonNameAliases) ||
       pokemonId(state.species) === rosterId ||
       pokemonId(state.battleForm) === rosterId
     ) {
@@ -207,14 +211,18 @@ function getRosterBattleState(
 
 export function OverlayClient({ data, battleUrl }: Props) {
   const battleSceneRef = useRef<BattleSceneHandle>(null);
-  const battle = useShowdownBattle(battleUrl, data.team1.roster, data.team2.roster, battleSceneRef);
+  const battle = useShowdownBattle(
+    battleUrl,
+    data.team1.roster,
+    data.team2.roster,
+    battleSceneRef,
+    data.pokemonNameAliases
+  );
 
   // Extract room ID from battle URL
   const roomId = (battleUrl.match(/battle-[a-z0-9]+-\d+(?:-[a-z0-9]+)?/i) || battleUrl.match(/battle-[a-z0-9-]+/i))?.[0] || "";
 
   // Resolve p1/p2 → team1/team2 mapping by matching Pokemon against rosters
-  const t1Names = new Set(data.team1.roster.map((r) => normalizePokemonName(r.displayName || r.name)));
-  const t2Names = new Set(data.team2.roster.map((r) => normalizePokemonName(r.displayName || r.name)));
   const p1Species = [...battle.p1Pokemon.keys()];
   const p2Species = [...battle.p2Pokemon.keys()];
 
@@ -223,12 +231,12 @@ export function OverlayClient({ data, battleUrl }: Props) {
     let p1MatchesT1 = 0;
     let p1MatchesT2 = 0;
     for (const species of p1Species) {
-      if (t1Names.has(species)) p1MatchesT1++;
-      if (t2Names.has(species)) p1MatchesT2++;
+      if (data.team1.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT1++;
+      if (data.team2.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT2++;
     }
     for (const species of p2Species) {
-      if (t1Names.has(species)) p1MatchesT2++;
-      if (t2Names.has(species)) p1MatchesT1++;
+      if (data.team1.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT2++;
+      if (data.team2.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT1++;
     }
     if (p1MatchesT1 > p1MatchesT2) p1IsTeam1 = true;
     else if (p1MatchesT2 > p1MatchesT1) p1IsTeam1 = false;
@@ -253,7 +261,7 @@ export function OverlayClient({ data, battleUrl }: Props) {
     const active: RosterPokemon[] = [];
     const unbrought: RosterPokemon[] = [];
     team.roster.forEach((p) => {
-      const state = getRosterBattleState(p, stateMap);
+      const state = getRosterBattleState(p, stateMap, data.pokemonNameAliases);
       if (state?.brought) active.push(p);
       else unbrought.push(p);
     });
@@ -379,6 +387,7 @@ export function OverlayClient({ data, battleUrl }: Props) {
                     color={color}
                     flipSprite
                     shadowLeft
+                    pokemonNameAliases={data.pokemonNameAliases}
                   />
                 ))}
               </div>
@@ -407,6 +416,7 @@ export function OverlayClient({ data, battleUrl }: Props) {
                     stateMap={rightPokemon}
                     teraUsed={battle.p2TeraUsed}
                     color={color}
+                    pokemonNameAliases={data.pokemonNameAliases}
                   />
                 ))}
               </div>
@@ -537,10 +547,10 @@ function TeamHero({ team, avatar, username, color, align }: {
    Slide-Style Pokemon Card
    ═══════════════════════════════════════════════ */
 
-function SlideStyleCard({ poke, stateMap, teraUsed, color, flipSprite, shadowLeft }: {
-  poke: RosterPokemon; stateMap: Map<string, PokemonBattleState>; teraUsed: boolean; color: string; flipSprite?: boolean; shadowLeft?: boolean;
+function SlideStyleCard({ poke, stateMap, teraUsed, color, flipSprite, shadowLeft, pokemonNameAliases }: {
+  poke: RosterPokemon; stateMap: Map<string, PokemonBattleState>; teraUsed: boolean; color: string; flipSprite?: boolean; shadowLeft?: boolean; pokemonNameAliases?: SerializedPokemonAliasMaps;
 }) {
-  const state = getRosterBattleState(poke, stateMap);
+  const state = getRosterBattleState(poke, stateMap, pokemonNameAliases);
   const hpPercent = state ? (state.maxHp > 0 ? Math.round((state.hp / state.maxHp) * 100) : 0) : 100;
   const hpColor = hpPercent > 50 ? "#22c55e" : hpPercent > 20 ? "#facc15" : "#ef4444";
   const isFainted = state?.fainted;

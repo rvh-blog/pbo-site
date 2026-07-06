@@ -7,7 +7,11 @@ import {
 } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { getSeasonFormat, LEGACY_REGULAR_SEASON_WEEKS, SEASON_11_FIXTURES_PER_WEEK } from "@/lib/season-format";
-import { pokemonExactLookupKeys, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
+import {
+  buildPokemonNameMapping,
+  convertPokemonName,
+  sheetNameMappingOptionsForSeason,
+} from "@/lib/sheets-pokemon-name-mapping";
 
 // Match Stats sheet structure:
 // - Week columns: C(2), Q(16), AE(30), AS(44), BG(58), BU(72), CI(86), CW(100) - 14 columns apart
@@ -62,200 +66,6 @@ interface SheetFixturePosition {
   col: number; // 0-indexed column of week start
   team1Name: string;
   team2Name: string;
-}
-
-/**
- * Build a mapping from DB Pokemon names to Sheet display names
- * by reading the Pokédex sheet (same as roster sync)
- */
-async function buildPokemonNameMapping(
-  spreadsheetId: string,
-  options: { friendlyMegaNames?: boolean } = {}
-): Promise<Map<string, string>> {
-  const mapping = new Map<string, string>();
-
-  const pokedexData = await readSheetRange(spreadsheetId, "Pokédex!A1:T1500");
-  if (!pokedexData) return mapping;
-
-  for (let i = 1; i < pokedexData.length; i++) {
-    const row = pokedexData[i];
-    if (!row) continue;
-
-    const smogonName = String(row[9] || ""); // Column J - Smogon Name
-    const displayName = String(row[18] || ""); // Column S - Pokémon (display name)
-
-    if (smogonName && displayName && displayName !== "-") {
-      mapping.set(smogonName.toLowerCase(), displayName);
-      for (const key of pokemonExactLookupKeys(smogonName, options)) {
-        mapping.set(key, displayName);
-      }
-      mapping.set(displayName.toLowerCase(), displayName);
-      for (const key of pokemonExactLookupKeys(displayName, options)) {
-        mapping.set(key, displayName);
-      }
-    }
-  }
-
-  // Manual mappings (same as roster sync)
-  const manualMappings: Record<string, string> = {
-    // Ogerpon forms
-    "Ogerpon-Teal": "Ogerpon-T",
-    "Ogerpon-Wellspring": "Ogerpon-W",
-    "Ogerpon-Hearthflame": "Ogerpon-H",
-    "Ogerpon-Cornerstone": "Ogerpon-C",
-    // Thundurus/Tornadus/Landorus/Enamorus - base form is just the name
-    "Thundurus-Incarnate": "Thundurus",
-    "Tornadus-Incarnate": "Tornadus",
-    "Landorus-Incarnate": "Landorus",
-    "Enamorus-Incarnate": "Enamorus",
-    // Ursaluna forms - sheet has same smogon name for both, so we need explicit mappings
-    "Ursaluna": "Ursaluna",
-    "Ursaluna-Bloodmoon": "Ursaluna-BM",
-    // Mimikyu - sheet uses base name without form suffix
-    "Mimikyu-Disguised": "Mimikyu",
-    "Mimikyu-Busted": "Mimikyu",
-    // Regional forms - our format vs sheet format
-    "Slowking-Galar": "Galarian Slowking",
-    "Slowbro-Galar": "Galarian Slowbro",
-    "Articuno-Galar": "Galarian Articuno",
-    "Zapdos-Galar": "Galarian Zapdos",
-    "Moltres-Galar": "Galarian Moltres",
-    "Exeggutor-Alola": "Alolan Exeggutor",
-    "Ninetales-Alola": "Alolan Ninetales",
-    "Muk-Alola": "Alolan Muk",
-    "Raichu-Alola": "Alolan Raichu",
-    "Sandslash-Alola": "Alolan Sandslash",
-    "Marowak-Alola": "Alolan Marowak",
-    "Samurott-Hisui": "Hisuian Samurott",
-    "Arcanine-Hisui": "Hisuian Arcanine",
-    "Typhlosion-Hisui": "Hisuian Typhlosion",
-    "Lilligant-Hisui": "Hisuian Lilligant",
-    "Zoroark-Hisui": "Hisuian Zoroark",
-    "Braviary-Hisui": "Hisuian Braviary",
-    "Goodra-Hisui": "Hisuian Goodra",
-    "Decidueye-Hisui": "Hisuian Decidueye",
-    "Electrode-Hisui": "Hisuian Electrode",
-    "Voltorb-Hisui": "Hisuian Voltorb",
-    "Qwilfish-Hisui": "Hisuian Qwilfish",
-    "Sneasel-Hisui": "Hisuian Sneasel",
-    "Avalugg-Hisui": "Hisuian Avalugg",
-    "Sliggoo-Hisui": "Hisuian Sliggoo",
-    "Growlithe-Hisui": "Hisuian Growlithe",
-    // Paldean forms
-    "Tauros-Paldea-Combat": "Paldean Tauros",
-    "Tauros-Paldea-Blaze": "Paldean Tauros (Fire)",
-    "Tauros-Paldea-Aqua": "Paldean Tauros (Water)",
-    "Wooper-Paldea": "Paldean Wooper",
-    // More Galarian forms
-    "Weezing-Galar": "Galarian Weezing",
-    "Mr. Mime-Galar": "Galarian Mr. Mime",
-    "Rapidash-Galar": "Galarian Rapidash",
-    "Ponyta-Galar": "Galarian Ponyta",
-    "Corsola-Galar": "Galarian Corsola",
-    "Darmanitan-Galar": "Galarian Darmanitan",
-    "Darmanitan-Galar-Zen": "Galarian Darmanitan-Zen",
-    "Stunfisk-Galar": "Galarian Stunfisk",
-    "Yamask-Galar": "Galarian Yamask",
-    "Linoone-Galar": "Galarian Linoone",
-    "Zigzagoon-Galar": "Galarian Zigzagoon",
-    "Meowth-Galar": "Galarian Meowth",
-    "Farfetch'd-Galar": "Galarian Farfetch'd",
-    // More Alolan forms
-    "Rattata-Alola": "Alolan Rattata",
-    "Raticate-Alola": "Alolan Raticate",
-    "Vulpix-Alola": "Alolan Vulpix",
-    "Sandshrew-Alola": "Alolan Sandshrew",
-    "Diglett-Alola": "Alolan Diglett",
-    "Dugtrio-Alola": "Alolan Dugtrio",
-    "Meowth-Alola": "Alolan Meowth",
-    "Persian-Alola": "Alolan Persian",
-    "Geodude-Alola": "Alolan Geodude",
-    "Graveler-Alola": "Alolan Graveler",
-    "Golem-Alola": "Alolan Golem",
-    "Grimer-Alola": "Alolan Grimer",
-    // Basculin forms
-    "Basculin-Red-Striped": "Basculin",
-    "Basculin-Blue-Striped": "Basculin-White-Striped",
-    // Lycanroc forms
-    "Lycanroc-Midday": "Lycanroc-Midday",
-    "Lycanroc-Midnight": "Lycanroc-Midnight",
-    "Lycanroc-Dusk": "Lycanroc-Dusk",
-    // Indeedee
-    "Indeedee-Male": "Indeedee",
-    "Indeedee-Female": "Indeedee-F",
-    // Meowstic
-    "Meowstic-Male": "Meowstic",
-    "Meowstic-Female": "Meowstic-Female",
-    // Giratina
-    "Giratina-Altered": "Giratina-Altered",
-    "Giratina-Origin": "Giratina-Origin",
-    // Urshifu - sheet uses full form names
-    "Urshifu-Single-Strike": "Urshifu-Single-Strike",
-    "Urshifu-Rapid-Strike": "Urshifu-Rapid-Strike",
-    // Zygarde
-    "Zygarde-50%": "Zygarde-50%",
-    "Zygarde-10%": "Zygarde-10%",
-    "Zygarde-Complete": "Zygarde-Complete",
-    // Wormadam
-    "Wormadam-Plant": "Wormadam-Plant",
-    "Wormadam-Sandy": "Wormadam-Sandy",
-    "Wormadam-Trash": "Wormadam-Trash",
-    // Rotom forms
-    "Rotom-Heat": "Rotom-Heat",
-    "Rotom-Wash": "Rotom-Wash",
-    "Rotom-Frost": "Rotom-Frost",
-    "Rotom-Fan": "Rotom-Fan",
-    "Rotom-Mow": "Rotom-Mow",
-    // Deoxys
-    "Deoxys-Normal": "Deoxys",
-    "Deoxys-Attack": "Deoxys-Attack",
-    "Deoxys-Defense": "Deoxys-Defense",
-    "Deoxys-Speed": "Deoxys-Speed",
-    // Shaymin
-    "Shaymin-Land": "Shaymin",
-    "Shaymin-Sky": "Shaymin-Sky",
-    // Kyurem
-    "Kyurem-Black": "Kyurem-Black",
-    "Kyurem-White": "Kyurem-White",
-    // Necrozma
-    "Necrozma-Dusk-Mane": "Necrozma-Dusk-Mane",
-    "Necrozma-Dawn-Wings": "Necrozma-Dawn-Wings",
-    // Calyrex
-    "Calyrex-Ice-Rider": "Calyrex-Ice",
-    "Calyrex-Shadow-Rider": "Calyrex-Shadow",
-    // Aegislash - sheet uses base form
-    "Aegislash-Shield": "Aegislash",
-    "Aegislash-Blade": "Aegislash-Blade",
-    // Terapagos - base form in Pokedex maps to "Pagogo" but we want "Terapagos"
-    "Terapagos": "Terapagos",
-    "Terapagos-Terastal": "Terapagos",
-    "Terapagos-Stellar": "Terapagos",
-  };
-
-  for (const [dbName, sheetName] of Object.entries(manualMappings)) {
-    mapping.set(dbName.toLowerCase(), sheetName);
-    for (const key of pokemonExactLookupKeys(dbName, options)) {
-      mapping.set(key, sheetName);
-    }
-  }
-
-  return mapping;
-}
-
-/**
- * Convert DB Pokemon name to Sheet display name
- */
-function convertPokemonName(
-  dbName: string,
-  mapping: Map<string, string>
-): string {
-  const mapped = mapping.get(dbName.toLowerCase());
-  if (mapped) return mapped;
-  for (const key of pokemonExactLookupKeys(dbName, { friendlyMegaNames: true })) {
-    const aliasMapped = mapping.get(key);
-    if (aliasMapped) return aliasMapped;
-  }
-  return dbName;
 }
 
 /**
@@ -462,9 +272,7 @@ export async function syncMatchStatsToSheet(
     const [pokemonNameMapping, fixturePositions, matchDataList] = await Promise.all([
       options?.pokemonNameMapping
         ? Promise.resolve(options.pokemonNameMapping)
-        : buildPokemonNameMapping(spreadsheetId, {
-            friendlyMegaNames: shouldUseFriendlyMegaNamesForSeason(seasonNumber),
-          }),
+        : buildPokemonNameMapping(spreadsheetId, sheetNameMappingOptionsForSeason(seasonNumber)),
       getFixturePositions(spreadsheetId, fixturesPerWeek, regularSeasonWeeks),
       getDivisionMatches(divisionId),
     ]);

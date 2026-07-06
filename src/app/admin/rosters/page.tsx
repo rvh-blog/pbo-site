@@ -35,6 +35,7 @@ interface Pokemon {
   id: number;
   name: string;
   displayName?: string | null;
+  nameAliases?: string[] | null;
   types: string[];
   spriteUrl: string;
   price?: number | null;
@@ -1251,6 +1252,7 @@ export default function AdminRostersPage() {
             id: p.id,
             name: p.name,
             displayName: p.displayName || null,
+            nameAliases: p.nameAliases || [],
             spriteUrl: p.spriteUrl || null,
           }))}
           pokemonPrices={new Map(

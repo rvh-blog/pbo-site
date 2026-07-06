@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import { parseMessages, normalizePokemonName, type BattleEvent } from "@/lib/battle-event-parser";
+import { parseMessages, type BattleEvent } from "@/lib/battle-event-parser";
 import type { BattleSceneHandle } from "@/app/broadcast/overlay/battle-scene";
+import {
+  pokemonLookupKeysForClientRow,
+  serializedPokemonAliasLookupKeys,
+} from "@/lib/pokemon-name-client";
+import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 
 export interface RosterPokemon {
   pokemonId: number;
@@ -11,6 +16,8 @@ export interface RosterPokemon {
   spriteUrl: string | null;
   types: string[];
   isTeraCaptain: boolean;
+  nameAliases?: string[] | null;
+  lookupKeys?: string[] | null;
 }
 
 /** Per-Pokemon state tracked throughout the battle */
@@ -50,6 +57,23 @@ export interface PokemonBattleState {
   terastallized: boolean;
   /** The type this Pokemon terastallized into (e.g. "Fire", "Water") */
   teraType: string | null;
+}
+
+function rosterMatchesKeys(
+  rosterPokemon: RosterPokemon,
+  keys: Set<string>,
+  aliasMaps?: SerializedPokemonAliasMaps | null
+) {
+  const rowKeys = new Set([
+    ...(rosterPokemon.lookupKeys || []),
+    ...pokemonLookupKeysForClientRow(rosterPokemon, aliasMaps),
+  ]);
+
+  for (const key of keys) {
+    if (rowKeys.has(key)) return true;
+  }
+
+  return false;
 }
 
 export interface SideConditions {
@@ -313,7 +337,8 @@ export function useShowdownBattle(
   battleUrl: string | null,
   team1Roster: RosterPokemon[],
   team2Roster: RosterPokemon[],
-  battleSceneRef: React.RefObject<BattleSceneHandle | null>
+  battleSceneRef: React.RefObject<BattleSceneHandle | null>,
+  pokemonNameAliases?: SerializedPokemonAliasMaps | null
 ): ShowdownBattleControls {
   const [state, setState] = useState<BattleState>(createInitialState);
   const wsRef = useRef<WebSocket | null>(null);
@@ -371,20 +396,20 @@ export function useShowdownBattle(
     let p1MatchesTeam2 = 0;
 
     for (const pokeName of teamPreviewRef.current.p1) {
-      const normalized = normalizePokemonName(pokeName);
-      if (team1Roster.some((r) => normalizePokemonName(r.displayName || r.name) === normalized)) p1MatchesTeam1++;
-      if (team2Roster.some((r) => normalizePokemonName(r.displayName || r.name) === normalized)) p1MatchesTeam2++;
+      const keys = serializedPokemonAliasLookupKeys(pokeName, pokemonNameAliases);
+      if (team1Roster.some((r) => rosterMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam1++;
+      if (team2Roster.some((r) => rosterMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam2++;
     }
     for (const pokeName of teamPreviewRef.current.p2) {
-      const normalized = normalizePokemonName(pokeName);
-      if (team1Roster.some((r) => normalizePokemonName(r.displayName || r.name) === normalized)) p1MatchesTeam2++;
-      if (team2Roster.some((r) => normalizePokemonName(r.displayName || r.name) === normalized)) p1MatchesTeam1++;
+      const keys = serializedPokemonAliasLookupKeys(pokeName, pokemonNameAliases);
+      if (team1Roster.some((r) => rosterMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam2++;
+      if (team2Roster.some((r) => rosterMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam1++;
     }
 
     if (p1MatchesTeam1 > p1MatchesTeam2) return true;
     if (p1MatchesTeam2 > p1MatchesTeam1) return false;
     return null;
-  }, [team1Roster, team2Roster]);
+  }, [team1Roster, team2Roster, pokemonNameAliases]);
 
   const processEvents = useCallback(
     (events: BattleEvent[]) => {

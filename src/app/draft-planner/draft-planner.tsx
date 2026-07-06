@@ -150,6 +150,7 @@ interface SimplePokemon {
   id: number;
   name: string;
   displayName: string | null;
+  nameAliases?: string[] | null;
   spriteUrl: string | null;
   artworkUrl?: string | null;
   types: string[] | null;
@@ -788,7 +789,10 @@ export function DraftPlanner({
       .filter((p) => p.price <= maxPrice)
       .filter((p) => (p.speed || 0) >= minSpeed)
       .filter((p) => (p.speed || 0) <= maxSpeed)
-      .filter((p) => !search || pokemonSearchAliases(p.name, p.displayName, { friendlyMegaNames }).some((alias) => alias.includes(search)))
+      .filter((p) => !search || pokemonSearchAliases(p.name, p.displayName, { friendlyMegaNames })
+        .concat(p.nameAliases || [])
+        .map((alias) => alias.toLowerCase())
+        .some((alias) => alias.includes(search)))
       .sort((a, b) => {
         if (watchlist.includes(a.id) !== watchlist.includes(b.id)) return watchlist.includes(a.id) ? -1 : 1;
         if (statFocus !== "none" && b[statFocus] !== a[statFocus]) {

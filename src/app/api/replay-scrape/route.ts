@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizePokemonName } from "@/lib/pokemon-name-utils";
+import {
+  getPokemonAliasMaps,
+  normalizePokemonNameWithAliases,
+  type PokemonAliasMaps,
+} from "@/lib/pokemon-name-aliases";
 
 interface PokemonStats {
   name: string;
@@ -212,13 +217,18 @@ function cleanReplayPokemonName(name: string): string {
     .replace(/-Tera$/, "");
 }
 
-function normalizeReplayPokemonName(name: string, options: { preserveMegaForm?: boolean } = {}): string {
+function normalizeReplayPokemonName(
+  name: string,
+  options: { preserveMegaForm?: boolean; aliasMaps?: PokemonAliasMaps } = {}
+): string {
   const cleaned = cleanReplayPokemonName(name);
   if (options.preserveMegaForm && isMegaPokemonName(cleaned)) {
     return cleaned;
   }
 
-  return normalizePokemonName(name);
+  return options.aliasMaps
+    ? normalizePokemonNameWithAliases(name, options.aliasMaps)
+    : normalizePokemonName(name);
 }
 
 function extractNicknameOwner(pokemonRef: string): { player: "p1" | "p2"; nickname: string } | null {
@@ -278,6 +288,7 @@ export async function POST(request: NextRequest) {
       ?.split("|")[2]
       ?.trim() || null;
     const preserveReplayMegaForms = preserveMegas || shouldPreserveMegaFormsForTier(replayTier);
+    const aliasMaps = await getPokemonAliasMaps();
 
     const result: ParsedReplay = {
       tier: replayTier,
@@ -445,7 +456,7 @@ export async function POST(request: NextRequest) {
     const applyVisibleFormChange = (parsed: PlayerRef, pokemonInfo: string) => {
       if (!preserveReplayMegaForms) return;
 
-      const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: true });
+      const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: true, aliasMaps });
       if (!isMegaPokemonName(pokemonName)) return;
 
       const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
@@ -509,7 +520,7 @@ export async function POST(request: NextRequest) {
         case "poke": {
           const player = parts[2];
           const pokemonInfo = parts[3];
-          const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms });
+          const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms, aliasMaps });
 
           // Detect Zoroark
           if (pokemonName === "Zoroark" || pokemonName === "Zoroark-Hisui") {
@@ -552,7 +563,7 @@ export async function POST(request: NextRequest) {
           const parsed = extractNicknameOwner(pokemonRef);
 
           if (parsed && pokemonInfo) {
-            const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms });
+            const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms, aliasMaps });
             const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
             let pokemon = team.find((p) => p.name === pokemonName);
 
@@ -630,7 +641,7 @@ export async function POST(request: NextRequest) {
           const parsed = extractNicknameOwner(pokemonRef);
 
           if (parsed && pokemonInfo) {
-            const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms });
+            const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms, aliasMaps });
 
             if (pokemonName === "Zoroark" || pokemonName === "Zoroark-Hisui") {
               result.zoroarkInvolved = true;

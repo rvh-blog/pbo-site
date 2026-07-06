@@ -2,7 +2,7 @@ import { readSheetRange, batchWriteToSheet, isSyncEnabled } from "./sheets-sync"
 import { db } from "@/lib/db";
 import { transactions, seasonCoaches, pokemon, divisions } from "@/lib/schema";
 import { eq } from "drizzle-orm";
-import { pokemonExactLookupKeys } from "@/lib/pokemon-name-utils";
+import { convertPokemonName } from "@/lib/sheets-pokemon-name-mapping";
 
 // Transaction area in Source sheet:
 // - Row 3: Headers
@@ -305,22 +305,6 @@ async function getDivisionTransactions(
   rows.sort((a, b) => a.week - b.week);
 
   return rows;
-}
-
-/**
- * Convert DB Pokemon name to Sheet display name
- */
-function convertPokemonName(
-  dbName: string,
-  mapping: Map<string, string>
-): string {
-  const mapped = mapping.get(dbName.toLowerCase());
-  if (mapped) return mapped;
-  for (const key of pokemonExactLookupKeys(dbName, { friendlyMegaNames: true })) {
-    const aliasMapped = mapping.get(key);
-    if (aliasMapped) return aliasMapped;
-  }
-  return dbName;
 }
 
 /**

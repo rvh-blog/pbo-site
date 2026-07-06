@@ -4,6 +4,12 @@ import { matches, transactions } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { getDivisionColor } from "@/lib/division-colors";
 import { getTimeSyncedRoster } from "@/lib/roster-utils";
+import {
+  customPokemonAliasesForRow,
+  getPokemonAliasMaps,
+  pokemonLookupKeysForRowWithAliases,
+  serializePokemonAliasMaps,
+} from "@/lib/pokemon-name-aliases";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +80,7 @@ export async function GET(
     ]),
   ]);
 
-  const [roster1Result, roster2Result] = await Promise.all([
+  const [roster1Result, roster2Result, aliasMaps] = await Promise.all([
     getTimeSyncedRoster(
       match.coach1SeasonId,
       match.week,
@@ -87,6 +93,7 @@ export async function GET(
       coach2?.rosters || [],
       [...coach2Txs[0], ...coach2Txs[1]] as any
     ),
+    getPokemonAliasMaps(),
   ]);
 
   // Compute W-L record for each coach within their division
@@ -122,6 +129,12 @@ export async function GET(
         spriteUrl: r.pokemon?.spriteUrl || null,
         types: r.pokemon?.types || [],
         isTeraCaptain: r.isTeraCaptain ?? false,
+        nameAliases: customPokemonAliasesForRow({ id: r.pokemonId }, aliasMaps),
+        lookupKeys: Array.from(pokemonLookupKeysForRowWithAliases({
+          id: r.pokemonId,
+          name: r.pokemon?.name || "",
+          displayName: r.pokemon?.displayName || r.pokemon?.name || "",
+        }, aliasMaps)),
       })),
       ...result.droppedPokemonDetails.map((p) => ({
         pokemonId: p.id,
@@ -130,6 +143,12 @@ export async function GET(
         spriteUrl: p.spriteUrl || null,
         types: p.types || [],
         isTeraCaptain: (p as any).isTeraCaptain ?? false,
+        nameAliases: customPokemonAliasesForRow(p, aliasMaps),
+        lookupKeys: Array.from(pokemonLookupKeysForRowWithAliases({
+          id: p.id,
+          name: p.name,
+          displayName: p.displayName || p.name,
+        }, aliasMaps)),
       })),
     ];
     return allRosters;
@@ -141,6 +160,7 @@ export async function GET(
     seasonName: match.season?.name || "",
     divisionName: match.division?.name || "",
     divisionColor,
+    pokemonNameAliases: serializePokemonAliasMaps(aliasMaps),
     team1: {
       seasonCoachId: match.coach1SeasonId,
       teamName: coach1?.teamName || "",

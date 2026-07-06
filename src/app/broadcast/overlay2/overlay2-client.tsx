@@ -8,6 +8,8 @@ import {
   type PokemonBattleState,
 } from "@/hooks/use-showdown-battle";
 import { normalizePokemonName } from "@/lib/battle-event-parser";
+import { pokemonNamesMatchForClient } from "@/lib/pokemon-name-client";
+import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene, type BattleSceneHandle, type ChatLogEntry } from "../overlay/battle-scene";
 import type { OverlayData, TeamData } from "../overlay/overlay-client";
 import { ArrowLeftRight, Calculator, ChevronLeft, ChevronRight, Diamond, Mic, Pause, Play, Radio, ScrollText, SkipBack, SkipForward, Skull, Sword, Video, Zap } from "lucide-react";
@@ -130,7 +132,8 @@ function pokemonId(value: string) {
 
 function getRosterBattleState(
   pokemon: RosterPokemon,
-  stateMap: Map<string, PokemonBattleState>
+  stateMap: Map<string, PokemonBattleState>,
+  pokemonNameAliases?: SerializedPokemonAliasMaps | null
 ): PokemonBattleState | null {
   const rosterName = pokemon.displayName || pokemon.name;
   const normalizedRosterName = normalizePokemonName(rosterName);
@@ -140,8 +143,8 @@ function getRosterBattleState(
   const rosterId = pokemonId(rosterName);
   for (const state of stateMap.values()) {
     if (
-      normalizePokemonName(state.species) === normalizedRosterName ||
-      normalizePokemonName(state.battleForm) === normalizedRosterName ||
+      pokemonNamesMatchForClient(state.species, rosterName, pokemonNameAliases) ||
+      pokemonNamesMatchForClient(state.battleForm, rosterName, pokemonNameAliases) ||
       pokemonId(state.species) === rosterId ||
       pokemonId(state.battleForm) === rosterId
     ) {
@@ -215,9 +218,10 @@ interface MergedMon {
 
 function mergeMon(
   rp: RosterPokemon,
-  stateMap: Map<string, PokemonBattleState>
+  stateMap: Map<string, PokemonBattleState>,
+  pokemonNameAliases?: SerializedPokemonAliasMaps | null
 ): MergedMon {
-  const s = getRosterBattleState(rp, stateMap);
+  const s = getRosterBattleState(rp, stateMap, pokemonNameAliases);
   return {
     name: s?.battleForm || rp.displayName || rp.name,
     sprite: s?.battleForm
@@ -287,7 +291,13 @@ interface Props {
 
 export function Overlay2Client({ data, battleUrl, context }: Props) {
   const battleSceneRef = useRef<BattleSceneHandle>(null);
-  const battle = useShowdownBattle(battleUrl, data.team1.roster, data.team2.roster, battleSceneRef);
+  const battle = useShowdownBattle(
+    battleUrl,
+    data.team1.roster,
+    data.team2.roster,
+    battleSceneRef,
+    data.pokemonNameAliases
+  );
   const { seekToTurn, goLive, setPaused, maxTurn: hookMaxTurn, reviewingTurn, isPaused, playTurnPhased, onBattleSceneReady, syncBattleScene } = battle;
 
   // Extract room ID from battle URL for the BattleScene component
@@ -477,8 +487,6 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
   }, [isPaused, reviewingTurn, setPaused, stopPlayback, startPlaybackFromReview]);
 
   // --- p1/p2 → team1/team2 resolution ---
-  const t1Names = new Set(data.team1.roster.map((r) => normalizePokemonName(r.displayName || r.name)));
-  const t2Names = new Set(data.team2.roster.map((r) => normalizePokemonName(r.displayName || r.name)));
   const p1Species = [...battle.p1Pokemon.keys()];
   const p2Species = [...battle.p2Pokemon.keys()];
 
@@ -486,12 +494,12 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
   if (p1Species.length > 0 || p2Species.length > 0) {
     let p1MatchesT1 = 0, p1MatchesT2 = 0;
     for (const species of p1Species) {
-      if (t1Names.has(species)) p1MatchesT1++;
-      if (t2Names.has(species)) p1MatchesT2++;
+      if (data.team1.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT1++;
+      if (data.team2.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT2++;
     }
     for (const species of p2Species) {
-      if (t1Names.has(species)) p1MatchesT2++;
-      if (t2Names.has(species)) p1MatchesT1++;
+      if (data.team1.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT2++;
+      if (data.team2.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT1++;
     }
     if (p1MatchesT1 > p1MatchesT2) p1IsTeam1 = true;
     else if (p1MatchesT2 > p1MatchesT1) p1IsTeam1 = false;
@@ -516,7 +524,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
     const brought: RosterPokemon[] = [];
     const unbrought: RosterPokemon[] = [];
     team.roster.forEach((p) => {
-      const state = getRosterBattleState(p, stateMap);
+      const state = getRosterBattleState(p, stateMap, data.pokemonNameAliases);
       if (state?.brought) brought.push(p);
       else unbrought.push(p);
     });
@@ -527,12 +535,12 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
   const rightRoster = splitRoster(rightTeam, rightPokemon);
 
   // Merge brought pokemon with battle state
-  const leftMons = leftRoster.brought.map((rp) => mergeMon(rp, leftPokemon));
-  const rightMons = rightRoster.brought.map((rp) => mergeMon(rp, rightPokemon));
+  const leftMons = leftRoster.brought.map((rp) => mergeMon(rp, leftPokemon, data.pokemonNameAliases));
+  const rightMons = rightRoster.brought.map((rp) => mergeMon(rp, rightPokemon, data.pokemonNameAliases));
 
   // If no pokemon brought yet, show full roster as placeholder
-  const leftDisplay = leftMons.length > 0 ? leftMons : leftTeam.roster.map((rp) => mergeMon(rp, leftPokemon));
-  const rightDisplay = rightMons.length > 0 ? rightMons : rightTeam.roster.map((rp) => mergeMon(rp, rightPokemon));
+  const leftDisplay = leftMons.length > 0 ? leftMons : leftTeam.roster.map((rp) => mergeMon(rp, leftPokemon, data.pokemonNameAliases));
+  const rightDisplay = rightMons.length > 0 ? rightMons : rightTeam.roster.map((rp) => mergeMon(rp, rightPokemon, data.pokemonNameAliases));
 
   // Damage calc toggle + state (lifted here so it survives panel toggle)
   const [showDamageCalc, setShowDamageCalc] = useState(false);

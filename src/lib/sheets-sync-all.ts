@@ -5,7 +5,7 @@ import { syncRostersToSheet, buildPokemonNameMapping } from "./sheets-roster-syn
 import { syncMatchStatsToSheet } from "./sheets-match-stats-sync";
 import { syncTransactionsToSheet } from "./sheets-transaction-sync";
 import { isSyncEnabled } from "./sheets-sync";
-import { shouldUseFriendlyMegaNamesForSeason } from "./pokemon-name-utils";
+import { sheetNameMappingOptionsForSeason } from "./sheets-pokemon-name-mapping";
 
 interface SyncResult {
   divisionId: number;
@@ -85,9 +85,10 @@ export async function syncDivision(divisionId: number): Promise<SyncResult> {
 
     // Build Pokemon name mapping once (single API call, shared by both syncs)
     console.log("Building shared Pokemon name mapping...");
-    const pokemonNameMapping = await buildPokemonNameMapping(config.spreadsheetId, {
-      friendlyMegaNames: shouldUseFriendlyMegaNamesForSeason(config.division.season?.seasonNumber),
-    });
+    const pokemonNameMapping = await buildPokemonNameMapping(
+      config.spreadsheetId,
+      sheetNameMappingOptionsForSeason(config.division.season?.seasonNumber)
+    );
     console.log(`Loaded ${pokemonNameMapping.size} Pokemon name mappings`);
 
     if (config.syncRostersTransactionsEnabled) {

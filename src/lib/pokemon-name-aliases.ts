@@ -19,6 +19,11 @@ export type PokemonAliasMaps = {
   pokemonIdToCollapseSources: Map<number, string[]>;
 };
 
+export type SerializedPokemonAliasMaps = {
+  aliasKeyToCanonicalName: [string, string][];
+  collapseKeyToCanonicalName: [string, string][];
+};
+
 type PokemonLookupRow = {
   pokemonId?: number | null;
   id?: number | null;
@@ -83,6 +88,24 @@ export async function getPokemonAliasMaps(): Promise<PokemonAliasMaps> {
     collapseKeyToCanonicalName,
     pokemonIdToCollapseSources,
   };
+}
+
+export function serializePokemonAliasMaps(aliasMaps: PokemonAliasMaps): SerializedPokemonAliasMaps {
+  return {
+    aliasKeyToCanonicalName: Array.from(aliasMaps.aliasKeyToCanonicalName.entries()),
+    collapseKeyToCanonicalName: Array.from(aliasMaps.collapseKeyToCanonicalName.entries()),
+  };
+}
+
+export function customPokemonAliasesForRow(
+  row: { id: number; pokemonId?: number | null },
+  aliasMaps: PokemonAliasMaps
+): string[] {
+  const pokemonId = row.pokemonId ?? row.id;
+  return [
+    ...(aliasMaps.pokemonIdToAliases.get(pokemonId) || []),
+    ...(aliasMaps.pokemonIdToCollapseSources.get(pokemonId) || []),
+  ];
 }
 
 export function normalizePokemonNameWithAliases(

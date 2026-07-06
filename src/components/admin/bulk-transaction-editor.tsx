@@ -9,6 +9,7 @@ interface Pokemon {
   id: number;
   name: string;
   displayName?: string | null;
+  nameAliases?: string[] | null;
   spriteUrl?: string | null;
 }
 

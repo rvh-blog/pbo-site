@@ -3,6 +3,7 @@ import { coaches, seasonCoaches, pokemon, seasonPokemonPrices, seasons } from "@
 import { eq, desc } from "drizzle-orm";
 import { DraftPlanner } from "./draft-planner";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
+import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 
 interface PageProps {
   searchParams: Promise<{ coach?: string; season?: string }>;
@@ -72,7 +73,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
   const seasonIdParam = resolvedSearchParams.season ? parseInt(resolvedSearchParams.season) : null;
 
   // Run base queries in parallel (include season prices if seasonId is in URL)
-  const [allPokemon, allMoves, allAbilities, allSeasons, urlSeasonPrices] = await Promise.all([
+  const [allPokemon, allMoves, allAbilities, allSeasons, urlSeasonPrices, aliasMaps] = await Promise.all([
     db.query.pokemon.findMany({
       columns: {
         id: true,
@@ -114,6 +115,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
           where: eq(seasonPokemonPrices.seasonId, seasonIdParam),
         })
       : Promise.resolve([]),
+    getPokemonAliasMaps(),
   ]);
 
   // Coach-specific queries (only if coachId provided)
@@ -214,6 +216,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
 
   const allPokemonForSeason = allPokemon.map((poke) => ({
     ...poke,
+    nameAliases: customPokemonAliasesForRow(poke, aliasMaps),
     moves: movesForSeasonPokemon(poke.id, poke.moves, seasonMoves),
   }));
 

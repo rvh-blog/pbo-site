@@ -9,6 +9,7 @@ interface Pokemon {
   name: string;
   displayName?: string | null;
   spriteUrl?: string | null;
+  nameAliases?: string[] | null;
 }
 
 interface PokemonAutocompleteProps {
@@ -69,7 +70,10 @@ export function PokemonAutocomplete({
     ? allPokemon
         .filter((p) => {
           const lowerSearch = searchText.toLowerCase();
-          return pokemonSearchAliases(p.name, p.displayName, { friendlyMegaNames }).some((alias) => alias.includes(lowerSearch));
+          return pokemonSearchAliases(p.name, p.displayName, { friendlyMegaNames })
+            .concat(p.nameAliases || [])
+            .map((alias) => alias.toLowerCase())
+            .some((alias) => alias.includes(lowerSearch));
         })
         .slice(0, 10)
     : [];
@@ -209,15 +213,24 @@ export function findPokemonMatch(
   let match = pokemon.find((p) => pokemonSearchAliases(p.name, p.displayName, options).includes(lower));
   if (match) return match;
 
+  match = pokemon.find((p) => (p.nameAliases || []).some((alias) => alias.toLowerCase() === lower));
+  if (match) return match;
+
   // Case-insensitive contains match
   match = pokemon.find((p) =>
-    pokemonSearchAliases(p.name, p.displayName, options).some((alias) => alias.includes(lower))
+    pokemonSearchAliases(p.name, p.displayName, options)
+      .concat(p.nameAliases || [])
+      .map((alias) => alias.toLowerCase())
+      .some((alias) => alias.includes(lower))
   );
   if (match) return match;
 
   // Reverse contains (search term contains pokemon name)
   match = pokemon.find((p) =>
-    pokemonSearchAliases(p.name, p.displayName, options).some((alias) => lower.includes(alias))
+    pokemonSearchAliases(p.name, p.displayName, options)
+      .concat(p.nameAliases || [])
+      .map((alias) => alias.toLowerCase())
+      .some((alias) => lower.includes(alias))
   );
 
   return match || null;
