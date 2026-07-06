@@ -387,6 +387,58 @@ main :where(p, h1, h2, h3, h4, h5, h6, a, button, label, li) {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
+/* Draft planner */
+.draft-control:focus,
+.draft-secondary-button:focus-visible,
+.draft-toggle:focus-visible,
+.draft-card-action:focus-visible,
+.draft-icon-button:focus-visible {
+  outline: 2px solid var(--secondary-light);
+  outline-offset: 2px;
+}
+
+.draft-toggle {
+  min-height: 32px;
+}
+
+.draft-card-action {
+  min-height: 30px;
+}
+
+.draft-team-mark,
+.draft-candidate-sprite {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--background);
+}
+
+.draft-team-mark {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+}
+
+.draft-candidate-sprite {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+}
+
+.draft-candidate-grid {
+  scrollbar-color: var(--background-tertiary) transparent;
+}
+
+.draft-candidate-card {
+  transition: border-color 0.16s ease, transform 0.16s ease;
+}
+
+.draft-candidate-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--card-border);
+}
+
 /* Premium card with glow */
 .premium-card {
   background: linear-gradient(135deg, var(--background-secondary) 0%, var(--background-tertiary) 100%);

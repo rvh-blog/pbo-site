@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, Filter, Search, Share2, Star, X } from "lucide-react";
+import { Eye, Filter, Plus, Search, Share2, Star, X } from "lucide-react";
 import { PokemonAutocomplete, findPokemonMatch } from "@/components/admin/pokemon-autocomplete";
 import { DraftRulesDisclaimer } from "@/components/draft-rules-disclaimer";
 import { formatPokemonDisplayName, pokemonSearchAliases, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
@@ -887,73 +887,172 @@ export function DraftPlanner({
     setTimeout(() => setShareStatus("idle"), 1800);
   }
 
-  function renderTeamRosterPanel() {
+  function renderTeamRosterSection() {
     return (
-      <div className="flex min-h-0 flex-col overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:h-full lg:overflow-hidden">
-        <div className="border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
-          <h3 className="font-bold text-sm">Team Roster</h3>
-          <p className="text-[11px] text-[var(--foreground-muted)]">Edit picks while drafting</p>
+      <section className="relative shrink-0 overflow-visible">
+        <div className="mb-2 flex items-center gap-3">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[var(--card-border)]" />
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+            Team Roster
+          </h2>
+          <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--card-border)]" />
         </div>
-        <div className="max-h-[52dvh] overflow-y-auto p-1.5 lg:max-h-none lg:flex-1">
-          <div>
-            {slots.map((slot, i) => (
-              <div key={i} className="flex items-center gap-1 rounded px-1 py-px">
-                <span className="w-4 text-right text-xs text-[var(--foreground-muted)]">
-                  {i + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <PokemonAutocomplete
-                    value={slot.pokemonName}
-                    pokemonId={slot.pokemonId}
-                    allPokemon={allPokemon}
-                    onChange={(id, name) => handleSlotChange(i, id, name)}
-                    onMultiLinePaste={(lines) => handleMultiLinePaste(i, lines)}
-                    hasWarning={!slot.pokemonId && slot.pokemonName !== ""}
-                    warningText={!slot.pokemonId && slot.pokemonName ? `No match` : ""}
-                    placeholder="Type Pokemon name..."
-                    friendlyMegaNames={friendlyMegaNames}
-                  />
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+          <p>Type in a card to add or edit · Paste a list to fill all slots</p>
+          <p className="flex items-center gap-4">
+            <span>
+              Budget <span className="font-mono text-white">{draftBudget}</span>
+            </span>
+            <span>
+              Spent <span className="font-mono text-[var(--accent)]">{totalSpent}</span>
+            </span>
+            <span>
+              Left{" "}
+              <span className={`font-mono ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                {remainingBudget}
+              </span>
+            </span>
+          </p>
+        </div>
+        {/* Click-away overlay to close ability tooltips */}
+        {expandedAbility && (
+          <div className="fixed inset-0 z-40" onClick={() => setExpandedAbility(null)} />
+        )}
+        {/* xl:grid-cols-11 keeps every slot on one row (PLANNER_SLOT_COUNT = 11) */}
+        <div className="grid grid-cols-2 gap-1.5 overflow-visible sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 xl:gap-1">
+          {slots.map((slot, i) => (
+            <div
+              key={i}
+              data-roster-slot
+              className={`relative flex min-w-0 flex-col overflow-visible rounded-lg border bg-[var(--background-secondary)]/50 p-1.5 xl:p-1 ${
+                slot.isTeraCaptain
+                  ? "border-[var(--accent)]"
+                  : slot.pokemon
+                  ? "border-[var(--background-tertiary)]"
+                  : "border-dashed border-[var(--background-tertiary)]"
+              }`}
+            >
+              <div className="mb-1 flex items-center justify-between gap-1">
+                <span className="font-mono text-[10px] text-[var(--foreground-subtle)]">{i + 1}</span>
+                <div className="flex items-center gap-1">
+                  {slot.isTeraCaptain && (
+                    <span
+                      className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--accent)] text-black"
+                      title="Tera Captain"
+                    >
+                      <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2L2 12l10 10 10-10L12 2z" />
+                      </svg>
+                    </span>
+                  )}
+                  {slot.price > 0 && (
+                    <span className="rounded bg-[var(--background)] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[var(--accent)]">
+                      {slot.price}
+                    </span>
+                  )}
+                  {(slot.pokemonId !== null || slot.pokemonName !== "") && (
+                    <button
+                      type="button"
+                      onClick={() => handleSlotChange(i, null, "")}
+                      className="draft-icon-button flex h-4 w-4 items-center justify-center rounded bg-[var(--background)] text-[var(--foreground-muted)] transition-colors hover:text-[var(--error)]"
+                      title="Clear slot"
+                      aria-label={`Clear slot ${i + 1}`}
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  )}
                 </div>
-                <span className="w-8 text-right text-xs text-[var(--foreground-muted)]">
-                  {slot.price > 0 ? slot.price : ""}
-                </span>
+              </div>
+              {slot.pokemon ? (
+                <OptimizedPlannerImage
+                  src={slot.pokemon.spriteUrl}
+                  alt=""
+                  width={48}
+                  height={48}
+                  className="mx-auto h-11 w-11 object-contain scale-125"
+                />
+              ) : (
                 <button
                   type="button"
-                  onClick={() => handleSlotChange(i, null, "")}
-                  disabled={!slot.pokemonId && !slot.pokemonName}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[var(--background-secondary)] text-orange-400 transition-colors hover:bg-[var(--background-tertiary)] hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-30"
-                  title="Remove Pokemon"
-                  aria-label={`Remove Pokemon from slot ${i + 1}`}
+                  onClick={(e) => {
+                    e.currentTarget.closest("[data-roster-slot]")?.querySelector<HTMLInputElement>("input")?.focus();
+                  }}
+                  aria-label={`Add Pokemon to slot ${i + 1}`}
+                  className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-[var(--background-tertiary)] text-[var(--foreground-subtle)] transition-colors hover:border-[var(--foreground-subtle)] hover:text-white"
                 >
-                  <X className="h-3 w-3" />
+                  <Plus className="h-4 w-4" />
                 </button>
+              )}
+              <div className="mt-1">
+                <PokemonAutocomplete
+                  value={slot.pokemonName}
+                  pokemonId={slot.pokemonId}
+                  allPokemon={allPokemon}
+                  onChange={(id, name) => handleSlotChange(i, id, name)}
+                  onMultiLinePaste={(lines) => handleMultiLinePaste(i, lines)}
+                  hasWarning={!slot.pokemonId && slot.pokemonName !== ""}
+                  warningText={!slot.pokemonId && slot.pokemonName ? `No match` : ""}
+                  placeholder="Type name..."
+                  friendlyMegaNames={friendlyMegaNames}
+                  inputClassName="px-1 py-1 text-center text-xs"
+                />
               </div>
-            ))}
-          </div>
+              <div className="mt-1 flex min-h-[20px] flex-wrap content-start items-start justify-center gap-0.5">
+                {(slot.pokemon?.types ?? []).map((t) => (
+                  <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0 text-[10px]`}>
+                    {formatTypeName(t)}
+                  </span>
+                ))}
+              </div>
+              {slot.pokemon && slot.pokemon.abilities.length > 0 && (
+                <div
+                  className={`mt-1 min-w-0 overflow-visible border-t pt-1 ${
+                    slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
+                  }`}
+                >
+                  {slot.pokemon.abilities.map((a, abilityIdx) => {
+                    const description = abilityDescriptions[a.name];
+                    const isExpanded =
+                      expandedAbility?.slotIdx === i && expandedAbility?.abilityIdx === abilityIdx;
+                    return (
+                      <div key={abilityIdx} className="relative overflow-visible">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedAbility(isExpanded ? null : { slotIdx: i, abilityIdx });
+                          }}
+                          className={`w-full truncate py-0.5 text-center text-[10px] capitalize text-[var(--foreground-muted)] transition-colors hover:text-white ${
+                            abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
+                          }`}
+                        >
+                          {a.name.replace(/-/g, " ")}
+                        </button>
+                        {isExpanded && description && (
+                          <div className="absolute bottom-full left-1/2 z-50 mb-1 w-44 -translate-x-1/2">
+                            <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 shadow-lg">
+                              <p className="mb-0.5 text-[10px] font-bold capitalize text-white">
+                                {a.name.replace(/-/g, " ")}
+                              </p>
+                              <p className="text-[10px] leading-tight text-[var(--foreground-muted)]">{description}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-        <div className="border-t border-[var(--background-tertiary)] bg-[var(--card)] p-3">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-sm text-[var(--foreground-muted)]">Budget:</span>
-            <span className="font-mono text-sm">{draftBudget} pts</span>
-          </div>
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-sm text-[var(--foreground-muted)]">Spent:</span>
-            <span className="font-mono text-sm text-[var(--error)]">{totalSpent} pts</span>
-          </div>
-          <div className="flex items-center justify-between border-t border-[var(--background-tertiary)] pt-1">
-            <span className="text-sm font-medium">Remaining:</span>
-            <span className={`font-mono font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
-              {remainingBudget} pts
-            </span>
-          </div>
-        </div>
-      </div>
+      </section>
     );
   }
 
   return (
     <div
-      className="min-h-[calc(100dvh-16px)] overflow-y-auto"
+      className="draft-planner-shell min-h-[calc(100dvh-16px)] overflow-y-auto"
       style={{
         width: '100vw',
         position: 'relative',
@@ -961,9 +1060,9 @@ export function DraftPlanner({
         marginLeft: '-50vw',
       }}
     >
-      <div className="poke-card mx-2 mt-2 flex min-h-[calc(100dvh-1rem)] flex-col overflow-visible p-2 sm:mx-4 sm:p-3">
+      <div className="draft-planner-frame poke-card mx-2 mt-2 flex min-h-[calc(100dvh-1rem)] flex-col overflow-visible p-2 sm:mx-4 sm:p-3">
         {/* Header */}
-        <div className="mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-[var(--background-tertiary)] pb-2">
+        <div className="draft-planner-header mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-[var(--background-tertiary)] pb-2">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             {coach ? (
               <Link href={`/coaches/${coach.id}`} className="shrink-0 text-[var(--foreground-muted)] hover:text-white transition-colors">
@@ -978,7 +1077,11 @@ export function DraftPlanner({
                 </svg>
               </Link>
             )}
-            <OptimizedPlannerImage src={teamLogo} alt="" width={32} height={32} className="h-7 w-7 shrink-0 object-contain sm:h-8 sm:w-8" />
+            {teamLogo && (
+              <div className="draft-team-mark">
+                <OptimizedPlannerImage src={teamLogo} alt="" width={32} height={32} className="h-7 w-7 shrink-0 object-contain sm:h-8 sm:w-8" />
+              </div>
+            )}
             <div className="min-w-0">
               <h1 className="truncate font-pixel text-sm text-white sm:text-base">{teamName || "Draft Planner"}</h1>
               <span className="block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
@@ -993,7 +1096,7 @@ export function DraftPlanner({
           <button
             onClick={savePreferences}
             disabled={saveStatus === "saving"}
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--background-tertiary)] hover:bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white rounded transition-colors disabled:opacity-50"
+            className="draft-secondary-button hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--background-tertiary)] hover:bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white rounded transition-colors disabled:opacity-50"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -1006,50 +1109,53 @@ export function DraftPlanner({
           <DraftRulesDisclaimer />
         </div>
 
-        <div className="mb-2 shrink-0 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
-          <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
-            <Eye className="h-3.5 w-3.5" />
-            Panel Toggles
-          </div>
-          <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
-            {[
-              { label: "Needs", enabled: showNeedsPanel, onClick: () => setShowNeedsPanel(!showNeedsPanel) },
-              { label: "Draft Board", enabled: showDraftBoard, onClick: () => setShowDraftBoard(!showDraftBoard) },
-              { label: "Compare", enabled: showComparePanel, onClick: () => setShowComparePanel(!showComparePanel) },
-              { label: "Notes", enabled: showNotesPanel, onClick: () => setShowNotesPanel(!showNotesPanel) },
-              { label: "Analyzer", enabled: showTeamAnalyzer, onClick: () => setShowTeamAnalyzer(!showTeamAnalyzer) },
-            ].map((toggle) => (
-              <button
-                key={toggle.label}
-                type="button"
-                aria-pressed={toggle.enabled}
-                onClick={toggle.onClick}
-                className={`inline-flex min-w-0 items-center justify-between gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold transition-colors sm:justify-start sm:text-xs ${
-                  toggle.enabled
-                    ? "border-[var(--primary)]/40 bg-[var(--primary)]/15 text-white"
-                    : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"
-                }`}
-              >
-                <span className="min-w-0 truncate">{toggle.label}</span>
-                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase ${
-                  toggle.enabled
-                    ? "bg-emerald-500/20 text-emerald-300"
-                    : "bg-[var(--background)] text-[var(--foreground-subtle)]"
-                }`}>
-                  {toggle.enabled ? "On" : "Off"}
-                </span>
-              </button>
-            ))}
-          </div>
+        <div className="shrink-0 overflow-visible">
+          {renderTeamRosterSection()}
         </div>
 
-        <div className="flex min-h-0 flex-col gap-1.5 overflow-visible lg:flex-1 lg:overflow-y-auto lg:pr-1">
-        {/* Draft board and roster workspace */}
-        {showDraftBoard && (
-        <div className={`min-h-0 grid grid-cols-1 gap-1.5 overflow-visible lg:overflow-hidden ${showTeamAnalyzer ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
-          <div className="flex min-h-0 min-w-0 flex-col overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:overflow-hidden">
+        {/* Divider between the roster and the planning tools below */}
+        <div className="my-3 flex shrink-0 items-center gap-3 sm:my-4">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[var(--card-border)]" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+            Planning Tools
+          </span>
+          <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--card-border)]" />
+        </div>
+
+        <div className="draft-toggle-toolbar mb-2 flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
+          <span className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+            <Eye className="h-3.5 w-3.5" />
+            View
+          </span>
+          {[
+            { label: "Draft Needs", enabled: showNeedsPanel, onClick: () => setShowNeedsPanel(!showNeedsPanel) },
+            { label: "Draft Board", enabled: showDraftBoard, onClick: () => setShowDraftBoard(!showDraftBoard) },
+            { label: "Compare", enabled: showComparePanel, onClick: () => setShowComparePanel(!showComparePanel) },
+            { label: "Card Notes", enabled: showNotesPanel, onClick: () => setShowNotesPanel(!showNotesPanel) },
+            { label: "Analyzer", enabled: showTeamAnalyzer, onClick: () => setShowTeamAnalyzer(!showTeamAnalyzer) },
+          ].map((toggle) => (
+            <button
+              key={toggle.label}
+              type="button"
+              aria-pressed={toggle.enabled}
+              onClick={toggle.onClick}
+              className={`draft-toggle inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-bold transition-colors sm:text-xs ${
+                toggle.enabled
+                  ? "is-active border-[var(--primary)]/40 bg-[var(--primary)]/15 text-white"
+                  : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-subtle)] hover:text-white"
+              }`}
+            >
+              {toggle.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="draft-planner-content flex min-h-0 flex-col gap-1.5 overflow-visible lg:flex-1 lg:overflow-y-auto lg:pr-1">
+        {/* Draft needs and board workspace */}
+        {(showNeedsPanel || showDraftBoard) && (
+          <div className="draft-panel flex min-h-0 min-w-0 shrink-0 flex-col overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:overflow-hidden">
           {showNeedsPanel && (
-          <div className="shrink-0 border-b border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
+          <div className="draft-needs-bar shrink-0 border-b border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-white">Draft Needs</h2>
@@ -1058,32 +1164,32 @@ export function DraftPlanner({
               <button
                 type="button"
                 onClick={copyDraftPlan}
-                className="flex items-center gap-1.5 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2.5 py-1.5 text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white"
+                className="draft-secondary-button flex items-center gap-1.5 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2.5 py-1.5 text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white"
               >
                 <Share2 className="h-3.5 w-3.5" />
                 {shareStatus === "copied" ? "Copied" : "Copy Plan"}
               </button>
             </div>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-              <div className="rounded-md bg-[var(--background-secondary)] p-1.5">
+              <div className="draft-metric rounded-md bg-[var(--background-secondary)] p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Remaining</p>
                 <p className={`font-mono text-base font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{remainingBudget}</p>
               </div>
-              <div className="rounded-md bg-[var(--background-secondary)] p-1.5">
+              <div className="draft-metric rounded-md bg-[var(--background-secondary)] p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Open Slots</p>
                 <p className="font-mono text-base font-bold text-white">{openSlots}</p>
               </div>
-              <div className="rounded-md bg-[var(--background-secondary)] p-1.5">
+              <div className="draft-metric rounded-md bg-[var(--background-secondary)] p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Avg Slot</p>
                 <p className="font-mono text-base font-bold text-[var(--accent)]">{openSlots > 0 ? avgRemainingPerSlot : "-"}</p>
               </div>
-              <div className="rounded-md bg-[var(--background-secondary)] p-1.5">
+              <div className="draft-metric rounded-md bg-[var(--background-secondary)] p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Watchlist</p>
                 <p className="font-mono text-base font-bold text-white">{watchlist.length}</p>
               </div>
             </div>
             <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              <div className="rounded-md border border-[var(--background-tertiary)] p-1.5">
+              <div className="draft-subpanel rounded-md border border-[var(--background-tertiary)] p-1.5">
                 <p className="mb-1 text-xs font-bold text-white">Role Checklist</p>
                 <div className="flex flex-wrap gap-1.5">
                   {draftNeeds.roleNeeds.map((need) => (
@@ -1096,7 +1202,7 @@ export function DraftPlanner({
                   ))}
                 </div>
               </div>
-              <div className="rounded-md border border-[var(--background-tertiary)] p-1.5">
+              <div className="draft-subpanel rounded-md border border-[var(--background-tertiary)] p-1.5">
                 <p className="mb-1 text-xs font-bold text-white">Weaknesses</p>
                 <div className="flex flex-wrap gap-1.5">
                   {draftNeeds.weakTypes.length > 0 ? draftNeeds.weakTypes.map((type) => (
@@ -1120,15 +1226,25 @@ export function DraftPlanner({
           )}
 
           {showDraftBoard && (
-          <div className="flex min-h-0 flex-col bg-[var(--card)] p-1.5 lg:flex-1">
+          <div className="draft-board-panel flex min-h-0 flex-col bg-[var(--card)] p-1.5 lg:flex-1">
             <div className="mb-1.5 flex shrink-0 flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-white">Draft Board</h2>
                 <p className="text-xs text-[var(--foreground-muted)]">Filter, compare, watchlist, and add picks</p>
               </div>
               <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
-                <Filter className="h-3.5 w-3.5" />
-                {filteredCandidates.length} shown
+                <span className="flex items-center gap-1.5">
+                  <Filter className="h-3.5 w-3.5" />
+                  {filteredCandidates.length} shown
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowFitExplanation((current) => !current)}
+                  aria-expanded={showFitExplanation}
+                  className="draft-secondary-button rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1 text-[11px] font-bold text-[var(--foreground-muted)] transition-colors hover:text-white"
+                >
+                  {showFitExplanation ? "Hide FIT info" : "What is FIT?"}
+                </button>
               </div>
             </div>
 
@@ -1139,14 +1255,14 @@ export function DraftPlanner({
                   value={candidateSearch}
                   onChange={(e) => setCandidateSearch(e.target.value)}
                   placeholder="Search Pokemon"
-                  className="w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] py-1.5 pl-7 pr-2 text-sm text-white placeholder:text-[var(--foreground-subtle)]"
+                  className="draft-control w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] py-1.5 pl-7 pr-2 text-sm text-white placeholder:text-[var(--foreground-subtle)]"
                 />
               </label>
-              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
+              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="draft-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
                 <option value="all">All types</option>
                 {ALL_TYPES.map((type) => <option key={type} value={type}>{formatTypeName(type)}</option>)}
               </select>
-              <select value={statFocus} onChange={(e) => setStatFocus(e.target.value as StatFocus)} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
+              <select value={statFocus} onChange={(e) => setStatFocus(e.target.value as StatFocus)} className="draft-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
                 <option value="none">No stat focus</option>
                 <option value="price">Points</option>
                 <option value="hp">HP</option>
@@ -1161,7 +1277,7 @@ export function DraftPlanner({
                 type="button"
                 onClick={() => setStatFocusAsc((current) => !current)}
                 disabled={statFocus === "none"}
-                className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="draft-secondary-button rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                 title="Toggle stat focus sort direction"
               >
                 {statFocusAsc ? "Asc" : "Desc"}
@@ -1169,19 +1285,19 @@ export function DraftPlanner({
             </div>
 
             <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
-              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
+              <label className="draft-range-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Price: {maxPrice}</span>
                 <input type="range" min="0" max="19" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full" />
               </label>
-              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
+              <label className="draft-range-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Min Speed: {minSpeed}</span>
                 <input type="range" min="0" max="160" step="5" value={minSpeed} onChange={(e) => setMinSpeed(Math.min(Number(e.target.value), maxSpeed))} className="w-full" />
               </label>
-              <label className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
+              <label className="draft-range-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Speed: {maxSpeed}</span>
                 <input type="range" min="0" max="160" step="5" value={maxSpeed} onChange={(e) => setMaxSpeed(Math.max(Number(e.target.value), minSpeed))} className="w-full" />
               </label>
-              <button type="button" onClick={() => setFitOnly(!fitOnly)} className={`flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-bold transition-colors ${fitOnly ? "border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent)]" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
+              <button type="button" onClick={() => setFitOnly(!fitOnly)} className={`draft-secondary-button flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-bold transition-colors ${fitOnly ? "is-warm border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent)]" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
                 <Star className="h-4 w-4" />
                 Fits team
               </button>
@@ -1189,7 +1305,7 @@ export function DraftPlanner({
                 type="button"
                 onClick={() => setHiddenPokemonIds([])}
                 disabled={hiddenPokemonIds.length === 0}
-                className="flex items-center justify-center gap-2 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="draft-secondary-button flex items-center justify-center gap-2 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Show hidden
                 {hiddenPokemonIds.length > 0 && (
@@ -1200,32 +1316,20 @@ export function DraftPlanner({
               </button>
             </div>
 
-            <div className="mb-1.5 shrink-0 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)]">
-              <button
-                type="button"
-                onClick={() => setShowFitExplanation((current) => !current)}
-                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white"
-              >
-                <span>What does Fits team / FIT mean?</span>
-                <span className="font-mono text-[10px] uppercase text-[var(--foreground-subtle)]">
-                  {showFitExplanation ? "Hide" : "Show"}
-                </span>
-              </button>
-              {showFitExplanation && (
-                <div className="border-t border-[var(--background-tertiary)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground-muted)]">
-                  <p>
-                    <span className="font-bold text-white">Fits team</span> shows Pokemon with a FIT score above 0. FIT is a planning helper, not an official draft rule.
-                  </p>
-                  <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                    <div className="rounded bg-[var(--background)]/60 px-2 py-1">+12 fills a missing role: hazards, removal, pivot, or priority.</div>
-                    <div className="rounded bg-[var(--background)]/60 px-2 py-1">+8 helps cover one of your current weak types.</div>
-                    <div className="rounded bg-[var(--background)]/60 px-2 py-1">+8 has 100+ Speed when your team average Speed is under 90.</div>
-                    <div className="rounded bg-[var(--background)]/60 px-2 py-1">+6 fits your average remaining points per open slot.</div>
-                    <div className="rounded bg-[var(--background)]/60 px-2 py-1 sm:col-span-2">+5 has strong stat value for its price: base stat total divided by price is at least 55.</div>
-                  </div>
+            {showFitExplanation && (
+              <div className="draft-subpanel mb-1.5 shrink-0 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground-muted)]">
+                <p>
+                  <span className="font-bold text-white">Fits team</span> shows Pokemon with a FIT score above 0. FIT is a planning helper, not an official draft rule.
+                </p>
+                <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+12 fills a missing role: hazards, removal, pivot, or priority.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+8 helps cover one of your current weak types.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+8 has 100+ Speed when your team average Speed is under 90.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+6 fits your average remaining points per open slot.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1 sm:col-span-2">+5 has strong stat value for its price: base stat total divided by price is at least 55.</div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {showComparePanel && comparePokemon.length > 0 && (
               <div className="mb-2 shrink-0 overflow-x-auto rounded-md border border-[var(--background-tertiary)]">
@@ -1261,21 +1365,23 @@ export function DraftPlanner({
               </div>
             )}
 
-            <div className="grid min-h-[260px] max-h-[52dvh] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:min-h-0 lg:flex-1 xl:grid-cols-3">
+            <div className="draft-candidate-grid grid min-h-[260px] max-h-[52dvh] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:min-h-0 lg:flex-1 xl:grid-cols-3">
               {filteredCandidates.map((candidate) => {
                 const isPlanned = plannedPokemonIds.has(candidate.id);
                 const isWatched = watchlist.includes(candidate.id);
                 const isCompared = compareIds.includes(candidate.id);
                 return (
-                  <div key={candidate.id} className={`min-w-0 rounded-lg border p-2 ${isPlanned ? "border-[var(--accent)]/50 bg-[var(--accent)]/10" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"}`}>
+                  <div key={candidate.id} className={`draft-candidate-card min-w-0 rounded-lg border p-2 ${isPlanned ? "is-planned border-[var(--accent)]/50 bg-[var(--accent)]/10" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"}`}>
                     <div className="mb-1.5 flex items-start gap-2">
-                      <OptimizedPlannerImage src={candidate.spriteUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" />
+                      <div className="draft-candidate-sprite">
+                        <OptimizedPlannerImage src={candidate.spriteUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" />
+                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <Link href={`/pokemon/${candidate.id}`} className="break-words text-sm font-bold text-white hover:text-[var(--primary)]">
                             {getPokemonLabel(candidate, friendlyMegaNames)}
                           </Link>
-                          <span className="shrink-0 rounded bg-[var(--background)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--accent)]">{candidate.price}</span>
+                          <span className="draft-price-pill shrink-0 rounded bg-[var(--background)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--accent)]">{candidate.price}</span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {(candidate.types || []).map((type) => (
@@ -1295,35 +1401,37 @@ export function DraftPlanner({
                     {candidate.fitTags.length > 0 && (
                       <div className="mb-1.5 flex flex-wrap gap-1">
                         {candidate.fitTags.map((tag) => (
-                          <span key={tag} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">{tag}</span>
+                          <span key={tag} className="draft-fit-tag rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">{tag}</span>
                         ))}
                       </div>
                     )}
                     <div className="mb-1.5 grid grid-cols-3 gap-1 text-center text-[10px]">
-                      <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">SPE</span><span className="font-bold text-white">{candidate.speed || 0}</span></div>
-                      <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">BST</span><span className="font-bold text-white">{candidate.baseStatTotal || 0}</span></div>
-                      <div className="rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">FIT</span><span className="font-bold text-white">{candidate.fitScore}</span></div>
+                      <div className="draft-mini-stat rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">SPE</span><span className="font-bold text-white">{candidate.speed || 0}</span></div>
+                      <div className="draft-mini-stat rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">BST</span><span className="font-bold text-white">{candidate.baseStatTotal || 0}</span></div>
+                      <div className="draft-mini-stat rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">FIT</span><span className="font-bold text-white">{candidate.fitScore}</span></div>
                     </div>
-                    {showNotesPanel && (
+                    {showNotesPanel && (isWatched || notes[candidate.id]) && (
                       <textarea
                         value={notes[candidate.id] || ""}
                         onChange={(e) => setNotes((current) => ({ ...current, [candidate.id]: e.target.value }))}
                         placeholder="Watchlist notes"
-                        className="mb-1.5 h-12 w-full resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
+                        className="draft-control mb-1.5 h-12 w-full resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
                       />
                     )}
-                    <div className="grid grid-cols-4 gap-1">
-                      <button type="button" onClick={() => toggleWatchlist(candidate.id)} className={`min-w-0 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isWatched ? "bg-[var(--accent)] text-black" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
-                        <span className="sm:hidden">{isWatched ? "Saved" : "Watch"}</span>
-                        <span className="hidden sm:inline">{isWatched ? "Remove from Watchlist" : "Add to Watchlist"}</span>
+                    <div className={`grid gap-1 ${showComparePanel ? "grid-cols-4" : "grid-cols-3"}`}>
+                      <button type="button" onClick={() => toggleWatchlist(candidate.id)} title={isWatched ? "Remove from watchlist" : "Add to watchlist"} className={`draft-card-action flex min-w-0 items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isWatched ? "is-watched bg-[var(--accent)] text-black" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                        <Star className={`h-3 w-3 shrink-0 ${isWatched ? "fill-current" : ""}`} />
+                        {isWatched ? "Saved" : "Watch"}
                       </button>
-                      <button type="button" onClick={() => toggleCompare(candidate.id)} className={`min-w-0 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isCompared ? "bg-sky-500/20 text-sky-200" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
-                        Compare
-                      </button>
-                      <button type="button" disabled={openSlots === 0 || isPlanned} onClick={() => addCandidateToNextSlot(candidate)} className="min-w-0 rounded bg-[var(--primary)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:text-xs">
+                      {showComparePanel && (
+                        <button type="button" onClick={() => toggleCompare(candidate.id)} className={`draft-card-action min-w-0 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isCompared ? "is-compared bg-sky-500/20 text-sky-200" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                          Compare
+                        </button>
+                      )}
+                      <button type="button" disabled={openSlots === 0 || isPlanned} onClick={() => addCandidateToNextSlot(candidate)} className="draft-card-action is-primary min-w-0 rounded bg-[var(--primary)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:text-xs">
                         Add
                       </button>
-                      <button type="button" onClick={() => hideCandidate(candidate.id)} className="min-w-0 rounded bg-[var(--background)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-[var(--foreground-muted)] transition-colors hover:text-white sm:px-2 sm:text-xs">
+                      <button type="button" onClick={() => hideCandidate(candidate.id)} className="draft-card-action min-w-0 rounded bg-[var(--background)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-[var(--foreground-muted)] transition-colors hover:text-white sm:px-2 sm:text-xs">
                         Hide
                       </button>
                     </div>
@@ -1334,177 +1442,22 @@ export function DraftPlanner({
           </div>
           )}
           </div>
-          {showTeamAnalyzer && (
-            <aside className="min-h-0 overflow-visible lg:overflow-hidden">
-              {renderTeamRosterPanel()}
-            </aside>
-          )}
-        </div>
         )}
 
         {/* Team analyzer */}
         {showTeamAnalyzer && (
-        <section className="w-full shrink-0 overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:overflow-hidden">
-          <div className="border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
+        <section className="draft-analyzer-panel w-full shrink-0 overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:overflow-hidden">
+          <div className="draft-panel-header border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
             <h3 className="font-bold text-sm text-white">Team Analyzer</h3>
-            <p className="text-[11px] text-[var(--foreground-muted)]">Type chart, stats, abilities, and move coverage</p>
+            <p className="text-[11px] text-[var(--foreground-muted)]">Type chart, stats, and move coverage</p>
           </div>
         <div className="flex min-h-0 flex-col overflow-visible p-1.5 lg:max-h-[72dvh] lg:overflow-hidden">
           <div className="overflow-visible pr-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
-            {/* Sprite Overview - responsive grid on mobile, dynamic columns on desktop */}
-            <div className="mb-1.5">
-              {/* Mobile grid (hidden on lg+) */}
-              {/* Click-away overlay to close tooltips */}
-              {expandedAbility && (
-                <div
-                  className="fixed inset-0 z-40 lg:hidden"
-                  onClick={() => setExpandedAbility(null)}
-                />
-              )}
-              <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:hidden overflow-visible">
-                {slots.filter(slot => slot.pokemon).map((slot, idx) => {
-                  // Determine column position for tooltip alignment (0=left, 1=middle, 2=right for 3-col)
-                  const col3 = idx % 3;
-                  const tooltipAlign = col3 === 0 ? "left-0" : col3 === 2 ? "right-0" : "left-1/2 -translate-x-1/2";
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`relative flex flex-col bg-[var(--card)] border rounded-lg p-2 overflow-visible ${
-                        slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
-                      }`}
-                    >
-                      {/* Tera Captain Badge */}
-                      {slot.isTeraCaptain && (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
-                          <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2L2 12l10 10 10-10L12 2z" />
-                          </svg>
-                        </div>
-                      )}
-                      <OptimizedPlannerImage
-                        src={slot.pokemon!.spriteUrl}
-                        alt=""
-                        width={48}
-                        height={48}
-                        className="w-12 h-12 object-contain mx-auto scale-[1.4]"
-                      />
-                      <div className="text-xs text-white text-center font-medium mt-1 truncate">
-                        {getPokemonLabel(slot.pokemon!, friendlyMegaNames)}
-                      </div>
-                      {/* Types - fixed height for consistency */}
-                      <div className="flex gap-0.5 justify-center mt-1 flex-wrap min-h-[28px] items-start content-start">
-                        {slot.pokemon!.types.map((t) => (
-                          <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0 text-[10px]`}>{formatTypeName(t)}</span>
-                        ))}
-                      </div>
-                      {/* Abilities with tap tooltips */}
-                      <div className={`mt-1.5 pt-1.5 border-t overflow-visible ${
-                        slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
-                      }`}>
-                        {slot.pokemon!.abilities.map((a, abilityIdx) => {
-                          const description = abilityDescriptions[a.name];
-                          const isExpanded = expandedAbility?.slotIdx === idx && expandedAbility?.abilityIdx === abilityIdx;
-                          return (
-                            <div key={abilityIdx} className="relative overflow-visible">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedAbility(isExpanded ? null : { slotIdx: idx, abilityIdx });
-                                }}
-                                className={`w-full truncate py-0.5 text-center text-[10px] capitalize text-[var(--foreground-muted)] ${
-                                  abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
-                                } ${description ? "active:bg-[var(--background-tertiary)]" : ""}`}
-                              >
-                                {a.name.replace(/-/g, " ")}
-                              </button>
-                              {isExpanded && description && (
-                                <div className={`absolute bottom-full ${tooltipAlign} mb-1 z-50 w-44`}>
-                                  <div className="px-2 py-1.5 rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] shadow-lg">
-                                    <p className="mb-0.5 text-[10px] font-bold capitalize text-white">{a.name.replace(/-/g, " ")}</p>
-                                    <p className="text-[10px] text-[var(--foreground-muted)] leading-tight">{description}</p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* Desktop grid (hidden below lg) */}
-              <div
-                className="hidden gap-1.5 lg:grid"
-                style={{ gridTemplateColumns: `repeat(${Math.min(slots.filter(s => s.pokemon).length || 1, 6)}, minmax(0, 1fr))` }}
-              >
-                {slots.filter(slot => slot.pokemon).map((slot, idx) => (
-                  <div
-                    key={idx}
-                    className={`relative flex min-w-0 flex-col bg-[var(--card)] border rounded-lg ${
-                      slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
-                    } p-1.5`}
-                  >
-                    {/* Tera Captain Badge */}
-                    {slot.isTeraCaptain && (
-                      <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
-                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2L2 12l10 10 10-10L12 2z" />
-                        </svg>
-                      </div>
-                    )}
-                    <OptimizedPlannerImage
-                      src={slot.pokemon!.spriteUrl}
-                      alt=""
-                      width={46}
-                      height={46}
-                      className="mx-auto h-10 w-10 object-contain scale-125"
-                    />
-                    <div className="mt-0.5 min-w-0 truncate text-center text-xs font-medium text-white">
-                      {getPokemonLabel(slot.pokemon!, friendlyMegaNames)}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap justify-center gap-0.5">
-                      {slot.pokemon!.types.map((t) => (
-                        <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0 text-[10px]`}>{formatTypeName(t)}</span>
-                      ))}
-                    </div>
-                    <div className={`mt-1 min-w-0 border-t pt-1 ${
-                      slot.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
-                    }`}>
-                      {slot.pokemon!.abilities.map((a, abilityIdx) => {
-                        const description = abilityDescriptions[a.name];
-                        return (
-                          <div
-                            key={abilityIdx}
-                            className={`relative group/tooltip ${
-                              abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
-                            }`}
-                          >
-                            <div className="min-w-0 cursor-help truncate py-0.5 text-center text-[10px] capitalize text-[var(--foreground-muted)]">
-                              {a.name.replace(/-/g, " ")}
-                            </div>
-                            {description && (
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/tooltip:block z-50">
-                                <div className="px-2 py-1.5 rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] shadow-lg w-48">
-                                  <p className="mb-1 text-[10px] font-bold capitalize text-white">{a.name.replace(/-/g, " ")}</p>
-                                  <p className="text-[10px] text-[var(--foreground-muted)]">{description}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Divider - mobile only */}
-            <div className="lg:hidden border-t border-[var(--background-tertiary)] mb-2" />
-
+            {roster.length === 0 && (
+              <p className="px-2 py-6 text-center text-xs text-[var(--foreground-muted)]">
+                Add Pokemon to your roster to see type coverage, stats, abilities, and moves.
+              </p>
+            )}
             {/* Type Chart | Stats | Moves - stacked on mobile, side by side on desktop */}
             {roster.length > 0 && (
             <div className={`flex min-h-0 flex-col gap-2 transition-opacity duration-200 ${prefsLoaded ? "opacity-100" : "opacity-0"}`}>
@@ -1800,7 +1753,7 @@ export function DraftPlanner({
             <button
               onClick={savePreferences}
               disabled={saveStatus === "saving"}
-              className="flex shrink-0 items-center gap-1.5 rounded bg-[var(--background-tertiary)] px-2 py-1.5 text-[11px] text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-secondary)] hover:text-white disabled:opacity-50 sm:px-3 sm:text-xs"
+              className="draft-secondary-button flex shrink-0 items-center gap-1.5 rounded bg-[var(--background-tertiary)] px-2 py-1.5 text-[11px] text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-secondary)] hover:text-white disabled:opacity-50 sm:px-3 sm:text-xs"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -1831,7 +1784,7 @@ export function DraftPlanner({
                   }}
                   onFocus={() => setShowMoveDropdown(true)}
                   onBlur={() => setTimeout(() => setShowMoveDropdown(false), 150)}
-                  className="w-full px-2 py-1 text-[11px] bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white placeholder-[var(--foreground-subtle)]"
+                  className="draft-control w-full px-2 py-1 text-[11px] bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded text-white placeholder-[var(--foreground-subtle)]"
                 />
                 {showMoveDropdown && filteredMoves.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded shadow-lg max-h-48 overflow-y-auto">
@@ -1896,7 +1849,7 @@ export function DraftPlanner({
                   }}
                   onFocus={() => setShowMoveDropdown(true)}
                   onBlur={() => setTimeout(() => setShowMoveDropdown(false), 150)}
-                  className="w-full rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1 text-xs text-white placeholder-[var(--foreground-subtle)]"
+                  className="draft-control w-full rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1 text-xs text-white placeholder-[var(--foreground-subtle)]"
                 />
                 {showMoveDropdown && filteredMoves.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded shadow-lg max-h-48 overflow-y-auto">

@@ -91,6 +91,34 @@ export const pokemon = sqliteTable("pokemon", {
   baseStatTotal: integer("base_stat_total"),
 });
 
+export const pokemonNameAliases = sqliteTable("pokemon_name_aliases", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pokemonId: integer("pokemon_id")
+    .notNull()
+    .references(() => pokemon.id),
+  alias: text("alias").notNull(),
+  aliasKey: text("alias_key").notNull().unique(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_pokemon_name_aliases_pokemon_id").on(table.pokemonId),
+  index("idx_pokemon_name_aliases_alias_key").on(table.aliasKey),
+]);
+
+export const pokemonNameCollapses = sqliteTable("pokemon_name_collapses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  targetPokemonId: integer("target_pokemon_id")
+    .notNull()
+    .references(() => pokemon.id),
+  sourceName: text("source_name").notNull(),
+  sourceKey: text("source_key").notNull().unique(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_pokemon_name_collapses_target_pokemon_id").on(table.targetPokemonId),
+  index("idx_pokemon_name_collapses_source_key").on(table.sourceKey),
+]);
+
 // Moves table - all Pokemon moves from PokeAPI
 export const moves = sqliteTable("moves", {
   id: integer("id").primaryKey({ autoIncrement: true }),

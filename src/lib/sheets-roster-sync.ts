@@ -204,7 +204,7 @@ export async function buildPokemonNameMapping(
     // Terapagos - base form in Pokedex maps to "Pagogo" but we want "Terapagos"
     "Terapagos": "Terapagos",
     "Terapagos-Terastal": "Terapagos",
-    "Terapagos-Stellar": "Terapagos-Stellar",
+    "Terapagos-Stellar": "Terapagos",
   };
 
   for (const [dbName, sheetName] of Object.entries(manualMappings)) {

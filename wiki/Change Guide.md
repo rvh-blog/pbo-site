@@ -117,18 +117,24 @@ When changing sync:
 The central source of truth for Pokemon name formats is:
 
 - `src/lib/pokemon-name-utils.ts`
+- `src/lib/pokemon-name-aliases.ts`
+- `pokemon_name_aliases`
+- Admin -> Pokemon -> Name Normalizer Aliases
 
 Keep name behavior centralized there. If a bug report mentions Pokemon aliases,
 alternate spellings, friendly display names, regional names, Mega names, form
-names, or sheet/Wiglett name formats, update the central normalizer and lookup
-helpers in `pokemon-name-utils.ts`; do not add a separate alias table or local
-normalizer in a caller.
+names, or sheet/Wiglett name formats, update the central normalizer/lookup
+helpers or add an admin-configured alias in Admin -> Pokemon. Do not make a
+separate caller-specific alias function.
 
 Use the exported helpers consistently:
 
 - Use `normalizePokemonName()` when a flow needs one canonical Pokemon name.
 - Use `pokemonExactLookupKeys()` / `pokemonNormalizedLookupKeys()` when matching
   external input against DB rows, roster rows, or sheet Pokedex rows.
+- Use the alias-aware helpers from `pokemon-name-aliases.ts` in server flows
+  that should honor admin-configured aliases, such as Wiglett and match replay
+  roster matching.
 - Use `pokemonSearchAliases()` for autocomplete/search surfaces.
 
 Callers such as Sheets sync, Wiglett, bot match recording, replay parsing,
@@ -139,6 +145,60 @@ Be careful with competitive forms. Some visual or battle-state forms collapse to
 base species, but forms that PBO drafts separately must remain distinguishable.
 For example, `Urshifu-Single-Strike` and `Urshifu-Rapid-Strike` are separate DB
 Pokemon, while replay preview may initially show `Urshifu-*`.
+
+Regression checks before changing this area:
+
+- Mega forms should match both friendly and canonical formats, for example
+  `Mega Charizard X` and `Charizard-Mega-X`.
+- Urshifu rapid/single strike forms must remain distinct.
+- `Greninja-Battle-Bond` intentionally collapses to `Greninja`; do not broaden
+  this to every `Greninja-*` form without reviewing draft data.
+- Known form collapses should accept spaces, hyphens, and underscores, for
+  example `Landorus Incarnate`, `Landorus-Incarnate`, and
+  `Landorus_Incarnate`.
+- Custom admin aliases and collapses should be tested through the alias-aware
+  helpers used by Wiglett and match replay roster matching.
+- If both source and target forms are draftable candidates, verify whether the
+  result should be ambiguous or should resolve to one row.
+
+## Pokemon Moveset Formats
+
+Season-specific learnsets live in `season_pokemon_moves`, not the global
+`pokemon.moves` field. Draft board, draft planner, and matchup prep should read
+Pokemon moves through `src/lib/season-pokemon-moves.ts` so season formats such as
+Scarlet/Violet and National Dex can differ without changing roster or draft
+state.
+
+When adding or regenerating a moveset format:
+
+- Treat direct species moves as the starting point. This includes Showdown's
+  TM, tutor, egg, event, and transfer move entries when using `@pkmn/dex`.
+- Add moves from direct pre-evolutions only. Follow the actual ancestor chain
+  (`species.prevo` in `@pkmn/dex`), not every Pokemon in the evolution family.
+- Be careful with branching evolutions. Eeveelutions may inherit Eevee moves,
+  but Sylveon must not inherit Vaporeon-only moves such as `flip-turn`.
+- Preserve form rules intentionally. Some forms should share retained moves
+  because they can change forms legally; permanent forms or forms that forget
+  form-specific moves should not be merged casually.
+- Handle no-direct-learnset forms by falling back to their `changesFrom` and/or
+  base species when that matches the intended legal form behavior.
+- Test with a copied local `pbo.db` before touching production.
+
+Concrete regression checks after regenerating National Dex data:
+
+- `Porygon2` and `Porygon-Z` should have `teleport` from Porygon.
+- `Leavanny` should have `sticky-web` from its direct pre-evolution chain.
+- `Sylveon` should not have `flip-turn` from Vaporeon.
+- Existing season move rows should not lose old moves unless the removal is
+  deliberate and reviewed.
+
+For S11 National Dex data, use:
+
+- `scripts/populate-season-national-dex-moves.js`
+
+That script is expected to update only S11 `season_pokemon_moves` rows when run
+with `--apply`; it should not alter rosters, transactions, prices, matches, or
+other draft-state tables.
 
 ## Replay Parser Changes
 

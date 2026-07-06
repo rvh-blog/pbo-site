@@ -22,6 +22,8 @@ interface PokemonAutocompleteProps {
   placeholder?: string;
   disabled?: boolean;
   friendlyMegaNames?: boolean;
+  /** Overrides the input's default sizing classes (px-2 py-1 text-sm). */
+  inputClassName?: string;
 }
 
 export function PokemonAutocomplete({
@@ -34,6 +36,7 @@ export function PokemonAutocomplete({
   placeholder = "Type Pokemon name...",
   disabled = false,
   friendlyMegaNames = false,
+  inputClassName = "px-2 py-1 text-sm",
 }: PokemonAutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState(value);
@@ -134,7 +137,7 @@ export function PokemonAutocomplete({
         onFocus={handleFocus}
         placeholder={placeholder}
         disabled={disabled}
-        className={`w-full px-2 py-1 text-sm rounded bg-[var(--background-secondary)] border ${
+        className={`w-full ${inputClassName} rounded bg-[var(--background-secondary)] border ${
           hasWarning
             ? "border-[var(--error)] text-[var(--error)]"
             : "border-[var(--card)]"

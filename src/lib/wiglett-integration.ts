@@ -19,9 +19,11 @@ import {
 } from "@/bot/services/match-service";
 import { syncDivision } from "@/lib/sheets-sync-all";
 import {
-  pokemonExactLookupKeys,
-  pokemonNormalizedLookupKeys,
-} from "@/lib/pokemon-name-utils";
+  getPokemonAliasMaps,
+  pokemonExactLookupKeysWithAliases,
+  pokemonLookupKeysForRowWithAliases,
+  pokemonNormalizedLookupKeysWithAliases,
+} from "@/lib/pokemon-name-aliases";
 import { getSeasonFormat } from "@/lib/season-format";
 
 type JsonRecord = Record<string, unknown>;
@@ -237,22 +239,17 @@ async function resolveDraftPokemon(divisionId: number, payload: JsonRecord) {
     : [];
 
   if (!pokemonId && pokemonName) {
-    const exactKeys = pokemonExactLookupKeys(pokemonName);
+    const aliasMaps = await getPokemonAliasMaps();
+    const exactKeys = pokemonExactLookupKeysWithAliases(pokemonName, aliasMaps);
     candidates = pricedPokemon.filter((row) => {
-      const rowKeys = new Set([
-        ...pokemonExactLookupKeys(row.name),
-        ...pokemonExactLookupKeys(row.displayName),
-      ]);
+      const rowKeys = pokemonLookupKeysForRowWithAliases(row, aliasMaps);
       return setsIntersect(exactKeys, rowKeys);
     });
 
     if (candidates.length === 0) {
-      const normalizedKeys = pokemonNormalizedLookupKeys(pokemonName);
+      const normalizedKeys = pokemonNormalizedLookupKeysWithAliases(pokemonName, aliasMaps);
       candidates = pricedPokemon.filter((row) => {
-        const rowKeys = new Set([
-          ...pokemonNormalizedLookupKeys(row.name),
-          ...pokemonNormalizedLookupKeys(row.displayName),
-        ]);
+        const rowKeys = pokemonLookupKeysForRowWithAliases(row, aliasMaps, {}, true);
         return setsIntersect(normalizedKeys, rowKeys);
       });
     }
@@ -450,22 +447,17 @@ async function resolveRosterPokemonId(
   }
 
   const pokemonName = getString(pokemonRef, ["pokemonName", "pokemon", "mon", "name"]);
-  const exactKeys = pokemonExactLookupKeys(pokemonName);
+  const aliasMaps = await getPokemonAliasMaps();
+  const exactKeys = pokemonExactLookupKeysWithAliases(pokemonName, aliasMaps);
   let matches = roster.filter((row) => {
-    const rowKeys = new Set([
-      ...pokemonExactLookupKeys(row.name),
-      ...pokemonExactLookupKeys(row.displayName),
-    ]);
+    const rowKeys = pokemonLookupKeysForRowWithAliases(row, aliasMaps);
     return setsIntersect(exactKeys, rowKeys);
   });
 
   if (matches.length === 0) {
-    const normalizedKeys = pokemonNormalizedLookupKeys(pokemonName);
+    const normalizedKeys = pokemonNormalizedLookupKeysWithAliases(pokemonName, aliasMaps);
     matches = roster.filter((row) => {
-      const rowKeys = new Set([
-        ...pokemonNormalizedLookupKeys(row.name),
-        ...pokemonNormalizedLookupKeys(row.displayName),
-      ]);
+      const rowKeys = pokemonLookupKeysForRowWithAliases(row, aliasMaps, {}, true);
       return setsIntersect(normalizedKeys, rowKeys);
     });
   }

@@ -179,12 +179,13 @@
   },
   "active": "home",
   "lastOpenFiles": [
+    "README.md",
+    "runbooks/GitHub Collaboration Runbook.md",
+    "Home.md",
     "reference/Glossary.md",
     "workflows/Replay Analysis Workflow.md",
     "runbooks/Verification Runbook.md",
     "workflows/Frontend Pages Workflow.md",
-    "runbooks/GitHub Collaboration Runbook.md",
-    "Home.md",
     "reference/Project Overview.md"
   ]
 }

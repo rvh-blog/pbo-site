@@ -20,8 +20,8 @@ The draft planner is a public planning tool at `/draft-planner`. It is intention
 - Candidate cards include Add and Hide actions. Hide removes only that Pokemon from the viewer's candidate list until it is shown again.
 - Hidden Pokemon can be restored with the Show Hidden control.
 - The planner can extend vertically on desktop when dense panels are shown.
-- The Team Roster sits to the right of the Draft Board so users can edit roster slots while browsing candidates.
-- The Team Analyzer is its own standalone section under the Draft Needs/Draft Board workspace.
+- The Team Roster is a card grid at the top of the page, above the View toggles. All 11 slots always render as cards; each card contains a Pokemon autocomplete input for adding or editing that pick, plus sprite, types, abilities (click for description), price badge, and Tera Captain marker. Budget/Spent/Left totals sit in the section header. Pasting a multi-line list into a card fills consecutive slots.
+- The Team Analyzer is its own standalone section under the Draft Needs/Draft Board workspace. It holds the type chart, stats table, and move coverage; the team sprite overview lives in the Team Roster section, not the analyzer.
 - Dense analyzer tables use stable text sizes and horizontal/internal scrolling instead of viewport-width text scaling, so mobile and unusual aspect ratios remain readable.
 - Notes and hidden Pokemon are saved to `/api/preferences` for signed-in users and fall back to local storage when the viewer is not signed in.
 
@@ -29,13 +29,20 @@ The draft planner is a public planning tool at `/draft-planner`. It is intention
 
 The planner has visible toggles so users can show or hide major sections they do not want to use:
 
-- Needs
+- Draft Needs
 - Draft Board
 - Compare
-- Notes
+- Card Notes
 - Analyzer
 
 These are UI visibility controls only. They do not change saved planner data.
+
+Toggle behavior details:
+
+- The Team Roster card grid at the top of the page is always visible; it is not controlled by any toggle.
+- Card Notes shows a notes textarea only on watchlisted candidate cards (or cards that already have a saved note), to keep the board compact.
+- When Compare is off, the Compare action is hidden from candidate cards so the button never appears to do nothing.
+- Draft planner styling uses the site theme variables directly; there is no page-specific color palette in `globals.css` beyond small interaction helpers (focus rings, hover states, sprite frames).
 
 ## Role Checklist
 

@@ -82,37 +82,29 @@ function megaPokemonNameAliases(name: string): string[] {
   ];
 }
 
+const HARDCODED_NAME_ALIAS_INPUTS: { alias: string; canonical: string }[] = [
+  { alias: "Urshifu", canonical: "Urshifu" },
+  { alias: "Urshifu-Gmax", canonical: "Urshifu" },
+  { alias: "Urshifu Rapid", canonical: "Urshifu-Rapid-Strike" },
+  { alias: "Urshifu Rapid Strike", canonical: "Urshifu-Rapid-Strike" },
+  { alias: "Urshifu Rapid Strike Style", canonical: "Urshifu-Rapid-Strike" },
+  { alias: "Rapid Urshifu", canonical: "Urshifu-Rapid-Strike" },
+  { alias: "Rapid Strike Urshifu", canonical: "Urshifu-Rapid-Strike" },
+  { alias: "Rapid Strike Style Urshifu", canonical: "Urshifu-Rapid-Strike" },
+  { alias: "Urshifu Rapid Strike Gmax", canonical: "Urshifu-Rapid-Strike-Gmax" },
+  { alias: "Urshifu Single", canonical: "Urshifu-Single-Strike" },
+  { alias: "Urshifu Single Strike", canonical: "Urshifu-Single-Strike" },
+  { alias: "Urshifu Single Strike Style", canonical: "Urshifu-Single-Strike" },
+  { alias: "Single Urshifu", canonical: "Urshifu-Single-Strike" },
+  { alias: "Single Strike Urshifu", canonical: "Urshifu-Single-Strike" },
+  { alias: "Single Strike Style Urshifu", canonical: "Urshifu-Single-Strike" },
+  { alias: "Urshifu Single Strike Gmax", canonical: "Urshifu-Single-Strike-Gmax" },
+];
+
 function canonicalizeUrshifuName(name: string): string | null {
   const key = pokemonNameKey(name);
-  if (key === "urshifu" || key === "urshifugmax") return "Urshifu";
-
-  const rapidStrikeKeys = new Set([
-    "urshifurapid",
-    "urshifurapidstrike",
-    "urshifurapidstrikestyle",
-    "urshifurapidstrikegmax",
-    "rapidurshifu",
-    "rapidstrikeurshifu",
-    "rapidstrikestyleurshifu",
-  ]);
-  if (rapidStrikeKeys.has(key)) {
-    return key.endsWith("gmax") ? "Urshifu-Rapid-Strike-Gmax" : "Urshifu-Rapid-Strike";
-  }
-
-  const singleStrikeKeys = new Set([
-    "urshifusingle",
-    "urshifusinglestrike",
-    "urshifusinglestrikestyle",
-    "urshifusinglestrikegmax",
-    "singleurshifu",
-    "singlestrikeurshifu",
-    "singlestrikestyleurshifu",
-  ]);
-  if (singleStrikeKeys.has(key)) {
-    return key.endsWith("gmax") ? "Urshifu-Single-Strike-Gmax" : "Urshifu-Single-Strike";
-  }
-
-  return null;
+  const alias = HARDCODED_NAME_ALIAS_INPUTS.find((entry) => pokemonNameKey(entry.alias) === key);
+  return alias?.canonical || null;
 }
 
 const NORMALIZED_NAME_ALIASES: Record<string, string> = {
@@ -151,14 +143,18 @@ const NORMALIZED_NAME_ALIASES: Record<string, string> = {
   paldeantaurosfire: "Tauros-Paldea-Blaze",
   paldeantauroswater: "Tauros-Paldea-Aqua",
   basculinredstripe: "Basculin-Red-Striped",
+  basculinredstriped: "Basculin-Red-Striped",
   redstripedbasculin: "Basculin-Red-Striped",
   redstripebasculin: "Basculin-Red-Striped",
   basculinbluestripe: "Basculin-Blue-Striped",
+  basculinbluestriped: "Basculin-Blue-Striped",
   bluestripedbasculin: "Basculin-Blue-Striped",
   bluestripebasculin: "Basculin-Blue-Striped",
   basculinwhitestripe: "Basculin-White-Striped",
+  basculinwhitestriped: "Basculin-White-Striped",
   whitestripedbasculin: "Basculin-White-Striped",
   whitestripebasculin: "Basculin-White-Striped",
+  sirfetchd: "Sirfetchd",
   averagegourgeist: "Gourgeist-Average",
   gourgeistaverage: "Gourgeist-Average",
   largegourgeist: "Gourgeist-Large",
@@ -263,13 +259,59 @@ export function normalizePokemonName(name: string): string {
     "Oinkologne-M": "Oinkologne",
   };
 
+  const hyphenatedFormName = formatPokemonNameParts(splitPokemonNameParts(normalized));
+  const knownExactForms = new Set([
+    ...Object.keys(formMappings),
+    "Greninja-Battle-Bond",
+    "Shaymin-Land",
+    "Enamorus-Incarnate",
+    "Landorus-Incarnate",
+    "Tornadus-Incarnate",
+    "Thundurus-Incarnate",
+  ]);
+  const knownFormPrefixes = [
+    "Alcremie-",
+    "Florges-",
+    "Dudunsparce-",
+    "Keldeo-",
+    "Squawkabilly-",
+    "Zarude-",
+    "Minior-",
+    "Tatsugiri-",
+    "Basculegion-",
+    "Maushold-",
+    "Sinistea-",
+    "Polteageist-",
+    "Poltchageist-",
+    "Gastrodon-",
+    "Shellos-",
+    "Vivillon-",
+    "Furfrou-",
+    "Floette-",
+    "Flabebe-",
+    "Xerneas-",
+    "Pikachu-",
+    "Unown-",
+    "Deerling-",
+    "Sawsbuck-",
+    "Burmy-",
+    "Wormadam-",
+  ];
+  if (
+    hyphenatedFormName !== normalized &&
+    (knownExactForms.has(hyphenatedFormName) ||
+      knownFormPrefixes.some((prefix) => hyphenatedFormName.startsWith(prefix)))
+  ) {
+    normalized = hyphenatedFormName;
+  }
+
   if (formMappings[normalized]) normalized = formMappings[normalized];
 
   if (normalized.startsWith("Alcremie-") && normalized !== "Alcremie-Gmax") normalized = "Alcremie";
   if (normalized.startsWith("Florges-")) normalized = "Florges";
   if (normalized.startsWith("Dudunsparce-")) normalized = "Dudunsparce";
   if (normalized.startsWith("Keldeo-")) normalized = "Keldeo";
-  if (normalized.startsWith("Greninja-")) normalized = "Greninja";
+  if (normalized === "Greninja-Battle-Bond") normalized = "Greninja";
   if (normalized === "Shaymin-Land") normalized = "Shaymin";
   if (normalized === "Enamorus-Incarnate") normalized = "Enamorus";
   if (normalized === "Landorus-Incarnate") normalized = "Landorus";
@@ -301,19 +343,46 @@ export function normalizePokemonName(name: string): string {
   return normalized;
 }
 
-export function pokemonExactLookupKeys(
+export function getHardcodedPokemonNameAliases(name: string | null | undefined): string[] {
+  const rawName = name || "";
+  const canonical = normalizePokemonName(rawName);
+  if (!canonical) return [];
+
+  const aliases = new Set<string>();
+
+  for (const alias of megaPokemonNameAliases(rawName)) {
+    if (normalizePokemonName(alias) === canonical) {
+      aliases.add(alias);
+    }
+  }
+
+  for (const entry of HARDCODED_NAME_ALIAS_INPUTS) {
+    if (normalizePokemonName(entry.canonical) === canonical) {
+      aliases.add(entry.alias);
+    }
+  }
+
+  for (const [aliasKey, aliasCanonical] of Object.entries(NORMALIZED_NAME_ALIASES)) {
+    if (normalizePokemonName(aliasCanonical) === canonical) {
+      aliases.add(aliasKey);
+    }
+  }
+
+  return Array.from(aliases);
+}
+
+export function pokemonExactLookupAliases(
   name: string | null | undefined,
   options: PokemonNameOptions = {}
-): Set<string> {
-  const keys = new Set<string>();
-  if (!name) return keys;
+): string[] {
+  const aliases = new Set<string>();
+  if (!name) return [];
 
   const cleaned = cleanPokemonNameInput(name);
-  const rawKey = pokemonNameKey(cleaned);
-  if (rawKey) keys.add(rawKey);
+  if (cleaned) aliases.add(cleaned);
 
   for (const alias of megaPokemonNameAliases(cleaned)) {
-    keys.add(pokemonNameKey(alias));
+    if (alias) aliases.add(alias);
   }
 
   const cleanedParts = cleaned.toLowerCase().replace(/_/g, "-").replace(/\s+/g, "-").split("-").filter(Boolean);
@@ -329,12 +398,25 @@ export function pokemonExactLookupKeys(
     ];
 
     for (const alias of megaAliases) {
-      keys.add(pokemonNameKey(alias));
+      if (alias) aliases.add(alias);
     }
   }
 
-  const normalizedKey = pokemonNameKey(normalizePokemonName(cleaned));
-  if (normalizedKey) keys.add(normalizedKey);
+  const normalized = normalizePokemonName(cleaned);
+  if (normalized) aliases.add(normalized);
+
+  return Array.from(aliases);
+}
+
+export function pokemonExactLookupKeys(
+  name: string | null | undefined,
+  options: PokemonNameOptions = {}
+): Set<string> {
+  const keys = new Set<string>();
+  for (const alias of pokemonExactLookupAliases(name, options)) {
+    const key = pokemonNameKey(alias);
+    if (key) keys.add(key);
+  }
 
   return keys;
 }

@@ -4,6 +4,25 @@ Parent index: [[Home|PBO Site Wiki]]
 
 The admin area contains league operations tools and site-wide engagement controls.
 
+## Pokemon Admin
+
+Admin -> Pokemon includes season price editing and name normalizer alias
+management.
+
+Use Name Normalizer Aliases when an external source may send a Pokemon name in a
+new accepted spelling. Aliases are stored in `pokemon_name_aliases` and consumed
+through `src/lib/pokemon-name-aliases.ts`, so server-side lookup and
+normalization stay centralized.
+
+The same admin surface also shows hardcoded collapses and custom collapses.
+Use a custom collapse when an incoming source name should intentionally resolve
+to another Pokemon row. The UI displays collapses as `source -> target` so the
+direction is explicit.
+
+Do not create new caller-specific alias lists when a Wiglett, sheets, replay, or
+admin import name is missing. Add the variation here or update the central
+normalizer helpers so every integration benefits from the same rule.
+
 ## Engagement Admin
 
 The old Pick-ems admin grouping has been renamed to Engagement where broader site engagement controls live. Pick-ems still exists as a feature and API area, but admin boxes that are not strictly pick-ems should be grouped under Engagement rather than presented as pick-em-specific tools.

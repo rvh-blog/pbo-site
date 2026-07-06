@@ -24,6 +24,13 @@ import {
   pokemonExactLookupKeys,
   pokemonNormalizedLookupKeys,
 } from "@/lib/pokemon-name-utils";
+import {
+  getPokemonAliasMaps,
+  type PokemonAliasMaps,
+  pokemonExactLookupKeysWithAliases,
+  pokemonLookupKeysForRowWithAliases,
+  pokemonNormalizedLookupKeysWithAliases,
+} from "@/lib/pokemon-name-aliases";
 
 export interface FixtureOption {
   matchId: number;
@@ -259,6 +266,7 @@ export async function matchUsernamesToCoaches(
   // Get rosters for both coaches (time-synced if matchWeek provided)
   const coach1Roster = await getCoachRoster(coach1SeasonId, matchWeek);
   const coach2Roster = await getCoachRoster(coach2SeasonId, matchWeek);
+  const aliasMaps = await getPokemonAliasMaps();
 
   // If we have team data, use roster-based matching (more reliable)
   if (p1Team && p2Team && coach1Roster.length > 0 && coach2Roster.length > 0) {
@@ -268,19 +276,19 @@ export async function matchUsernamesToCoaches(
     let p2MatchesCoach2 = 0;
 
     for (const replayPoke of p1Team) {
-      if (coach1Roster.some((r) => pokemonNamesMatch(replayPoke.name, r.displayName || r.name))) {
+      if (findMatchingRosterPokemon(coach1Roster, replayPoke.name, aliasMaps)) {
         p1MatchesCoach1++;
       }
-      if (coach2Roster.some((r) => pokemonNamesMatch(replayPoke.name, r.displayName || r.name))) {
+      if (findMatchingRosterPokemon(coach2Roster, replayPoke.name, aliasMaps)) {
         p1MatchesCoach2++;
       }
     }
 
     for (const replayPoke of p2Team) {
-      if (coach1Roster.some((r) => pokemonNamesMatch(replayPoke.name, r.displayName || r.name))) {
+      if (findMatchingRosterPokemon(coach1Roster, replayPoke.name, aliasMaps)) {
         p2MatchesCoach1++;
       }
-      if (coach2Roster.some((r) => pokemonNamesMatch(replayPoke.name, r.displayName || r.name))) {
+      if (findMatchingRosterPokemon(coach2Roster, replayPoke.name, aliasMaps)) {
         p2MatchesCoach2++;
       }
     }
@@ -915,6 +923,7 @@ export async function buildPokemonDataFromReplay(
 }[]> {
   const coach1Roster = await getCoachRoster(coach1SeasonId, matchWeek);
   const coach2Roster = await getCoachRoster(coach2SeasonId, matchWeek);
+  const aliasMaps = await getPokemonAliasMaps();
 
   // Map replay teams to our coaches
   const coach1ReplayTeam = p1IsCoach1 ? replayData.p1Team : replayData.p2Team;
@@ -944,7 +953,7 @@ export async function buildPokemonDataFromReplay(
 
   // Match coach1's Pokemon
   for (const replayPoke of coach1ReplayTeam) {
-    const matchingRoster = findMatchingRosterPokemon(coach1Roster, replayPoke.name);
+    const matchingRoster = findMatchingRosterPokemon(coach1Roster, replayPoke.name, aliasMaps);
     if (matchingRoster) {
       pokemonData.push({
         seasonCoachId: coach1SeasonId,
@@ -972,7 +981,7 @@ export async function buildPokemonDataFromReplay(
 
   // Match coach2's Pokemon
   for (const replayPoke of coach2ReplayTeam) {
-    const matchingRoster = findMatchingRosterPokemon(coach2Roster, replayPoke.name);
+    const matchingRoster = findMatchingRosterPokemon(coach2Roster, replayPoke.name, aliasMaps);
     if (matchingRoster) {
       pokemonData.push({
         seasonCoachId: coach2SeasonId,
@@ -1008,19 +1017,45 @@ function setsIntersect<T>(left: Set<T>, right: Set<T>): boolean {
   return false;
 }
 
-function pokemonNamesMatch(left: string | null | undefined, right: string | null | undefined): boolean {
-  const leftExactKeys = pokemonExactLookupKeys(left);
-  const rightExactKeys = pokemonExactLookupKeys(right);
+function pokemonNamesMatch(
+  left: string | null | undefined,
+  right: string | null | undefined,
+  aliasMaps?: PokemonAliasMaps
+): boolean {
+  const leftExactKeys = aliasMaps
+    ? pokemonExactLookupKeysWithAliases(left, aliasMaps)
+    : pokemonExactLookupKeys(left);
+  const rightExactKeys = aliasMaps
+    ? pokemonExactLookupKeysWithAliases(right, aliasMaps)
+    : pokemonExactLookupKeys(right);
   if (setsIntersect(leftExactKeys, rightExactKeys)) return true;
 
-  const leftNormalizedKeys = pokemonNormalizedLookupKeys(left);
-  const rightNormalizedKeys = pokemonNormalizedLookupKeys(right);
+  const leftNormalizedKeys = aliasMaps
+    ? pokemonNormalizedLookupKeysWithAliases(left, aliasMaps)
+    : pokemonNormalizedLookupKeys(left);
+  const rightNormalizedKeys = aliasMaps
+    ? pokemonNormalizedLookupKeysWithAliases(right, aliasMaps)
+    : pokemonNormalizedLookupKeys(right);
   return setsIntersect(leftNormalizedKeys, rightNormalizedKeys);
 }
 
 function findMatchingRosterPokemon(
   roster: Awaited<ReturnType<typeof getCoachRoster>>,
-  replayPokemonName: string
+  replayPokemonName: string,
+  aliasMaps?: PokemonAliasMaps
 ) {
-  return roster.find((row) => pokemonNamesMatch(replayPokemonName, row.displayName || row.name));
+  if (!aliasMaps) {
+    return roster.find((row) => pokemonNamesMatch(replayPokemonName, row.displayName || row.name));
+  }
+
+  const exactKeys = pokemonExactLookupKeysWithAliases(replayPokemonName, aliasMaps);
+  const exactMatch = roster.find((row) => (
+    setsIntersect(exactKeys, pokemonLookupKeysForRowWithAliases(row, aliasMaps))
+  ));
+  if (exactMatch) return exactMatch;
+
+  const normalizedKeys = pokemonNormalizedLookupKeysWithAliases(replayPokemonName, aliasMaps);
+  return roster.find((row) => (
+    setsIntersect(normalizedKeys, pokemonLookupKeysForRowWithAliases(row, aliasMaps, {}, true))
+  ));
 }

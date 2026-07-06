@@ -69,6 +69,15 @@ Key rules:
 
 `pokemon`, `moves`, and `abilities` are global reference data.
 
+`pokemon.moves` is the default/global learnset data. Format-specific learnsets
+belong in `season_pokemon_moves`, keyed by `season_id` and `pokemon_id`. Use
+`src/lib/season-pokemon-moves.ts` when a page or API needs the moves legal for a
+specific season.
+
+Updating `season_pokemon_moves` for one season is separate from draft state.
+It should not require touching rosters, transactions, matches, season coaches,
+or season prices.
+
 `season_pokemon_prices` is season-specific and links a Pokemon to:
 
 - Draft/FA price.
@@ -77,6 +86,25 @@ Key rules:
 - Complex ban reason.
 
 `price = -1` means complex ban/unavailable for drafting logic.
+
+### Pokemon Name Aliases And Collapses
+
+Pokemon name normalization has two configurable tables:
+
+- `pokemon_name_aliases`: accepted alternate spellings for one drafted Pokemon.
+- `pokemon_name_collapses`: accepted source names that intentionally resolve to
+  a target Pokemon row.
+
+Aliases are for equivalent input names, such as an external tool sending
+`Battle Bond Greninja` for the Pokemon row that should be considered Greninja in
+PBO lookups. Collapses are for form behavior where incoming data should resolve
+to a different target row, such as visual or battle-state forms that PBO does
+not draft separately.
+
+The hardcoded baseline still lives in `src/lib/pokemon-name-utils.ts`.
+Admin-configured rows are loaded through `src/lib/pokemon-name-aliases.ts`.
+Server integrations that accept external Pokemon names should use the
+alias-aware lookup helpers, not direct string matching.
 
 Roster rows store their own `price`. This matters because:
 
@@ -292,6 +320,26 @@ Admin audit entries use `admin_audit_logs`. The audit helper can create the tabl
 `division_sheet_sync` config is unique per division.
 
 Wiglett audit/idempotency lives in `wiglett_events`.
+
+Pokemon name aliases live in `pokemon_name_aliases`.
+
+- `pokemon_id` points to `pokemon.id`.
+- `alias` is the admin-entered accepted spelling.
+- `alias_key` is the normalized unique lookup key produced from the alias.
+
+Use Admin -> Pokemon -> Name Normalizer Aliases to manage these records. Server
+flows that need admin aliases should use `src/lib/pokemon-name-aliases.ts`
+rather than creating local alias maps.
+
+Pokemon name collapses live in `pokemon_name_collapses`.
+
+- `target_pokemon_id` points to the Pokemon that incoming names should normalize
+  to.
+- `source_name` is the incoming form/name to collapse.
+- `source_key` is the unique normalized lookup key for the source.
+
+Use Admin -> Pokemon -> Custom collapses when a form appearing in replays,
+Wiglett, or sheet data should intentionally point to one PBO Pokemon.
 
 Wiglett endpoints:
 

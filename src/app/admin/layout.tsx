@@ -6,6 +6,7 @@ const adminNavItems = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/coaches", label: "Coaches" },
   { href: "/admin/seasons", label: "Seasons" },
+  { href: "/admin/pokemon", label: "Pokemon" },
   { href: "/admin/rosters", label: "Rosters" },
   { href: "/admin/transactions", label: "Transactions" },
   { href: "/admin/matches", label: "Matches" },
