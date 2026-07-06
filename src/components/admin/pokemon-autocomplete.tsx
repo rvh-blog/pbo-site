@@ -41,6 +41,7 @@ export function PokemonAutocomplete({
 }: PokemonAutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState(value);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -82,6 +83,7 @@ export function PokemonAutocomplete({
     const text = e.target.value;
     setSearchText(text);
     setIsOpen(true);
+    setHighlightedIndex(0);
 
     // If text is cleared, clear selection
     if (!text.trim()) {
@@ -117,9 +119,22 @@ export function PokemonAutocomplete({
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
       setIsOpen(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        setHighlightedIndex(0);
+      } else if (suggestions.length > 0) {
+        setHighlightedIndex((current) => (current + 1) % suggestions.length);
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (isOpen && suggestions.length > 0) {
+        setHighlightedIndex((current) => (current - 1 + suggestions.length) % suggestions.length);
+      }
     } else if (e.key === "Enter" && suggestions.length > 0) {
       e.preventDefault();
-      handleSelect(suggestions[0]);
+      handleSelect(suggestions[Math.min(highlightedIndex, suggestions.length - 1)] ?? suggestions[0]);
     }
   }
 
@@ -174,12 +189,14 @@ export function PokemonAutocomplete({
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-[var(--card)] border border-[var(--background-tertiary)] rounded-md shadow-lg max-h-60 overflow-y-auto"
         >
-          {suggestions.map((pokemon) => (
+          {suggestions.map((pokemon, index) => (
             <button
               key={pokemon.id}
               type="button"
               onClick={() => handleSelect(pokemon)}
-              className="w-full px-2 py-1.5 flex items-center gap-2 hover:bg-[var(--background-secondary)] text-left"
+              onMouseEnter={() => setHighlightedIndex(index)}
+              ref={index === highlightedIndex ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}
+              className={`w-full px-2 py-1.5 flex items-center gap-2 text-left transition-colors ${index === highlightedIndex ? "bg-[var(--background-tertiary)]" : ""}`}
             >
               {pokemon.spriteUrl && (
                 <Image

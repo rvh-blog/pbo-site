@@ -1,22 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 import { ChevronDown, ChevronUp, ScrollText } from "lucide-react";
 
 const STORAGE_KEY = "pbo-draft-rules-disclaimer-hidden";
+const CHANGE_EVENT = "pbo-draft-rules-disclaimer-change";
+
+function subscribeToHidden(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(CHANGE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(CHANGE_EVENT, callback);
+  };
+}
 
 export function DraftRulesDisclaimer() {
-  const [isHidden, setIsHidden] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  });
+  // useSyncExternalStore keeps SSR and hydration consistent: the server
+  // snapshot is always "visible", and the stored preference applies on the
+  // client without a hydration mismatch.
+  const isHidden = useSyncExternalStore(
+    subscribeToHidden,
+    () => localStorage.getItem(STORAGE_KEY) === "true",
+    () => false
+  );
 
   const toggleHidden = () => {
-    setIsHidden((current) => {
-      const next = !current;
-      localStorage.setItem(STORAGE_KEY, String(next));
-      return next;
-    });
+    localStorage.setItem(STORAGE_KEY, String(!isHidden));
+    window.dispatchEvent(new Event(CHANGE_EVENT));
   };
 
   if (isHidden) {

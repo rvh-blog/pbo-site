@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback, type CSSProperties } from "react";
+import { Fragment, memo, useState, useMemo, useEffect, useRef, useCallback, useDeferredValue, useTransition, type CSSProperties } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Eye, Filter, Plus, Search, Share2, Star, X } from "lucide-react";
+import { ArrowLeftRight, Eye, EyeOff, Filter, Plus, Search, Share2, Star, StickyNote, X } from "lucide-react";
 import { PokemonAutocomplete, findPokemonMatch } from "@/components/admin/pokemon-autocomplete";
 import { DraftRulesDisclaimer } from "@/components/draft-rules-disclaimer";
 import { formatPokemonDisplayName, pokemonSearchAliases, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
@@ -190,6 +191,10 @@ interface Season {
 
 interface Props {
   coach: { id: number; name: string } | null;
+  divisions: { id: number; name: string; seasonId: number }[];
+  teams: { coachId: number; teamName: string; divisionId: number; seasonId: number }[];
+  draftedByDivision: Record<number, { pokemonId: number; team: string; logo: string | null }[]>;
+  currentDivisionId: number | null;
   teamName: string;
   teamLogo: string | null;
   roster: RosterPokemon[];
@@ -202,11 +207,31 @@ interface Props {
   currentSeasonId: number | null;
 }
 
-type DraftRole = "hazards" | "removal" | "pivot" | "setup" | "status" | "priority" | "knock";
+type DraftRole = "rocks" | "spikes" | "tspikes" | "webs" | "removal" | "pivot" | "setup" | "status" | "priority" | "knock";
 const PLANNER_SLOT_COUNT = 11;
-const CHECKLIST_DRAFT_ROLES = ["hazards", "removal", "pivot", "priority"] as const satisfies readonly DraftRole[];
+const CHECKLIST_DRAFT_ROLES = ["rocks", "spikes", "tspikes", "webs", "removal", "pivot", "priority"] as const satisfies readonly DraftRole[];
+// FIT points per role by provider count (1st/2nd/3rd...), tiered by how much
+// a draft team needs the role: rocks/removal are near-mandatory and reward up
+// to three providers; pivot/priority/spikes/t-spikes are valuable but two
+// providers saturate the need; one webs setter is enough.
+const ROLE_STACK_WEIGHTS: Partial<Record<DraftRole, number[]>> = {
+  rocks: [10, 5, 2],
+  removal: [10, 5, 2],
+  priority: [8, 4],
+  pivot: [8, 4],
+  spikes: [8, 4],
+  tspikes: [8, 4],
+  webs: [5],
+};
 const CHECKLIST_DRAFT_ROLE_SET = new Set<DraftRole>(CHECKLIST_DRAFT_ROLES);
 type StatFocus = "none" | "price" | "hp" | "attack" | "defense" | "specialAttack" | "specialDefense" | "speed" | "baseStatTotal";
+
+interface SavedPlanEntry {
+  pokemonId: number;
+  pokemonName: string;
+}
+
+const EMPTY_PLANNER_SLOT: RosterSlot = { pokemonId: null, pokemonName: "", isTeraCaptain: false, price: 0, teraCaptainCost: null, pokemon: null };
 
 interface CandidatePokemon extends SimplePokemon {
   price: number;
@@ -294,7 +319,10 @@ function hasAnyMove(pokemon: SimplePokemon | RosterPokemon, moves: string[]) {
 
 function getDraftRoles(pokemon: SimplePokemon | RosterPokemon): DraftRole[] {
   const roles: DraftRole[] = [];
-  if (hasAnyMove(pokemon, ["stealth-rock", "spikes", "toxic-spikes", "sticky-web"])) roles.push("hazards");
+  if (hasAnyMove(pokemon, ["stealth-rock"])) roles.push("rocks");
+  if (hasAnyMove(pokemon, ["spikes"])) roles.push("spikes");
+  if (hasAnyMove(pokemon, ["toxic-spikes"])) roles.push("tspikes");
+  if (hasAnyMove(pokemon, ["sticky-web"])) roles.push("webs");
   if (hasAnyMove(pokemon, ["defog", "rapid-spin", "mortal-spin", "tidy-up"])) roles.push("removal");
   if (hasAnyMove(pokemon, ["u-turn", "volt-switch", "flip-turn", "parting-shot", "chilly-reception", "shed-tail"])) roles.push("pivot");
   if (hasAnyMove(pokemon, ["swords-dance", "nasty-plot", "dragon-dance", "calm-mind", "bulk-up", "quiver-dance", "shell-smash", "iron-defense"])) roles.push("setup");
@@ -306,7 +334,10 @@ function getDraftRoles(pokemon: SimplePokemon | RosterPokemon): DraftRole[] {
 
 function formatRole(role: DraftRole) {
   const labels: Record<DraftRole, string> = {
-    hazards: "Hazards",
+    rocks: "Stealth Rock",
+    spikes: "Spikes",
+    tspikes: "Toxic Spikes",
+    webs: "Sticky Web",
     removal: "Removal",
     pivot: "Pivot",
     setup: "Setup",
@@ -321,8 +352,247 @@ function getPokemonLabel(pokemon: { name: string; displayName?: string | null },
   return formatPokemonDisplayName(pokemon.name, pokemon.displayName, { friendlyMegaNames });
 }
 
+interface CandidateRowProps {
+  candidate: CandidatePokemon;
+  isPlanned: boolean;
+  draftedBy: { team: string; logo: string | null } | null;
+  isWatched: boolean;
+  isCompared: boolean;
+  note: string | undefined;
+  isNoteOpen: boolean;
+  showNotesPanel: boolean;
+  showComparePanel: boolean;
+  canAdd: boolean;
+  friendlyMegaNames: boolean;
+  onToggleWatchlist: (id: number) => void;
+  onToggleCompare: (id: number) => void;
+  onAdd: (candidate: CandidatePokemon) => void;
+  onHide: (id: number) => void;
+  onToggleNote: (id: number) => void;
+  onSaveNote: (id: number, value: string) => void;
+  onDeleteNote: (id: number) => void;
+}
+
+// Memoized so slider drags and other high-frequency page renders skip the
+// ~1100 rows entirely.
+const CandidateRow = memo(function CandidateRow({
+  candidate,
+  isPlanned,
+  draftedBy,
+  isWatched,
+  isCompared,
+  note,
+  isNoteOpen,
+  showNotesPanel,
+  showComparePanel,
+  canAdd,
+  friendlyMegaNames,
+  onToggleWatchlist,
+  onToggleCompare,
+  onAdd,
+  onHide,
+  onToggleNote,
+  onSaveNote,
+  onDeleteNote,
+}: CandidateRowProps) {
+  return (
+    <div
+      className={`draft-candidate-card shrink-0 rounded px-2 py-1.5 transition-colors ${
+        isPlanned
+          ? "bg-[var(--accent)]/10 hover:bg-[var(--accent)]/15"
+          : isWatched
+          ? "bg-[var(--background-tertiary)]/60 shadow-[inset_2px_0_0_var(--accent)] hover:bg-[var(--background-tertiary)]"
+          : "bg-[var(--background-tertiary)]/60 hover:bg-[var(--background-tertiary)]"
+      }`}
+    >
+      <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 sm:grid-cols-[2.25rem_minmax(0,1fr)_7.5rem_9rem_3rem_10.5rem]">
+        <OptimizedPlannerImage src={candidate.spriteUrl} alt="" width={32} height={32} className="row-span-2 h-8 w-8 shrink-0 self-center object-contain sm:order-1 sm:row-span-1" />
+        <div className="min-w-0 sm:order-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <Link href={`/pokemon/${candidate.id}`} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-sm font-bold text-white hover:text-[var(--primary)]">
+              {getPokemonLabel(candidate, friendlyMegaNames)}
+            </Link>
+            {candidate.complexBanReason && (
+              <span
+                className="rounded border border-[var(--warning)]/30 bg-[var(--warning)]/20 px-1 py-0 text-[10px] font-bold text-[var(--warning)]"
+                title={`No ${candidate.complexBanReason}`}
+              >
+                No {candidate.complexBanReason}
+              </span>
+            )}
+          </div>
+          {draftedBy && (
+            <div className="mt-0.5 flex items-center gap-1.5" title={`Drafted by ${draftedBy.team} in this division`}>
+              <span className="h-5 w-0.5 shrink-0 rounded bg-[var(--primary)]/50" />
+              <OptimizedPlannerImage src={draftedBy.logo} alt="" width={24} height={24} className="h-6 w-6 shrink-0 object-contain" />
+              <span className="font-mono text-[10px] font-bold text-red-300">{draftedBy.team}</span>
+            </div>
+          )}
+        </div>
+        <span className="justify-self-end font-mono text-xs font-bold text-[var(--accent)] sm:order-5 sm:justify-self-center">
+          {candidate.price}
+        </span>
+        <div className="flex flex-wrap items-center gap-1 sm:order-3">
+          {(candidate.types || []).map((type) => (
+            <span
+              key={type}
+              className="rounded px-1.5 py-px text-[10px] font-bold text-white"
+              style={{ backgroundColor: TYPE_COLORS[type.toLowerCase()] }}
+            >
+              {formatTypeName(type)}
+            </span>
+          ))}
+        </div>
+        <div className="col-span-2 flex items-center gap-4 font-mono text-xs sm:order-4 sm:col-span-1 sm:grid sm:grid-cols-3 sm:gap-0 sm:text-center">
+          <span className="text-white">
+            <span className="mr-1 text-[9px] uppercase text-[var(--foreground-subtle)] sm:hidden">SPE</span>
+            {candidate.speed || 0}
+          </span>
+          <span className="text-[var(--foreground-muted)]">
+            <span className="mr-1 text-[9px] uppercase text-[var(--foreground-subtle)] sm:hidden">BST</span>
+            {candidate.baseStatTotal || 0}
+          </span>
+          <span
+            className={candidate.fitScore > 0 ? "text-emerald-300" : "text-[var(--foreground-subtle)]"}
+            title={candidate.fitTags.length > 0 ? candidate.fitTags.join(" · ") : undefined}
+          >
+            <span className="mr-1 text-[9px] uppercase text-[var(--foreground-subtle)] sm:hidden">FIT</span>
+            {candidate.fitScore}
+          </span>
+        </div>
+        <div className="flex items-center gap-0.5 justify-self-end sm:order-6 sm:justify-self-auto sm:justify-end">
+          <button
+            type="button"
+            onClick={() => onToggleWatchlist(candidate.id)}
+            aria-pressed={isWatched}
+            title={isWatched ? "Remove from watchlist" : "Add to watchlist"}
+            aria-label={isWatched ? "Remove from watchlist" : "Add to watchlist"}
+            className={`draft-card-action flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--background)] ${isWatched ? "text-[var(--accent)]" : "text-[var(--foreground-subtle)] hover:text-white"}`}
+          >
+            <Star className={`h-3.5 w-3.5 ${isWatched ? "fill-current" : ""}`} />
+          </button>
+          {showNotesPanel && (
+            <button
+              type="button"
+              onClick={() => onToggleNote(candidate.id)}
+              aria-pressed={Boolean(note) || isNoteOpen}
+              title={note ? "Edit note" : "Add note"}
+              aria-label={note ? "Edit note" : "Add note"}
+              className={`draft-card-action flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--background)] ${isNoteOpen ? "bg-[var(--background)] text-white" : "text-[var(--foreground-subtle)] hover:text-white"}`}
+            >
+              <StickyNote className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {showComparePanel && (
+            <button
+              type="button"
+              onClick={() => onToggleCompare(candidate.id)}
+              aria-pressed={isCompared}
+              title={isCompared ? "Remove from compare" : "Add to compare"}
+              aria-label={isCompared ? "Remove from compare" : "Add to compare"}
+              className={`draft-card-action flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--background)] ${isCompared ? "text-sky-300" : "text-[var(--foreground-subtle)] hover:text-white"}`}
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={!canAdd || isPlanned}
+            onClick={() => onAdd(candidate)}
+            title={isPlanned ? "Already in your plan" : "Add to next open slot"}
+            aria-label="Add to next open slot"
+            className="draft-card-action flex h-7 w-7 items-center justify-center rounded bg-[var(--primary)]/15 text-[var(--primary-light)] transition-colors hover:bg-[var(--primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-[var(--primary)]/15 disabled:hover:text-[var(--primary-light)]"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onHide(candidate.id)}
+            title="Hide from board"
+            aria-label="Hide from board"
+            className="draft-card-action flex h-7 w-7 items-center justify-center rounded text-[var(--foreground-subtle)] transition-colors hover:bg-[var(--background)] hover:text-white"
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      {showNotesPanel && isNoteOpen ? (
+        <DraftNoteEditor
+          initialValue={note || ""}
+          onSave={(value) => onSaveNote(candidate.id, value)}
+          onDelete={() => onDeleteNote(candidate.id)}
+        />
+      ) : showNotesPanel && note ? (
+        <button
+          type="button"
+          onClick={() => onToggleNote(candidate.id)}
+          title="Edit note"
+          className="mt-1 flex w-fit max-w-full items-center gap-1.5 rounded border-l-2 border-[var(--accent)]/60 bg-[var(--background)]/50 px-2 py-1 text-left text-xs italic text-[#cbd5e1] transition-colors hover:text-white sm:ml-11"
+        >
+          <StickyNote className="h-3 w-3 shrink-0 text-[var(--accent)]" />
+          <span className="truncate">{note}</span>
+        </button>
+      ) : null}
+    </div>
+  );
+});
+
+function DraftNoteEditor({
+  initialValue,
+  onSave,
+  onDelete,
+}: {
+  initialValue: string;
+  onSave: (value: string) => void;
+  onDelete: () => void;
+}) {
+  // Local draft state so keystrokes never re-render the whole board.
+  const [draft, setDraft] = useState(initialValue);
+
+  return (
+    <div className="mt-1.5 flex items-stretch gap-1.5 sm:ml-11">
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSave(draft);
+          } else if (e.key === "Escape") {
+            onSave(initialValue);
+          }
+        }}
+        autoFocus
+        placeholder="Notes..."
+        className="draft-control h-12 min-w-0 flex-1 resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
+      />
+      <div className="flex shrink-0 flex-col justify-center gap-1">
+        <button
+          type="button"
+          onClick={() => onSave(draft)}
+          className="rounded bg-[var(--primary)] px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:brightness-110"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={!initialValue && !draft.trim()}
+          className="rounded bg-[var(--background)] px-2.5 py-1 text-[11px] font-bold text-[var(--foreground-muted)] transition-colors hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function DraftPlanner({
   coach,
+  divisions,
+  teams,
+  draftedByDivision,
+  currentDivisionId,
   teamName,
   teamLogo,
   roster: initialRoster,
@@ -338,16 +608,28 @@ export function DraftPlanner({
   const [statSortAsc, setStatSortAsc] = useState(false);
   const [moveSearch, setMoveSearch] = useState("");
   const [candidateSearch, setCandidateSearch] = useState("");
-  const [selectedType, setSelectedType] = useState("all");
+  const [typeFilterMode, setTypeFilterMode] = useState<"is" | "resists" | "strong">("is");
+  const [isTypeFilters, setIsTypeFilters] = useState<string[]>([]);
+  const [strongVsFilters, setStrongVsFilters] = useState<string[]>([]);
   const [statFocus, setStatFocus] = useState<StatFocus>("none");
   const [statFocusAsc, setStatFocusAsc] = useState(false);
   const [maxPrice, setMaxPrice] = useState(19);
   const [minSpeed, setMinSpeed] = useState(0);
   const [maxSpeed, setMaxSpeed] = useState(160);
-  const [fitOnly, setFitOnly] = useState(false);
+  const [sortByFit, setSortByFit] = useState(false);
+  const [availableOnly, setAvailableOnly] = useState(true);
+  const [roleFilters, setRoleFilters] = useState<DraftRole[]>([]);
+  const [resistFilters, setResistFilters] = useState<string[]>([]);
+  const [moveFilters, setMoveFilters] = useState<string[]>([]);
+  // Render the board list incrementally: keeps SSR payload and hydration cheap
+  // for ~1100 rows; scrolling extends the window.
+  const [visibleRowCount, setVisibleRowCount] = useState(120);
+  const [moveFilterSearch, setMoveFilterSearch] = useState("");
+  const [showMoveFilterDropdown, setShowMoveFilterDropdown] = useState(false);
   const [watchlist, setWatchlist] = useState<number[]>([]);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [compareIds, setCompareIds] = useState<number[]>([]);
+  const [openNoteIds, setOpenNoteIds] = useState<number[]>([]);
   const [hiddenPokemonIds, setHiddenPokemonIds] = useState<number[]>([]);
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
   const [showNeedsPanel, setShowNeedsPanel] = useState(true);
@@ -364,10 +646,93 @@ export function DraftPlanner({
   ]);
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [planSaveStatus, setPlanSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [savedPlan, setSavedPlan] = useState<SavedPlanEntry[] | null>(null);
+  const [pendingPlanRestore, setPendingPlanRestore] = useState<SavedPlanEntry[] | null>(null);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const latestPreferencesRef = useRef<string>("");
   const selectedSeasonNumber = allSeasons.find((season) => season.id === currentSeasonId)?.seasonNumber ?? null;
   const friendlyMegaNames = shouldUseFriendlyMegaNamesForSeason(selectedSeasonNumber);
+
+  // Header preset selectors: navigation drives the server-resolved roster and
+  // prices, so URL params stay the source of truth.
+  const router = useRouter();
+  const [isNavigating, startNavigation] = useTransition();
+  // null = follow the server-provided division; set when the user picks one manually.
+  const [divisionOverride, setDivisionOverride] = useState<number | "" | null>(null);
+  const divisionOptions = useMemo(
+    () => divisions.filter((d) => d.seasonId === currentSeasonId),
+    [currentSeasonId, divisions]
+  );
+  const rawDivisionSelection = divisionOverride ?? currentDivisionId ?? "";
+  const selectedDivisionId = divisionOptions.some((d) => d.id === rawDivisionSelection) ? rawDivisionSelection : "";
+  const teamOptions = useMemo(
+    () =>
+      teams.filter(
+        (t) => t.seasonId === currentSeasonId && (selectedDivisionId === "" || t.divisionId === selectedDivisionId)
+      ),
+    [currentSeasonId, selectedDivisionId, teams]
+  );
+
+  const draftedInSelectedDivision = useMemo(
+    () =>
+      selectedDivisionId === ""
+        ? null
+        : new Map(
+            (draftedByDivision[selectedDivisionId] ?? []).map((entry) => [
+              entry.pokemonId,
+              { team: entry.team, logo: entry.logo },
+            ])
+          ),
+    [draftedByDivision, selectedDivisionId]
+  );
+
+  function navigateToPreset(nextCoachId: number | null, nextSeasonId: number | null) {
+    setDivisionOverride(null);
+    const params = new URLSearchParams();
+    if (nextCoachId) params.set("coach", String(nextCoachId));
+    if (nextSeasonId) params.set("season", String(nextSeasonId));
+    const query = params.toString();
+    startNavigation(() => {
+      router.push(query ? `/draft-planner?${query}` : "/draft-planner");
+    });
+  }
+
+  const buildPlannerSlot = useCallback((pokemonId: number, fallbackName: string): RosterSlot => {
+    const originalRoster = initialRoster.find((r) => r.pokemonId === pokemonId);
+    const pData = allPokemon.find((p) => p.id === pokemonId);
+    const priceInfo = seasonPrices[pokemonId];
+    const price = originalRoster?.price ?? priceInfo?.price ?? 0;
+
+    return {
+      pokemonId,
+      pokemonName: pData ? getPokemonLabel(pData, friendlyMegaNames) : fallbackName,
+      isTeraCaptain: false,
+      price,
+      teraCaptainCost: priceInfo?.teraCaptainCost ?? null,
+      pokemon: originalRoster || (pData ? {
+        rosterId: 0,
+        pokemonId: pData.id,
+        name: pData.name,
+        displayName: getPokemonLabel(pData, friendlyMegaNames),
+        spriteUrl: pData.spriteUrl,
+        artworkUrl: pData.artworkUrl || null,
+        types: (pData.types || []) as string[],
+        abilities: (pData.abilities || []) as Ability[],
+        moves: (pData.moves || []) as string[],
+        hp: pData.hp || 0,
+        attack: pData.attack || 0,
+        defense: pData.defense || 0,
+        specialAttack: pData.specialAttack || 0,
+        specialDefense: pData.specialDefense || 0,
+        speed: pData.speed || 0,
+        baseStatTotal: pData.baseStatTotal || 0,
+        price,
+        isTeraCaptain: false,
+        draftOrder: null,
+      } : null),
+    };
+  }, [allPokemon, friendlyMegaNames, initialRoster, seasonPrices]);
 
   const getDraftPlannerPreferences = useCallback(() => {
     return {
@@ -376,8 +741,11 @@ export function DraftPlanner({
       trackedMoves,
       notes,
       hiddenPokemonIds,
+      // The API replaces the whole blob per page, so the saved plan must ride
+      // along in every payload or the next autosave would wipe it.
+      ...(savedPlan ? { savedPlan } : {}),
     };
-  }, [hiddenPokemonIds, notes, statSort, statSortAsc, trackedMoves]);
+  }, [hiddenPokemonIds, notes, savedPlan, statSort, statSortAsc, trackedMoves]);
 
   const saveDraftPlannerPreferences = useCallback(async (options: { keepalive?: boolean } = {}) => {
     const preferences = getDraftPlannerPreferences();
@@ -420,6 +788,10 @@ export function DraftPlanner({
             if (data.preferences.trackedMoves) setTrackedMoves(data.preferences.trackedMoves);
             if (data.preferences.notes) setNotes(data.preferences.notes);
             if (data.preferences.hiddenPokemonIds) setHiddenPokemonIds(data.preferences.hiddenPokemonIds);
+            if (data.preferences.savedPlan) {
+              setSavedPlan(data.preferences.savedPlan);
+              setPendingPlanRestore(data.preferences.savedPlan);
+            }
           }
         }
     } catch {
@@ -436,9 +808,15 @@ export function DraftPlanner({
       const savedWatchlist = localStorage.getItem("draft-planner-watchlist");
       const savedNotes = localStorage.getItem("draft-planner-notes");
       const savedHiddenPokemon = localStorage.getItem("draft-planner-hidden-pokemon");
+      const savedPlanJson = localStorage.getItem("draft-planner-saved-plan");
       if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
       if (savedNotes) setNotes(JSON.parse(savedNotes));
       if (savedHiddenPokemon) setHiddenPokemonIds(JSON.parse(savedHiddenPokemon));
+      if (savedPlanJson) {
+        const plan = JSON.parse(savedPlanJson) as SavedPlanEntry[];
+        setSavedPlan((current) => current ?? plan);
+        setPendingPlanRestore((current) => current ?? plan);
+      }
     } catch {
       // Local planner notes are optional.
     }
@@ -508,6 +886,21 @@ export function DraftPlanner({
     };
   }, [flushDraftPlannerPreferences]);
 
+  // Restore a saved plan into empty slots (never over a real drafted roster or in-session edits)
+  useEffect(() => {
+    if (!pendingPlanRestore) return;
+    const plan = pendingPlanRestore;
+    setPendingPlanRestore(null);
+    if (initialRoster.length > 0) return;
+    setSlots((prev) => {
+      if (prev.some((slot) => slot.pokemonId)) return prev;
+      return Array(PLANNER_SLOT_COUNT).fill(null).map((_, i) => {
+        const entry = plan[i];
+        return entry ? buildPlannerSlot(entry.pokemonId, entry.pokemonName) : EMPTY_PLANNER_SLOT;
+      });
+    });
+  }, [buildPlannerSlot, initialRoster, pendingPlanRestore]);
+
   // Save preferences
   const savePreferences = async () => {
     setSaveStatus("saving");
@@ -517,6 +910,42 @@ export function DraftPlanner({
       setTimeout(() => setSaveStatus("idle"), 2000);
     } catch {
       setSaveStatus("idle");
+    }
+  };
+
+  // Clear all roster slots. Leaves the saved plan JSON and all analyzer/board
+  // settings untouched.
+  const resetPlan = () => {
+    if (!window.confirm("Clear all roster slots? Your saved plan is not affected.")) return;
+    setSlots(Array(PLANNER_SLOT_COUNT).fill(EMPTY_PLANNER_SLOT));
+  };
+
+  // Save the current roster plan so it reloads next visit (signed-in via
+  // preferences, anonymous via local storage)
+  const savePlan = async () => {
+    const plan: SavedPlanEntry[] = slots
+      .filter((slot) => slot.pokemonId)
+      .map((slot) => ({ pokemonId: slot.pokemonId!, pokemonName: slot.pokemonName }));
+    setSavedPlan(plan);
+    setPlanSaveStatus("saving");
+    try {
+      localStorage.setItem("draft-planner-saved-plan", JSON.stringify(plan));
+    } catch {
+      // Local fallback is best-effort.
+    }
+    try {
+      await fetch("/api/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page: "draft-planner",
+          preferences: { ...getDraftPlannerPreferences(), savedPlan: plan },
+        }),
+      });
+      setPlanSaveStatus("saved");
+      setTimeout(() => setPlanSaveStatus("idle"), 2000);
+    } catch {
+      setPlanSaveStatus("idle");
     }
   };
 
@@ -548,49 +977,7 @@ export function DraftPlanner({
   // Handle slot changes
   function handleSlotChange(index: number, pokemonId: number | null, name: string) {
     const newSlots = [...slots];
-    if (!pokemonId) {
-      newSlots[index] = { pokemonId: null, pokemonName: "", isTeraCaptain: false, price: 0, teraCaptainCost: null, pokemon: null };
-    } else {
-      // Check if this Pokemon is already on the team (from original roster)
-      const originalRoster = initialRoster.find(r => r.pokemonId === pokemonId);
-
-      // Build Pokemon data from allPokemon
-      const pData = allPokemon.find(p => p.id === pokemonId);
-
-      // Get price from season prices, fallback to original roster price, then 0
-      const priceInfo = seasonPrices[pokemonId];
-      const price = originalRoster?.price ?? priceInfo?.price ?? 0;
-      const teraCaptainCost = priceInfo?.teraCaptainCost ?? null;
-
-      newSlots[index] = {
-        pokemonId,
-        pokemonName: name,
-        isTeraCaptain: false,
-        price,
-        teraCaptainCost,
-        pokemon: originalRoster || (pData ? {
-          rosterId: 0,
-          pokemonId: pData.id,
-          name: pData.name,
-          displayName: getPokemonLabel(pData, friendlyMegaNames),
-          spriteUrl: pData.spriteUrl,
-          artworkUrl: pData.artworkUrl || null,
-          types: (pData.types || []) as string[],
-          abilities: (pData.abilities || []) as Ability[],
-          moves: (pData.moves || []) as string[],
-          hp: pData.hp || 0,
-          attack: pData.attack || 0,
-          defense: pData.defense || 0,
-          specialAttack: pData.specialAttack || 0,
-          specialDefense: pData.specialDefense || 0,
-          speed: pData.speed || 0,
-          baseStatTotal: pData.baseStatTotal || 0,
-          price,
-          isTeraCaptain: false,
-          draftOrder: null,
-        } : null),
-      };
-    }
+    newSlots[index] = pokemonId ? buildPlannerSlot(pokemonId, name) : EMPTY_PLANNER_SLOT;
     setSlots(newSlots);
   }
 
@@ -600,48 +987,9 @@ export function DraftPlanner({
       for (let i = 0; i < lines.length && startIndex + i < PLANNER_SLOT_COUNT; i++) {
         const line = lines[i].trim();
         const match = findPokemonMatch(line, allPokemon, { friendlyMegaNames });
-        const slotIdx = startIndex + i;
-
-        if (match) {
-          const originalRoster = initialRoster.find(r => r.pokemonId === match.id);
-          const pData = allPokemon.find(p => p.id === match.id);
-
-          // Get price from season prices, fallback to original roster price, then 0
-          const priceInfo = seasonPrices[match.id];
-          const price = originalRoster?.price ?? priceInfo?.price ?? 0;
-          const teraCaptainCost = priceInfo?.teraCaptainCost ?? null;
-
-          newSlots[slotIdx] = {
-            pokemonId: match.id,
-            pokemonName: getPokemonLabel(match, friendlyMegaNames),
-            isTeraCaptain: false,
-            price,
-            teraCaptainCost,
-            pokemon: originalRoster || (pData ? {
-              rosterId: 0,
-              pokemonId: pData.id,
-              name: pData.name,
-              displayName: getPokemonLabel(pData, friendlyMegaNames),
-              spriteUrl: pData.spriteUrl,
-              artworkUrl: pData.artworkUrl || null,
-              types: (pData.types || []) as string[],
-              abilities: (pData.abilities || []) as Ability[],
-              moves: (pData.moves || []) as string[],
-              hp: pData.hp || 0,
-              attack: pData.attack || 0,
-              defense: pData.defense || 0,
-              specialAttack: pData.specialAttack || 0,
-              specialDefense: pData.specialDefense || 0,
-              speed: pData.speed || 0,
-              baseStatTotal: pData.baseStatTotal || 0,
-              price,
-              isTeraCaptain: false,
-              draftOrder: null,
-            } : null),
-          };
-        } else {
-          newSlots[slotIdx] = { pokemonId: null, pokemonName: line, isTeraCaptain: false, price: 0, teraCaptainCost: null, pokemon: null };
-        }
+        newSlots[startIndex + i] = match
+          ? buildPlannerSlot(match.id, getPokemonLabel(match, friendlyMegaNames))
+          : { ...EMPTY_PLANNER_SLOT, pokemonName: line };
       }
       return newSlots;
     });
@@ -710,29 +1058,42 @@ export function DraftPlanner({
     };
   }, [roster]);
 
-  const teamRoles = useMemo(() => new Set(roster.flatMap((p) => getDraftRoles(p))), [roster]);
+  const teamRoleCounts = useMemo(() => {
+    const counts = new Map<DraftRole, number>();
+    for (const member of roster) {
+      for (const role of getDraftRoles(member)) {
+        counts.set(role, (counts.get(role) || 0) + 1);
+      }
+    }
+    return counts;
+  }, [roster]);
+
+  const teamSpeeds = useMemo(() => roster.map((member) => member.speed).filter((speed) => speed > 0), [roster]);
 
   const draftNeeds = useMemo(() => {
-    const needs: { label: string; met: boolean }[] = [
-      { label: "Hazard Setter", met: teamRoles.has("hazards") },
-      { label: "Hazard Removal", met: teamRoles.has("removal") },
-      { label: "Pivoting", met: teamRoles.has("pivot") },
-      { label: "Priority", met: teamRoles.has("priority") },
-    ];
+    const needs = CHECKLIST_DRAFT_ROLES.map((role) => {
+      const count = teamRoleCounts.get(role) || 0;
+      const label = role === "removal" ? "Hazard Removal" : role === "pivot" ? "Pivoting" : formatRole(role);
+      return { label, role: role as DraftRole, met: count > 0, count };
+    });
 
+    // Same weak/very_weak assessment the analyzer's +/- row shows, worst first
+    const weakCount = (type: string) => typeChart[type]?.multipliers.filter((m) => m > 1).length ?? 0;
     const weakTypes = ALL_TYPES.filter((type) => {
       const overall = typeChart[type]?.overall;
       return overall === "weak" || overall === "very_weak";
-    }).slice(0, 4);
+    }).sort((a, b) => weakCount(b) - weakCount(a));
 
     return {
       roleNeeds: needs,
       missingRoles: needs.filter((need) => !need.met),
       weakTypes,
     };
-  }, [teamRoles, typeChart]);
+  }, [teamRoleCounts, typeChart]);
 
   const candidates = useMemo<CandidatePokemon[]>(() => {
+    const maxSeasonPrice = Math.max(1, ...Object.values(seasonPrices).map((info) => info.price));
+
     return allPokemon.map((p) => {
       const priceInfo = seasonPrices[p.id];
       const price = priceInfo?.price ?? 0;
@@ -740,30 +1101,75 @@ export function DraftPlanner({
       const fitTags: string[] = [];
       let fitScore = 0;
 
+      // League pricing is the best viability proxy in a draft format: scale
+      // need-based points so strong mons that patch a need outrank cheap
+      // filler that happens to carry the same moves.
+      const quality = 0.5 + 0.7 * Math.min(1, price / maxSeasonPrice);
+
+      let missingRolesFilled = 0;
       for (const role of roles) {
         if (!CHECKLIST_DRAFT_ROLE_SET.has(role)) continue;
-        if (!teamRoles.has(role)) {
-          fitScore += 12;
-          fitTags.push(`Fills ${formatRole(role)}`);
-        }
+        const alreadyHave = teamRoleCounts.get(role) || 0;
+        const weight = ROLE_STACK_WEIGHTS[role]?.[alreadyHave] ?? 0;
+        if (weight === 0) continue;
+        if (alreadyHave === 0) missingRolesFilled += 1;
+        fitScore += weight * quality;
+        fitTags.push(`${alreadyHave === 0 ? "Fills" : "Adds"} ${formatRole(role)}`);
       }
-
-      for (const type of p.types || []) {
-        if (draftNeeds.weakTypes.includes(type.toLowerCase())) {
-          fitScore += 8;
-        }
-      }
-
-      if ((p.speed || 0) >= 100 && avgStats.speed < 90) {
-        fitScore += 8;
-      }
-
-      if (price > 0 && openSlots > 0 && price <= Math.max(1, avgRemainingPerSlot)) {
-        fitScore += 6;
-      }
-
-      if (price > 0 && (p.baseStatTotal || 0) / price >= 55) {
+      if (missingRolesFilled >= 2) {
         fitScore += 5;
+        fitTags.push("Role compression");
+      }
+
+      // A weakness is patched by resisting it (ability-aware), not by sharing
+      // the weak type.
+      const abilities = (p.abilities || []) as Ability[];
+      const lowerTypes = (p.types || []).map((t) => t.toLowerCase());
+      let coveredWeaknesses = 0;
+      for (const weakType of draftNeeds.weakTypes) {
+        if (coveredWeaknesses >= 3) break;
+        const multiplier = getDefensiveMultiplier(lowerTypes, weakType, abilities);
+        if (multiplier < 1) {
+          coveredWeaknesses += 1;
+          fitScore += (multiplier === 0 ? 8 : 6) * quality;
+          fitTags.push(`${multiplier === 0 ? "Immune to" : "Resists"} ${formatTypeName(weakType)}`);
+        }
+      }
+
+      const speed = p.speed || 0;
+
+      // Slow team: reward speed, scaled by how fast the mon actually is
+      // (90 Speed earns +2, 130+ earns the full +8).
+      if (avgStats.speed < 90 && speed >= 90) {
+        fitScore += (2 + 6 * Math.min(1, (speed - 90) / 40)) * quality;
+        fitTags.push("Adds speed");
+      }
+
+      // Speed tier diversity: drafts want spread-out tiers. Sub-50 speeds are
+      // all effectively "slow" and don't compete on speed, so they're exempt.
+      if (teamSpeeds.length > 0 && speed >= 50) {
+        const nearestGap = Math.min(...teamSpeeds.map((teamSpeed) => Math.abs(teamSpeed - speed)));
+        if (nearestGap === 0) {
+          fitScore -= 4;
+          fitTags.push("Duplicate speed tier");
+        } else if (nearestGap <= 3) {
+          fitScore -= 2;
+          fitTags.push("Crowded speed tier");
+        } else if (nearestGap >= 10) {
+          fitScore += 4 * quality;
+          fitTags.push("New speed tier");
+        } else if (nearestGap >= 6) {
+          fitScore += 2 * quality;
+          fitTags.push("Fresh speed tier");
+        }
+      }
+
+      // Value bonus: costs no more than the average open slot can take, but
+      // only when the mon already fills a need above — being cheap alone is
+      // not a fit.
+      if (price > 0 && openSlots > 0 && fitScore > 0 && price <= Math.max(1, avgRemainingPerSlot)) {
+        fitScore += 5;
+        fitTags.push("Fits budget");
       }
 
       return {
@@ -772,29 +1178,52 @@ export function DraftPlanner({
         teraCaptainCost: priceInfo?.teraCaptainCost ?? null,
         complexBanReason: priceInfo?.complexBanReason ?? null,
         roles,
-        fitScore,
-        fitTags: Array.from(new Set(fitTags)).slice(0, 4),
+        fitScore: Math.round(fitScore),
+        fitTags: Array.from(new Set(fitTags)).slice(0, 5),
       };
     });
-  }, [allPokemon, avgRemainingPerSlot, avgStats.speed, draftNeeds.weakTypes, openSlots, seasonPrices, teamRoles]);
+  }, [allPokemon, avgRemainingPerSlot, avgStats.speed, draftNeeds.weakTypes, openSlots, seasonPrices, teamRoleCounts, teamSpeeds]);
+
+  // Deferred copies of the high-frequency filter inputs: slider drags and
+  // keystrokes update the controls instantly while the heavy list recompute
+  // lags a frame behind.
+  const deferredSearch = useDeferredValue(candidateSearch);
+  const deferredMaxPrice = useDeferredValue(maxPrice);
+  const deferredMinSpeed = useDeferredValue(minSpeed);
+  const deferredMaxSpeed = useDeferredValue(maxSpeed);
+  const filtersAreStale =
+    deferredSearch !== candidateSearch ||
+    deferredMaxPrice !== maxPrice ||
+    deferredMinSpeed !== minSpeed ||
+    deferredMaxSpeed !== maxSpeed;
 
   const filteredCandidates = useMemo(() => {
-    const search = candidateSearch.trim().toLowerCase();
-    return candidates
+    const search = deferredSearch.trim().toLowerCase();
+    const base = candidates
       .filter((p) => p.price >= 1)
       .filter((p) => !plannedPokemonIds.has(p.id))
       .filter((p) => !hiddenPokemonIds.includes(p.id))
-      .filter((p) => !fitOnly || p.fitScore > 0)
-      .filter((p) => selectedType === "all" || (p.types || []).map((type) => type.toLowerCase()).includes(selectedType))
-      .filter((p) => p.price <= maxPrice)
-      .filter((p) => (p.speed || 0) >= minSpeed)
-      .filter((p) => (p.speed || 0) <= maxSpeed)
+      .filter((p) => !availableOnly || !draftedInSelectedDivision || !draftedInSelectedDivision.has(p.id))
+      .filter((p) => roleFilters.every((role) => p.roles.includes(role)))
+      .filter((p) => moveFilters.every((move) => (p.moves || []).includes(move)))
+      .filter((p) =>
+        resistFilters.every(
+          (type) => getDefensiveMultiplier((p.types || []).map((t) => t.toLowerCase()), type, (p.abilities || []) as Ability[]) < 1
+        )
+      )
+      .filter((p) => isTypeFilters.every((type) => (p.types || []).map((t) => t.toLowerCase()).includes(type)))
+      .filter((p) => strongVsFilters.every((type) => (p.types || []).some((t) => TYPE_CHART[t.toLowerCase()]?.[type] === 2)))
+      .filter((p) => p.price <= deferredMaxPrice)
+      .filter((p) => (p.speed || 0) >= deferredMinSpeed)
+      .filter((p) => (p.speed || 0) <= deferredMaxSpeed)
       .filter((p) => !search || pokemonSearchAliases(p.name, p.displayName, { friendlyMegaNames })
         .concat(p.nameAliases || [])
         .map((alias) => alias.toLowerCase())
-        .some((alias) => alias.includes(search)))
+        .some((alias) => alias.includes(search)));
+
+    return base
       .sort((a, b) => {
-        if (watchlist.includes(a.id) !== watchlist.includes(b.id)) return watchlist.includes(a.id) ? -1 : 1;
+        if (sortByFit && b.fitScore !== a.fitScore) return b.fitScore - a.fitScore;
         if (statFocus !== "none" && b[statFocus] !== a[statFocus]) {
           const statCompare = (b[statFocus] || 0) - (a[statFocus] || 0);
           return statFocusAsc ? -statCompare : statCompare;
@@ -803,7 +1232,7 @@ export function DraftPlanner({
         if (b.fitScore !== a.fitScore) return b.fitScore - a.fitScore;
         return getPokemonLabel(a, friendlyMegaNames).localeCompare(getPokemonLabel(b, friendlyMegaNames));
       });
-  }, [candidateSearch, candidates, fitOnly, friendlyMegaNames, hiddenPokemonIds, maxPrice, maxSpeed, minSpeed, plannedPokemonIds, selectedType, statFocus, statFocusAsc, watchlist]);
+  }, [availableOnly, candidates, deferredMaxPrice, deferredMaxSpeed, deferredMinSpeed, deferredSearch, draftedInSelectedDivision, friendlyMegaNames, hiddenPokemonIds, isTypeFilters, moveFilters, plannedPokemonIds, resistFilters, roleFilters, sortByFit, statFocus, statFocusAsc, strongVsFilters]);
 
   const comparePokemon = useMemo(
     () => compareIds.map((id) => candidates.find((p) => p.id === id)).filter((p): p is CandidatePokemon => Boolean(p)),
@@ -842,30 +1271,99 @@ export function DraftPlanner({
     setTrackedMoves(trackedMoves.filter(m => m !== move));
   }
 
-  function addCandidateToNextSlot(candidate: CandidatePokemon) {
-    const nextOpenSlot = slots.findIndex((slot) => !slot.pokemonId);
-    if (nextOpenSlot === -1) return;
-    handleSlotChange(nextOpenSlot, candidate.id, getPokemonLabel(candidate, friendlyMegaNames));
-  }
+  const addCandidateToNextSlot = useCallback((candidate: SimplePokemon) => {
+    setSlots((prev) => {
+      const nextOpenSlot = prev.findIndex((slot) => !slot.pokemonId);
+      if (nextOpenSlot === -1) return prev;
+      const next = [...prev];
+      next[nextOpenSlot] = buildPlannerSlot(candidate.id, getPokemonLabel(candidate, friendlyMegaNames));
+      return next;
+    });
+  }, [buildPlannerSlot, friendlyMegaNames]);
 
-  function hideCandidate(candidateId: number) {
+  const hideCandidate = useCallback((candidateId: number) => {
     setHiddenPokemonIds((current) => current.includes(candidateId) ? current : [...current, candidateId]);
-  }
+  }, []);
 
-  function toggleWatchlist(pokemonId: number) {
+  const toggleWatchlist = useCallback((pokemonId: number) => {
     setWatchlist((current) =>
       current.includes(pokemonId)
         ? current.filter((id) => id !== pokemonId)
         : [pokemonId, ...current]
     );
+  }, []);
+
+  const moveFilterSuggestions = useMemo(() => {
+    if (!moveFilterSearch.trim()) return [];
+    const search = moveFilterSearch.toLowerCase().replace(/\s+/g, "-");
+    return allMoveNames.filter((m) => m.includes(search) && !moveFilters.includes(m)).slice(0, 8);
+  }, [allMoveNames, moveFilterSearch, moveFilters]);
+
+  function addMoveFilter(move: string) {
+    setMoveFilters((current) => (current.includes(move) ? current : [...current, move]));
+    setMoveFilterSearch("");
+    setShowMoveFilterDropdown(false);
   }
 
-  function toggleCompare(pokemonId: number) {
+  function removeMoveFilter(move: string) {
+    setMoveFilters((current) => current.filter((m) => m !== move));
+  }
+
+  function toggleRoleFilter(role: DraftRole) {
+    setRoleFilters((current) =>
+      current.includes(role) ? current.filter((r) => r !== role) : [...current, role]
+    );
+  }
+
+  function toggleTypeGridFilter(type: string) {
+    const setter =
+      typeFilterMode === "is" ? setIsTypeFilters : typeFilterMode === "resists" ? setResistFilters : setStrongVsFilters;
+    setter((current) =>
+      current.includes(type) ? current.filter((t) => t !== type) : [...current, type]
+    );
+  }
+
+  function toggleResistFilter(type: string) {
+    setResistFilters((current) =>
+      current.includes(type) ? current.filter((t) => t !== type) : [...current, type]
+    );
+  }
+
+  const toggleNoteEditor = useCallback((pokemonId: number) => {
+    setOpenNoteIds((current) =>
+      current.includes(pokemonId) ? current.filter((id) => id !== pokemonId) : [...current, pokemonId]
+    );
+  }, []);
+
+  const saveNote = useCallback((pokemonId: number, value: string) => {
+    const trimmed = value.trim();
+    setNotes((current) => {
+      const next = { ...current };
+      if (trimmed) {
+        next[pokemonId] = trimmed;
+      } else {
+        delete next[pokemonId];
+      }
+      return next;
+    });
+    setOpenNoteIds((current) => current.filter((id) => id !== pokemonId));
+  }, []);
+
+  const deleteNote = useCallback((pokemonId: number) => {
+    setNotes((current) => {
+      const next = { ...current };
+      delete next[pokemonId];
+      return next;
+    });
+    setOpenNoteIds((current) => current.filter((id) => id !== pokemonId));
+  }, []);
+
+  const toggleCompare = useCallback((pokemonId: number) => {
     setCompareIds((current) => {
       if (current.includes(pokemonId)) return current.filter((id) => id !== pokemonId);
       return [...current, pokemonId].slice(-4);
     });
-  }
+  }, []);
 
   async function copyDraftPlan() {
     const rosterLines = slots
@@ -876,6 +1374,14 @@ export function DraftPlanner({
       .filter((p): p is CandidatePokemon => Boolean(p))
       .map((p) => `- ${getPokemonLabel(p, friendlyMegaNames)} (${p.price} pts): ${notes[p.id] || p.fitTags.join(", ")}`);
 
+    const noteLines = Object.entries(notes)
+      .filter(([id, text]) => text.trim() && !watchlist.includes(Number(id)))
+      .map(([id, text]) => {
+        const p = candidates.find((c) => c.id === Number(id));
+        return p ? `- ${getPokemonLabel(p, friendlyMegaNames)}: ${text.trim()}` : null;
+      })
+      .filter((line): line is string => Boolean(line));
+
     const text = [
       `${teamName || "Draft Plan"} (${totalSpent}/${draftBudget} pts)`,
       "",
@@ -884,6 +1390,7 @@ export function DraftPlanner({
       "",
       "Watchlist",
       watchLines.length ? watchLines.join("\n") : "No watchlist picks",
+      ...(noteLines.length ? ["", "Notes", noteLines.join("\n")] : []),
     ].join("\n");
 
     await navigator.clipboard.writeText(text);
@@ -893,30 +1400,30 @@ export function DraftPlanner({
 
   function renderTeamRosterSection() {
     return (
-      <section className="relative shrink-0 overflow-visible">
-        <div className="mb-2 flex items-center gap-3">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[var(--card-border)]" />
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
-            Team Roster
-          </h2>
-          <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--card-border)]" />
-        </div>
-        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
-          <p>Type in a card to add or edit · Paste a list to fill all slots</p>
-          <p className="flex items-center gap-4">
-            <span>
-              Budget <span className="font-mono text-white">{draftBudget}</span>
-            </span>
-            <span>
-              Spent <span className="font-mono text-[var(--accent)]">{totalSpent}</span>
-            </span>
-            <span>
-              Left{" "}
-              <span className={`font-mono ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+      <section className="relative shrink-0 overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-3">
+        <div className="mb-2.5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+          <div>
+            <h2 className="text-sm font-bold text-white">Team Roster</h2>
+            <p className="text-xs text-[var(--foreground-muted)]">
+              Type in a card to add or edit a pick · paste a list to fill all slots
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">Points</p>
+              <p className={`font-mono text-2xl font-bold leading-none ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
                 {remainingBudget}
-              </span>
-            </span>
-          </p>
+              </p>
+            </div>
+            <div className="flex flex-col gap-0.5 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+              <p>
+                Spent <span className="ml-1 font-mono text-xs text-[var(--accent)]">{totalSpent}</span>
+              </p>
+              <p>
+                Total <span className="ml-1 font-mono text-xs text-white">{draftBudget}</span>
+              </p>
+            </div>
+          </div>
         </div>
         {/* Click-away overlay to close ability tooltips */}
         {expandedAbility && (
@@ -928,7 +1435,7 @@ export function DraftPlanner({
             <div
               key={i}
               data-roster-slot
-              className={`relative flex min-w-0 flex-col overflow-visible rounded-lg border bg-[var(--background-secondary)]/50 p-1.5 xl:p-1 ${
+              className={`relative flex min-w-0 flex-col overflow-visible rounded-lg border bg-[var(--background-secondary)]/70 p-1.5 xl:p-1 ${
                 slot.isTeraCaptain
                   ? "border-[var(--accent)]"
                   : slot.pokemon
@@ -936,6 +1443,15 @@ export function DraftPlanner({
                   : "border-dashed border-[var(--background-tertiary)]"
               }`}
             >
+              {slot.pokemon && (slot.pokemon.types?.length ?? 0) > 0 && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 top-0 h-0.5 rounded-t-lg"
+                  style={{
+                    background: `linear-gradient(90deg, ${TYPE_COLORS[slot.pokemon.types[0].toLowerCase()]}, ${TYPE_COLORS[(slot.pokemon.types[1] || slot.pokemon.types[0]).toLowerCase()]})`,
+                  }}
+                />
+              )}
               <div className="mb-1 flex items-center justify-between gap-1">
                 <span className="font-mono text-[10px] text-[var(--foreground-subtle)]">{i + 1}</span>
                 <div className="flex items-center gap-1">
@@ -968,13 +1484,22 @@ export function DraftPlanner({
                 </div>
               </div>
               {slot.pokemon ? (
-                <OptimizedPlannerImage
-                  src={slot.pokemon.spriteUrl}
-                  alt=""
-                  width={48}
-                  height={48}
-                  className="mx-auto h-11 w-11 object-contain scale-125"
-                />
+                <div className="relative mx-auto flex h-16 w-16 items-center justify-center">
+                  {(slot.pokemon.types?.length ?? 0) > 0 && (
+                    <span
+                      aria-hidden
+                      className="absolute inset-1 rounded-full opacity-25 blur-md"
+                      style={{ background: TYPE_COLORS[slot.pokemon.types[0].toLowerCase()] }}
+                    />
+                  )}
+                  <OptimizedPlannerImage
+                    src={slot.pokemon.spriteUrl}
+                    alt=""
+                    width={72}
+                    height={72}
+                    className="relative h-16 w-16 scale-125 object-contain"
+                  />
+                </div>
               ) : (
                 <button
                   type="button"
@@ -982,9 +1507,9 @@ export function DraftPlanner({
                     e.currentTarget.closest("[data-roster-slot]")?.querySelector<HTMLInputElement>("input")?.focus();
                   }}
                   aria-label={`Add Pokemon to slot ${i + 1}`}
-                  className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-[var(--background-tertiary)] text-[var(--foreground-subtle)] transition-colors hover:border-[var(--foreground-subtle)] hover:text-white"
+                  className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-[var(--background-tertiary)] text-[var(--foreground-subtle)] transition-colors hover:border-[var(--foreground-subtle)] hover:text-white sm:h-16 sm:w-16"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-5 w-5" />
                 </button>
               )}
               <div className="mt-1">
@@ -1003,7 +1528,11 @@ export function DraftPlanner({
               </div>
               <div className="mt-1 flex min-h-[20px] flex-wrap content-start items-start justify-center gap-0.5">
                 {(slot.pokemon?.types ?? []).map((t) => (
-                  <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0 text-[10px]`}>
+                  <span
+                    key={t}
+                    className="rounded px-1.5 py-px text-[10px] font-bold text-white"
+                    style={{ backgroundColor: TYPE_COLORS[t.toLowerCase()] }}
+                  >
                     {formatTypeName(t)}
                   </span>
                 ))}
@@ -1066,7 +1595,7 @@ export function DraftPlanner({
     >
       <div className="draft-planner-frame poke-card mx-2 mt-2 flex min-h-[calc(100dvh-1rem)] flex-col overflow-visible p-2 sm:mx-4 sm:p-3">
         {/* Header */}
-        <div className="draft-planner-header mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-[var(--background-tertiary)] pb-2">
+        <div className="draft-planner-header mb-2 flex shrink-0 flex-col gap-2.5 border-b border-[var(--background-tertiary)] pb-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             {coach ? (
               <Link href={`/coaches/${coach.id}`} className="shrink-0 text-[var(--foreground-muted)] hover:text-white transition-colors">
@@ -1096,17 +1625,72 @@ export function DraftPlanner({
               </span>
             </div>
           </div>
-          {/* Save button - desktop only */}
-          <button
-            onClick={savePreferences}
-            disabled={saveStatus === "saving"}
-            className="draft-secondary-button hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--background-tertiary)] hover:bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white rounded transition-colors disabled:opacity-50"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-            </svg>
-            {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Defaults"}
-          </button>
+          <div className={`grid grid-cols-2 gap-1.5 transition-opacity lg:flex lg:flex-wrap lg:items-center ${isNavigating ? "pointer-events-none opacity-50" : ""}`}>
+            <select
+              value={currentSeasonId ?? ""}
+              onChange={(e) => navigateToPreset(coach?.id ?? null, e.target.value ? Number(e.target.value) : null)}
+              aria-label="Season"
+              className="draft-control h-[34px] w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 text-xs text-white lg:w-auto lg:max-w-[10rem]"
+            >
+              {allSeasons.map((season) => (
+                <option key={season.id} value={season.id}>{season.name}</option>
+              ))}
+            </select>
+            <select
+              value={selectedDivisionId}
+              onChange={(e) => setDivisionOverride(e.target.value ? Number(e.target.value) : "")}
+              aria-label="Division"
+              className="draft-control h-[34px] w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 text-xs text-white lg:w-auto lg:max-w-[10rem]"
+            >
+              <option value="">All divisions</option>
+              {divisionOptions.map((division) => (
+                <option key={division.id} value={division.id}>{division.name}</option>
+              ))}
+            </select>
+            <select
+              value={coach?.id ?? ""}
+              onChange={(e) => navigateToPreset(e.target.value ? Number(e.target.value) : null, currentSeasonId)}
+              aria-label="Team"
+              className="draft-control col-span-2 h-[34px] w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 text-xs text-white lg:col-span-1 lg:w-auto lg:max-w-[12rem]"
+            >
+              <option value="">Blank plan</option>
+              {teamOptions.map((team) => (
+                <option key={`${team.coachId}-${team.divisionId}`} value={team.coachId}>{team.teamName}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex shrink-0 items-stretch gap-1.5 lg:flex-col">
+            <button
+              type="button"
+              onClick={savePlan}
+              disabled={planSaveStatus === "saving"}
+              title="Save this roster plan; it loads automatically on your next visit"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--primary)] px-3 py-2 text-xs font-bold text-white transition-colors hover:brightness-110 disabled:opacity-50 sm:px-4 sm:text-sm lg:flex-none"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              {planSaveStatus === "saving" ? "Saving..." : planSaveStatus === "saved" ? "Plan Saved!" : "Save Plan"}
+            </button>
+            <button
+              type="button"
+              onClick={copyDraftPlan}
+              title="Copy your roster and watchlist as text to share"
+              className="draft-secondary-button flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white lg:flex-none"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              {shareStatus === "copied" ? "Copied!" : "Copy Plan"}
+            </button>
+            <button
+              type="button"
+              onClick={resetPlan}
+              title="Clear all roster slots (saved plan and settings stay)"
+              className="flex items-center justify-center gap-1.5 rounded-md px-3 py-1 text-[11px] font-bold text-[var(--foreground-subtle)] transition-colors hover:text-[var(--error)]"
+            >
+              <X className="h-3 w-3" />
+              Reset Plan
+            </button>
+          </div>
         </div>
 
         <div className="mb-2 shrink-0">
@@ -1126,7 +1710,7 @@ export function DraftPlanner({
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--card-border)]" />
         </div>
 
-        <div className="draft-toggle-toolbar mb-2 flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
+        <div className="draft-toggle-toolbar mb-2 flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:hidden">
           <span className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
             <Eye className="h-3.5 w-3.5" />
             View
@@ -1135,8 +1719,8 @@ export function DraftPlanner({
             { label: "Draft Needs", enabled: showNeedsPanel, onClick: () => setShowNeedsPanel(!showNeedsPanel) },
             { label: "Draft Board", enabled: showDraftBoard, onClick: () => setShowDraftBoard(!showDraftBoard) },
             { label: "Compare", enabled: showComparePanel, onClick: () => setShowComparePanel(!showComparePanel) },
-            { label: "Card Notes", enabled: showNotesPanel, onClick: () => setShowNotesPanel(!showNotesPanel) },
-            { label: "Analyzer", enabled: showTeamAnalyzer, onClick: () => setShowTeamAnalyzer(!showTeamAnalyzer) },
+            { label: "Notes", enabled: showNotesPanel, onClick: () => setShowNotesPanel(!showNotesPanel) },
+            { label: "Team Info", enabled: showTeamAnalyzer, onClick: () => setShowTeamAnalyzer(!showTeamAnalyzer) },
           ].map((toggle) => (
             <button
               key={toggle.label}
@@ -1157,90 +1741,122 @@ export function DraftPlanner({
         <div className="draft-planner-content flex min-h-0 flex-col gap-1.5 overflow-visible lg:flex-1 lg:overflow-y-auto lg:pr-1">
         {/* Draft needs and board workspace */}
         {(showNeedsPanel || showDraftBoard) && (
-          <div className="draft-panel flex min-h-0 min-w-0 shrink-0 flex-col overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:overflow-hidden">
+          <div className={`flex min-h-0 min-w-0 shrink-0 flex-col gap-1.5 overflow-visible lg:overflow-hidden ${showNeedsPanel && showDraftBoard ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:items-stretch" : ""}`}>
           {showNeedsPanel && (
-          <div className="draft-needs-bar shrink-0 border-b border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
-            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+          <section className="draft-needs-bar min-w-0 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-3">
+            <div className="mb-2.5">
+              <h2 className="text-sm font-bold text-white">Draft Needs</h2>
+              <p className="text-xs text-[var(--foreground-muted)]">Click a row to filter the draft board</p>
+            </div>
+            <div className="flex flex-col gap-3">
               <div>
-                <h2 className="text-sm font-bold text-white">Draft Needs</h2>
-                <p className="text-xs text-[var(--foreground-muted)]">Budget, roles, and roster gaps</p>
+                <p className="mb-1.5 flex items-baseline justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+                  Roles
+                  <span className="normal-case tracking-normal">
+                    <span className="text-emerald-300">✓ covered</span> · <span className="text-amber-300">+ needed</span>
+                  </span>
+                </p>
+                <ul className="flex flex-col gap-1">
+                  {draftNeeds.roleNeeds.map((need) => {
+                    const isActive = roleFilters.includes(need.role);
+                    return (
+                      <li key={need.label}>
+                        <button
+                          type="button"
+                          onClick={() => toggleRoleFilter(need.role)}
+                          aria-pressed={isActive}
+                          title={isActive ? "Stop filtering by this role" : `Show Pokemon that fill ${need.label}`}
+                          className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-[11px] font-bold transition-shadow ${need.met ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"} ${isActive ? "ring-2 ring-[var(--secondary-light)]" : "hover:ring-1 hover:ring-[var(--foreground-subtle)]"}`}
+                        >
+                          {need.label}
+                          <span>{need.met ? (need.count > 1 ? `✓ ×${need.count}` : "✓") : "+"}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-              <button
-                type="button"
-                onClick={copyDraftPlan}
-                className="draft-secondary-button flex items-center gap-1.5 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2.5 py-1.5 text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white"
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                {shareStatus === "copied" ? "Copied" : "Copy Plan"}
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-              <div className="draft-metric rounded-md bg-[var(--background-secondary)] p-1.5">
-                <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Remaining</p>
-                <p className={`font-mono text-base font-bold ${remainingBudget >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{remainingBudget}</p>
-              </div>
-              <div className="draft-metric rounded-md bg-[var(--background-secondary)] p-1.5">
-                <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Open Slots</p>
-                <p className="font-mono text-base font-bold text-white">{openSlots}</p>
-              </div>
-              <div className="draft-metric rounded-md bg-[var(--background-secondary)] p-1.5">
-                <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Avg Slot</p>
-                <p className="font-mono text-base font-bold text-[var(--accent)]">{openSlots > 0 ? avgRemainingPerSlot : "-"}</p>
-              </div>
-              <div className="draft-metric rounded-md bg-[var(--background-secondary)] p-1.5">
-                <p className="text-[10px] uppercase tracking-wide text-[var(--foreground-subtle)]">Watchlist</p>
-                <p className="font-mono text-base font-bold text-white">{watchlist.length}</p>
-              </div>
-            </div>
-            <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              <div className="draft-subpanel rounded-md border border-[var(--background-tertiary)] p-1.5">
-                <p className="mb-1 text-xs font-bold text-white">Role Checklist</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {draftNeeds.roleNeeds.map((need) => (
-                    <span
-                      key={need.label}
-                      className={`rounded px-2 py-1 text-[10px] font-bold ${need.met ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}
-                    >
-                      {need.met ? "✓" : "+"} {need.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="draft-subpanel rounded-md border border-[var(--background-tertiary)] p-1.5">
-                <p className="mb-1 text-xs font-bold text-white">Weaknesses</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {draftNeeds.weakTypes.length > 0 ? draftNeeds.weakTypes.map((type) => (
-                    <span
-                      key={type}
-                      className="rounded px-2 py-1 text-[10px] font-bold text-white"
-                      style={{ backgroundColor: TYPE_COLORS[type] }}
-                    >
-                      {formatTypeName(type)}
-                    </span>
-                  )) : (
-                    <span className="text-xs text-[var(--foreground-muted)]">No major weaknesses yet</span>
+              <div>
+                <p className="mb-1.5 flex items-baseline justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+                  Team weak to
+                  {draftNeeds.weakTypes.length > 0 && (
+                    <span className="normal-case tracking-normal">×N = weak members</span>
                   )}
-                  {draftNeeds.missingRoles.length === 0 && (
-                    <span className="rounded bg-emerald-500/15 px-2 py-1 text-[10px] font-bold text-emerald-300">Core roles covered</span>
-                  )}
-                </div>
+                </p>
+                {roster.length === 0 ? (
+                  <p className="text-xs text-[var(--foreground-muted)]">Add picks to your roster to see coverage gaps</p>
+                ) : draftNeeds.weakTypes.length > 0 ? (
+                  <ul className="flex flex-col gap-1">
+                    {draftNeeds.weakTypes.map((type) => {
+                      const weakCount = typeChart[type]?.multipliers.filter((m) => m > 1).length ?? 0;
+                      const isActive = resistFilters.includes(type);
+                      return (
+                        <li key={type}>
+                          <button
+                            type="button"
+                            onClick={() => toggleResistFilter(type)}
+                            aria-pressed={isActive}
+                            title={isActive ? `Stop filtering by ${formatTypeName(type)} resists` : `Show Pokemon that resist ${formatTypeName(type)}`}
+                            className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-[11px] font-bold text-white transition-shadow ${isActive ? "ring-2 ring-white/80" : "hover:ring-1 hover:ring-white/50"}`}
+                            style={{ backgroundColor: TYPE_COLORS[type] }}
+                          >
+                            {formatTypeName(type)}
+                            <span className="opacity-80">×{weakCount}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="flex items-center justify-between rounded bg-emerald-500/15 px-2 py-1.5 text-[11px] font-bold text-emerald-300">
+                    No major weaknesses
+                    <span>✓</span>
+                  </p>
+                )}
               </div>
             </div>
-          </div>
+          </section>
           )}
 
           {showDraftBoard && (
-          <div className="draft-board-panel flex min-h-0 flex-col bg-[var(--card)] p-1.5 lg:flex-1">
-            <div className="mb-1.5 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <section className="draft-board-panel flex min-h-0 min-w-0 flex-col rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-3 lg:overflow-hidden">
+            <div className="mb-2.5 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
               <div>
                 <h2 className="text-sm font-bold text-white">Draft Board</h2>
                 <p className="text-xs text-[var(--foreground-muted)]">Filter, compare, watchlist, and add picks</p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
-                <span className="flex items-center gap-1.5">
-                  <Filter className="h-3.5 w-3.5" />
-                  {filteredCandidates.length} shown
-                </span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAvailableOnly(!availableOnly)}
+                  role="switch"
+                  aria-checked={availableOnly}
+                  disabled={selectedDivisionId === ""}
+                  title={
+                    selectedDivisionId === ""
+                      ? "Pick a division in the page header first"
+                      : "Hide Pokemon already drafted in the selected division"
+                  }
+                  className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${availableOnly ? "text-emerald-300" : "text-[var(--foreground-subtle)] hover:text-white"}`}
+                >
+                  <span className={`relative h-3.5 w-6 shrink-0 rounded-full transition-colors ${availableOnly ? "bg-emerald-500/70" : "bg-[var(--background-tertiary)]"}`}>
+                    <span className={`absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white transition-all ${availableOnly ? "left-3" : "left-0.5"}`} />
+                  </span>
+                  Available only
+                </button>
+                <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+                  <span className="flex items-center gap-1.5">
+                    <Filter className="h-3 w-3" />
+                    Showing <span className="font-mono text-white">{filteredCandidates.length}</span>
+                  </span>
+                  <span>
+                    Open slots <span className="font-mono text-white">{openSlots}</span>
+                  </span>
+                  <span>
+                    Avg pts/slot{" "}
+                    <span className="font-mono text-[var(--accent)]">{openSlots > 0 ? avgRemainingPerSlot : "-"}</span>
+                  </span>
+                </p>
                 <button
                   type="button"
                   onClick={() => setShowFitExplanation((current) => !current)}
@@ -1252,91 +1868,312 @@ export function DraftPlanner({
               </div>
             </div>
 
-            <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-1.5 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-              <label className="relative md:col-span-2 xl:col-span-1">
-                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--foreground-subtle)]" />
-                <input
-                  value={candidateSearch}
-                  onChange={(e) => setCandidateSearch(e.target.value)}
-                  placeholder="Search Pokemon"
-                  className="draft-control w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] py-1.5 pl-7 pr-2 text-sm text-white placeholder:text-[var(--foreground-subtle)]"
-                />
-              </label>
-              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="draft-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
-                <option value="all">All types</option>
-                {ALL_TYPES.map((type) => <option key={type} value={type}>{formatTypeName(type)}</option>)}
-              </select>
-              <select value={statFocus} onChange={(e) => setStatFocus(e.target.value as StatFocus)} className="draft-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm text-white">
-                <option value="none">No stat focus</option>
-                <option value="price">Points</option>
-                <option value="hp">HP</option>
-                <option value="attack">Attack</option>
-                <option value="defense">Defense</option>
-                <option value="specialAttack">Sp. Atk</option>
-                <option value="specialDefense">Sp. Def</option>
-                <option value="speed">Speed</option>
-                <option value="baseStatTotal">BST</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => setStatFocusAsc((current) => !current)}
-                disabled={statFocus === "none"}
-                className="draft-secondary-button rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                title="Toggle stat focus sort direction"
-              >
-                {statFocusAsc ? "Asc" : "Desc"}
-              </button>
-            </div>
-
-            <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
-              <label className="draft-range-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
-                <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Price: {maxPrice}</span>
-                <input type="range" min="0" max="19" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full" />
-              </label>
-              <label className="draft-range-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
-                <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Min Speed: {minSpeed}</span>
-                <input type="range" min="0" max="160" step="5" value={minSpeed} onChange={(e) => setMinSpeed(Math.min(Number(e.target.value), maxSpeed))} className="w-full" />
-              </label>
-              <label className="draft-range-control rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1.5">
-                <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Max Speed: {maxSpeed}</span>
-                <input type="range" min="0" max="160" step="5" value={maxSpeed} onChange={(e) => setMaxSpeed(Math.max(Number(e.target.value), minSpeed))} className="w-full" />
-              </label>
-              <button type="button" onClick={() => setFitOnly(!fitOnly)} className={`draft-secondary-button flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-bold transition-colors ${fitOnly ? "is-warm border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent)]" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}>
-                <Star className="h-4 w-4" />
-                Fits team
-              </button>
-              <button
-                type="button"
-                onClick={() => setHiddenPokemonIds([])}
-                disabled={hiddenPokemonIds.length === 0}
-                className="draft-secondary-button flex items-center justify-center gap-2 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-sm font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Show hidden
-                {hiddenPokemonIds.length > 0 && (
-                  <span className="rounded bg-[var(--background)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--accent)]">
-                    {hiddenPokemonIds.length}
-                  </span>
-                )}
-              </button>
-            </div>
-
+            <div className="flex min-h-0 flex-col gap-3 lg:grid lg:flex-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+              <aside className="flex shrink-0 flex-col gap-3 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">Search</p>
+                  <label className="relative block">
+                    <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--foreground-subtle)]" />
+                    <input
+                      value={candidateSearch}
+                      onChange={(e) => setCandidateSearch(e.target.value)}
+                      placeholder="Search Pokemon"
+                      className="draft-control h-[34px] w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] pl-7 pr-2 text-sm text-white placeholder:text-[var(--foreground-subtle)]"
+                    />
+                  </label>
+                </div>
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">Sort</p>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={statFocus}
+                      onChange={(e) => {
+                        setStatFocus(e.target.value as StatFocus);
+                        if (e.target.value !== "none") setSortByFit(false);
+                      }}
+                      className="draft-control h-[34px] min-w-0 flex-1 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 text-sm text-white"
+                    >
+                      <option value="none">No stat focus</option>
+                      <option value="price">Points</option>
+                      <option value="hp">HP</option>
+                      <option value="attack">Attack</option>
+                      <option value="defense">Defense</option>
+                      <option value="specialAttack">Sp. Atk</option>
+                      <option value="specialDefense">Sp. Def</option>
+                      <option value="speed">Speed</option>
+                      <option value="baseStatTotal">BST</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setStatFocusAsc((current) => !current)}
+                      disabled={statFocus === "none"}
+                      className="draft-secondary-button h-[34px] shrink-0 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2.5 text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Toggle stat focus sort direction"
+                    >
+                      {statFocusAsc ? "Asc" : "Desc"}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">Filters</p>
+                  <div className="flex flex-col gap-1.5">
+                    {(roleFilters.length > 0 || resistFilters.length > 0 || moveFilters.length > 0 || isTypeFilters.length > 0 || strongVsFilters.length > 0) && (
+                      <div className="flex flex-wrap gap-1">
+                        {roleFilters.map((role) => (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => toggleRoleFilter(role)}
+                            title="Remove filter"
+                            className="flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] font-bold text-emerald-300 transition-colors hover:text-white"
+                          >
+                            {formatRole(role)}
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        ))}
+                        {isTypeFilters.map((type) => (
+                          <button
+                            key={`is-${type}`}
+                            type="button"
+                            onClick={() => setIsTypeFilters((current) => current.filter((t) => t !== type))}
+                            title="Remove filter"
+                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-bold text-white transition-opacity hover:opacity-80"
+                            style={{ backgroundColor: TYPE_COLORS[type] }}
+                          >
+                            {formatTypeName(type)}
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        ))}
+                        {strongVsFilters.map((type) => (
+                          <button
+                            key={`strong-${type}`}
+                            type="button"
+                            onClick={() => setStrongVsFilters((current) => current.filter((t) => t !== type))}
+                            title="Remove filter"
+                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-bold text-white transition-opacity hover:opacity-80"
+                            style={{ backgroundColor: TYPE_COLORS[type] }}
+                          >
+                            Strong vs {formatTypeName(type)}
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        ))}
+                        {resistFilters.map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => toggleResistFilter(type)}
+                            title="Remove filter"
+                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-bold text-white transition-opacity hover:opacity-80"
+                            style={{ backgroundColor: TYPE_COLORS[type] }}
+                          >
+                            Resists {formatTypeName(type)}
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        ))}
+                        {moveFilters.map((move) => (
+                          <button
+                            key={move}
+                            type="button"
+                            onClick={() => removeMoveFilter(move)}
+                            title="Remove filter"
+                            className="flex items-center gap-1 rounded border border-[var(--background-tertiary)] bg-[var(--background)] px-1.5 py-1 text-[10px] font-bold capitalize text-white transition-colors hover:border-[var(--foreground-subtle)]"
+                          >
+                            {moveTypes[move] && (
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: TYPE_COLORS[moveTypes[move]] }} />
+                            )}
+                            {move.replace(/-/g, " ")}
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="rounded-md bg-[var(--background-secondary)] p-2">
+                      <div className="mb-1.5 grid grid-cols-3 gap-0.5 rounded bg-[var(--background)] p-0.5">
+                        {([
+                          { value: "is", label: "Is type" },
+                          { value: "resists", label: "Resists" },
+                          { value: "strong", label: "Strong vs" },
+                        ] as const).map((mode) => (
+                          <button
+                            key={mode.value}
+                            type="button"
+                            onClick={() => setTypeFilterMode(mode.value)}
+                            aria-pressed={typeFilterMode === mode.value}
+                            className={`rounded px-1 py-1 text-[10px] font-bold transition-colors ${
+                              typeFilterMode === mode.value
+                                ? "bg-[var(--background-tertiary)] text-white"
+                                : "text-[var(--foreground-subtle)] hover:text-white"
+                            }`}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {ALL_TYPES.map((type) => {
+                          const activeSet =
+                            typeFilterMode === "is" ? isTypeFilters : typeFilterMode === "resists" ? resistFilters : strongVsFilters;
+                          const isSelected = activeSet.includes(type);
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => toggleTypeGridFilter(type)}
+                              aria-pressed={isSelected}
+                              title={
+                                typeFilterMode === "is"
+                                  ? `Show ${formatTypeName(type)}-type Pokemon`
+                                  : typeFilterMode === "resists"
+                                  ? `Show Pokemon that resist ${formatTypeName(type)}`
+                                  : `Show Pokemon that hit ${formatTypeName(type)} super-effectively`
+                              }
+                              className={`rounded px-1 py-1 text-[10px] font-bold text-white transition-shadow ${
+                                isSelected ? "ring-2 ring-white/80" : "hover:ring-1 hover:ring-white/50"
+                              }`}
+                              style={{ backgroundColor: TYPE_COLORS[type] }}
+                            >
+                              {formatTypeName(type)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={moveFilterSearch}
+                        onChange={(e) => {
+                          setMoveFilterSearch(e.target.value);
+                          setShowMoveFilterDropdown(true);
+                        }}
+                        onFocus={() => setShowMoveFilterDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowMoveFilterDropdown(false), 150)}
+                        placeholder="Filter by move..."
+                        className="draft-control h-[34px] w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 text-sm text-white placeholder:text-[var(--foreground-subtle)]"
+                      />
+                      {showMoveFilterDropdown && moveFilterSuggestions.length > 0 && (
+                        <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-lg">
+                          {moveFilterSuggestions.map((move) => {
+                            const moveType = moveTypes[move];
+                            return (
+                              <button
+                                key={move}
+                                type="button"
+                                onMouseDown={() => addMoveFilter(move)}
+                                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px] hover:bg-[var(--background-tertiary)]"
+                              >
+                                {moveType && (
+                                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: TYPE_COLORS[moveType] }} />
+                                )}
+                                <span className="capitalize text-white">{move.replace(/-/g, " ")}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div className="rounded-md bg-[var(--background-secondary)] px-2.5 py-2">
+                      <span className="mb-1.5 flex items-center justify-between text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+                        Max price <span className="font-mono text-xs text-white">{maxPrice}</span>
+                      </span>
+                      <div className="draft-range-dual relative h-4">
+                        <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded bg-[var(--background-tertiary)]" />
+                        <div
+                          className="absolute top-1/2 h-1 -translate-y-1/2 rounded bg-[var(--primary)]"
+                          style={{ left: 0, right: `${100 - (maxPrice / 19) * 100}%` }}
+                        />
+                        <input
+                          type="range"
+                          min="0"
+                          max="19"
+                          value={maxPrice}
+                          onChange={(e) => setMaxPrice(Number(e.target.value))}
+                          aria-label="Maximum price"
+                        />
+                      </div>
+                    </div>
+                    <div className="rounded-md bg-[var(--background-secondary)] px-2.5 py-2">
+                      <span className="mb-1.5 flex items-center justify-between text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+                        Speed range <span className="font-mono text-xs text-white">{minSpeed}–{maxSpeed}</span>
+                      </span>
+                      <div className="draft-range-dual relative h-4">
+                        <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded bg-[var(--background-tertiary)]" />
+                        <div
+                          className="absolute top-1/2 h-1 -translate-y-1/2 rounded bg-[var(--primary)]"
+                          style={{ left: `${(minSpeed / 160) * 100}%`, right: `${100 - (maxSpeed / 160) * 100}%` }}
+                        />
+                        <input
+                          type="range"
+                          min="0"
+                          max="160"
+                          step="5"
+                          value={minSpeed}
+                          onChange={(e) => setMinSpeed(Math.min(Number(e.target.value), maxSpeed))}
+                          aria-label="Minimum speed"
+                        />
+                        <input
+                          type="range"
+                          min="0"
+                          max="160"
+                          step="5"
+                          value={maxSpeed}
+                          onChange={(e) => setMaxSpeed(Math.max(Number(e.target.value), minSpeed))}
+                          aria-label="Maximum speed"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!sortByFit) setStatFocus("none");
+                          setSortByFit(!sortByFit);
+                        }}
+                        aria-pressed={sortByFit}
+                        title="Sort the board by FIT score"
+                        className={`draft-secondary-button flex h-[34px] items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-bold transition-colors ${sortByFit ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white"}`}
+                      >
+                        <Star className="h-3.5 w-3.5" />
+                        Sort by FIT
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHiddenPokemonIds([])}
+                        disabled={hiddenPokemonIds.length === 0}
+                        className="draft-secondary-button flex h-[34px] items-center justify-center gap-1.5 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Show hidden
+                        {hiddenPokemonIds.length > 0 && (
+                          <span className="rounded bg-[var(--background)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--accent)]">
+                            {hiddenPokemonIds.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+              <div className="flex min-h-0 flex-col gap-2 lg:relative">
+            <div className="contents lg:absolute lg:inset-0 lg:flex lg:min-h-0 lg:flex-col lg:gap-2">
             {showFitExplanation && (
-              <div className="draft-subpanel mb-1.5 shrink-0 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground-muted)]">
+              <div className="draft-subpanel shrink-0 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground-muted)]">
                 <p>
-                  <span className="font-bold text-white">Fits team</span> shows Pokemon with a FIT score above 0. FIT is a planning helper, not an official draft rule.
+                  <span className="font-bold text-white">FIT</span> scores how well a Pokemon addresses your team&apos;s current gaps — sort by FIT or click the Draft Needs rows to hunt with it. It is a planning helper, not an official draft rule.
                 </p>
                 <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+12 fills a missing role: hazards, removal, pivot, or priority.</div>
-                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+8 helps cover one of your current weak types.</div>
-                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+8 has 100+ Speed when your team average Speed is under 90.</div>
-                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+6 fits your average remaining points per open slot.</div>
-                  <div className="rounded bg-[var(--background)]/60 px-2 py-1 sm:col-span-2">+5 has strong stat value for its price: base stat total divided by price is at least 55.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">Role points × quality, tiered by need: Stealth Rock and removal earn 10/5/2 for the 1st/2nd/3rd provider; pivot, priority, Spikes, and Toxic Spikes earn 8/4 for up to two; Sticky Web earns 5 for the first only.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+5 for filling two or more missing roles at once (role compression).</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+6 × quality per weak type it resists (+8 if immune), counting up to three.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+2 to +8 × quality for 90+ Speed when your team average Speed is under 90 — faster earns more.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+4 × quality for a new speed tier (10+ from every teammate), +2 × quality when 6–9 away; −2 when within 3 of a teammate&apos;s tier, −4 for an exact duplicate. Speeds under 50 are exempt.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">+5 when it already fills a need above and costs no more than your average remaining points per open slot.</div>
+                  <div className="rounded bg-[var(--background)]/60 px-2 py-1">Quality scales from 0.5× to 1.2× with league price, so strong Pokemon that patch a need outrank cheap filler with the same moves.</div>
                 </div>
               </div>
             )}
 
             {showComparePanel && comparePokemon.length > 0 && (
-              <div className="mb-2 shrink-0 overflow-x-auto rounded-md border border-[var(--background-tertiary)]">
+              <div className="shrink-0 overflow-x-auto rounded-md border border-[var(--background-tertiary)]">
                 <table className="w-full min-w-[520px] text-xs">
                   <thead>
                     <tr className="bg-[var(--background-secondary)] text-[var(--foreground-muted)]">
@@ -1369,81 +2206,72 @@ export function DraftPlanner({
               </div>
             )}
 
-            <div className="draft-candidate-grid grid min-h-[260px] max-h-[52dvh] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:min-h-0 lg:flex-1 xl:grid-cols-3">
-              {filteredCandidates.map((candidate) => {
-                const isPlanned = plannedPokemonIds.has(candidate.id);
-                const isWatched = watchlist.includes(candidate.id);
-                const isCompared = compareIds.includes(candidate.id);
-                return (
-                  <div key={candidate.id} className={`draft-candidate-card min-w-0 rounded-lg border p-2 ${isPlanned ? "is-planned border-[var(--accent)]/50 bg-[var(--accent)]/10" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)]"}`}>
-                    <div className="mb-1.5 flex items-start gap-2">
-                      <div className="draft-candidate-sprite">
-                        <OptimizedPlannerImage src={candidate.spriteUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <Link href={`/pokemon/${candidate.id}`} className="break-words text-sm font-bold text-white hover:text-[var(--primary)]">
-                            {getPokemonLabel(candidate, friendlyMegaNames)}
-                          </Link>
-                          <span className="draft-price-pill shrink-0 rounded bg-[var(--background)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--accent)]">{candidate.price}</span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {(candidate.types || []).map((type) => (
-                            <span key={type} className={`type-badge type-${type.toLowerCase()} px-1 py-0 text-[10px]`}>{formatTypeName(type)}</span>
-                          ))}
-                          {candidate.complexBanReason && (
-                            <span
-                              className="rounded border border-[var(--warning)]/30 bg-[var(--warning)]/20 px-1 py-0 text-[10px] font-bold text-[var(--warning)]"
-                              title={`No ${candidate.complexBanReason}`}
-                            >
-                              No {candidate.complexBanReason}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {candidate.fitTags.length > 0 && (
-                      <div className="mb-1.5 flex flex-wrap gap-1">
-                        {candidate.fitTags.map((tag) => (
-                          <span key={tag} className="draft-fit-tag rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mb-1.5 grid grid-cols-3 gap-1 text-center text-[10px]">
-                      <div className="draft-mini-stat rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">SPE</span><span className="font-bold text-white">{candidate.speed || 0}</span></div>
-                      <div className="draft-mini-stat rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">BST</span><span className="font-bold text-white">{candidate.baseStatTotal || 0}</span></div>
-                      <div className="draft-mini-stat rounded bg-[var(--background)] p-1"><span className="block text-[var(--foreground-subtle)]">FIT</span><span className="font-bold text-white">{candidate.fitScore}</span></div>
-                    </div>
-                    {showNotesPanel && (isWatched || notes[candidate.id]) && (
-                      <textarea
-                        value={notes[candidate.id] || ""}
-                        onChange={(e) => setNotes((current) => ({ ...current, [candidate.id]: e.target.value }))}
-                        placeholder="Watchlist notes"
-                        className="draft-control mb-1.5 h-12 w-full resize-none rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-subtle)]"
-                      />
-                    )}
-                    <div className={`grid gap-1 ${showComparePanel ? "grid-cols-4" : "grid-cols-3"}`}>
-                      <button type="button" onClick={() => toggleWatchlist(candidate.id)} title={isWatched ? "Remove from watchlist" : "Add to watchlist"} className={`draft-card-action flex min-w-0 items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isWatched ? "is-watched bg-[var(--accent)] text-black" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
-                        <Star className={`h-3 w-3 shrink-0 ${isWatched ? "fill-current" : ""}`} />
-                        {isWatched ? "Saved" : "Watch"}
-                      </button>
-                      {showComparePanel && (
-                        <button type="button" onClick={() => toggleCompare(candidate.id)} className={`draft-card-action min-w-0 rounded px-1.5 py-1.5 text-[11px] font-bold leading-tight transition-colors sm:px-2 sm:text-xs ${isCompared ? "is-compared bg-sky-500/20 text-sky-200" : "bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}>
-                          Compare
-                        </button>
-                      )}
-                      <button type="button" disabled={openSlots === 0 || isPlanned} onClick={() => addCandidateToNextSlot(candidate)} className="draft-card-action is-primary min-w-0 rounded bg-[var(--primary)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:text-xs">
-                        Add
-                      </button>
-                      <button type="button" onClick={() => hideCandidate(candidate.id)} className="draft-card-action min-w-0 rounded bg-[var(--background)] px-1.5 py-1.5 text-[11px] font-bold leading-tight text-[var(--foreground-muted)] transition-colors hover:text-white sm:px-2 sm:text-xs">
-                        Hide
-                      </button>
-                    </div>
+            <div
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                if (el.scrollTop + el.clientHeight > el.scrollHeight - 600) {
+                  setVisibleRowCount((current) =>
+                    current >= filteredCandidates.length ? current : current + 120
+                  );
+                }
+              }}
+              className={`draft-candidate-grid flex min-h-[260px] max-h-[52dvh] flex-col gap-1 overflow-y-auto pr-1 transition-opacity lg:max-h-none lg:min-h-0 lg:flex-1 ${filtersAreStale ? "opacity-60" : ""}`}
+            >
+              {/* Column header (desktop) */}
+              <div className="sticky top-0 z-10 hidden shrink-0 grid-cols-[2.25rem_minmax(0,1fr)_7.5rem_9rem_3rem_10.5rem] items-center gap-2 border-b border-[var(--background-tertiary)] bg-[var(--card)] px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)] sm:grid">
+                <span />
+                <span>Pokemon</span>
+                <span>Type</span>
+                <span className="grid grid-cols-3 text-center">
+                  <span>SPE</span>
+                  <span>BST</span>
+                  <span>FIT</span>
+                </span>
+                <span className="text-center">Pts</span>
+                <span className="text-right">Actions</span>
+              </div>
+              {filteredCandidates.slice(0, visibleRowCount).map((candidate, index, visible) => (
+                <Fragment key={candidate.id}>
+                {statFocus === "none" && !sortByFit && (index === 0 || visible[index - 1].price !== candidate.price) && (
+                  <div className="flex shrink-0 items-center gap-2 px-2 pb-1 pt-2.5">
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--accent)]">
+                      {candidate.price} pts
+                    </span>
+                    <span className="h-px flex-1 bg-gradient-to-r from-[var(--background-tertiary)] to-transparent" />
                   </div>
-                );
-              })}
+                )}
+                <CandidateRow
+                  candidate={candidate}
+                  isPlanned={plannedPokemonIds.has(candidate.id)}
+                  draftedBy={draftedInSelectedDivision?.get(candidate.id) ?? null}
+                  isWatched={watchlist.includes(candidate.id)}
+                  isCompared={compareIds.includes(candidate.id)}
+                  note={notes[candidate.id]}
+                  isNoteOpen={openNoteIds.includes(candidate.id)}
+                  showNotesPanel={showNotesPanel}
+                  showComparePanel={showComparePanel}
+                  canAdd={openSlots > 0}
+                  friendlyMegaNames={friendlyMegaNames}
+                  onToggleWatchlist={toggleWatchlist}
+                  onToggleCompare={toggleCompare}
+                  onAdd={addCandidateToNextSlot}
+                  onHide={hideCandidate}
+                  onToggleNote={toggleNoteEditor}
+                  onSaveNote={saveNote}
+                  onDeleteNote={deleteNote}
+                />
+                </Fragment>
+              ))}
+              {visibleRowCount < filteredCandidates.length && (
+                <p className="shrink-0 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+                  Showing first {visibleRowCount} of {filteredCandidates.length} — scroll to load more
+                </p>
+              )}
             </div>
-          </div>
+            </div>
+            </div>
+            </div>
+          </section>
           )}
           </div>
         )}
@@ -1451,9 +2279,22 @@ export function DraftPlanner({
         {/* Team analyzer */}
         {showTeamAnalyzer && (
         <section className="draft-analyzer-panel w-full shrink-0 overflow-visible rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:overflow-hidden">
-          <div className="draft-panel-header border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
-            <h3 className="font-bold text-sm text-white">Team Analyzer</h3>
-            <p className="text-[11px] text-[var(--foreground-muted)]">Type chart, stats, and move coverage</p>
+          <div className="draft-panel-header flex flex-wrap items-center justify-between gap-2 border-b border-[var(--background-tertiary)] bg-[var(--card)] p-2">
+            <div>
+              <h3 className="font-bold text-sm text-white">Team Info</h3>
+              <p className="text-[11px] text-[var(--foreground-muted)]">Type chart, stats, and move coverage</p>
+            </div>
+            <button
+              onClick={savePreferences}
+              disabled={saveStatus === "saving"}
+              title="Save your stat sort, tracked moves, notes, and hidden Pokemon as defaults"
+              className="draft-secondary-button flex items-center gap-1.5 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2.5 py-1.5 text-xs font-bold text-[var(--foreground-muted)] transition-colors hover:text-white disabled:opacity-50"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Defaults"}
+            </button>
           </div>
         <div className="flex min-h-0 flex-col overflow-visible p-1.5 lg:max-h-[72dvh] lg:overflow-hidden">
           <div className="overflow-visible pr-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
@@ -1464,14 +2305,14 @@ export function DraftPlanner({
             )}
             {/* Type Chart | Stats | Moves - stacked on mobile, side by side on desktop */}
             {roster.length > 0 && (
-            <div className={`flex min-h-0 flex-col gap-2 transition-opacity duration-200 ${prefsLoaded ? "opacity-100" : "opacity-0"}`}>
+            <div className="flex min-h-0 flex-col gap-2 lg:flex-row lg:items-stretch">
           {/* Type Chart - Mobile (transposed: types as rows, Pokemon as columns) */}
           <div className="w-full overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:hidden">
-            <table className="w-full min-w-[560px] table-fixed text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+            <table className="table-fixed text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
               <colgroup>
                 <col style={{ width: "32px" }} />
                 {roster.map((_, idx) => (
-                  <col key={idx} />
+                  <col key={idx} style={{ width: "26px" }} />
                 ))}
                 <col style={{ width: "24px" }} />
                 <col style={{ width: "20px" }} />
@@ -1533,8 +2374,8 @@ export function DraftPlanner({
           </div>
 
           {/* Type Chart - Desktop (original: Pokemon as rows, types as columns) - 45% of row */}
-          <div className="hidden overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:block lg:min-h-0">
-            <table className="w-full min-w-[620px] table-fixed text-[10px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
+          <div className="hidden overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:block lg:min-h-[280px] lg:min-w-0 lg:flex-[4.5]">
+            <table className="w-full min-w-[560px] table-fixed text-[10px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
               <colgroup>
                 <col style={{ width: "24px" }} />
                 {ALL_TYPES.map((_, i) => <col key={i} />)}
@@ -1634,7 +2475,7 @@ export function DraftPlanner({
               </select>
               <button onClick={() => setStatSortAsc(!statSortAsc)} className="text-[14px] text-[var(--foreground-muted)] hover:text-white transition-colors px-1">{statSortAsc ? "↑" : "↓"}</button>
             </div>
-            <table className="w-full min-w-[520px] text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+            <table className="w-full table-fixed text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
               <thead>
                 <tr className="text-[var(--foreground-muted)]">
                   <th className="text-left px-1 py-1.5 font-normal bg-[var(--background-secondary)] rounded w-7"></th>
@@ -1665,7 +2506,7 @@ export function DraftPlanner({
               </tbody>
             </table>
             {roster.length > 0 && (
-              <table className="mt-2 w-full min-w-[520px] border-t border-[var(--background-tertiary)] pt-2 text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
+              <table className="mt-2 w-full table-fixed border-t border-[var(--background-tertiary)] pt-2 text-[10px]" style={{ borderSpacing: "2px", borderCollapse: "separate" }}>
                 <tbody>
                   <tr>
                     <td className="w-7 rounded bg-[var(--background-secondary)] px-0.5 py-1.5 text-[10px] text-[var(--foreground-muted)]">Avg</td>
@@ -1683,7 +2524,7 @@ export function DraftPlanner({
           </div>
 
           {/* Stats Table - Desktop - 30% of row */}
-          <div className="hidden flex-col overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:flex lg:min-h-0">
+          <div className="hidden flex-col overflow-x-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:flex lg:min-h-[280px] lg:min-w-0 lg:flex-[3]">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs text-[var(--foreground-muted)]">SORT:</span>
               <select value={statSort} onChange={(e) => setStatSort(e.target.value as typeof statSort)} className="rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-1.5 py-0.5 text-xs text-white">
@@ -1697,7 +2538,7 @@ export function DraftPlanner({
               </select>
               <button onClick={() => setStatSortAsc(!statSortAsc)} className="px-1 text-sm text-[var(--foreground-muted)] transition-colors hover:text-white">{statSortAsc ? "↑" : "↓"}</button>
             </div>
-            <table className="w-full min-w-[480px] table-fixed text-[11px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
+            <table className="w-full min-w-[380px] table-fixed text-[11px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
               <colgroup>
                 <col style={{ width: "30%" }} />
                 <col /><col /><col /><col /><col /><col /><col />
@@ -1730,7 +2571,7 @@ export function DraftPlanner({
               </tbody>
             </table>
             {roster.length > 0 && (
-              <table className="mt-auto w-full min-w-[480px] table-fixed pt-1.5 text-[11px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
+              <table className="mt-auto w-full min-w-[380px] table-fixed pt-1.5 text-[11px]" style={{ borderSpacing: "1px", borderCollapse: "separate" }}>
                 <colgroup>
                   <col style={{ width: "30%" }} />
                   <col /><col /><col /><col /><col /><col /><col />
@@ -1751,29 +2592,8 @@ export function DraftPlanner({
             )}
           </div>
 
-          {/* Divider with Save button - mobile only */}
-          <div className="lg:hidden flex items-center gap-3 py-2">
-            <div className="flex-1 border-t border-[var(--background-tertiary)]" />
-            <button
-              onClick={savePreferences}
-              disabled={saveStatus === "saving"}
-              className="draft-secondary-button flex shrink-0 items-center gap-1.5 rounded bg-[var(--background-tertiary)] px-2 py-1.5 text-[11px] text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-secondary)] hover:text-white disabled:opacity-50 sm:px-3 sm:text-xs"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-              </svg>
-              <span className="sm:hidden">
-                {saveStatus === "saving" ? "Saving" : saveStatus === "saved" ? "Saved" : "Save"}
-              </span>
-              <span className="hidden sm:inline">
-                {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Defaults"}
-              </span>
-            </button>
-            <div className="flex-1 border-t border-[var(--background-tertiary)]" />
-          </div>
-
           {/* Move Coverage - uses relative/absolute on desktop to control panel height */}
-          <div className="min-h-[260px] w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:relative lg:h-56 lg:min-h-0">
+          <div className="min-h-[260px] w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] lg:relative lg:h-auto lg:min-h-[280px] lg:min-w-0 lg:flex-[2.5]">
             {/* Mobile: normal flow */}
             <div className="lg:hidden p-1.5 flex flex-col">
               {/* Search/Add Move */}

@@ -401,42 +401,72 @@ main :where(p, h1, h2, h3, h4, h5, h6, a, button, label, li) {
   min-height: 32px;
 }
 
-.draft-card-action {
-  min-height: 30px;
-}
-
-.draft-team-mark,
-.draft-candidate-sprite {
+.draft-team-mark {
   display: grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
   place-items: center;
   border: 1px solid var(--card-border);
   border-radius: 8px;
   background: var(--background);
 }
 
-.draft-team-mark {
-  width: 38px;
-  min-width: 38px;
-  height: 38px;
-}
-
-.draft-candidate-sprite {
-  width: 42px;
-  min-width: 42px;
-  height: 42px;
-}
-
 .draft-candidate-grid {
   scrollbar-color: var(--background-tertiary) transparent;
 }
 
-.draft-candidate-card {
-  transition: border-color 0.16s ease, transform 0.16s ease;
+/* Dual-thumb range: two overlaid native sliders sharing one custom track */
+.draft-range-dual input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
 }
 
-.draft-candidate-card:hover {
-  transform: translateY(-1px);
-  border-color: var(--card-border);
+.draft-range-dual input[type="range"]::-webkit-slider-runnable-track {
+  background: transparent;
+}
+
+.draft-range-dual input[type="range"]::-moz-range-track {
+  background: transparent;
+}
+
+.draft-range-dual input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--primary-light);
+  border: 2px solid var(--background);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.draft-range-dual input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--primary-light);
+  border: 2px solid var(--background);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.draft-range-dual input[type="range"]:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--secondary-light);
+  outline-offset: 2px;
+}
+
+.draft-range-dual input[type="range"]:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--secondary-light);
+  outline-offset: 2px;
 }
 
 /* Premium card with glow */

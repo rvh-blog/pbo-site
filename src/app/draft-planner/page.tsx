@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { coaches, seasonCoaches, pokemon, seasonPokemonPrices, seasons } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { DraftPlanner } from "./draft-planner";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
 import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
@@ -15,6 +15,7 @@ type SeasonCoachWithRoster = {
   teamName: string;
   teamLogoUrl: string | null;
   division: {
+    id: number;
     season: {
       id: number;
       draftBudget: number | null;
@@ -73,7 +74,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
   const seasonIdParam = resolvedSearchParams.season ? parseInt(resolvedSearchParams.season) : null;
 
   // Run base queries in parallel (include season prices if seasonId is in URL)
-  const [allPokemon, allMoves, allAbilities, allSeasons, urlSeasonPrices, aliasMaps] = await Promise.all([
+  const [allPokemon, allMoves, allAbilities, allSeasons, urlSeasonPrices, aliasMaps, allDivisions] = await Promise.all([
     db.query.pokemon.findMany({
       columns: {
         id: true,
@@ -116,6 +117,14 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
         })
       : Promise.resolve([]),
     getPokemonAliasMaps(),
+    db.query.divisions.findMany({
+      columns: { id: true, name: true, seasonId: true, displayOrder: true },
+      with: {
+        seasonCoaches: {
+          columns: { coachId: true, teamName: true },
+        },
+      },
+    }),
   ]);
 
   // Coach-specific queries (only if coachId provided)
@@ -227,6 +236,48 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
     }));
   }
 
+  // Season/division/team directory for the header selectors
+  const sortedDivisions = [...allDivisions].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  const plannerDivisions = sortedDivisions.map((d) => ({ id: d.id, name: d.name, seasonId: d.seasonId }));
+  const plannerTeams = sortedDivisions
+    .flatMap((d) =>
+      d.seasonCoaches.map((sc) => ({
+        coachId: sc.coachId,
+        teamName: sc.teamName,
+        divisionId: d.id,
+        seasonId: d.seasonId,
+      }))
+    )
+    .sort((a, b) => a.teamName.localeCompare(b.teamName));
+  const currentDivisionId = selectedSeasonCoach?.division?.id ?? null;
+
+  // Drafted Pokemon per division of the selected season, for the opt-in
+  // availability filter (planning with drafted mons stays allowed by default)
+  const seasonDivisionIds = plannerDivisions.filter((d) => d.seasonId === selectedSeasonId).map((d) => d.id);
+  const draftedSeasonCoaches =
+    seasonDivisionIds.length > 0
+      ? await db.query.seasonCoaches.findMany({
+          where: inArray(seasonCoaches.divisionId, seasonDivisionIds),
+          columns: { divisionId: true, teamName: true, teamAbbreviation: true, teamLogoUrl: true },
+          with: { rosters: { columns: { pokemonId: true } } },
+        })
+      : [];
+  const draftedByDivision: Record<number, { pokemonId: number; team: string; logo: string | null }[]> = {};
+  for (const sc of draftedSeasonCoaches) {
+    const abbreviation =
+      sc.teamAbbreviation ||
+      sc.teamName
+        .split(/\s+/)
+        .map((word) => word[0])
+        .join("")
+        .slice(0, 3)
+        .toUpperCase();
+    if (!draftedByDivision[sc.divisionId]) draftedByDivision[sc.divisionId] = [];
+    draftedByDivision[sc.divisionId].push(
+      ...sc.rosters.map((r) => ({ pokemonId: r.pokemonId, team: abbreviation, logo: sc.teamLogoUrl }))
+    );
+  }
+
   // Build price lookup
   const seasonPrices: Record<number, { price: number; teraCaptainCost: number | null; complexBanReason: string | null }> = {};
   for (const sp of seasonPricesData) {
@@ -251,7 +302,14 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
 
   return (
     <DraftPlanner
+      // Remount on preset changes so slots re-initialize from the newly
+      // resolved roster (or the saved plan on a blank load).
+      key={`${coach?.id ?? "none"}-${selectedSeasonId ?? "none"}`}
       coach={coach || null}
+      divisions={plannerDivisions}
+      teams={plannerTeams}
+      draftedByDivision={draftedByDivision}
+      currentDivisionId={currentDivisionId}
       teamName={teamName}
       teamLogo={teamLogo}
       roster={rosterData}
