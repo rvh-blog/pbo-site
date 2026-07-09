@@ -28,6 +28,8 @@ interface TeamRosterData {
   pokemon: {
     name: string;
     isTera: boolean;
+    price: number;
+    draftOrder: number | null;
   }[];
 }
 
@@ -103,6 +105,17 @@ function getTeamLastCompletedWeek(
     .reduce((max, m) => Math.max(max, m.week), 0);
 }
 
+function sortPokemonForSheet<
+  T extends { name: string; price: number; draftOrder: number | null }
+>(pokemonSlots: T[]): T[] {
+  return [...pokemonSlots].sort((a, b) => {
+    if (b.price !== a.price) return b.price - a.price;
+    const draftOrderDiff = (a.draftOrder ?? 999) - (b.draftOrder ?? 999);
+    if (draftOrderDiff !== 0) return draftOrderDiff;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 /**
  * Get roster data for a division from the database with timesynced logic
  * Each team's roster is synced based on THEIR last completed match
@@ -155,6 +168,7 @@ async function getDivisionRosters(
             pokemonId: rosters.pokemonId,
             pokemonName: pokemon.name,
             displayName: pokemon.displayName,
+            price: rosters.price,
             isTera: rosters.isTeraCaptain,
             draftOrder: rosters.draftOrder,
           })
@@ -190,7 +204,12 @@ async function getDivisionRosters(
 
     // Get current roster entries for this team from batched data
     const entries = (rostersByCoach.get(team.seasonCoachId) || [])
-      .sort((a, b) => (a.draftOrder ?? 999) - (b.draftOrder ?? 999));
+      .sort((a, b) => {
+        if (b.price !== a.price) return b.price - a.price;
+        const draftOrderDiff = (a.draftOrder ?? 999) - (b.draftOrder ?? 999);
+        if (draftOrderDiff !== 0) return draftOrderDiff;
+        return (a.displayName || a.pokemonName).localeCompare(b.displayName || b.pokemonName);
+      });
 
     // Get coach's transactions sorted by week desc, id desc (newest first)
     // Include partner P2P trades with pokemonIn/pokemonOut swapped to reflect this coach's perspective
@@ -310,16 +329,20 @@ async function getDivisionRosters(
     }
 
     // Combine filtered entries with restored Pokemon
-    const finalPokemon = [
+    const finalPokemon = sortPokemonForSheet([
       ...filteredEntries.map((e) => ({
         name: e.displayName || e.pokemonName,
         isTera: teraCaptainPokemonIds.has(e.pokemonId),
+        price: e.price,
+        draftOrder: e.draftOrder,
       })),
       ...restoredPokemon.map((p) => ({
         name: p.displayName || p.name,
         isTera: teraCaptainPokemonIds.has(p.pokemonId),
+        price: 0,
+        draftOrder: null,
       })),
-    ];
+    ]);
 
     rosterResults.push({
       teamAbbr: team.teamAbbreviation || "",
@@ -422,7 +445,7 @@ export async function syncRostersToSheet(
       // Sheet formula range is 12 rows (e.g., D4:D15), so we write 12 rows
       const pokemonData = roster.pokemon.slice(0, 12);
       while (pokemonData.length < 12) {
-        pokemonData.push({ name: "", isTera: false });
+        pokemonData.push({ name: "", isTera: false, price: 0, draftOrder: null });
       }
 
       // Add pokemon names update (converted to sheet names)
@@ -568,7 +591,7 @@ async function syncTeraBordersToTeamSheets(
     // Pad to 12 slots
     const pokemonSlots = roster.pokemon.slice(0, 12);
     while (pokemonSlots.length < 12) {
-      pokemonSlots.push({ name: "", isTera: false });
+      pokemonSlots.push({ name: "", isTera: false, price: 0, draftOrder: null });
     }
 
     for (let i = 0; i < 12; i++) {

@@ -3,6 +3,7 @@ import Image from "next/image";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { getActivePoll } from "@/lib/polls";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 import { PollCard } from "@/components/poll-card";
 import { SyncedHeightGrid } from "@/components/synced-height-grid";
 import { HomeLiveDraftRefresh } from "@/components/home-live-draft-refresh";
@@ -981,11 +982,17 @@ function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] 
 export default async function Home() {
   // Run all queries in parallel for much better performance on network-attached storage
   const currentSeasonPromise = getCurrentSeason();
+  const featureSettingsPromise = getSiteFeatureSettings();
+  const recentDraftPicksPromise = featureSettingsPromise.then((settings) =>
+    settings.recentDraftPicksHidden
+      ? []
+      : getRecentDraftPicksByDivision(currentSeasonPromise)
+  );
   const [currentSeason, previousSeasonChampions, recentBattles, recentDraftPicksByDivision, stats, topCoaches, stargazerChampion, personalizedHome] = await Promise.all([
     currentSeasonPromise,
     getPreviousSeasonChampions(),
     getRecentBattles(),
-    getRecentDraftPicksByDivision(currentSeasonPromise),
+    recentDraftPicksPromise,
     getStats(),
     getTopCoaches(),
     getStargazerChampion(),

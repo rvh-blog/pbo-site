@@ -42,6 +42,27 @@ Feature settings managed through Engagement/admin settings include:
 
 These settings live in `site_settings` and are read through `src/lib/site-settings.ts`.
 
+## Admin Dashboard Visibility Controls
+
+The admin dashboard includes lightweight public-home visibility controls.
+
+Current controls:
+
+- Recent Draft Picks: hides or shows the Recent Draft Picks panel on the public home page.
+
+Recent Draft Picks visibility is stored in `site_settings` as
+`recent_draft_picks_hidden`. The home page reads the setting through
+`src/lib/site-settings.ts` and skips the recent-picks roster query while the
+panel is hidden.
+
+Relevant files:
+
+- `src/app/admin/page.tsx`
+- `src/components/admin/homepage-visibility-card.tsx`
+- `src/app/page.tsx`
+- `src/app/api/admin/pick-ems/route.ts`
+- `src/lib/site-settings.ts`
+
 ## League Poll Admin
 
 Admins can edit the active league poll from the admin home page. Changes are
@@ -131,11 +152,14 @@ Current scheduled reveal:
 
 Before release, public season/division views filter out the Infinity division. After scheduled or manual release, it becomes visible.
 
+The original admin dashboard release card has been removed now that the
+division has been released. The underlying visibility helper and API remain in
+place so existing public visibility behavior is not disturbed.
+
 Relevant files:
 
 - `src/lib/public-visibility.ts`
 - `src/app/api/admin/infinity-release/route.ts`
-- `src/components/admin/infinity-release-card.tsx`
 - `src/lib/site-settings.ts`
 
 ## Admin Audit Log

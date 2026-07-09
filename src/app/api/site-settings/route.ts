@@ -8,6 +8,7 @@ export async function GET() {
     return NextResponse.json({
       fantasyUiHidden: settings.fantasyUiHidden,
       blogUiHidden: settings.blogUiHidden,
+      recentDraftPicksHidden: settings.recentDraftPicksHidden,
     });
   } catch (error) {
     console.error("Error fetching site feature settings:", error);

@@ -14,10 +14,11 @@ import {
 import { getPublicVisibilityState } from "@/lib/public-visibility";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { InfinityReleaseCard } from "@/components/admin/infinity-release-card";
+import { HomepageVisibilityCard } from "@/components/admin/homepage-visibility-card";
 import { PollAdminCard } from "@/components/admin/poll-admin-card";
 import { ensureAdminAuditLogsTable } from "@/lib/admin-audit";
 import { getAdminPoll } from "@/lib/polls";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 type Tone = "success" | "warning" | "error" | "muted" | "info";
 
@@ -133,24 +134,22 @@ function formatAge(iso: string | null | undefined) {
 async function getDashboardData() {
   await ensureAdminAuditLogsTable();
 
-  const [currentSeason, adminPoll] = await Promise.all([
+  const [currentSeason, adminPoll, featureSettings] = await Promise.all([
     db.query.seasons.findFirst({
       where: eq(seasons.isCurrent, true),
       with: { divisions: true },
     }),
     getAdminPoll(),
+    getSiteFeatureSettings(),
   ]);
 
   if (!currentSeason) {
-    const [visibility, recentAudit] = await Promise.all([
-      getPublicVisibilityState(),
-      db.query.adminAuditLogs.findMany({
-        orderBy: [desc(adminAuditLogs.createdAt)],
-        limit: 5,
-      }),
-    ]);
+    const recentAudit = await db.query.adminAuditLogs.findMany({
+      orderBy: [desc(adminAuditLogs.createdAt)],
+      limit: 5,
+    });
 
-    return { currentSeason: null, visibility, recentAudit, adminPoll };
+    return { currentSeason: null, recentAudit, adminPoll, featureSettings };
   }
 
   const divisionIds = currentSeason.divisions.map((division) => division.id);
@@ -230,7 +229,7 @@ async function getDashboardData() {
   return {
     currentSeason,
     adminPoll,
-    visibility,
+    featureSettings,
     recentAudit,
     stats: {
       teamCount: seasonTeams.length,
@@ -303,7 +302,7 @@ export default async function AdminDashboard() {
     );
   }
 
-  const { currentSeason, stats, recentAudit, visibility, adminPoll } = dashboard;
+  const { currentSeason, stats, recentAudit, adminPoll, featureSettings } = dashboard;
   const actionQueue = [
     stats.pendingMatches > 0 && {
       label: "Enter pending match results",
@@ -354,7 +353,6 @@ export default async function AdminDashboard() {
     { label: `${stats.sheetConfigCount} sheet config${stats.sheetConfigCount === 1 ? "" : "s"}`, tone: stats.failedSheets > 0 ? "error" as Tone : stats.staleSheets > 0 ? "warning" as Tone : "success" as Tone },
     { label: currentSeason.isPublic === false ? "Season private" : "Season public", tone: currentSeason.isPublic === false ? "warning" as Tone : "success" as Tone },
     { label: currentSeason.isSchedulePublic === false ? "Schedule hidden" : "Schedule public", tone: currentSeason.isSchedulePublic === false ? "warning" as Tone : "success" as Tone },
-    { label: visibility.infinityDivisionReleased ? "Infinity visible" : "Infinity hidden", tone: visibility.infinityDivisionReleased ? "success" as Tone : "info" as Tone },
     { label: `Audit ${formatAge(stats.latestAuditAt)}`, tone: stats.latestAuditAt ? "success" as Tone : "muted" as Tone },
   ];
 
@@ -567,13 +565,9 @@ export default async function AdminDashboard() {
         <CardHeader>
           <CardTitle>Visibility Controls</CardTitle>
         </CardHeader>
-        <CardContent>
-          <InfinityReleaseCard
-            initialState={{
-              revealAt: visibility.infinityDivisionRevealAt.toISOString(),
-              isReleased: visibility.infinityDivisionReleased,
-              isManuallyReleased: visibility.infinityDivisionManuallyReleased,
-            }}
+        <CardContent className="space-y-4">
+          <HomepageVisibilityCard
+            initialRecentDraftPicksHidden={featureSettings.recentDraftPicksHidden}
           />
         </CardContent>
       </Card>
