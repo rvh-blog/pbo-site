@@ -72,6 +72,17 @@ interface ExistingTeam {
   teamLogoUrl: string | null;
 }
 
+function sortRosterByPrice(roster: RosterEntry[] | undefined) {
+  return [...(roster ?? [])].sort((a, b) => {
+    if (b.price !== a.price) return b.price - a.price;
+    const draftOrderDiff = (a.draftOrder ?? 999) - (b.draftOrder ?? 999);
+    if (draftOrderDiff !== 0) return draftOrderDiff;
+    const aName = a.pokemon?.displayName || a.pokemon?.name || "";
+    const bName = b.pokemon?.displayName || b.pokemon?.name || "";
+    return aName.localeCompare(bName);
+  });
+}
+
 export default function AdminRostersPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
@@ -932,7 +943,7 @@ export default function AdminRostersPage() {
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {sc.rosters?.map((r) => (
+                        {sortRosterByPrice(sc.rosters).map((r) => (
                           <div
                             key={r.id}
                             className={`flex items-center gap-2 px-2 py-1 rounded group ${

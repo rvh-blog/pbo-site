@@ -20,7 +20,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bettingClosed, bettingUiHidden, fantasyUiHidden, blogUiHidden } = body;
+    const {
+      bettingClosed,
+      bettingUiHidden,
+      fantasyUiHidden,
+      blogUiHidden,
+      recentDraftPicksHidden,
+    } = body;
 
     const updates: { key: string; value: string }[] = [];
 
@@ -38,6 +44,10 @@ export async function POST(request: NextRequest) {
 
     if (blogUiHidden !== undefined) {
       updates.push({ key: SITE_SETTING_KEYS.blogUiHidden, value: String(blogUiHidden) });
+    }
+
+    if (recentDraftPicksHidden !== undefined) {
+      updates.push({ key: "recent_draft_picks_hidden", value: String(recentDraftPicksHidden) });
     }
 
     for (const update of updates) {

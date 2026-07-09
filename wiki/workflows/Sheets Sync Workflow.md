@@ -54,6 +54,9 @@ Google Sheets sync mirrors PBO division data into configured spreadsheets.
   as `Mega Staraptor` <-> `Staraptor-Mega` and Urshifu Single/Rapid Strike.
 - Template changes can silently skip or misplace data.
 - Roster sync uses time-synced roster logic.
+- Roster sync writes each team's Pokemon in descending price order. Ties fall
+  back to draft order, then Pokemon name. The admin roster page uses the same
+  ordering so the visible admin roster matches what sync writes to sheets.
 
 ## Checklist For Changes
 
