@@ -189,6 +189,7 @@ Concrete regression checks after regenerating National Dex data:
 - `Porygon2` and `Porygon-Z` should have `teleport` from Porygon.
 - `Leavanny` should have `sticky-web` from its direct pre-evolution chain.
 - `Sylveon` should not have `flip-turn` from Vaporeon.
+- `Lopunny` and `Lopunny-Mega` should have `swords-dance` for S11 National Dex.
 - Existing season move rows should not lose old moves unless the removal is
   deliberate and reviewed.
 

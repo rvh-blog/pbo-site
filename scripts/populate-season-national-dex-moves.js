@@ -25,6 +25,13 @@ const FORM_SHARING_POKEMON = {
   ogerpon: ["Ogerpon", "Ogerpon-Wellspring", "Ogerpon-Hearthflame", "Ogerpon-Cornerstone"],
 };
 
+// League-reviewed corrections for National Dex legality gaps in @pkmn/dex data.
+// Keys are local display names after localToDexName normalization.
+const MANUAL_MOVE_ADDITIONS = {
+  Lopunny: ["swordsdance"],
+  "Lopunny-Mega": ["swordsdance"],
+};
+
 function localToDexName(name, displayName) {
   if ((displayName || name).toLowerCase() === "darmanitan-galar-standard") {
     return "Darmanitan-Galar";
@@ -158,6 +165,10 @@ async function main() {
   for (const row of rows) {
     const dexName = localToDexName(row.name, row.displayName);
     const { moves: rawMoves, source } = await getLearnsetMoves(dex, dexName);
+    const manualMoves = MANUAL_MOVE_ADDITIONS[dexName] || [];
+    for (const move of manualMoves) {
+      rawMoves.push(move);
+    }
     const moves = normalizeMoveNames(rawMoves);
     if (moves.length > 0) withMoves++;
     else missing.push(row.displayName || row.name);
@@ -181,7 +192,7 @@ async function main() {
       seasonId: season.id,
       pokemonId: row.id,
       moves: JSON.stringify(moves),
-      source: `@pkmn/dex gen9 ${source}`,
+      source: `@pkmn/dex gen9 ${source}${manualMoves.length > 0 ? `; manual additions ${manualMoves.join(",")}` : ""}`,
       updatedAt: now,
     });
   }
