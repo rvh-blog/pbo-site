@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { db } from "@/lib/db";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { matches } from "@/lib/schema";
-import { BattleRecordTable, type BattleRecordRow } from "./battle-record-table";
+import type { BattleRecordRow } from "./battle-record-table";
+import { BattleRecordView, type PboRecordCategory, type PboRecordEntry } from "./battle-record-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -180,43 +180,396 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
     );
 }
 
+type MatchRecord = {
+  id: number;
+  seasonId: number;
+  divisionId: number;
+  week: number;
+  coach1SeasonId: number;
+  coach2SeasonId: number;
+  winnerId: number | null;
+  coach1Differential: number | null;
+  coach2Differential: number | null;
+  isForfeit: boolean | null;
+  playedAt: string | null;
+  scheduledAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  turnSnapshots: string | null;
+  keyEvents: string | null;
+};
+
+function weekLabel(week: number) {
+  if (week === 101) return "Quarterfinals";
+  if (week === 102) return "Semifinals";
+  if (week === 103) return "Finals";
+  return `W${week}`;
+}
+
+function formatDuration(ms: number) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
+
+function parseTurnCount(match: Pick<MatchRecord, "turnSnapshots" | "keyEvents">) {
+  let maxTurn = 0;
+
+  for (const raw of [match.turnSnapshots, match.keyEvents]) {
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as Array<{ turn?: unknown }>;
+      if (!Array.isArray(parsed)) continue;
+      for (const entry of parsed) {
+        if (typeof entry.turn === "number") {
+          maxTurn = Math.max(maxTurn, entry.turn);
+        }
+      }
+    } catch {
+      // Ignore malformed historical replay metadata.
+    }
+  }
+
+  return maxTurn;
+}
+
+async function getPboRecords(): Promise<PboRecordCategory[]> {
+  const [allCoaches, allSeasonCoaches, allMatches, allSeasons, allDivisions, allMatchPokemon] = await Promise.all([
+    db.query.coaches.findMany({
+      columns: {
+        id: true,
+        name: true,
+      },
+    }),
+    db.query.seasonCoaches.findMany({
+      columns: {
+        id: true,
+        coachId: true,
+        divisionId: true,
+        teamName: true,
+      },
+    }),
+    db.query.matches.findMany({
+      columns: {
+        id: true,
+        seasonId: true,
+        divisionId: true,
+        week: true,
+        coach1SeasonId: true,
+        coach2SeasonId: true,
+        winnerId: true,
+        coach1Differential: true,
+        coach2Differential: true,
+        isForfeit: true,
+        playedAt: true,
+        scheduledAt: true,
+        startedAt: true,
+        endedAt: true,
+        turnSnapshots: true,
+        keyEvents: true,
+      },
+      where: and(
+        isNotNull(matches.winnerId),
+        eq(matches.isForfeit, false)
+      ),
+    }),
+    db.query.seasons.findMany({
+      columns: {
+        id: true,
+        seasonNumber: true,
+      },
+    }),
+    db.query.divisions.findMany({
+      columns: {
+        id: true,
+        seasonId: true,
+        name: true,
+      },
+    }),
+    db.query.matchPokemon.findMany({
+      columns: {
+        matchId: true,
+        seasonCoachId: true,
+        pokemonId: true,
+        kills: true,
+        deaths: true,
+      },
+      with: {
+        pokemon: {
+          columns: {
+            name: true,
+            displayName: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const coachById = new Map(allCoaches.map((coach) => [coach.id, coach]));
+  const seasonCoachById = new Map(allSeasonCoaches.map((seasonCoach) => [seasonCoach.id, seasonCoach]));
+  const seasonNumberById = new Map(allSeasons.map((season) => [season.id, season.seasonNumber]));
+  const divisionNameById = new Map(allDivisions.map((division) => [division.id, division.name]));
+  const completedMatchById = new Map(allMatches.map((match) => [match.id, match]));
+
+  const matchSortValue = (match: MatchRecord) =>
+    (seasonNumberById.get(match.seasonId) ?? 0) * 100000 + match.week * 100 + match.id;
+
+  const matchLabel = (match: MatchRecord) => {
+    const seasonNumber = seasonNumberById.get(match.seasonId) ?? "?";
+    const divisionName = divisionNameById.get(match.divisionId) ?? "Unknown";
+    const coach1 = seasonCoachById.get(match.coach1SeasonId)?.teamName ?? "Unknown";
+    const coach2 = seasonCoachById.get(match.coach2SeasonId)?.teamName ?? "Unknown";
+    return `S${seasonNumber} ${divisionName} ${weekLabel(match.week)}: ${coach1} vs ${coach2}`;
+  };
+
+  const seasonTeamLabel = (seasonCoachId: number, seasonId: number) => {
+    const seasonCoach = seasonCoachById.get(seasonCoachId);
+    const seasonNumber = seasonNumberById.get(seasonId) ?? "?";
+    const divisionName = seasonCoach ? divisionNameById.get(seasonCoach.divisionId) : null;
+    return `S${seasonNumber}${divisionName ? ` ${divisionName}` : ""} - ${seasonCoach?.teamName ?? "Unknown"}`;
+  };
+
+  const topThree = <T,>(rows: T[]) => rows.slice(0, 3);
+
+  const teamSeasonDifferential = new Map<number, {
+    seasonCoachId: number;
+    wins: number;
+    losses: number;
+    differential: number;
+    lastMatchSort: number;
+  }>();
+
+  for (const match of allMatches) {
+    for (const participant of [
+      { seasonCoachId: match.coach1SeasonId, differential: match.coach1Differential ?? 0 },
+      { seasonCoachId: match.coach2SeasonId, differential: match.coach2Differential ?? 0 },
+    ]) {
+      const existing = teamSeasonDifferential.get(participant.seasonCoachId) ?? {
+        seasonCoachId: participant.seasonCoachId,
+        wins: 0,
+        losses: 0,
+        differential: 0,
+        lastMatchSort: 0,
+      };
+      const won = match.winnerId === participant.seasonCoachId;
+
+      existing.wins += won ? 1 : 0;
+      existing.losses += won ? 0 : 1;
+      existing.differential += participant.differential;
+      existing.lastMatchSort = Math.max(existing.lastMatchSort, matchSortValue(match));
+      teamSeasonDifferential.set(participant.seasonCoachId, existing);
+    }
+  }
+
+  const formatTeamSeasonDifferential = (row: {
+    seasonCoachId: number;
+    wins: number;
+    losses: number;
+    differential: number;
+  }): PboRecordEntry => {
+    const seasonCoach = seasonCoachById.get(row.seasonCoachId);
+    const division = seasonCoach ? allDivisions.find((div) => div.id === seasonCoach.divisionId) : null;
+    const seasonId = division?.seasonId;
+    const seasonNumber = seasonId ? seasonNumberById.get(seasonId) : null;
+    const signedDifferential = `${row.differential > 0 ? "+" : ""}${row.differential}`;
+
+    return {
+      title: `${seasonCoach?.teamName ?? "Unknown"} ${row.wins}-${row.losses} ${signedDifferential}`,
+      detail: `S${seasonNumber ?? "?"}${division ? ` ${division.name}` : ""} final regular-season differential`,
+      href: seasonCoach ? `/coaches/${seasonCoach.coachId}` : undefined,
+    };
+  };
+
+  const bestDifferential = topThree(
+    [...teamSeasonDifferential.values()].sort((a, b) =>
+      b.differential - a.differential || b.wins - a.wins || a.losses - b.losses || b.lastMatchSort - a.lastMatchSort
+    )
+  ).map(formatTeamSeasonDifferential);
+
+  const worstDifferential = topThree(
+    [...teamSeasonDifferential.values()].sort((a, b) =>
+      a.differential - b.differential || b.losses - a.losses || a.wins - b.wins || b.lastMatchSort - a.lastMatchSort
+    )
+  ).map(formatTeamSeasonDifferential);
+
+  const streakMatchesByCoach = new Map<number, Array<{ match: MatchRecord; won: boolean; teamName: string }>>();
+  for (const match of allMatches) {
+    for (const seasonCoachId of [match.coach1SeasonId, match.coach2SeasonId]) {
+      const seasonCoach = seasonCoachById.get(seasonCoachId);
+      if (!seasonCoach) continue;
+      const list = streakMatchesByCoach.get(seasonCoach.coachId) ?? [];
+      list.push({
+        match,
+        won: match.winnerId === seasonCoachId,
+        teamName: seasonCoach.teamName,
+      });
+      streakMatchesByCoach.set(seasonCoach.coachId, list);
+    }
+  }
+
+  const streaks: Array<{
+    coachId: number;
+    teamName: string;
+    type: "win" | "loss";
+    count: number;
+    start: MatchRecord;
+    end: MatchRecord;
+  }> = [];
+
+  for (const [coachId, rows] of streakMatchesByCoach) {
+    const ordered = rows.sort((a, b) => matchSortValue(a.match) - matchSortValue(b.match));
+    let current: typeof streaks[number] | null = null;
+
+    for (const row of ordered) {
+      const type = row.won ? "win" : "loss";
+      if (!current || current.type !== type) {
+        current = {
+          coachId,
+          teamName: row.teamName,
+          type,
+          count: 1,
+          start: row.match,
+          end: row.match,
+        };
+        streaks.push(current);
+      } else {
+        current.count += 1;
+        current.end = row.match;
+        current.teamName = row.teamName;
+      }
+    }
+  }
+
+  const formatStreak = (streak: typeof streaks[number]): PboRecordEntry => ({
+    title: `${streak.teamName} - ${streak.count} ${streak.type === "win" ? "wins" : "losses"}`,
+    detail: `${coachById.get(streak.coachId)?.name ?? "Unknown"} | ${matchLabel(streak.start)} through ${matchLabel(streak.end)}`,
+    href: `/coaches/${streak.coachId}`,
+  });
+
+  const mostWinsInRow = topThree(
+    streaks.filter((streak) => streak.type === "win").sort((a, b) => b.count - a.count)
+  ).map(formatStreak);
+
+  const mostLossesInRow = topThree(
+    streaks.filter((streak) => streak.type === "loss").sort((a, b) => b.count - a.count)
+  ).map(formatStreak);
+
+  const longestByTurns = topThree(
+    allMatches
+      .map((match) => ({ match, turns: parseTurnCount(match) }))
+      .filter((row) => row.turns > 0)
+      .sort((a, b) => b.turns - a.turns || matchSortValue(b.match) - matchSortValue(a.match))
+  ).map<PboRecordEntry>((row) => ({
+    title: `${row.turns} turns`,
+    detail: matchLabel(row.match),
+    href: `/matches/${row.match.id}`,
+  }));
+
+  const fastestByTurns = topThree(
+    allMatches
+      .map((match) => ({ match, turns: parseTurnCount(match) }))
+      .filter((row) => row.turns > 0)
+      .sort((a, b) => a.turns - b.turns || matchSortValue(b.match) - matchSortValue(a.match))
+  ).map<PboRecordEntry>((row) => ({
+    title: `${row.turns} turns`,
+    detail: matchLabel(row.match),
+    href: `/matches/${row.match.id}`,
+  }));
+
+  const longestByTime = topThree(
+    allMatches
+      .map((match) => {
+        const start = Date.parse(match.startedAt ?? "");
+        const end = Date.parse(match.endedAt ?? "");
+        return {
+          match,
+          durationMs: Number.isNaN(start) || Number.isNaN(end) ? 0 : end - start,
+        };
+      })
+      .filter((row) => row.durationMs > 0)
+      .sort((a, b) => b.durationMs - a.durationMs || matchSortValue(b.match) - matchSortValue(a.match))
+  ).map<PboRecordEntry>((row) => ({
+    title: formatDuration(row.durationMs),
+    detail: matchLabel(row.match),
+    href: `/matches/${row.match.id}`,
+  }));
+
+  const pokemonSeasonStats = new Map<string, {
+    seasonId: number;
+    seasonCoachId: number;
+    pokemonId: number;
+    pokemonName: string;
+    kills: number;
+    deaths: number;
+    games: number;
+  }>();
+
+  for (const row of allMatchPokemon) {
+    const match = completedMatchById.get(row.matchId);
+    if (!match) continue;
+
+    const key = `${match.seasonId}-${row.seasonCoachId}-${row.pokemonId}`;
+    const existing = pokemonSeasonStats.get(key) ?? {
+      seasonId: match.seasonId,
+      seasonCoachId: row.seasonCoachId,
+      pokemonId: row.pokemonId,
+      pokemonName: row.pokemon?.displayName || row.pokemon?.name || "Unknown",
+      kills: 0,
+      deaths: 0,
+      games: 0,
+    };
+    existing.kills += row.kills ?? 0;
+    existing.deaths += row.deaths ?? 0;
+    existing.games += 1;
+    pokemonSeasonStats.set(key, existing);
+  }
+
+  const mostDeaths = topThree(
+    [...pokemonSeasonStats.values()]
+      .filter((row) => row.deaths > 0)
+      .sort((a, b) => b.deaths - a.deaths || a.kills - b.kills || b.games - a.games)
+  ).map<PboRecordEntry>((row) => ({
+    title: `${row.pokemonName} ${row.kills}-${row.deaths}`,
+    detail: seasonTeamLabel(row.seasonCoachId, row.seasonId),
+    href: `/pokemon/${row.pokemonId}`,
+  }));
+
+  const bestKd = topThree(
+    [...pokemonSeasonStats.values()]
+      .filter((row) => row.kills >= 5)
+      .sort((a, b) => {
+        const aInfinite = a.deaths === 0;
+        const bInfinite = b.deaths === 0;
+        if (aInfinite !== bInfinite) return aInfinite ? -1 : 1;
+        const aRatio = a.deaths === 0 ? a.kills : a.kills / a.deaths;
+        const bRatio = b.deaths === 0 ? b.kills : b.kills / b.deaths;
+        return bRatio - aRatio || b.kills - a.kills || a.deaths - b.deaths;
+      })
+  ).map<PboRecordEntry>((row) => ({
+    title: `${row.pokemonName} ${row.kills}/${row.deaths}`,
+    detail: seasonTeamLabel(row.seasonCoachId, row.seasonId),
+    href: `/pokemon/${row.pokemonId}`,
+  }));
+
+  return [
+    { title: "Most Wins in a Row", entries: mostWinsInRow },
+    { title: "Most Losses in a Row", entries: mostLossesInRow },
+    { title: "Best Differential", entries: bestDifferential },
+    { title: "Worst Differential", entries: worstDifferential },
+    { title: "Most Deaths", entries: mostDeaths },
+    { title: "Longest Game (Turns)", entries: longestByTurns },
+    { title: "Longest Game (Time)", entries: longestByTime },
+    { title: "Fastest Match (Turns)", entries: fastestByTurns },
+    { title: "Best KD", entries: bestKd },
+  ];
+}
+
 export default async function BattleRecordPage() {
-  const battleRecords = await getBattleRecords();
+  const [battleRecords, pboRecords] = await Promise.all([
+    getBattleRecords(),
+    getPboRecords(),
+  ]);
 
-  return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="poke-card p-4 sm:p-6">
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-sm sm:text-base">
-          <Link
-            href="/leaderboards"
-            className="text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors"
-          >
-            Leaderboards
-          </Link>
-          <span className="text-[var(--foreground-subtle)]">/</span>
-        </div>
-        <h1 className="font-pixel text-2xl text-white sm:text-3xl md:text-4xl">
-          Battle Record
-        </h1>
-        <p className="mt-1 text-base text-[var(--foreground-muted)]">
-          All-time coach scoreline records from completed non-forfeit matches.
-        </p>
-      </div>
-
-      <div className="poke-card overflow-hidden p-0 shadow-[0_0_28px_rgba(255,255,255,0.18)] ring-1 ring-white/10">
-        <div className="border-b-2 border-[var(--background-tertiary)] p-4 sm:p-6">
-          <div className="section-title !mb-0">
-            <div className="section-title-icon !bg-[var(--primary)]">
-              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 19V5m0 14h16M8 16V9m4 7V7m4 9v-5" />
-              </svg>
-            </div>
-            <h2 className="text-xl">Coach Records</h2>
-          </div>
-        </div>
-
-        <BattleRecordTable records={battleRecords} />
-      </div>
-    </div>
-  );
+  return <BattleRecordView records={battleRecords} pboRecords={pboRecords} />;
 }
