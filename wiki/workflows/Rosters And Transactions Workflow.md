@@ -44,6 +44,11 @@ This affects:
 - Sheet roster sync.
 - Admin match replay roster matching.
 
+Public coach roster displays should sort the final reconstructed visible roster
+by displayed point total descending. Apply this only after transaction/time-sync
+logic has determined which Pokemon should appear. Use draft order, acquired week,
+and Pokemon name only as stable tie-breakers.
+
 ## Transaction Types
 
 - `FA_PICKUP`: adds a free agent.

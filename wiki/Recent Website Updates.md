@@ -4,6 +4,19 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 9, 2026
+
+Coach roster pages:
+
+- Coach profile roster cards now display Pokemon by point total descending. Ties fall back to draft order/acquired week, then Pokemon name, so transaction-driven visibility still determines which Pokemon appear before display ordering is applied.
+- Division roster pages use the same point-descending display order for each team's roster.
+- Mobile coach roster cards now clip compact card and sprite overflow, lazy-decode sprites, and keep sprite hover scaling desktop-only to reduce mobile browser paint artifacts.
+
+Verification notes:
+
+- `npx.cmd tsc --noEmit` passes.
+- Targeted ESLint for the touched coach roster files still reports pre-existing coach page lint debt such as legacy `any`, unused imports, `<img>` warnings, and one unescaped apostrophe.
+
 ## July 5, 2026
 
 Home page:

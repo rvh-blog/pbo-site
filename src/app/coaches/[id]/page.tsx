@@ -103,6 +103,45 @@ const PRIORITY_MOVES = [
   { id: "grassy-glide", name: "Grassy Glide" },
 ];
 
+function sortRosterByDisplayPrice<T extends {
+  id?: number | string | null;
+  price?: number | null;
+  draftOrder?: number | null;
+  acquiredWeek?: number | null;
+  pokemonId?: number | null;
+  isTeraCaptain?: boolean | null;
+  pokemon?: { displayName?: string | null; name?: string | null } | null;
+  displayName?: string | null;
+  name?: string | null;
+}>(
+  roster: T[],
+  priceMap: Map<number, { basePrice: number; teraCaptainCost: number | null }>,
+) {
+  return [...roster].sort((a, b) => {
+    const getDisplayPrice = (entry: T) => {
+      const numericId = typeof entry.id === "number" ? entry.id : undefined;
+      const pokemonId = entry.pokemonId ?? numericId;
+      const priceInfo = pokemonId ? priceMap.get(pokemonId) : undefined;
+      const basePrice = priceInfo?.basePrice ?? entry.price ?? 0;
+      const teraCost = entry.isTeraCaptain ? (priceInfo?.teraCaptainCost ?? 0) : 0;
+      return basePrice + teraCost;
+    };
+
+    const priceDiff = getDisplayPrice(b) - getDisplayPrice(a);
+    if (priceDiff !== 0) return priceDiff;
+
+    const draftOrderDiff = (a.draftOrder ?? 999) - (b.draftOrder ?? 999);
+    if (draftOrderDiff !== 0) return draftOrderDiff;
+
+    const acquiredWeekDiff = (a.acquiredWeek ?? 999) - (b.acquiredWeek ?? 999);
+    if (acquiredWeekDiff !== 0) return acquiredWeekDiff;
+
+    const aName = a.pokemon?.displayName || a.pokemon?.name || a.displayName || a.name || "";
+    const bName = b.pokemon?.displayName || b.pokemon?.name || b.displayName || b.name || "";
+    return aName.localeCompare(bName);
+  });
+}
+
 // Helper to get special moves a Pokemon has
 function getSpecialMoves(pokemonMoves: string[] | null | undefined) {
   if (!pokemonMoves) return { removal: [], setters: [], pivots: [], utility: [], support: [], priority: [] };
@@ -355,7 +394,7 @@ async function getCoachSeasons(coachId: number) {
         if (!p) return null;
         return { ...p, isTeraCaptain: teraCaptainIds.has(id) };
       })
-      .filter(Boolean);
+      .filter((p): p is NonNullable<typeof p> => p !== null);
 
     return {
       ...sc,
@@ -1912,11 +1951,14 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                   <MoveDataToggleButton />
                   <CopyTeamButton
                     pokemonNames={[
-                      ...(selectedSeasonEntry.rosters || [])
-                        .filter((r: any) => !r.acquiredWeek || r.acquiredWeek <= selectedSeasonEntry.effectiveWeek)
-                        .map((r: any) => r.pokemon?.displayName || r.pokemon?.name),
-                      ...(selectedSeasonEntry.droppedPokemonDetails || [])
-                        .map((p: any) => p.displayName || p.name),
+                      ...sortRosterByDisplayPrice(
+                        (selectedSeasonEntry.rosters || [])
+                          .filter((r) => !r.acquiredWeek || r.acquiredWeek <= selectedSeasonEntry.effectiveWeek),
+                        priceMap,
+                      )
+                        .map((r) => r.pokemon?.displayName || r.pokemon?.name),
+                      ...sortRosterByDisplayPrice(selectedSeasonEntry.droppedPokemonDetails || [], priceMap)
+                        .map((p) => p.displayName || p.name),
                     ].filter(Boolean)}
                   />
                   <div className="text-right px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)]">
@@ -1931,9 +1973,12 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
             {selectedSeasonEntry.rosters && selectedSeasonEntry.rosters.length > 0 ? (
               (() => {
                 // Pre-compute filtered Pokemon list
-                const filteredRoster = selectedSeasonEntry.rosters
-                  .filter((r: any) => !r.acquiredWeek || r.acquiredWeek <= selectedSeasonEntry.effectiveWeek);
-                const droppedPokemon = selectedSeasonEntry.droppedPokemonDetails || [];
+                const filteredRoster = sortRosterByDisplayPrice(
+                  selectedSeasonEntry.rosters
+                    .filter((r) => !r.acquiredWeek || r.acquiredWeek <= selectedSeasonEntry.effectiveWeek),
+                  priceMap,
+                );
+                const droppedPokemon = sortRosterByDisplayPrice(selectedSeasonEntry.droppedPokemonDetails || [], priceMap);
                 const allPokemonCount = filteredRoster.length + droppedPokemon.length;
 
                 // Speed tiers data (used in both layouts)
@@ -1965,7 +2010,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                       key={isDropped ? `dropped-${r.id}` : r.id}
                       href={`/pokemon/${pokemon?.id}`}
                       className={`relative rounded-lg bg-[var(--background-secondary)] border-2 transition-all group ${
-                        compact ? "p-1.5" : "p-2 sm:p-4"
+                        compact ? "p-1.5 overflow-hidden" : "p-2 sm:p-4"
                       } ${
                         r.isTeraCaptain
                           ? "border-[var(--accent)]"
@@ -2019,11 +2064,13 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                       )}
                       <div className="flex flex-col items-center justify-center text-center h-full">
                         {pokemon?.spriteUrl ? (
-                          <div className={compact ? "w-10 h-10 mb-1" : "w-14 h-14 sm:w-20 sm:h-20 mb-1.5 sm:mb-3"}>
+                          <div className={`${compact ? "w-10 h-10 mb-1" : "w-14 h-14 sm:w-20 sm:h-20 mb-1.5 sm:mb-3"} shrink-0 overflow-hidden`}>
                             <img
                               src={pokemon.spriteUrl}
                               alt={pokemon.displayName || pokemon.name}
-                              className="w-full h-full object-contain group-hover:scale-110 transition-transform"
+                              loading="lazy"
+                              decoding="async"
+                              className="w-full h-full object-contain transition-none sm:transition-transform sm:group-hover:scale-110"
                             />
                           </div>
                         ) : (

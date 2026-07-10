@@ -12,6 +12,31 @@ interface PageProps {
   params: Promise<{ id: string; divId: string }>;
 }
 
+function sortRosterByDisplayPrice<T extends {
+  displayPrice?: number | null;
+  price?: number | null;
+  draftOrder?: number | null;
+  acquiredWeek?: number | null;
+  pokemon?: { displayName?: string | null; name?: string | null } | null;
+  displayName?: string | null;
+  name?: string | null;
+}>(roster: T[]) {
+  return [...roster].sort((a, b) => {
+    const priceDiff = (b.displayPrice ?? b.price ?? 0) - (a.displayPrice ?? a.price ?? 0);
+    if (priceDiff !== 0) return priceDiff;
+
+    const draftOrderDiff = (a.draftOrder ?? 999) - (b.draftOrder ?? 999);
+    if (draftOrderDiff !== 0) return draftOrderDiff;
+
+    const acquiredWeekDiff = (a.acquiredWeek ?? 999) - (b.acquiredWeek ?? 999);
+    if (acquiredWeekDiff !== 0) return acquiredWeekDiff;
+
+    const aName = a.pokemon?.displayName || a.pokemon?.name || a.displayName || a.name || "";
+    const bName = b.pokemon?.displayName || b.pokemon?.name || b.displayName || b.name || "";
+    return aName.localeCompare(bName);
+  });
+}
+
 async function getDivisionData(divisionId: number) {
   // Fetch all data in parallel
   const [division, coaches, allRosters, divisionMatches] = await Promise.all([
@@ -231,24 +256,6 @@ export default async function DivisionRostersPage({ params }: PageProps) {
       })
       .filter((p): p is NonNullable<typeof p> => p !== undefined);
 
-    // Sort: draft picks first by draft order, then transaction acquisitions by week
-    teamRosters.sort((a, b) => {
-      // Both have draft order - sort by draft order
-      if (a.draftOrder && b.draftOrder) {
-        return a.draftOrder - b.draftOrder;
-      }
-      // Only a has draft order - a comes first
-      if (a.draftOrder && !b.draftOrder) {
-        return -1;
-      }
-      // Only b has draft order - b comes first
-      if (!a.draftOrder && b.draftOrder) {
-        return 1;
-      }
-      // Neither has draft order - sort by acquired week
-      return (a.acquiredWeek || 0) - (b.acquiredWeek || 0);
-    });
-
     // Calculate total spent using time-synced roster with correct TC costs
     let totalSpent = 0;
     for (const r of teamRosters) {
@@ -266,8 +273,8 @@ export default async function DivisionRostersPage({ params }: PageProps) {
 
     return {
       coach,
-      rosters: teamRosters,
-      droppedPokemon: droppedPokemonDetails,
+      rosters: sortRosterByDisplayPrice(teamRosters),
+      droppedPokemon: sortRosterByDisplayPrice(droppedPokemonDetails),
       totalSpent,
       budgetLeft,
     };
