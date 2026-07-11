@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import {
   DndContext,
@@ -64,21 +64,20 @@ interface CoachData {
   isActive: boolean | null;
 }
 
-interface StandingsData {
-  id: number;
+interface RankingTeam extends CoachData {
   wins: number;
   losses: number;
   differential: number;
-}
-
-interface PreloadedDivision {
-  coaches: CoachData[];
-  standings: StandingsData[];
+  eloRating: number;
+  movement: number;
+  recentForm: ("W" | "L")[];
+  streak: string;
+  lastResult: { result: "W" | "L"; opponent: string; score: string } | null;
 }
 
 interface Props {
   seasons: Season[];
-  preloadedData: Record<number, PreloadedDivision>;
+  preloadedData: Record<number, RankingTeam[]>;
 }
 
 function SortableTeam({
@@ -86,7 +85,7 @@ function SortableTeam({
   index,
   divisionColor,
 }: {
-  team: CoachData & { wins: number; losses: number; differential: number };
+  team: RankingTeam;
   index: number;
   divisionColor: string;
 }) {
@@ -149,15 +148,29 @@ function SortableTeam({
       )}
 
       {/* Team Name + Coach */}
-      <div className="flex-1 min-w-0 flex items-center gap-2">
-        <span className="font-bold text-sm text-white truncate">{team.teamName}</span>
-        <span className="text-[10px] text-[var(--foreground-subtle)] truncate hidden sm:inline">
-          {team.coachName}
-        </span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-sm text-white truncate">{team.teamName}</span>
+          <span className="text-[10px] text-[var(--foreground-subtle)] truncate hidden sm:inline">{team.coachName}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[var(--foreground-subtle)]">
+          <span>DIFF <strong className={team.differential >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}>{team.differential > 0 ? "+" : ""}{team.differential}</strong></span>
+          <span>ELO <strong className="text-[var(--foreground-muted)]">{team.eloRating}</strong></span>
+          <span>STREAK <strong className={team.streak.startsWith("W") ? "text-[var(--success)]" : team.streak.startsWith("L") ? "text-[var(--error)]" : "text-[var(--foreground-muted)]"}>{team.streak}</strong></span>
+          {team.lastResult && <span>LAST <strong className={team.lastResult.result === "W" ? "text-[var(--success)]" : "text-[var(--error)]"}>{team.lastResult.result} {team.lastResult.score}</strong> vs {team.lastResult.opponent}</span>}
+        </div>
       </div>
 
-      {/* Record */}
-      <div className="shrink-0">
+      {/* Form, movement, and record */}
+      <div className="shrink-0 flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-1">
+          {team.recentForm.map((result, resultIndex) => (
+            <span key={`${result}-${resultIndex}`} className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold ${result === "W" ? "bg-[var(--success)]/15 text-[var(--success)]" : "bg-[var(--error)]/15 text-[var(--error)]"}`}>{result}</span>
+          ))}
+        </div>
+        <div className={`w-8 text-center text-xs font-bold ${team.movement > 0 ? "text-[var(--success)]" : team.movement < 0 ? "text-[var(--error)]" : "text-[var(--foreground-subtle)]"}`} title="Movement since the standings before the latest completed week">
+          {team.movement > 0 ? `▲${team.movement}` : team.movement < 0 ? `▼${Math.abs(team.movement)}` : "—"}
+        </div>
         <span className="font-bold text-xs">
           <span className="text-[var(--success)]">{team.wins}</span>
           <span className="text-[var(--foreground-subtle)]">-</span>
@@ -174,9 +187,8 @@ export function PowerRankingsClient({ seasons, preloadedData }: Props) {
   );
   const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
   const [teams, setTeams] = useState<
-    (CoachData & { wins: number; losses: number; differential: number })[]
+    RankingTeam[]
   >([]);
-  const [loading, setLoading] = useState(false);
   const [hostedBy, setHostedBy] = useState("");
 
   const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
@@ -184,112 +196,6 @@ export function PowerRankingsClient({ seasons, preloadedData }: Props) {
     (d) => d.id === selectedDivisionId
   );
   const divisionColor = getDivisionColor(selectedDivision?.name);
-
-  // Load teams when division changes
-  const loadTeams = useCallback(
-    async (divId: number) => {
-      // Check preloaded data first
-      const preloaded = preloadedData[divId];
-      if (preloaded) {
-        const standingsMap = new Map(preloaded.standings.map((s) => [s.id, s]));
-        const merged = preloaded.coaches.map((c) => ({
-          ...c,
-          wins: standingsMap.get(c.id)?.wins ?? 0,
-          losses: standingsMap.get(c.id)?.losses ?? 0,
-          differential: standingsMap.get(c.id)?.differential ?? 0,
-        }));
-        // Sort by standings order
-        merged.sort((a, b) => {
-          const aIdx = preloaded.standings.findIndex((s) => s.id === a.id);
-          const bIdx = preloaded.standings.findIndex((s) => s.id === b.id);
-          return aIdx - bIdx;
-        });
-        setTeams(merged);
-        return;
-      }
-
-      // Client-side fetch for non-preloaded seasons
-      setLoading(true);
-      try {
-        const [rostersRes, matchesRes] = await Promise.all([
-          fetch(`/api/rosters?divisionId=${divId}`),
-          fetch(`/api/matches?divisionId=${divId}`),
-        ]);
-        const rostersData = await rostersRes.json();
-        const matchesData = await matchesRes.json();
-
-        // Build coaches from rosters response
-        // The divisionId endpoint returns seasonCoach objects directly
-        const coachMap = new Map<number, CoachData>();
-        const items = rostersData.rosters || rostersData;
-        for (const r of items) {
-          // Handle both formats: direct seasonCoach objects (from divisionId query)
-          // and roster objects with nested seasonCoach (from other queries)
-          const sc = r.seasonCoach || r;
-          if (sc.id && !coachMap.has(sc.id)) {
-            coachMap.set(sc.id, {
-              id: sc.id,
-              teamName: sc.teamName,
-              teamAbbreviation: sc.teamAbbreviation,
-              teamLogoUrl: sc.teamLogoUrl,
-              coachName: sc.coach?.name || null,
-              isActive: sc.isActive,
-            });
-          }
-        }
-
-        // Compute standings from matches
-        const matchList = matchesData.matches || matchesData;
-        const standingsMap = new Map<number, { wins: number; losses: number; differential: number }>();
-        for (const [id] of coachMap) {
-          standingsMap.set(id, { wins: 0, losses: 0, differential: 0 });
-        }
-        for (const m of matchList) {
-          if (m.week > 100) continue;
-          if (standingsMap.has(m.coach1SeasonId)) {
-            const s = standingsMap.get(m.coach1SeasonId)!;
-            if (m.winnerId === m.coach1SeasonId) s.wins++;
-            else if (m.winnerId) s.losses++;
-            s.differential += m.coach1Differential || 0;
-          }
-          if (standingsMap.has(m.coach2SeasonId)) {
-            const s = standingsMap.get(m.coach2SeasonId)!;
-            if (m.winnerId === m.coach2SeasonId) s.wins++;
-            else if (m.winnerId) s.losses++;
-            s.differential += m.coach2Differential || 0;
-          }
-        }
-
-        const merged = Array.from(coachMap.values())
-          .filter((c) => c.isActive)
-          .map((c) => ({
-            ...c,
-            ...(standingsMap.get(c.id) ?? { wins: 0, losses: 0, differential: 0 }),
-          }));
-
-        merged.sort((a, b) => {
-          if (b.wins !== a.wins) return b.wins - a.wins;
-          if (b.differential !== a.differential) return b.differential - a.differential;
-          return a.losses - b.losses;
-        });
-
-        setTeams(merged);
-      } catch {
-        console.error("Failed to load division data");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [preloadedData]
-  );
-
-  useEffect(() => {
-    if (selectedDivisionId) {
-      loadTeams(selectedDivisionId);
-    } else {
-      setTeams([]);
-    }
-  }, [selectedDivisionId, loadTeams]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -380,7 +286,10 @@ export function PowerRankingsClient({ seasons, preloadedData }: Props) {
               return (
                 <button
                   key={div.id}
-                  onClick={() => setSelectedDivisionId(div.id)}
+                  onClick={() => {
+                    setSelectedDivisionId(div.id);
+                    setTeams(preloadedData[div.id] || []);
+                  }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all border-2 ${
                     isSelected
                       ? "text-white shadow-lg"
@@ -411,14 +320,7 @@ export function PowerRankingsClient({ seasons, preloadedData }: Props) {
       )}
 
       {/* Team Ranking List */}
-      {loading && (
-        <div className="poke-card p-12 text-center">
-          <div className="inline-block w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-          <p className="text-[var(--foreground-muted)] mt-4 text-sm">Loading teams...</p>
-        </div>
-      )}
-
-      {!loading && teams.length > 0 && selectedDivision && (
+      {teams.length > 0 && selectedDivision && (
         <div className="poke-card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-[var(--foreground-muted)] uppercase tracking-wide">

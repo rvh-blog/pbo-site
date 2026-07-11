@@ -125,6 +125,14 @@ Relevant files:
 
 Power rankings live at `/power-rankings` with a slideshow mode at `/power-rankings/slideshow`.
 
+All public seasons use the shared standings calculation so replacement coaches
+and standings tiebreakers are handled consistently. Slideshow schedules display
+full opponent team names rather than team abbreviations.
+
+Ranking rows also show movement from the standings before the latest completed
+week, differential, recent form, current streak, coach Elo, and the latest
+opponent, result, and score.
+
 Relevant files:
 
 - `src/app/power-rankings/page.tsx`
