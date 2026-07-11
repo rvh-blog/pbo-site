@@ -13,6 +13,9 @@ It is a planning surface that uses live league data and user preferences. Prefer
 The matchup speed calculator defaults both sides to level 50 for Season 11 and
 later planning. Other speed calculator behavior remains unchanged.
 
+The page header links to the external Nimbasa City Post VGC Damage Calculator
+and displays attribution beside the link. The external tool opens in a new tab.
+
 Relevant files:
 
 - `src/app/matchup-prep/page.tsx`
@@ -144,6 +147,11 @@ Current overlay expectations:
   forms are recognized.
 - Hyphenated Showdown sprite ids should be preserved where the sprite endpoint
   expects them.
+- Both server-rendered overlay routes must load the shared custom Pokemon alias
+  and collapse maps, attach alias-aware lookup keys to roster entries, and pass
+  the serialized maps into the live Showdown client.
+- Division accents come from `getDivisionColor()`, including Infinity color
+  `#E2A3C7`.
 
 Relevant files:
 

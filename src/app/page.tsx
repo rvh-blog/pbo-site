@@ -441,13 +441,16 @@ async function getRecentDraftPicksByDivision(
   }));
 }
 
-async function getStats() {
+async function getStats(
+  currentSeasonPromise: Promise<Awaited<ReturnType<typeof getCurrentSeason>>>
+) {
+  const currentSeason = await currentSeasonPromise;
   const allSeasons = await db.query.seasons.findMany();
   const publicSeasons = allSeasons.filter((season) => season.isPublic !== false);
   const publicSeasonIds = publicSeasons.map((season) => season.id);
 
   // Run count queries in parallel
-  const [totalCoaches, totalMatches] = await Promise.all([
+  const [totalCoaches, totalMatches, currentSeasonMatches] = await Promise.all([
     db.select({ count: count() }).from(coaches),
     // Only count matches with results (winnerId is set)
     publicSeasonIds.length > 0
@@ -456,37 +459,20 @@ async function getStats() {
           .from(matches)
           .where(and(isNotNull(matches.winnerId), inArray(matches.seasonId, publicSeasonIds)))
       : Promise.resolve([{ count: 0 }]),
+    currentSeason
+      ? db
+          .select({ count: count() })
+          .from(matches)
+          .where(and(isNotNull(matches.winnerId), eq(matches.seasonId, currentSeason.id)))
+      : Promise.resolve([{ count: 0 }]),
   ]);
 
   return {
     coaches: totalCoaches[0].count,
     seasons: publicSeasons.length,
     matches: totalMatches[0].count,
+    currentSeasonMatches: currentSeasonMatches[0].count,
   };
-}
-
-async function getStargazerChampion() {
-  // Find the latest Stargazer division finals winner (by seasonNumber, not seasonId)
-  const allFinals = await db.query.playoffMatches.findMany({
-    where: and(
-      eq(playoffMatches.round, 3), // Finals
-      isNotNull(playoffMatches.winnerId)
-    ),
-    with: {
-      division: true,
-      season: true,
-      winner: {
-        with: { coach: true }
-      },
-    },
-  });
-
-  // Filter for Stargazer division and sort by seasonNumber descending
-  const stargazerFinals = allFinals
-    .filter(f => f.division?.name === "Stargazer")
-    .sort((a, b) => (b.season?.seasonNumber || 0) - (a.season?.seasonNumber || 0));
-
-  return stargazerFinals[0]?.winner || null;
 }
 
 async function getCoachTypeUsage(): Promise<Map<number, string[]>> {
@@ -736,11 +722,9 @@ function getRoundLabel(round: number): string {
 
 function StatsStrip({
   stats,
-  championTeamName,
   className = "",
 }: {
   stats: Awaited<ReturnType<typeof getStats>>;
-  championTeamName: string | null;
   className?: string;
 }) {
   return (
@@ -768,13 +752,11 @@ function StatsStrip({
         <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Battles</div>
       </div>
       <div className="stat-card flex flex-col items-center justify-center text-center">
-        <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2C13.1 2 14 2.9 14 4V5H16C16 3.34 14.66 2 13 2H11C9.34 2 8 3.34 8 5H10V4C10 2.9 10.9 2 12 2ZM20 6H16V8H19V9C19 11.21 17.21 13 15 13H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H20ZM4 6H5C4.9 6 4 6.9 4 8V9C4 12.31 6.69 15 10 15H11V13H10C7.79 13 6 11.21 6 9V8H9V6H5C3.9 6 3 6.9 3 8V9C3 12.31 5.69 15 9 15H10V17H8V19H16V17H14V15H15C18.31 15 21 12.31 21 9V8C21 6.9 20.1 6 19 6H4ZM8 6H5V8H8V6ZM10 19V21H14V19H10Z" />
+        <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <div className="font-bold text-sm sm:text-lg text-white mb-0.5 sm:mb-1 truncate max-w-full px-1">
-          {championTeamName || "--"}
-        </div>
-        <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Champion</div>
+        <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.currentSeasonMatches}</div>
+        <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Matches Played</div>
       </div>
     </div>
   );
@@ -988,14 +970,13 @@ export default async function Home() {
       ? []
       : getRecentDraftPicksByDivision(currentSeasonPromise)
   );
-  const [currentSeason, previousSeasonChampions, recentBattles, recentDraftPicksByDivision, stats, topCoaches, stargazerChampion, personalizedHome] = await Promise.all([
+  const [currentSeason, previousSeasonChampions, recentBattles, recentDraftPicksByDivision, stats, topCoaches, personalizedHome] = await Promise.all([
     currentSeasonPromise,
     getPreviousSeasonChampions(),
     getRecentBattles(),
     recentDraftPicksPromise,
-    getStats(),
+    getStats(currentSeasonPromise),
     getTopCoaches(),
-    getStargazerChampion(),
     getHomePersonalization(currentSeasonPromise),
   ]);
   const visibleTopCoaches = topCoaches.filter((coach, index) => index < 5 || coach.isShowcase);
@@ -1299,7 +1280,6 @@ export default async function Home() {
 
       <StatsStrip
         stats={stats}
-        championTeamName={stargazerChampion?.teamName ?? null}
         className="hidden lg:grid"
       />
 
@@ -1308,7 +1288,6 @@ export default async function Home() {
         mobileMiddleContent={
           <StatsStrip
             stats={stats}
-            championTeamName={stargazerChampion?.teamName ?? null}
             className="grid"
           />
         }
