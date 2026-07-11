@@ -10,6 +10,7 @@ const adminNavItems = [
   { href: "/admin/rosters", label: "Rosters" },
   { href: "/admin/transactions", label: "Transactions" },
   { href: "/admin/matches", label: "Matches" },
+  { href: "/admin/battle-records", label: "Records" },
   { href: "/admin/discord", label: "Discord" },
   { href: "/admin/sheets", label: "Sheets" },
   { href: "/admin/engagement", label: "Engagement" },

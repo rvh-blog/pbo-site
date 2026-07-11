@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // Coaches table - persistent identity across seasons
@@ -1184,6 +1184,22 @@ export const adminAuditLogs = sqliteTable("admin_audit_logs", {
   index("idx_admin_audit_logs_created_at").on(table.createdAt),
   index("idx_admin_audit_logs_entity").on(table.entityType, table.entityId),
   index("idx_admin_audit_logs_actor").on(table.actorType, table.actorId),
+]);
+
+// Display-only corrections for automatically calculated PBO record categories.
+export const battleRecordOverrides = sqliteTable("battle_record_overrides", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scope: text("scope").notNull(), // regular-season or playoffs
+  categoryKey: text("category_key").notNull(),
+  categoryTitle: text("category_title").notNull(),
+  entries: text("entries").notNull(), // JSON array of title/detail/href entries
+  reason: text("reason").notNull(),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_battle_record_overrides_scope_category").on(table.scope, table.categoryKey),
+  index("idx_battle_record_overrides_active").on(table.isActive),
 ]);
 
 // User Preferences - saves page settings for logged-in users

@@ -38,6 +38,15 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`
+            try {
+              var savedTheme = localStorage.getItem('pbo-theme');
+              var theme = savedTheme === 'light' ? 'light' : 'dark';
+              document.documentElement.dataset.theme = theme;
+            } catch (_) {}
+          `}
+        </Script>
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-PY549928RV"
           strategy="afterInteractive"
@@ -60,7 +69,7 @@ export default function RootLayout({
 
         {/* Giant Rotating Pokeball Wireframe Background */}
         <div className="pokeball-wireframe">
-          <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="1" className="w-full h-full text-slate-400">
+          <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="1" className="w-full h-full text-[var(--foreground-subtle)]">
             <circle cx="50" cy="50" r="48" />
             <path d="M2 50h96" />
             <circle cx="50" cy="50" r="15" fill="black" fillOpacity="0.1" />
@@ -83,7 +92,7 @@ export default function RootLayout({
                     </div>
                   </div>
                   <div>
-                    <div className="font-pixel text-xs text-white group-hover:text-[var(--primary-light)] transition-colors">
+                    <div className="font-pixel text-xs text-[var(--foreground)] group-hover:text-[var(--primary-light)] transition-colors">
                       PBO
                     </div>
                     <div className="text-[10px] font-bold text-[var(--foreground-subtle)] uppercase tracking-widest">
@@ -103,16 +112,16 @@ export default function RootLayout({
               </div>
 
               <div>
-                <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white sm:mb-3">League</h2>
+                <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground)] sm:mb-3">League</h2>
                 <div className="space-y-1.5 text-sm sm:space-y-2">
-                  <Link href="/seasons" className="block text-[var(--foreground-muted)] hover:text-white transition-colors">Seasons</Link>
-                  <Link href="/coaches" className="block text-[var(--foreground-muted)] hover:text-white transition-colors">Coaches</Link>
-                  <Link href="/leaderboards" className="block text-[var(--foreground-muted)] hover:text-white transition-colors">Leaderboards</Link>
+                  <Link href="/seasons" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Seasons</Link>
+                  <Link href="/coaches" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Coaches</Link>
+                  <Link href="/leaderboards" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Leaderboards</Link>
                   <a
                     href="https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                   >
                     Rulebook
                   </a>
@@ -120,15 +129,15 @@ export default function RootLayout({
               </div>
 
               <div>
-                <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white sm:mb-3">Tools</h2>
+                <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground)] sm:mb-3">Tools</h2>
                 <div className="space-y-1.5 text-sm sm:space-y-2">
-                  <Link href="/draft-planner" className="block text-[var(--foreground-muted)] hover:text-white transition-colors">Draft Planner</Link>
-                  <Link href="/matchup-prep" className="block text-[var(--foreground-muted)] hover:text-white transition-colors">Match Prep</Link>
-                  <Link href="/analyzer" className="block text-[var(--foreground-muted)] hover:text-white transition-colors">Analyzer</Link>
+                  <Link href="/draft-planner" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Draft Planner</Link>
+                  <Link href="/matchup-prep" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Match Prep</Link>
+                  <Link href="/analyzer" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Analyzer</Link>
                   <a
                     href="/api/export"
                     download
-                    className="inline-flex items-center gap-1.5 text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    className="inline-flex items-center gap-1.5 text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -139,7 +148,7 @@ export default function RootLayout({
               </div>
 
               <div>
-                <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white sm:mb-3">Connect</h2>
+                <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground)] sm:mb-3">Connect</h2>
                 <div className="flex flex-wrap gap-2">
                   <a href="https://www.youtube.com/@Pokemon.Battle.Organization" target="_blank" rel="noopener noreferrer" className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[var(--background)] border border-[var(--background-tertiary)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[#FF0000] hover:border-[#FF0000]/50 transition-all" title="YouTube" aria-label="YouTube">
                     <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">

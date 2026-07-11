@@ -4,6 +4,33 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 11, 2026
+
+Theme support:
+
+- The site now supports persistent light and dark themes from a sun/moon control in desktop and mobile navigation.
+- Dark remains the default. The selected theme is stored in browser local storage and applied before the page renders to avoid a theme flash.
+- Shared backgrounds, cards, borders, navigation, footer content, status colors, Battle Log rows, week badges, and score boxes have light-theme contrast rules.
+- Existing inverse white text remains white on colored actions, banners, gradients, and team-customized backgrounds.
+
+Fantasy Scout:
+
+- Fantasy Scout now exposes Season 11 and later only. The Season 10 selector and direct Fantasy Scout selection path are no longer available.
+
+PBO record corrections:
+
+- Admin navigation now includes `Admin -> Records` at `/admin/battle-records`.
+- Admins can replace one Regular Season or Playoff PBO Records category with up to three display entries, including optional internal or HTTPS links.
+- A correction reason is required. Overrides can be disabled or deleted to restore the live automatic calculation.
+- Record calculations and source match data remain unchanged; the override is applied only to the final PBO Records display.
+- Create, update, disable, and delete operations write to the admin audit log.
+- The `battle_record_overrides` table is covered by `migrations/add-battle-record-overrides.sql` and is also ensured at runtime.
+
+Verification notes:
+
+- TypeScript, targeted ESLint, Git whitespace checks, and the full production build pass.
+- Override create/read/delete storage was tested against a copied local database.
+
 ## July 10, 2026
 
 Pokemon API performance:

@@ -44,11 +44,48 @@ export function Navigation() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProjectMewPrompt, setShowProjectMewPrompt] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  const [isLightMode, setIsLightMode] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
     fantasyUiHidden: false,
     blogUiHidden: false,
   });
   const projectMewReleased = isProjectMewReleased();
+
+  useEffect(() => {
+    document.documentElement.classList.add("theme-ready");
+    const frame = requestAnimationFrame(() => {
+      setIsLightMode(document.documentElement.dataset.theme === "light");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  function toggleTheme() {
+    const nextIsLight = !isLightMode;
+    const nextTheme = nextIsLight ? "light" : "dark";
+    setIsLightMode(nextIsLight);
+    document.documentElement.dataset.theme = nextTheme;
+    localStorage.setItem("pbo-theme", nextTheme);
+  }
+
+  const themeToggle = (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-tertiary)] transition-colors"
+      aria-label={isLightMode ? "Switch to dark mode" : "Switch to light mode"}
+      title={isLightMode ? "Dark mode" : "Light mode"}
+    >
+      {isLightMode ? (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21.752 15.002A9 9 0 1112.998 2.248 7 7 0 0021.752 15.002z" />
+        </svg>
+      ) : (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364-.707.707M6.343 17.657l-.707.707m12.728 0-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      )}
+    </button>
+  );
 
   useEffect(() => {
     async function checkAuth() {
@@ -158,7 +195,7 @@ export function Navigation() {
             </div>
           </div>
           <div className="flex flex-col">
-            <span className="font-pixel text-xs text-white group-hover:text-[var(--primary-light)] transition-colors">
+            <span className="font-pixel text-xs text-[var(--foreground)] group-hover:text-[var(--primary-light)] transition-colors">
               PBO
             </span>
             <span className="text-[10px] font-bold text-[var(--foreground-subtle)] uppercase tracking-widest hidden sm:block">
@@ -179,8 +216,8 @@ export function Navigation() {
                 href={item.href}
                 className={`font-bold uppercase text-sm tracking-wide transition-all ${
                   isActive
-                    ? "text-white underline decoration-[var(--primary)] decoration-2 underline-offset-4"
-                    : "text-[var(--foreground-muted)] hover:text-white hover:underline hover:decoration-[var(--primary)] hover:decoration-2 hover:underline-offset-4"
+                    ? "text-[var(--foreground)] underline decoration-[var(--primary)] decoration-2 underline-offset-4"
+                    : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-[var(--primary)] hover:decoration-2 hover:underline-offset-4"
                 }`}
               >
                 {item.label}
@@ -190,6 +227,8 @@ export function Navigation() {
 
           <Search />
 
+          {themeToggle}
+
           {/* Persona Button */}
           <div className="relative">
             <button
@@ -197,7 +236,7 @@ export function Navigation() {
               className={`relative p-2 rounded-lg transition-colors ${
                 authUser
                   ? "text-[var(--accent)] hover:bg-[var(--accent)]/10"
-                  : "text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--background-tertiary)]"
+                  : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-tertiary)]"
               }`}
               aria-label="Account"
             >
@@ -232,7 +271,7 @@ export function Navigation() {
                           </svg>
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-bold text-white truncate">{authUser.name}</div>
+                          <div className="text-sm font-bold text-[var(--foreground)] truncate">{authUser.name}</div>
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase">
                               {authUser.type}
@@ -322,13 +361,14 @@ export function Navigation() {
         {/* Mobile: Search + Menu Button */}
         <div className="md:hidden flex items-center gap-2">
           <Search />
+          {themeToggle}
           {authUser && (
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]/15 text-xs font-bold text-[var(--accent)]">
               {userInitial}
             </span>
           )}
           <button
-            className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors"
+            className="p-2 text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle menu"
           >
@@ -360,7 +400,7 @@ export function Navigation() {
                       </svg>
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-bold text-white truncate">{authUser.name}</div>
+                      <div className="text-sm font-bold text-[var(--foreground)] truncate">{authUser.name}</div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase">
                           {authUser.type}
@@ -436,8 +476,8 @@ export function Navigation() {
                   onClick={() => setMobileMenuOpen(false)}
                   className={`block py-3 px-4 rounded-lg font-bold uppercase text-sm tracking-wide transition-all ${
                     isActive
-                      ? "text-white bg-[var(--background-tertiary)]"
-                      : "text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--background-tertiary)]"
+                      ? "text-[var(--foreground)] bg-[var(--background-tertiary)]"
+                      : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-tertiary)]"
                   }`}
                 >
                   {item.label}
