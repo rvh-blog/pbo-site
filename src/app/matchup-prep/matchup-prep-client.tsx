@@ -685,12 +685,29 @@ export function MatchupPrepClient({
     <div className="space-y-6 max-w-[1600px] mx-auto">
       {/* Page Header */}
       <div className="poke-card p-6">
-        <h1 className="font-pixel text-xl md:text-2xl text-white leading-relaxed">
-          Matchup Prep
-        </h1>
-        <p className="text-sm text-[var(--foreground-muted)] mt-1">
-          Analyze team matchups with type charts, speed tiers, and move coverage
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="font-pixel text-xl md:text-2xl text-white leading-relaxed">
+              Matchup Prep
+            </h1>
+            <p className="text-sm text-[var(--foreground-muted)] mt-1">
+              Analyze team matchups with type charts, speed tiers, and move coverage
+            </p>
+          </div>
+          <div className="flex max-w-md flex-col gap-2 sm:items-end">
+            <a
+              href="https://nerd-of-now.github.io/NCP-VGC-Damage-Calculator/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex shrink-0 items-center justify-center rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-4 py-2 text-xs font-bold uppercase text-white transition-colors hover:border-[#ef4444] hover:text-[#ef4444]"
+            >
+              Open Damage Calculator ↗
+            </a>
+            <p className="text-xs text-[var(--foreground-muted)] sm:text-right">
+              Thank you to Nimbasa City Post for making this, and please support them.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Matchup Selector */}

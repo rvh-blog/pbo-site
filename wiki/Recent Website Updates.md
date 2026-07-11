@@ -6,6 +6,22 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## July 11, 2026
 
+Broadcast overlays:
+
+- Both broadcast overlay routes now load the shared custom Pokemon alias and collapse maps when constructing their server-rendered roster payloads.
+- Overlay rosters include the same lookup keys used by the broadcast API, and the legacy overlay client now uses alias-aware species, battle-form, and team-side matching.
+- Both overlays continue to receive division accents from the shared division color helper, including Infinity color `#E2A3C7`.
+
+Matchup Prep:
+
+- The header links to the Nimbasa City Post VGC Damage Calculator in a new tab.
+- The external calculator link includes visible attribution thanking Nimbasa City Post and asking users to support them.
+
+Homepage stats:
+
+- The Champion summary card was replaced by Matches Played.
+- Matches Played counts completed matches in the current public season, while Battles remains the completed all-time public-season total.
+
 Theme support:
 
 - The site now supports persistent light and dark themes from a sun/moon control in desktop and mobile navigation.

@@ -7,6 +7,12 @@ import { type OverlayData } from "../overlay/overlay-client";
 import { Overlay2Client } from "./overlay2-client";
 import type { MatchContext } from "./overlay2-client";
 import { computeAndSortStandings } from "@/lib/standings-sort";
+import {
+  customPokemonAliasesForRow,
+  getPokemonAliasMaps,
+  pokemonLookupKeysForRowWithAliases,
+  serializePokemonAliasMaps,
+} from "@/lib/pokemon-name-aliases";
 
 // Division hierarchy (1 = top, 4 = bottom)
 const DIVISION_TIERS: Record<string, number> = {
@@ -98,7 +104,7 @@ export default async function Overlay2Page({ searchParams }: PageProps) {
     ]),
   ]);
 
-  const [roster1Result, roster2Result] = await Promise.all([
+  const [roster1Result, roster2Result, aliasMaps] = await Promise.all([
     getTimeSyncedRoster(
       match.coach1SeasonId,
       match.week,
@@ -111,6 +117,7 @@ export default async function Overlay2Page({ searchParams }: PageProps) {
       coach2?.rosters || [],
       [...coach2Txs[0], ...coach2Txs[1]] as any
     ),
+    getPokemonAliasMaps(),
   ]);
 
   // W-L records + context data
@@ -152,6 +159,12 @@ export default async function Overlay2Page({ searchParams }: PageProps) {
         spriteUrl: r.pokemon?.spriteUrl || null,
         types: r.pokemon?.types || [],
         isTeraCaptain: r.isTeraCaptain ?? false,
+        nameAliases: customPokemonAliasesForRow({ id: r.pokemonId }, aliasMaps),
+        lookupKeys: Array.from(pokemonLookupKeysForRowWithAliases({
+          id: r.pokemonId,
+          name: r.pokemon?.name || "",
+          displayName: r.pokemon?.displayName || r.pokemon?.name || "",
+        }, aliasMaps)),
       })),
       ...result.droppedPokemonDetails.map((p) => ({
         pokemonId: p.id,
@@ -160,6 +173,12 @@ export default async function Overlay2Page({ searchParams }: PageProps) {
         spriteUrl: p.spriteUrl || null,
         types: p.types || [],
         isTeraCaptain: (p as any).isTeraCaptain ?? false,
+        nameAliases: customPokemonAliasesForRow(p, aliasMaps),
+        lookupKeys: Array.from(pokemonLookupKeysForRowWithAliases({
+          id: p.id,
+          name: p.name,
+          displayName: p.displayName || p.name,
+        }, aliasMaps)),
       })),
     ];
   }
@@ -347,6 +366,7 @@ export default async function Overlay2Page({ searchParams }: PageProps) {
     seasonName: match.season?.name || "",
     divisionName: match.division?.name || "",
     divisionColor: getDivisionColor(match.division?.name || ""),
+    pokemonNameAliases: serializePokemonAliasMaps(aliasMaps),
     team1: {
       seasonCoachId: match.coach1SeasonId,
       teamName: coach1?.teamName || "",
