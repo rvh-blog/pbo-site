@@ -245,7 +245,7 @@ export function Search() {
         <div className="max-h-[60vh] overflow-y-auto">
           {query.length < 2 ? (
             <div className="px-4 py-8 text-center text-[var(--foreground-muted)]">
-              <p>Type at least 2 characters to search</p>
+              <p>Type at least two characters to search.</p>
             </div>
           ) : results && flatResults.length === 0 ? (
             <div className="px-4 py-8 text-center text-[var(--foreground-muted)]">

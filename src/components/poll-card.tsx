@@ -145,7 +145,7 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
       </div>
       <div className={`${compact ? "mt-2" : "mt-3"} flex items-center justify-between gap-3 text-[11px] text-[var(--foreground-subtle)]`}>
         <span>{poll.selectedOptionIndex !== null ? `${poll.totalVotes} vote${poll.totalVotes === 1 ? "" : "s"}` : "Vote to reveal results"}</span>
-        {!poll.canVote && <span>Coach login required to vote</span>}
+        {!poll.canVote && <span>Coach login is required to vote.</span>}
       </div>
       {error && <p className="mt-2 text-xs text-[var(--error)]">{error}</p>}
     </div>

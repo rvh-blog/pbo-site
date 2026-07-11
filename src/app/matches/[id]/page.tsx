@@ -283,7 +283,7 @@ function BattleSummaryTeam({
             <div className="flex min-h-[28px] items-start justify-center text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">
               {label === "Favorable Crits/Flinch/Miss/Status Proc" ? (
                 <span>
-                  <span className="block">Favorable Crits/Flinch</span>
+                  <span className="block">Favorable Crits/Flinches</span>
                   <span className="block">Miss/Status Proc</span>
                 </span>
               ) : (

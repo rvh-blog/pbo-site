@@ -60,7 +60,7 @@ export function ProjectMewPromptModal({
         <div className="pr-8">
           <h2 className="font-pixel text-sm leading-6 text-white">Project MEW</h2>
           <p className="mt-3 text-sm leading-6 text-[var(--foreground-muted)]">
-            Would you like to participate in Project MEW during Season 11? Several coaches per week will be asked for their team sheets to aid in key turn evaluation on the Youtube video.
+            Would you like to participate in Project MEW during Season 11? Each week, several coaches will be asked to provide their team sheets to support key-turn analysis in the YouTube video.
           </p>
         </div>
 

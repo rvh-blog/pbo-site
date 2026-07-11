@@ -16,6 +16,7 @@ export interface PboRecordCategory {
 }
 
 type BattleRecordTab = "coach-records" | "pbo-records";
+type PboRecordScope = "regular-season" | "playoffs";
 
 const tabs: Array<{ id: BattleRecordTab; label: string }> = [
   { id: "coach-records", label: "Coach Records" },
@@ -71,13 +72,19 @@ function PboRecordsGrid({ categories }: { categories: PboRecordCategory[] }) {
 
 export function BattleRecordView({
   records,
-  pboRecords,
+  regularSeasonPboRecords,
+  playoffPboRecords,
 }: {
   records: BattleRecordRow[];
-  pboRecords: PboRecordCategory[];
+  regularSeasonPboRecords: PboRecordCategory[];
+  playoffPboRecords: PboRecordCategory[];
 }) {
   const [activeTab, setActiveTab] = useState<BattleRecordTab>("coach-records");
+  const [pboRecordScope, setPboRecordScope] = useState<PboRecordScope>("regular-season");
   const activeTitle = activeTab === "coach-records" ? "Coach Records" : "PBO Records";
+  const activePboRecords = pboRecordScope === "regular-season"
+    ? regularSeasonPboRecords
+    : playoffPboRecords;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -97,7 +104,7 @@ export function BattleRecordView({
               Battle Record
             </h1>
             <p className="mt-1 text-base text-[var(--foreground-muted)]">
-              All-time coach scoreline records from completed non-forfeit matches.
+              All-time records from completed, non-forfeit matches.
             </p>
           </div>
 
@@ -139,7 +146,34 @@ export function BattleRecordView({
         {activeTab === "coach-records" ? (
           <BattleRecordTable records={records} />
         ) : (
-          <PboRecordsGrid categories={pboRecords} />
+          <div>
+            <div className="flex justify-center border-b-2 border-[var(--background-tertiary)] p-3 sm:p-4">
+              <div className="grid w-full max-w-md grid-cols-2 gap-2">
+                {([
+                  { id: "regular-season", label: "Regular Season" },
+                  { id: "playoffs", label: "Playoffs" },
+                ] as const).map((scope) => {
+                  const active = pboRecordScope === scope.id;
+
+                  return (
+                    <button
+                      key={scope.id}
+                      type="button"
+                      onClick={() => setPboRecordScope(scope.id)}
+                      className={`rounded-lg border-2 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest transition-colors sm:text-xs ${
+                        active
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-black"
+                          : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:border-[var(--accent)] hover:text-white"
+                      }`}
+                    >
+                      {scope.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <PboRecordsGrid categories={activePboRecords} />
+          </div>
         )}
       </div>
     </div>
