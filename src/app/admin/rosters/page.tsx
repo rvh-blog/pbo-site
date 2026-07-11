@@ -231,7 +231,7 @@ export default function AdminRostersPage() {
   }
 
   async function fetchPokemonForSeason(seasonId: number) {
-    const res = await fetch(`/api/pokemon?seasonId=${seasonId}`);
+    const res = await fetch(`/api/pokemon?view=roster&seasonId=${seasonId}`);
     const data = await res.json();
     setPokemonList(data);
   }
