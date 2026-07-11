@@ -99,8 +99,8 @@ export default function AdminPokemonPage() {
 
   async function fetchPokemon(seasonId?: number) {
     const url = seasonId
-      ? `/api/pokemon?seasonId=${seasonId}`
-      : "/api/pokemon";
+      ? `/api/pokemon?view=admin&seasonId=${seasonId}`
+      : "/api/pokemon?view=admin";
     const response = await fetch(url);
     const data = await response.json();
     setPokemonList(data);

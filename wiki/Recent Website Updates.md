@@ -6,6 +6,14 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## July 10, 2026
 
+Pokemon API performance:
+
+- Admin Pokemon and Admin Rosters now request compact Pokemon response views instead of downloading unused moves, abilities, artwork, and base-stat fields.
+- The Admin Pokemon view keeps identity, display, sprite, type, and selected-season price fields.
+- The Admin Rosters view additionally keeps name aliases, Tera cost, and Tera-ban fields required by roster editing and bulk reconstruction.
+- The legacy full Pokemon response and all Pokemon write routes remain unchanged for compatibility with other callers.
+- This response-only optimization does not change transactions, time-synced roster reconstruction, roster sorting, availability, replay matching, name normalization, or sprite display/loading behavior.
+
 Battle Record:
 
 - The page header keeps separate boxed tabs for Coach Records and PBO Records.

@@ -11,6 +11,92 @@ const READ_CACHE_HEADERS = {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const seasonId = searchParams.get("seasonId");
+  const view = searchParams.get("view");
+
+  const compactColumns = {
+    id: true,
+    name: true,
+    displayName: true,
+    spriteUrl: true,
+    types: true,
+  } as const;
+
+  if (view === "admin") {
+    if (!seasonId) {
+      const allPokemon = await db.query.pokemon.findMany({ columns: compactColumns });
+      return NextResponse.json(allPokemon, { headers: READ_CACHE_HEADERS });
+    }
+
+    const allPokemon = await db.query.pokemon.findMany({
+      columns: compactColumns,
+      with: {
+        seasonPrices: {
+          columns: { price: true },
+          where: eq(seasonPokemonPrices.seasonId, parseInt(seasonId)),
+        },
+      },
+    });
+
+    return NextResponse.json(
+      allPokemon.map(({ seasonPrices, ...p }) => ({
+        ...p,
+        price: seasonPrices[0]?.price ?? null,
+      })),
+      { headers: READ_CACHE_HEADERS }
+    );
+  }
+
+  if (view === "roster") {
+    if (!seasonId) {
+      const [allPokemon, aliasMaps] = await Promise.all([
+        db.query.pokemon.findMany({ columns: compactColumns }),
+        getPokemonAliasMaps(),
+      ]);
+
+      return NextResponse.json(
+        allPokemon.map((p) => ({
+          ...p,
+          price: null,
+          teraCaptainCost: null,
+          teraBanned: false,
+          nameAliases: customPokemonAliasesForRow(p, aliasMaps),
+        })),
+        { headers: READ_CACHE_HEADERS }
+      );
+    }
+
+    const [allPokemon, aliasMaps] = await Promise.all([
+      db.query.pokemon.findMany({
+        columns: compactColumns,
+        with: {
+          seasonPrices: {
+            columns: {
+              price: true,
+              teraCaptainCost: true,
+              teraBanned: true,
+            },
+            where: eq(seasonPokemonPrices.seasonId, parseInt(seasonId)),
+          },
+        },
+      }),
+      getPokemonAliasMaps(),
+    ]);
+
+    return NextResponse.json(
+      allPokemon.map(({ seasonPrices, ...p }) => {
+        const seasonPrice = seasonPrices[0];
+
+        return {
+          ...p,
+          price: seasonPrice?.price ?? null,
+          teraCaptainCost: seasonPrice?.teraCaptainCost ?? null,
+          teraBanned: seasonPrice?.teraBanned ?? false,
+          nameAliases: customPokemonAliasesForRow(p, aliasMaps),
+        };
+      }),
+      { headers: READ_CACHE_HEADERS }
+    );
+  }
 
   if (seasonId) {
     // Get pokemon with prices for specific season
