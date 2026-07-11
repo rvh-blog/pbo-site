@@ -172,7 +172,7 @@ export function BattleRecordTable({ records }: { records: BattleRecordRow[] }) {
               <Link href={`/coaches/${coach.coachId}`} className="min-w-0 flex-1">
                 <div className="truncate text-sm font-bold text-white">{coach.coachName}</div>
                 <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
-                  {coach.games} games
+                  {coach.games} {coach.games === 1 ? "game" : "games"}
                 </div>
               </Link>
             </div>

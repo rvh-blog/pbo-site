@@ -813,10 +813,10 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                             <div className="mt-2 p-2 rounded bg-[var(--background-tertiary)]/50 text-xs text-[var(--foreground-muted)]">
                               <p className="font-medium text-[var(--foreground)] mb-1">Type Display Rules:</p>
                               <ul className="space-y-0.5 list-disc list-inside">
-                                <li>Top 3 trainers show top two types for free</li>
-                                <li>Ranks 4-5 show their top used type</li>
-                                <li>Ranks 6+ show &quot;Normal&quot; by default</li>
-                                <li className="text-purple-400">With this upgrade, show your top two types at any rank</li>
+                                <li>The top three trainers display their two most-used types for free</li>
+                                <li>Ranks 4–5 display their most-used type</li>
+                                <li>Ranks 6+ display &quot;Normal&quot; by default</li>
+                                <li className="text-purple-400">With this upgrade, display your two most-used types at any rank</li>
                               </ul>
                             </div>
                           )}
@@ -832,7 +832,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
                                   className="w-16 h-16 object-contain drop-shadow-[0_2px_4px_rgba(255,215,0,0.3)]"
                                 />
                                 <p className="text-xs text-[var(--foreground-muted)]">
-                                  Displayed on your coach profile alongside championship badges
+                                  Displayed on your coach profile alongside your championship badges
                                 </p>
                               </div>
                             </div>

@@ -291,7 +291,7 @@ export default async function AdminDashboard() {
           <CardHeader>
             <CardTitle>League Poll</CardTitle>
             <p className="text-sm text-[var(--foreground-muted)]">
-              Edit the poll shown in the home page Your League box and on coach pages.
+              Edit the poll shown in the Your League box on the home page and on coach pages.
             </p>
           </CardHeader>
           <CardContent>
@@ -576,7 +576,7 @@ export default async function AdminDashboard() {
         <CardHeader>
           <CardTitle>League Poll</CardTitle>
           <p className="text-sm text-[var(--foreground-muted)]">
-            Edit the poll shown in the home page Your League box and on coach pages.
+            Edit the poll shown in the Your League box on the home page and on coach pages.
           </p>
         </CardHeader>
         <CardContent>

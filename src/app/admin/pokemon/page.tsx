@@ -656,7 +656,7 @@ export default function AdminPokemonPage() {
         <CardContent>
           {pokemonList.length === 0 ? (
             <p className="text-[var(--foreground-muted)] text-center py-4">
-              No Pokemon added yet. Add your first Pokemon above.
+              No Pokémon have been added yet. Add your first Pokémon above.
             </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

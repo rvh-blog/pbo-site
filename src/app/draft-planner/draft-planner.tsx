@@ -1823,7 +1823,7 @@ export function DraftPlanner({
             <div className="mb-2.5 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
               <div>
                 <h2 className="text-sm font-bold text-white">Draft Board</h2>
-                <p className="text-xs text-[var(--foreground-muted)]">Filter, compare, watchlist, and add picks</p>
+                <p className="text-xs text-[var(--foreground-muted)]">Filter and compare Pokémon, add them to your watchlist, or draft them</p>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                 <button

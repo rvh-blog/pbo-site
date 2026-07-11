@@ -61,7 +61,7 @@ export function ProjectMewConfirmation({
               ? "Saving..."
               : confirmed
                 ? "Participation confirmed."
-                : "Several games per week will have key turn evaluation in the YT Video."}
+                : "Several games each week will receive key-turn analysis in the YouTube video."}
           </span>
         </span>
       </label>

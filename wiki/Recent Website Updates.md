@@ -4,6 +4,49 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 10, 2026
+
+Battle Record:
+
+- The page header keeps separate boxed tabs for Coach Records and PBO Records.
+- PBO Records now separates Regular Season and Playoffs, with Regular Season selected by default.
+- Each section independently computes its top three streak, differential, Pokemon, turn-count, duration, and K/D records.
+- Playoff records include Most Consecutive Playoff Appearances, counted once per coach per consecutive season.
+- Regular-season Best/Worst Differential uses each team's final regular-season differential, including forfeits.
+- Equal worst differentials are ordered by the worse win-loss record, then recency. Detroit Zoroarks therefore ranks third for S7 Neon at 0-8 and -28.
+- Record labels, descriptions, punctuation, singular/plural handling, and K/D terminology were standardized.
+- PBO record categories continue to return the top three entries, and the intentionally excluded Most Viewers category remains absent.
+
+Historical replay data:
+
+- S6 Sunset Quarterfinal match 2448, Sunnyside Screamtails vs Tokyo Teddiursas, is linked to Showdown replay `gen9draft-2174330272`.
+- The replay parses as a 7-turn 6-0 Sunnyside win and is the fastest playoff game by turns.
+- Adding replay metadata preserves the existing winner, differential, Elo, betting state, and historical Pokemon rows.
+
+Site copy:
+
+- User-facing copy received a site-wide static grammar pass covering punctuation, articles, plurals, capitalization, YouTube terminology, Pokemon terminology, playoff explanations, Project MEW, store rules, search and poll messages, Draft Planner instructions, and match-stat labels.
+
+Preserved behavior:
+
+- Transaction history and time-synced roster reconstruction behavior is unchanged.
+- Coach-profile and division roster Pokemon are sorted by point total descending only after the correct historical/current roster is reconstructed.
+- Compact mobile roster cards continue to clip overflow, while sprite hover scaling remains desktop-only.
+- Roster sprite images continue to use lazy loading and asynchronous decoding.
+
+Verification notes:
+
+- `npx.cmd tsc --noEmit` passes.
+- Targeted ESLint passes with no errors; remaining warnings are pre-existing.
+- The full Next.js production build passes and generates all 84 static pages.
+- The local database copy is still missing `pokemon_name_aliases` and `pokemon_name_collapses`; their existing migrations must be applied before local Draft Planner and replay-parser routes can use custom name mappings.
+
+Release boundary:
+
+- The Battle Record and copy changes are source changes and follow the normal GitHub pull-request and Fly deployment workflow.
+- The match 2448 replay update is a database-only correction. It is not part of the Git commit or Docker image and must be applied separately to production using the database and production-safety runbooks.
+- The two local Elo CSV exports are reference files only and must remain untracked.
+
 ## July 9, 2026
 
 Coach roster pages:

@@ -541,15 +541,15 @@ export default async function PlayoffsPage({ params }: PageProps) {
         <div className="grid gap-6 md:grid-cols-3 text-sm text-[var(--foreground-muted)]">
           <div className="p-4 rounded-lg bg-[var(--background)]/50 border border-[var(--background-tertiary)]">
             <p className="font-bold text-white mb-2 uppercase text-[10px] tracking-wider">Seeding</p>
-            <p>Top 8 teams from regular season qualify. Higher seeds choose their opponents.</p>
+            <p>The top eight teams from the regular season qualify. Higher seeds choose their opponents.</p>
           </div>
           <div className="p-4 rounded-lg bg-[var(--background)]/50 border border-[var(--background-tertiary)]">
             <p className="font-bold text-white mb-2 uppercase text-[10px] tracking-wider">Format</p>
-            <p>Single elimination bracket. QF → SF → Finals to determine champion.</p>
+            <p>A single-elimination bracket. Quarterfinals → Semifinals → Finals determine the champion.</p>
           </div>
           <div className="p-4 rounded-lg bg-[var(--background)]/50 border border-[var(--background-tertiary)]">
             <p className="font-bold text-white mb-2 uppercase text-[10px] tracking-wider">Promotion</p>
-            <p>Both finalists (champion + runner-up) promote to the next division up. Stargazer is the top division.</p>
+            <p>Both finalists—the champion and runner-up—are promoted to the next division. Stargazer is the top division.</p>
           </div>
         </div>
         <div className="mt-6 pt-4 border-t-2 border-[var(--background-tertiary)]">

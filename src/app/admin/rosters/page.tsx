@@ -500,7 +500,7 @@ export default function AdminRostersPage() {
       <div>
         <h1 className="text-3xl font-bold">Manage Rosters</h1>
         <p className="text-[var(--foreground-muted)]">
-          Assign coaches to seasons and manage their Pokemon rosters
+          Assign coaches to seasons and manage their Pokémon rosters.
         </p>
       </div>
 
