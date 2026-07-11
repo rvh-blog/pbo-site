@@ -2,6 +2,8 @@ Dockerfile
 .dockerignore
 node_modules
 npm-debug.log
+.dev-server*.log
+*.csv
 .next
 .git
 .gitignore
