@@ -22,6 +22,12 @@ Homepage stats:
 - The Champion summary card was replaced by Matches Played.
 - Matches Played counts completed matches in the current public season, while Battles remains the completed all-time public-season total.
 
+Power Rankings:
+
+- Every public season and division now uses the shared server-side standings calculation, including replacement-coach history and the full standings tiebreakers.
+- Ranking rows show movement from the standings before the latest completed week, differential, recent three-match form, current streak, coach Elo, and the latest opponent, result, and score.
+- Slideshow schedule rows and matchup details display full opponent team names instead of abbreviations.
+
 Theme support:
 
 - The site now supports persistent light and dark themes from a sun/moon control in desktop and mobile navigation.

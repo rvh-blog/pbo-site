@@ -229,7 +229,7 @@ export function Slide({ data, divisionColor }: Props) {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={m.opponentLogoUrl} alt="" className="w-5 h-5 object-contain rounded shrink-0" />
                         )}
-                        <span className="text-slate-300 font-bold uppercase truncate text-sm">{m.opponentAbbreviation || m.opponentName}</span>
+                        <span className="text-slate-300 font-bold uppercase truncate text-sm">{m.opponentName}</span>
                       </div>
                       {m.result !== "upcoming" ? (
                         <span className={`font-pixel text-xs shrink-0 ${m.result === "W" ? "text-green-400" : "text-red-400"}`}>
@@ -436,7 +436,7 @@ function MatchTooltip({ m, myScore, oppScore, divisionColor, teamName }: { m: Sc
         <span className={`font-pixel text-base mx-3 ${m.result === "W" ? "text-green-400" : "text-red-400"}`}>
           {m.isForfeit ? "FF" : `${myScore}-${oppScore}`}
         </span>
-        <span className="font-pixel text-xs text-slate-400 uppercase truncate flex-1 text-right">{m.opponentAbbreviation || m.opponentName}</span>
+        <span className="font-pixel text-xs text-slate-400 uppercase truncate flex-1 text-right">{m.opponentName}</span>
       </div>
 
       {m.isForfeit ? (
