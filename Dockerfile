@@ -47,6 +47,7 @@ COPY --from=builder /app/node_modules ./node_modules
 
 # Copy startup script and ensure it's executable
 COPY --from=builder --chmod=755 /app/scripts/start.sh ./start.sh
+RUN sed -i 's/\r$//' ./start.sh
 
 # Create data directory for SQLite and cache directory for Next.js image optimization
 RUN mkdir -p /data && chown nextjs:nodejs /data
