@@ -172,6 +172,27 @@ Relevant files:
 - `src/lib/admin-audit.ts`
 - `migrations/add-admin-audit-logs.sql`
 
+## Battle Record Overrides
+
+Admins can correct the displayed PBO Records without editing matches or disabling
+the automatic record calculations. The editor is available at
+`Admin -> Records` (`/admin/battle-records`).
+
+An override is keyed by Regular Season or Playoffs plus one record category. It
+contains one to three ranked display entries, a required correction reason, an
+active flag, and timestamps. Entry links are optional and must be an internal
+path beginning with `/` or an `https://` URL.
+
+Disabling or deleting an override restores the calculated category immediately.
+All writes are recorded in `admin_audit_logs`.
+
+Relevant files:
+
+- `src/app/admin/battle-records/page.tsx`
+- `src/app/api/admin/battle-record-overrides/route.ts`
+- `src/lib/battle-record-overrides.ts`
+- `migrations/add-battle-record-overrides.sql`
+
 ## Project Mew
 
 Project Mew has a timed reveal and coach confirmation/prompt flow.

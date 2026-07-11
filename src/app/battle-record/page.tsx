@@ -3,6 +3,10 @@ import { and, eq, gt, isNotNull, lte } from "drizzle-orm";
 import { matches } from "@/lib/schema";
 import type { BattleRecordRow } from "./battle-record-table";
 import { BattleRecordView, type PboRecordCategory, type PboRecordEntry } from "./battle-record-tabs";
+import {
+  applyBattleRecordOverrides,
+  getBattleRecordOverrides,
+} from "@/lib/battle-record-overrides";
 
 export const dynamic = "force-dynamic";
 
@@ -658,11 +662,22 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
 }
 
 export default async function BattleRecordPage() {
-  const [battleRecords, regularSeasonPboRecords, playoffPboRecords] = await Promise.all([
+  const [battleRecords, calculatedRegularSeasonRecords, calculatedPlayoffRecords, manualOverrides] = await Promise.all([
     getBattleRecords(),
     getPboRecords("regular-season"),
     getPboRecords("playoffs"),
+    getBattleRecordOverrides(true),
   ]);
+  const regularSeasonPboRecords = applyBattleRecordOverrides(
+    calculatedRegularSeasonRecords,
+    "regular-season",
+    manualOverrides
+  );
+  const playoffPboRecords = applyBattleRecordOverrides(
+    calculatedPlayoffRecords,
+    "playoffs",
+    manualOverrides
+  );
 
   return (
     <BattleRecordView

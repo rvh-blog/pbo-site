@@ -33,7 +33,7 @@ const DIVISION_COLORS: Record<string, string> = {
   Neon: "#4ade80",
 };
 
-const MIN_FANTASY_SEASON_NUMBER = 10;
+const MIN_FANTASY_SEASON_NUMBER = 11;
 const FANTASY_BUDGET = 90;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

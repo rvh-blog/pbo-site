@@ -48,6 +48,13 @@ Battle Record uses coach identity (`coaches.id`) for the row and maps historical
 team rows through `season_coaches.id`. If a coach has no team logo available, it
 falls back to the PBO logo.
 
+Admins can manage display-only PBO record corrections from
+`/admin/battle-records`. Overrides replace the displayed entries for one record
+category and scope while the underlying automatic calculations continue to run.
+Each override stores a correction reason, supports up to three ranked entries,
+and can be disabled or deleted to restore the calculated result. Override writes
+are recorded in the admin audit log.
+
 The Elo tracker lives at `/elo-tracker` and can be opened with coach-focused query params from coach profile pages.
 
 Relevant files:
@@ -56,6 +63,9 @@ Relevant files:
 - `src/app/leaderboards/leaderboards-client.tsx`
 - `src/app/battle-record/page.tsx`
 - `src/app/battle-record/battle-record-table.tsx`
+- `src/app/admin/battle-records/page.tsx`
+- `src/app/api/admin/battle-record-overrides/route.ts`
+- `src/lib/battle-record-overrides.ts`
 - `src/app/elo-tracker/page.tsx`
 - `src/app/elo-tracker/elo-tracker-client.tsx`
 - `src/lib/pokemon-leaderboard.ts`
