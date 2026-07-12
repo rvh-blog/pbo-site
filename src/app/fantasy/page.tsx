@@ -650,21 +650,24 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
       if (b.score !== a.score) return b.score - a.score;
       return a.name.localeCompare(b.name);
     });
-  const scheduleRows: FantasyScheduleRow[] = data.scheduleMatches.map((match) => ({
-    id: match.id,
-    week: match.week,
-    divisionName: match.division?.name ?? null,
-    divisionColor: match.division?.name ? DIVISION_COLORS[match.division.name] ?? null : null,
-    coach1SeasonId: match.coach1SeasonId,
-    coach2SeasonId: match.coach2SeasonId,
-    winnerId: match.week >= data.targetWeek && match.week > 0 && match.week < 100 ? null : match.winnerId,
-    coach1Differential: match.coach1Differential,
-    coach2Differential: match.coach2Differential,
-    coach1TeamName: match.coach1?.teamName ?? null,
-    coach2TeamName: match.coach2?.teamName ?? null,
-    coach1TeamLogoUrl: match.coach1?.teamLogoUrl ?? null,
-    coach2TeamLogoUrl: match.coach2?.teamLogoUrl ?? null,
-  }));
+  const scheduleRows: FantasyScheduleRow[] = data.scheduleMatches.map((match) => {
+    const divisionName = normalizeDivisionName(match.division?.name);
+    return {
+      id: match.id,
+      week: match.week,
+      divisionName: divisionName || null,
+      divisionColor: divisionName ? DIVISION_COLORS[divisionName] ?? null : null,
+      coach1SeasonId: match.coach1SeasonId,
+      coach2SeasonId: match.coach2SeasonId,
+      winnerId: match.week >= data.targetWeek && match.week > 0 && match.week < 100 ? null : match.winnerId,
+      coach1Differential: match.coach1Differential,
+      coach2Differential: match.coach2Differential,
+      coach1TeamName: match.coach1?.teamName ?? null,
+      coach2TeamName: match.coach2?.teamName ?? null,
+      coach1TeamLogoUrl: match.coach1?.teamLogoUrl ?? null,
+      coach2TeamLogoUrl: match.coach2?.teamLogoUrl ?? null,
+    };
+  });
   const topPokemon = data.pokemonRows.slice(0, 8);
   const topValue = data.valueRows.slice(0, 6);
   const topAdded = data.addedPokemonIds

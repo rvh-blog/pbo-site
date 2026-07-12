@@ -30,6 +30,7 @@ export interface OverlayData {
   week: number;
   weekLabel: string;
   seasonName: string;
+  seasonNumber: number;
   divisionName: string;
   divisionColor: string;
   pokemonNameAliases?: SerializedPokemonAliasMaps;

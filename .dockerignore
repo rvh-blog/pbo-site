@@ -5,6 +5,7 @@ npm-debug.log
 .dev-server*.log
 *.csv
 .next
+_release_power_rankings/
 .git
 .gitignore
 *.md

@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "pbo-discord-worker", "scripts/archive"]
+  "exclude": ["node_modules", "pbo-discord-worker", "scripts/archive", "_release_power_rankings"]
 }

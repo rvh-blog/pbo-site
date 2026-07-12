@@ -15,6 +15,37 @@ export interface EvSpread {
   spe: number;
 }
 
+export type StatPointSpread = EvSpread;
+
+/** Season 11 Stat Point presets. Each stat accepts 0-32 SPs. */
+export const STAT_POINT_PRESETS: Record<string, StatPointSpread> = {
+  "32 Atk / 32 Spe / 2 SpD": { hp: 0, atk: 32, def: 0, spa: 0, spd: 2, spe: 32 },
+  "32 SpA / 32 Spe / 2 SpD": { hp: 0, atk: 0, def: 0, spa: 32, spd: 2, spe: 32 },
+  "32 HP / 32 Def / 2 SpD": { hp: 32, atk: 0, def: 32, spa: 0, spd: 2, spe: 0 },
+  "32 HP / 32 SpD / 2 Def": { hp: 32, atk: 0, def: 2, spa: 0, spd: 32, spe: 0 },
+  "32 HP / 32 Spe / 2 Def": { hp: 32, atk: 0, def: 2, spa: 0, spd: 0, spe: 32 },
+  "Bulky Atk (32 HP / 32 Atk / 2 SpD)": { hp: 32, atk: 32, def: 0, spa: 0, spd: 2, spe: 0 },
+  "Bulky SpA (32 HP / 32 SpA / 2 Def)": { hp: 32, atk: 0, def: 2, spa: 32, spd: 0, spe: 0 },
+  "No SPs": { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+};
+
+export const DEFAULT_STAT_POINTS = STAT_POINT_PRESETS["32 Atk / 32 Spe / 2 SpD"];
+
+export function statPointsToEvs(statPoints: StatPointSpread): EvSpread {
+  const values = Object.values(statPoints);
+  if (values.some((value) => !Number.isInteger(value) || value < 0 || value > 32)) {
+    throw new RangeError("Stat Points must be whole numbers from 0 to 32 per stat");
+  }
+  if (values.reduce((total, value) => total + value, 0) > 66) {
+    throw new RangeError("A Pokemon cannot have more than 66 total Stat Points");
+  }
+  const convert = (value: number) => value === 0 ? 0 : value * 8 - 4;
+  return {
+    hp: convert(statPoints.hp), atk: convert(statPoints.atk), def: convert(statPoints.def),
+    spa: convert(statPoints.spa), spd: convert(statPoints.spd), spe: convert(statPoints.spe),
+  };
+}
+
 /** Common EV presets for quick selection */
 export const EV_PRESETS: Record<string, EvSpread> = {
   "252/252/4 Atk": { hp: 0, atk: 252, def: 0, spa: 0, spd: 4, spe: 252 },
@@ -43,6 +74,7 @@ export interface CalcMon {
   teraType: string | null;
   nature?: string;
   evs?: EvSpread;
+  statPoints?: StatPointSpread;
 }
 
 export interface CalcFieldState {
@@ -97,7 +129,7 @@ function buildCalcPokemon(mon: CalcMon): InstanceType<typeof Pokemon> {
   for (const [stat, val] of Object.entries(mon.boosts)) {
     boosts[stat] = val;
   }
-  const evs = mon.evs || DEFAULT_EVS;
+  const evs = mon.statPoints ? statPointsToEvs(mon.statPoints) : mon.evs || DEFAULT_EVS;
 
   // Build without curHP first so @smogon/calc computes its own maxHP from base stats + EVs
   const poke = new Pokemon(gen, mon.name, {

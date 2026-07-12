@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 interface SearchResult {
@@ -100,6 +101,7 @@ export function Search() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
   // Flatten results for keyboard navigation (moves last = lowest priority)
@@ -122,6 +124,7 @@ export function Search() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        if (!triggerRef.current || triggerRef.current.getClientRects().length === 0) return;
         e.preventDefault();
         setIsOpen(true);
       }
@@ -136,10 +139,11 @@ export function Search() {
   // Focus input when opened
   useEffect(() => {
     if (isOpen) {
-      inputRef.current?.focus();
       setQuery("");
       setResults(null);
       setSelectedIndex(0);
+      const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 0);
+      return () => window.clearTimeout(focusTimer);
     }
   }, [isOpen]);
 
@@ -195,6 +199,7 @@ export function Search() {
   if (!isOpen) {
     return (
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen(true)}
         className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors"
         aria-label="Search (⌘K)"
@@ -206,7 +211,7 @@ export function Search() {
     );
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] px-4">
       {/* Backdrop */}
       <div
@@ -223,12 +228,13 @@ export function Search() {
           </svg>
           <input
             ref={inputRef}
+            autoFocus
             type="text"
             placeholder="Search coaches, teams, seasons, pokemon..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-white placeholder-[var(--foreground-subtle)] outline-none"
+            className="flex-1 bg-transparent text-[var(--foreground)] caret-[var(--primary)] placeholder-[var(--foreground-subtle)] outline-none"
           />
           {isLoading && (
             <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
@@ -328,6 +334,7 @@ export function Search() {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

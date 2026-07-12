@@ -13,7 +13,7 @@ import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene, type BattleSceneHandle, type ChatLogEntry } from "./battle-scene-v2";
 import type { OverlayData, TeamData } from "./overlay-client";
 import { ArrowLeftRight, Calculator, ChevronLeft, ChevronRight, Diamond, Mic, Pause, Play, Radio, ScrollText, SkipBack, SkipForward, Skull, Sword, Video, Zap } from "lucide-react";
-import { calcDamage, type CalcMon, type CalcFieldState, type DamageResult, type EvSpread, EV_PRESETS, DEFAULT_EVS } from "@/lib/damage-calc";
+import { calcDamage, type CalcMon, type CalcFieldState, type DamageResult, type EvSpread, EV_PRESETS, DEFAULT_EVS, STAT_POINT_PRESETS, DEFAULT_STAT_POINTS } from "@/lib/damage-calc";
 import type { SideConditions } from "@/hooks/use-showdown-battle";
 
 /* ═══════════════════════════════════════════════
@@ -870,6 +870,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
             </div>
             <div style={{ display: footerTab === "calc" ? "block" : "none" }} className="h-full overflow-y-auto">
               <DamageCalcPanel
+                usesStatPoints={data.seasonNumber === 11}
                 leftMons={leftDisplay}
                 rightMons={rightDisplay}
                 leftTeamAbbr={leftTeam.teamAbbreviation || leftTeam.teamName.slice(0, 3).toUpperCase()}
@@ -1753,6 +1754,7 @@ function ContextPanel({
    ═══════════════════════════════════════════════ */
 
 function DamageCalcPanel({
+  usesStatPoints,
   leftMons, rightMons, leftTeamAbbr, rightTeamAbbr,
   weather, terrain,
   p1Side, p2Side, p1IsTeam1,
@@ -1767,6 +1769,7 @@ function DamageCalcPanel({
   defEvPreset, setDefEvPreset,
   flipped, setFlipped,
 }: {
+  usesStatPoints: boolean;
   leftMons: MergedMon[];
   rightMons: MergedMon[];
   leftTeamAbbr: string;
@@ -1825,8 +1828,8 @@ function DamageCalcPanel({
   const defenderMon = flipped ? leftMon : rightMon;
   const attackerNature = atkNature;
   const defenderNature = defNature;
-  const attackerEvs: EvSpread = EV_PRESETS[atkEvPreset] || DEFAULT_EVS;
-  const defenderEvs: EvSpread = EV_PRESETS[defEvPreset] || DEFAULT_EVS;
+  const attackerEvs: EvSpread = usesStatPoints ? STAT_POINT_PRESETS[atkEvPreset] || DEFAULT_STAT_POINTS : EV_PRESETS[atkEvPreset] || DEFAULT_EVS;
+  const defenderEvs: EvSpread = usesStatPoints ? STAT_POINT_PRESETS[defEvPreset] || DEFAULT_STAT_POINTS : EV_PRESETS[defEvPreset] || DEFAULT_EVS;
 
   const moveOptions = attackerMon?.movesUsed || [];
   const selectedMove = customMove || moveOptions[moveIdx] || "";
@@ -1856,7 +1859,7 @@ function DamageCalcPanel({
     terastallized: m.terastallized,
     teraType: m.teraType,
     nature,
-    evs,
+    ...(usesStatPoints ? { statPoints: evs } : { evs }),
   });
 
   let result: DamageResult | null = null;
@@ -1966,10 +1969,10 @@ function DamageCalcPanel({
               </select>
             </div>
             <div className="flex items-center gap-1">
-              <span className="shrink-0">EVs:</span>
+              <span className="shrink-0">{usesStatPoints ? "SPs:" : "EVs:"}</span>
               <select value={flipped ? defEvPreset : atkEvPreset} onChange={(e) => flipped ? setDefEvPreset(e.target.value) : setAtkEvPreset(e.target.value)}
                 className="bg-transparent border-none text-slate-300 text-[10px] p-0 cursor-pointer focus:outline-none">
-                {Object.keys(EV_PRESETS).map((k) => <option key={k} value={k}>{k}</option>)}
+                {Object.keys(usesStatPoints ? STAT_POINT_PRESETS : EV_PRESETS).map((k) => <option key={k} value={k}>{k}</option>)}
               </select>
             </div>
           </div>
@@ -2007,10 +2010,10 @@ function DamageCalcPanel({
               </select>
             </div>
             <div className="flex items-center gap-1">
-              <span className="shrink-0">EVs:</span>
+              <span className="shrink-0">{usesStatPoints ? "SPs:" : "EVs:"}</span>
               <select value={flipped ? atkEvPreset : defEvPreset} onChange={(e) => flipped ? setAtkEvPreset(e.target.value) : setDefEvPreset(e.target.value)}
                 className="bg-transparent border-none text-slate-300 text-[10px] p-0 cursor-pointer focus:outline-none">
-                {Object.keys(EV_PRESETS).map((k) => <option key={k} value={k}>{k}</option>)}
+                {Object.keys(usesStatPoints ? STAT_POINT_PRESETS : EV_PRESETS).map((k) => <option key={k} value={k}>{k}</option>)}
               </select>
             </div>
           </div>
