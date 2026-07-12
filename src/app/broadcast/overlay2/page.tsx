@@ -364,6 +364,7 @@ export default async function Overlay2Page({ searchParams }: PageProps) {
     week: match.week,
     weekLabel: getWeekLabel(match.week),
     seasonName: match.season?.name || "",
+    seasonNumber: match.season?.seasonNumber || 0,
     divisionName: match.division?.name || "",
     divisionColor: getDivisionColor(match.division?.name || ""),
     pokemonNameAliases: serializePokemonAliasMaps(aliasMaps),

@@ -6,6 +6,30 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## July 11, 2026
 
+Season 11 Stat Points:
+
+- Matchup Prep Speed Comparison uses the Pokemon Champions Stat Point model for Season 11 only: level 50, fixed 31-IV-equivalent stats, 0-32 SP per stat, and 66 SP total per Pokemon.
+- Season 11 Speed Comparison replaces separate EV and IV controls with one SP control. Historical seasons retain their existing level, EV, and IV controls.
+- Both broadcast damage-calculator routes use legal 32/32/2 SP presets for Season 11 and translate SPs to the equivalent level-50 EV values before calling `@smogon/calc`.
+- Shared SP validation rejects fractional, negative, over-32-per-stat, and over-66-total spreads.
+- Wiglett payloads do not contain or calculate EVs, IVs, or SPs, so its draft-pick and match-result contracts are unchanged.
+
+Fantasy Scout:
+
+- Schedule division names are normalized before tab filtering and color lookup. This allows live Infinity schedule rows saved with trailing whitespace to appear under the normalized Infinity tab.
+
+Power Rankings:
+
+- All public-season division rankings are preloaded through the shared server-side standings sorter instead of recomputing older seasons from client API responses.
+- Ranking rows now include differential, Elo, recent three-match form, current streak, last result, and movement since the standings before the latest completed week.
+- Slideshow schedule entries display full opponent team names instead of abbreviations.
+
+Global search:
+
+- The search dialog renders through a document-body portal so navigation stacking contexts cannot cover or clip it, and focus is deferred until the portal is mounted.
+- The keyboard shortcut only opens the currently visible navigation search trigger.
+- Pokemon search falls back safely when an older local database does not yet have the optional custom alias/collapse tables.
+
 Broadcast overlays:
 
 - Both broadcast overlay routes now load the shared custom Pokemon alias and collapse maps when constructing their server-rendered roster payloads.

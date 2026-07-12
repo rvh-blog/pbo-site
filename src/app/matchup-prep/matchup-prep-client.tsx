@@ -252,8 +252,8 @@ export function MatchupPrepClient({
   const [statSort, setStatSort] = useState<"hp" | "atk" | "def" | "spa" | "spd" | "spe" | "bst">("spe");
 
   // Speed comparison settings
-  const [speedCalc1, setSpeedCalc1] = useState({ level: 50, ev: 252, iv: 31, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
-  const [speedCalc2, setSpeedCalc2] = useState({ level: 50, ev: 252, iv: 31, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
+  const [speedCalc1, setSpeedCalc1] = useState({ level: 50, ev: 252, iv: 31, sp: 32, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
+  const [speedCalc2, setSpeedCalc2] = useState({ level: 50, ev: 252, iv: 31, sp: 32, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
 
   // Speed section collapse state (mobile only)
   const [speedSectionOpen, setSpeedSectionOpen] = useState<{ base: boolean; compare1: boolean; compare2: boolean }>({ base: true, compare1: false, compare2: false });
@@ -389,6 +389,11 @@ export function MatchupPrepClient({
     const season = seasons.find((s) => s.id === selectedSeason);
     return season?.divisions || [];
   }, [seasons, selectedSeason]);
+
+  const usesStatPoints = useMemo(
+    () => seasons.find((season) => season.id === selectedSeason)?.seasonNumber === 11,
+    [seasons, selectedSeason]
+  );
 
   // Get unique weeks from available matches
   const weeks = useMemo(() => {
@@ -578,10 +583,12 @@ export function MatchupPrepClient({
   }, [topTeamBySpeed, bottomTeamBySpeed]);
 
   // Speed calculation function
-  const calculateSpeed = (baseSpe: number, level: number, ev: number, iv: number, boost: number, nature: "positive" | "neutral" | "negative") => {
+  const calculateSpeed = (baseSpe: number, level: number, ev: number, iv: number, sp: number, boost: number, nature: "positive" | "neutral" | "negative") => {
     const natureMult = nature === "positive" ? 1.1 : nature === "negative" ? 0.9 : 1.0;
     const boostMult = boost >= 0 ? (2 + boost) / 2 : 2 / (2 - boost);
-    const stat = Math.floor((Math.floor((2 * baseSpe + iv + Math.floor(ev / 4)) * level / 100) + 5) * natureMult);
+    const stat = usesStatPoints
+      ? Math.floor((Math.floor((2 * baseSpe + 31) * 50 / 100) + 5 + sp) * natureMult)
+      : Math.floor((Math.floor((2 * baseSpe + iv + Math.floor(ev / 4)) * level / 100) + 5) * natureMult);
     return Math.floor(stat * boostMult);
   };
 
@@ -597,20 +604,20 @@ export function MatchupPrepClient({
     return allPokemonByBaseSpeed
       .map(p => ({
         ...p,
-        calculatedSpeed: calculateSpeed(p.speed, speedCalc1.level, speedCalc1.ev, speedCalc1.iv, speedCalc1.boost, speedCalc1.nature)
+        calculatedSpeed: calculateSpeed(p.speed, speedCalc1.level, speedCalc1.ev, speedCalc1.iv, speedCalc1.sp ?? 32, speedCalc1.boost, speedCalc1.nature)
       }))
       .sort((a, b) => b.calculatedSpeed - a.calculatedSpeed);
-  }, [allPokemonByBaseSpeed, speedCalc1]);
+  }, [allPokemonByBaseSpeed, speedCalc1, usesStatPoints]);
 
   // Speed Compare #2 sorted list
   const speedCompare2 = useMemo(() => {
     return allPokemonByBaseSpeed
       .map(p => ({
         ...p,
-        calculatedSpeed: calculateSpeed(p.speed, speedCalc2.level, speedCalc2.ev, speedCalc2.iv, speedCalc2.boost, speedCalc2.nature)
+        calculatedSpeed: calculateSpeed(p.speed, speedCalc2.level, speedCalc2.ev, speedCalc2.iv, speedCalc2.sp ?? 32, speedCalc2.boost, speedCalc2.nature)
       }))
       .sort((a, b) => b.calculatedSpeed - a.calculatedSpeed);
-  }, [allPokemonByBaseSpeed, speedCalc2]);
+  }, [allPokemonByBaseSpeed, speedCalc2, usesStatPoints]);
 
   // Handle season change
   const handleSeasonChange = async (seasonId: number) => {
@@ -1837,6 +1844,11 @@ export function MatchupPrepClient({
                   </span>
                 </button>
               </div>
+              {usesStatPoints && (
+                <p className="mt-2 text-xs text-[var(--foreground-muted)]">
+                  Season 11 uses 0–32 Stat Points per stat and 66 total per Pokemon. Stat Points are added to the level-50 stat before the nature multiplier is applied.
+                </p>
+              )}
             </div>
             <div className="p-4">
               <div className="flex flex-col lg:flex-row gap-4">
@@ -1878,19 +1890,20 @@ export function MatchupPrepClient({
                   </button>
                   <div className={`flex flex-col lg:flex-row gap-3 ${speedSectionOpen.compare1 ? "flex" : "hidden"} lg:flex`}>
                     {/* Controls */}
-                    <div className="w-full lg:w-28 lg:shrink-0 grid grid-cols-5 lg:grid-cols-1 gap-2 lg:space-y-2 lg:gap-0">
+                    <div className={`w-full lg:w-28 lg:shrink-0 grid ${usesStatPoints ? "grid-cols-4" : "grid-cols-5"} lg:grid-cols-1 gap-2 lg:space-y-2 lg:gap-0`}>
                       <div>
                         <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">Level</label>
-                        <input type="number" value={speedCalc1.level} onChange={(e) => setSpeedCalc1({...speedCalc1, level: Math.min(100, Math.max(1, parseInt(e.target.value) || 1))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={1} max={100} />
+                        <input type="number" value={usesStatPoints ? 50 : speedCalc1.level} disabled={usesStatPoints} onChange={(e) => setSpeedCalc1({...speedCalc1, level: Math.min(100, Math.max(1, parseInt(e.target.value) || 1))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium disabled:cursor-not-allowed disabled:opacity-70 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={1} max={100} />
                       </div>
-                      <div>
-                        <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">EVs</label>
-                        <input type="number" value={speedCalc1.ev} onChange={(e) => setSpeedCalc1({...speedCalc1, ev: Math.min(252, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={252} step={4} />
-                      </div>
-                      <div>
-                        <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">IVs</label>
-                        <input type="number" value={speedCalc1.iv} onChange={(e) => setSpeedCalc1({...speedCalc1, iv: Math.min(31, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={31} />
-                      </div>
+                      {usesStatPoints ? (
+                        <div>
+                          <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">SPs</label>
+                          <input type="number" value={speedCalc1.sp ?? 32} onChange={(e) => setSpeedCalc1({...speedCalc1, sp: Math.min(32, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={32} />
+                        </div>
+                      ) : (<>
+                        <div><label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">EVs</label><input type="number" value={speedCalc1.ev} onChange={(e) => setSpeedCalc1({...speedCalc1, ev: Math.min(252, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={252} step={4} /></div>
+                        <div><label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">IVs</label><input type="number" value={speedCalc1.iv} onChange={(e) => setSpeedCalc1({...speedCalc1, iv: Math.min(31, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={31} /></div>
+                      </>)}
                       <div>
                         <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">Boost</label>
                         <select value={speedCalc1.boost} onChange={(e) => setSpeedCalc1({...speedCalc1, boost: parseInt(e.target.value)})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium appearance-none cursor-pointer">
@@ -1935,19 +1948,20 @@ export function MatchupPrepClient({
                   </button>
                   <div className={`flex flex-col lg:flex-row gap-3 ${speedSectionOpen.compare2 ? "flex" : "hidden"} lg:flex`}>
                     {/* Controls */}
-                    <div className="w-full lg:w-28 lg:shrink-0 grid grid-cols-5 lg:grid-cols-1 gap-2 lg:space-y-2 lg:gap-0">
+                    <div className={`w-full lg:w-28 lg:shrink-0 grid ${usesStatPoints ? "grid-cols-4" : "grid-cols-5"} lg:grid-cols-1 gap-2 lg:space-y-2 lg:gap-0`}>
                       <div>
                         <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">Level</label>
-                        <input type="number" value={speedCalc2.level} onChange={(e) => setSpeedCalc2({...speedCalc2, level: Math.min(100, Math.max(1, parseInt(e.target.value) || 1))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={1} max={100} />
+                        <input type="number" value={usesStatPoints ? 50 : speedCalc2.level} disabled={usesStatPoints} onChange={(e) => setSpeedCalc2({...speedCalc2, level: Math.min(100, Math.max(1, parseInt(e.target.value) || 1))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium disabled:cursor-not-allowed disabled:opacity-70 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={1} max={100} />
                       </div>
-                      <div>
-                        <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">EVs</label>
-                        <input type="number" value={speedCalc2.ev} onChange={(e) => setSpeedCalc2({...speedCalc2, ev: Math.min(252, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={252} step={4} />
-                      </div>
-                      <div>
-                        <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">IVs</label>
-                        <input type="number" value={speedCalc2.iv} onChange={(e) => setSpeedCalc2({...speedCalc2, iv: Math.min(31, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={31} />
-                      </div>
+                      {usesStatPoints ? (
+                        <div>
+                          <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">SPs</label>
+                          <input type="number" value={speedCalc2.sp ?? 32} onChange={(e) => setSpeedCalc2({...speedCalc2, sp: Math.min(32, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={32} />
+                        </div>
+                      ) : (<>
+                        <div><label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">EVs</label><input type="number" value={speedCalc2.ev} onChange={(e) => setSpeedCalc2({...speedCalc2, ev: Math.min(252, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={252} step={4} /></div>
+                        <div><label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">IVs</label><input type="number" value={speedCalc2.iv} onChange={(e) => setSpeedCalc2({...speedCalc2, iv: Math.min(31, Math.max(0, parseInt(e.target.value) || 0))})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={0} max={31} /></div>
+                      </>)}
                       <div>
                         <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">Boost</label>
                         <select value={speedCalc2.boost} onChange={(e) => setSpeedCalc2({...speedCalc2, boost: parseInt(e.target.value)})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-center text-xs lg:text-sm font-medium appearance-none cursor-pointer">

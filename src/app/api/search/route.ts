@@ -3,7 +3,7 @@ import { coaches, seasons, divisions, seasonCoaches, pokemon, moves } from "@/li
 import { and, like, or, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicVisibilityState } from "@/lib/public-visibility";
-import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
+import { customPokemonAliasesForRow, getPokemonAliasMaps, type PokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { pokemonSearchAliases } from "@/lib/pokemon-name-utils";
 
 export async function GET(request: NextRequest) {
@@ -140,17 +140,26 @@ export async function GET(request: NextRequest) {
     .limit(8);
 
   // Search Pokemon, including admin-configured aliases.
-  const [allPokemonForSearch, aliasMaps] = await Promise.all([
-    db
-      .select({
-        id: pokemon.id,
-        name: pokemon.name,
-        displayName: pokemon.displayName,
-        spriteUrl: pokemon.spriteUrl,
-      })
-      .from(pokemon),
-    getPokemonAliasMaps(),
-  ]);
+  const allPokemonForSearch = await db
+    .select({
+      id: pokemon.id,
+      name: pokemon.name,
+      displayName: pokemon.displayName,
+      spriteUrl: pokemon.spriteUrl,
+    })
+    .from(pokemon);
+  let aliasMaps: PokemonAliasMaps;
+  try {
+    aliasMaps = await getPokemonAliasMaps();
+  } catch {
+    // Older local databases may not have the optional custom alias tables yet.
+    aliasMaps = {
+      aliasKeyToCanonicalName: new Map(),
+      pokemonIdToAliases: new Map(),
+      collapseKeyToCanonicalName: new Map(),
+      pokemonIdToCollapseSources: new Map(),
+    };
+  }
   const pokemonResults = allPokemonForSearch
     .map((row) => ({
       ...row,
