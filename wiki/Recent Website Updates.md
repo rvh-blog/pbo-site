@@ -481,3 +481,42 @@ It was pushed to GitHub `main` and deployed to Fly as release `v215`.
 The later Season 11 compatibility update adds replay format handling, Mega
 preservation, overlay matching, Wiglett roster matching, and level 50 Matchup
 Prep defaults.
+# July 12, 2026
+
+Fantasy:
+
+- The About panel now documents weekly roster size and budget, division slots,
+  reuse restrictions, per-match pick locks, scoring, leaderboards, and rewards.
+- Pokemon Board search ranks Pokemon-name matches above team-name-only matches.
+
+Draft planner and Season 11 moves:
+
+- FIT discounts 1-3 point candidates more heavily, applies a smaller discount
+  at 4-5 points, and scales the budget bonus by candidate quality.
+- The Season 11 National Dex generator retains base Rotom moves for appliance
+  forms while keeping form-exclusive signature moves separate.
+- The full 1,239-Pokemon Season 11 board was regenerated locally: every board
+  Pokemon has a non-empty learnset and all move names resolve to PBO move rows.
+- Rotom form aliases accept base-first and descriptor-first forms such as
+  `Rotom-Wash`, `Rotom Wash`, `Wash Rotom`, and `Wash-Rotom`.
+
+Home and playoffs:
+
+- Admin-selected Games of the Week appear below the public home statistics for
+  the highest configured featured week.
+- The Matches Played stat card was removed; Coaches, Seasons, and Battles use a
+  three-column layout.
+- The playoff hierarchy now lists Infinity above Stargazer and identifies
+  Infinity as the top division.
+
+Admin:
+
+- The Season Setup Checklist is reusable for every season and can be hidden or
+  shown from its card header.
+
+Verification:
+
+- `npx tsc --noEmit` passes.
+- Targeted ESLint passes for the changed TypeScript/TSX files.
+- Full Season 11 move validation passes for missing rows, empty learnsets,
+  unresolved move names, evolution branches, and permanent form signatures.

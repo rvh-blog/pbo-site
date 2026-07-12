@@ -108,6 +108,16 @@ function canonicalizeUrshifuName(name: string): string | null {
 }
 
 const NORMALIZED_NAME_ALIASES: Record<string, string> = {
+  washrotom: "Rotom-Wash",
+  rotomwash: "Rotom-Wash",
+  heatrotom: "Rotom-Heat",
+  rotomheat: "Rotom-Heat",
+  frostrotom: "Rotom-Frost",
+  rotomfrost: "Rotom-Frost",
+  fanrotom: "Rotom-Fan",
+  rotomfan: "Rotom-Fan",
+  mowrotom: "Rotom-Mow",
+  rotommow: "Rotom-Mow",
   ogerpont: "Ogerpon-Teal",
   ogerponteal: "Ogerpon-Teal",
   ogerponw: "Ogerpon-Wellspring",
@@ -184,6 +194,20 @@ const NORMALIZED_NAME_ALIASES: Record<string, string> = {
   superpumpkaboo: "Pumpkaboo-Super",
   pumpkaboosuper: "Pumpkaboo-Super",
 };
+
+function rotomFormAliases(name: string): string[] {
+  const normalized = normalizePokemonName(name);
+  const match = normalized.match(/^Rotom-(Wash|Heat|Frost|Fan|Mow)$/i);
+  if (!match) return [];
+
+  const form = titleCasePokemonPart(match[1]);
+  return [
+    `Rotom-${form}`,
+    `Rotom ${form}`,
+    `${form} Rotom`,
+    `${form}-Rotom`,
+  ];
+}
 
 export function shouldUseFriendlyMegaNamesForSeason(seasonNumber: number | null | undefined) {
   return (seasonNumber ?? 0) >= 11;
@@ -454,6 +478,10 @@ export function pokemonSearchAliases(
     const lower = value.toLowerCase();
     aliases.add(lower);
     aliases.add(lower.replace(/[-_]/g, " "));
+  }
+
+  for (const alias of rotomFormAliases(rawDisplayName || rawName)) {
+    aliases.add(alias.toLowerCase());
   }
 
   for (const key of pokemonExactLookupKeys(rawDisplayName || rawName, options)) {

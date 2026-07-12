@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HomepageVisibilityCard } from "@/components/admin/homepage-visibility-card";
 import { PollAdminCard } from "@/components/admin/poll-admin-card";
+import { SeasonSetupChecklist } from "@/components/admin/season-setup-checklist";
 import { ensureAdminAuditLogsTable } from "@/lib/admin-audit";
 import { getAdminPoll } from "@/lib/polls";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
@@ -29,62 +30,6 @@ const toneClasses: Record<Tone, string> = {
   muted: "border-[var(--card-border)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]",
   info: "border-[var(--primary)]/30 bg-[var(--primary)]/10 text-[var(--primary)]",
 };
-
-const season11Checklist = [
-  {
-    title: "League Setup",
-    items: [
-      "Create the Season 11 record and divisions.",
-      "Add teams as season coaches using the correct persistent coach account.",
-      "Confirm team names, abbreviations, logos, divisions, and replacement links.",
-      "Confirm Season 11 is marked current only when launch data is ready.",
-    ],
-  },
-  {
-    title: "ELO",
-    items: [
-      "Verify dynamic placement ELO for each Season 11 division.",
-      "Exclude new placements from each division average.",
-      "Spot-check average minus 100, rounded to the nearest 25.",
-      "Run a full ELO recalculation on a copied database before production recalculation.",
-    ],
-  },
-  {
-    title: "Draft And Rosters",
-    items: [
-      "Import Season 11 Pokemon prices, bans, tera bans, and tera captain costs.",
-      "Create initial rosters using Season 11 season_coaches IDs.",
-      "Check roster limits, remaining budget, and tera captains.",
-      "Confirm free agent pools are division-specific.",
-    ],
-  },
-  {
-    title: "Schedule And Results",
-    items: [
-      "Import Season 11 schedule with correct season, division, and season coach IDs.",
-      "Check week numbers, dates, playoff weeks, and Game of the Week flags.",
-      "Test replay parser and match report output on a Season 11 match.",
-      "Confirm turns logic and updated report format apply only Season 11 onward.",
-    ],
-  },
-  {
-    title: "Betting And Pick-Ems",
-    items: [
-      "Confirm Season 11 pick-em participants and settings.",
-      "Verify winner, kill, and death betting use Season 11 matches and rosters.",
-      "Test one local match result settlement for bets, coins, and pick-em rewards.",
-    ],
-  },
-  {
-    title: "Pre-Launch Verification",
-    items: [
-      "Run TypeScript, targeted ESLint, and production build.",
-      "Back up production DB before imports, migrations, or recalculations.",
-      "Browse public pages and admin pages after deploy.",
-      "Check /api/health, blog, divisions, rosters, schedule, and admin matches.",
-    ],
-  },
-];
 
 function StatusChip({ tone, children }: { tone: Tone; children: React.ReactNode }) {
   return (
@@ -584,29 +529,7 @@ export default async function AdminDashboard() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Season Setup Checklist</CardTitle>
-          <p className="text-sm text-[var(--foreground-muted)]">Secondary checklist for launch or major season setup work.</p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {season11Checklist.map((section) => (
-              <div key={section.title} className="rounded-lg bg-[var(--background-secondary)] p-3">
-                <p className="text-sm font-semibold text-white">{section.title}</p>
-                <div className="mt-3 space-y-2">
-                  {section.items.map((item) => (
-                    <label key={item} className="flex items-start gap-2 text-sm text-[var(--foreground-muted)]">
-                      <input type="checkbox" className="mt-1 h-4 w-4 rounded border-[var(--background-tertiary)] accent-[var(--primary)]" />
-                      <span>{item}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <SeasonSetupChecklist />
     </div>
   );
 }

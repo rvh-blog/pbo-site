@@ -23,7 +23,7 @@ Rules in the current implementation:
 
 - Only public seasons with `season_number >= 10` are available.
 - Coaches and spectator users can both play.
-- One fantasy entry is saved per signed-in account per season.
+- One fantasy entry is saved per signed-in account per week.
 - A fantasy roster has exactly 6 unique Pokemon.
 - The roster budget is 90 points.
 - Pokemon costs come from `season_pokemon_prices`.
@@ -104,6 +104,8 @@ Relevant files:
 - The Pokemon Board is split by Pokemon/team instance and has All plus division
   tabs. The tabs filter client-side without refreshing the page. The board no
   longer shows the Rostered column.
+- Pokemon Board searches rank Pokemon-name matches ahead of rows that match only
+  by team name. Team, division, and type searching remain available.
 - The Pokemon Board has a Previously Selected tab beside the standard board
   tabs. Pokemon/team instances already used by the signed-in user in prior weeks
   are excluded from All and division tabs and appear only in Previously Selected.

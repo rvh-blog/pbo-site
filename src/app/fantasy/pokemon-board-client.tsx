@@ -83,6 +83,15 @@ function sortValue(row: PokemonBoardRow, sortKey: SortKey) {
   }
 }
 
+function searchRelevance(name: string, normalizedQuery: string) {
+  if (!normalizedQuery) return 0;
+  const normalizedName = name.toLowerCase();
+  if (normalizedName === normalizedQuery) return 0;
+  if (normalizedName.startsWith(normalizedQuery)) return 1;
+  if (normalizedName.includes(normalizedQuery)) return 2;
+  return 3;
+}
+
 function PokemonAvatar({ row, size = 40 }: { row: PokemonBoardRow; size?: number }) {
   return row.spriteUrl ? (
     <Image
@@ -176,6 +185,9 @@ export function PokemonBoardClient({
         })
         .slice()
         .sort((a, b) => {
+          const relevanceDifference = searchRelevance(a.name, normalizedQuery) - searchRelevance(b.name, normalizedQuery);
+          if (relevanceDifference !== 0) return relevanceDifference;
+
           const aValue = sortValue(a, sortKey);
           const bValue = sortValue(b, sortKey);
           const direction = sortDirection === "asc" ? 1 : -1;
@@ -208,6 +220,9 @@ export function PokemonBoardClient({
         );
       })
       .sort((a, b) => {
+        const relevanceDifference = searchRelevance(a.name, normalizedQuery) - searchRelevance(b.name, normalizedQuery);
+        if (relevanceDifference !== 0) return relevanceDifference;
+
         if (a.entryWeek !== b.entryWeek) return a.entryWeek - b.entryWeek;
         const nameCompare = a.name.localeCompare(b.name);
         if (nameCompare !== 0) return nameCompare;
