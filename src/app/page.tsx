@@ -40,6 +40,37 @@ type OffseasonChampion = {
   coachName: string | null;
 };
 
+async function getCurrentGamesOfTheWeek(
+  currentSeasonPromise: Promise<Awaited<ReturnType<typeof getCurrentSeason>>>
+) {
+  const currentSeason = await currentSeasonPromise;
+  if (!currentSeason) return [];
+
+  const featuredMatches = await db.query.matches.findMany({
+    where: and(
+      eq(matches.seasonId, currentSeason.id),
+      eq(matches.isGameOfTheWeek, true)
+    ),
+    with: {
+      division: true,
+      coach1: true,
+      coach2: true,
+    },
+  });
+
+  if (featuredMatches.length === 0) return [];
+
+  const displayWeek = Math.max(...featuredMatches.map((match) => match.week));
+
+  return featuredMatches
+    .filter((match) => match.week === displayWeek)
+    .sort((a, b) => {
+      const aOrder = DRAFT_DIVISION_ORDER.indexOf(a.division?.name as typeof DRAFT_DIVISION_ORDER[number]);
+      const bOrder = DRAFT_DIVISION_ORDER.indexOf(b.division?.name as typeof DRAFT_DIVISION_ORDER[number]);
+      return (aOrder === -1 ? 99 : aOrder) - (bOrder === -1 ? 99 : bOrder);
+    });
+}
+
 async function getCurrentSeason() {
   return await db.query.seasons.findFirst({
     where: and(
@@ -728,7 +759,7 @@ function StatsStrip({
   className?: string;
 }) {
   return (
-    <div className={`grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 ${className}`}>
+    <div className={`grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 ${className}`}>
       <div className="stat-card flex flex-col items-center justify-center text-center">
         <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -751,14 +782,50 @@ function StatsStrip({
         <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.matches}</div>
         <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Battles</div>
       </div>
-      <div className="stat-card flex flex-col items-center justify-center text-center">
-        <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.currentSeasonMatches}</div>
-        <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Matches Played</div>
-      </div>
     </div>
+  );
+}
+
+function GamesOfTheWeekPanel({
+  games,
+  className = "",
+}: {
+  games: Awaited<ReturnType<typeof getCurrentGamesOfTheWeek>>;
+  className?: string;
+}) {
+  if (games.length === 0) return null;
+
+  return (
+    <section className={`poke-card p-4 sm:p-5 ${className}`}>
+      <div className="mb-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-yellow-400">
+            Games of the Week
+          </p>
+          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+            Featured matchups for Week {games[0].week}
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {games.map((game) => (
+          <Link
+            key={game.id}
+            href={`/matches/${game.id}`}
+            className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-3 transition-colors hover:border-yellow-400/40"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: DIVISION_COLORS[game.division?.name || ""] || "var(--foreground-muted)" }}>
+              {game.division?.name || "Division"}
+            </p>
+            <div className="mt-2 flex items-center justify-between gap-2 text-sm font-bold text-white">
+              <span className="truncate">{game.coach1?.teamAbbreviation || game.coach1?.teamName}</span>
+              <span className="text-[10px] text-[var(--foreground-subtle)]">VS</span>
+              <span className="truncate text-right">{game.coach2?.teamAbbreviation || game.coach2?.teamName}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -970,12 +1037,13 @@ export default async function Home() {
       ? []
       : getRecentDraftPicksByDivision(currentSeasonPromise)
   );
-  const [currentSeason, previousSeasonChampions, recentBattles, recentDraftPicksByDivision, stats, topCoaches, personalizedHome] = await Promise.all([
+  const [currentSeason, previousSeasonChampions, recentBattles, recentDraftPicksByDivision, stats, gamesOfTheWeek, topCoaches, personalizedHome] = await Promise.all([
     currentSeasonPromise,
     getPreviousSeasonChampions(),
     getRecentBattles(),
     recentDraftPicksPromise,
     getStats(currentSeasonPromise),
+    getCurrentGamesOfTheWeek(currentSeasonPromise),
     getTopCoaches(),
     getHomePersonalization(currentSeasonPromise),
   ]);
@@ -1282,14 +1350,18 @@ export default async function Home() {
         stats={stats}
         className="hidden lg:grid"
       />
+      <GamesOfTheWeekPanel games={gamesOfTheWeek} className="hidden lg:block" />
 
       {/* Main Content Grid */}
       <SyncedHeightGrid
         mobileMiddleContent={
-          <StatsStrip
-            stats={stats}
-            className="grid"
-          />
+          <div className="space-y-4">
+            <StatsStrip
+              stats={stats}
+              className="grid"
+            />
+            <GamesOfTheWeekPanel games={gamesOfTheWeek} />
+          </div>
         }
         leftContent={
           <div className="poke-card p-6">

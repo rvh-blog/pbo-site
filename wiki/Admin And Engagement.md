@@ -63,6 +63,18 @@ Relevant files:
 - `src/app/api/admin/pick-ems/route.ts`
 - `src/lib/site-settings.ts`
 
+## Season Setup Checklist
+
+The admin dashboard includes a reusable Season Setup Checklist for league setup,
+Elo, draft and rosters, schedule and results, engagement, and pre-launch checks.
+The wording is season-neutral. Admins can collapse or reveal the checklist with
+the Hide Checklist / Show Checklist control.
+
+Relevant files:
+
+- `src/app/admin/page.tsx`
+- `src/components/admin/season-setup-checklist.tsx`
+
 ## League Poll Admin
 
 Admins can edit the active league poll from the admin home page. Changes are

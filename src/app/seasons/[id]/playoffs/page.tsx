@@ -549,13 +549,13 @@ export default async function PlayoffsPage({ params }: PageProps) {
           </div>
           <div className="p-4 rounded-lg bg-[var(--background)]/50 border border-[var(--background-tertiary)]">
             <p className="font-bold text-white mb-2 uppercase text-[10px] tracking-wider">Promotion</p>
-            <p>Both finalists—the champion and runner-up—are promoted to the next division. Stargazer is the top division.</p>
+            <p>Both finalists—the champion and runner-up—are promoted to the next division. Infinity is the top division.</p>
           </div>
         </div>
         <div className="mt-6 pt-4 border-t-2 border-[var(--background-tertiary)]">
           <p className="text-xs text-[var(--foreground-muted)]">
             <span className="font-bold text-white uppercase">Division Hierarchy:</span>{" "}
-            <span className="text-blue-500">Stargazer</span> (Top) → <span className="text-orange-400">Sunset</span> → <span className="text-purple-400">Crystal</span> → <span className="text-green-400">Neon</span> (Bottom)
+            <span className="text-[#E2A3C7]">Infinity</span> (Top) → <span className="text-blue-500">Stargazer</span> → <span className="text-orange-400">Sunset</span> → <span className="text-purple-400">Crystal</span> → <span className="text-green-400">Neon</span> (Bottom)
           </p>
         </div>
       </div>

@@ -1104,7 +1104,8 @@ export function DraftPlanner({
       // League pricing is the best viability proxy in a draft format: scale
       // need-based points so strong mons that patch a need outrank cheap
       // filler that happens to carry the same moves.
-      const quality = 0.5 + 0.7 * Math.min(1, price / maxSeasonPrice);
+      const lowPriceViability = price <= 3 ? 0.6 : price <= 5 ? 0.85 : 1;
+      const quality = (0.5 + 0.7 * Math.min(1, price / maxSeasonPrice)) * lowPriceViability;
 
       let missingRolesFilled = 0;
       for (const role of roles) {
@@ -1166,9 +1167,10 @@ export function DraftPlanner({
 
       // Value bonus: costs no more than the average open slot can take, but
       // only when the mon already fills a need above — being cheap alone is
-      // not a fit.
+      // not a fit. Scale the bonus by quality so low-tier filler does not
+      // outrank stronger options solely because it costs 1-3 points.
       if (price > 0 && openSlots > 0 && fitScore > 0 && price <= Math.max(1, avgRemainingPerSlot)) {
-        fitScore += 5;
+        fitScore += 5 * quality;
         fitTags.push("Fits budget");
       }
 

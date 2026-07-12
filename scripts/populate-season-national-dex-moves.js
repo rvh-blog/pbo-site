@@ -8,6 +8,9 @@ const seasonNumber = process.argv.includes("--season")
   ? Number(process.argv[process.argv.indexOf("--season") + 1])
   : 11;
 const apply = process.argv.includes("--apply");
+const pokemonFilter = process.argv.includes("--pokemon")
+  ? process.argv[process.argv.indexOf("--pokemon") + 1]
+  : null;
 
 // Forms that can legally move between forms while retaining moves.
 // Permanent form choices and forms that lose form-specific moves are intentionally excluded.
@@ -30,6 +33,23 @@ const FORM_SHARING_POKEMON = {
 const MANUAL_MOVE_ADDITIONS = {
   Lopunny: ["swordsdance"],
   "Lopunny-Mega": ["swordsdance"],
+};
+
+// These forms have a small form-only learnset in Showdown (for example,
+// Rotom-Wash directly lists Hydro Pump) but also retain the base species'
+// ordinary learnset. A non-empty form learnset must not suppress those moves.
+const BASE_MOVE_INHERITANCE = {
+  "Rotom-Heat": ["Rotom"],
+  "Rotom-Wash": ["Rotom"],
+  "Rotom-Frost": ["Rotom"],
+  "Rotom-Fan": ["Rotom"],
+  "Rotom-Mow": ["Rotom"],
+};
+
+const MOVE_NAME_ALIASES = {
+  // Showdown renamed Vice Grip's ID to "visegrip"; PBO stores the familiar
+  // display spelling and normalized key as "vicegrip".
+  visegrip: "vice-grip",
 };
 
 function localToDexName(name, displayName) {
@@ -81,6 +101,14 @@ async function getLearnsetMoves(dex, name, includeFormSharing = true) {
 
   await addSpeciesAndPrevoMoves(dex, species, moves, sources);
 
+  for (const baseName of BASE_MOVE_INHERITANCE[species.name] || []) {
+    const baseSpecies = dex.species.get(baseName);
+    if (!baseSpecies.exists) continue;
+    const before = moves.size;
+    await addSpeciesAndPrevoMoves(dex, baseSpecies, moves, []);
+    sources.push(`${baseSpecies.name} retained base moves +${moves.size - before}`);
+  }
+
   if (moves.size === 0 && species.changesFrom) {
     const changedFrom = dex.species.get(species.changesFrom);
     if (changedFrom.exists) {
@@ -127,7 +155,7 @@ async function main() {
   );
 
   function normalizeMoveNames(moves) {
-    return moves.map((move) => moveNameById.get(move) || move).sort();
+    return moves.map((move) => MOVE_NAME_ALIASES[move] || moveNameById.get(move) || move).sort();
   }
 
   const season = db
@@ -146,7 +174,14 @@ async function main() {
        where spp.season_id = ?
        order by p.name`
     )
-    .all(season.id);
+    .all(season.id)
+    .filter((row) => !pokemonFilter || [row.name, row.displayName]
+      .filter(Boolean)
+      .some((name) => name.toLowerCase() === pokemonFilter.toLowerCase()));
+
+  if (pokemonFilter && rows.length === 0) {
+    throw new Error(`Pokemon ${pokemonFilter} not found on the Season ${seasonNumber} draft board`);
+  }
 
   const upsert = db.prepare(
     `insert into season_pokemon_moves (season_id, pokemon_id, moves, source, updated_at)

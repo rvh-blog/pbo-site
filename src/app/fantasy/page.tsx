@@ -746,7 +746,35 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
           </div>
           <h3>About</h3>
         </div>
-        <div className="grid gap-3 text-sm leading-6 text-[var(--foreground-muted)] md:grid-cols-4">
+        <div className="grid gap-3 text-sm leading-6 text-[var(--foreground-muted)] md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Build A Roster</h4>
+            <p>
+              Signed-in coaches and spectators choose exactly six unique Pokemon each
+              week. The roster must stay within the 90-point season-price budget.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Division Slots</h4>
+            <p>
+              Pick one each from Infinity, Stargazer, Sunset, Crystal, and Neon, plus
+              one from any division. A missing season division makes that slot open.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Weekly Reuse</h4>
+            <p>
+              A Pokemon from the same team cannot be reused in another week that
+              season. The same species from a different team can still be selected.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+            <h4 className="mb-2 font-bold uppercase text-white">Pick Locks</h4>
+            <p>
+              Each pick locks when its team&apos;s weekly matchup starts. Other picks
+              remain editable until their own matchups begin.
+            </p>
+          </div>
           <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
             <h4 className="mb-2 font-bold uppercase text-white">Scoring</h4>
             <p>
@@ -755,17 +783,17 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
             </p>
           </div>
           <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
-            <h4 className="mb-2 font-bold uppercase text-white">Ownership</h4>
+            <h4 className="mb-2 font-bold uppercase text-white">Scouting Data</h4>
             <p>
               Rostered percent is based on active teams in the selected season. Costs
               come from season prices, with roster price used as a fallback.
             </p>
           </div>
           <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
-            <h4 className="mb-2 font-bold uppercase text-white">Fantasy Rosters</h4>
+            <h4 className="mb-2 font-bold uppercase text-white">Leaderboards</h4>
             <p>
-              Signed-in coaches and spectators can save one six-Pokemon roster per
-              season under the 90-point budget, then track it on the leaderboard.
+              Weekly standings total that week&apos;s six picks. Overall standings add
+              every weekly score. Ties currently favor the roster updated earlier.
             </p>
           </div>
           <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
