@@ -272,7 +272,7 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
     const coachRosters = divRosters.filter((r) => r.seasonCoachId === sc.id);
     const ownPokemonStats = coachPokemonStats.get(sc.id) || new Map();
 
-    const roster: RosterPokemon[] = coachRosters.map((r) => {
+    const roster = coachRosters.map((r) => {
       const stats = ownPokemonStats.get(r.pokemonId) || {
         kills: 0,
         deaths: 0,
@@ -294,18 +294,21 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
       };
     });
 
-    // Sort roster by draft order (if available), then by DB insertion order
+    // Show the highest-point Pokemon first. Keep draft order and DB insertion
+    // order as stable tie-breakers for Pokemon with the same point value.
     roster.sort((a, b) => {
-      const aOrder = (a as any)._draftOrder ?? Infinity;
-      const bOrder = (b as any)._draftOrder ?? Infinity;
+      if (a.price !== b.price) return b.price - a.price;
+      const aOrder = a._draftOrder ?? Infinity;
+      const bOrder = b._draftOrder ?? Infinity;
       if (aOrder !== bOrder) return aOrder - bOrder;
-      return (a as any)._id - (b as any)._id;
+      return a._id - b._id;
     });
-    // Strip internal fields
-    for (const r of roster) {
-      delete (r as any)._draftOrder;
-      delete (r as any)._id;
-    }
+    const sortedRoster: RosterPokemon[] = roster.map((item) => {
+      const { _draftOrder, _id, ...entry } = item;
+      void _draftOrder;
+      void _id;
+      return entry;
+    });
 
     // All pokemon stats — only from this coach's own games (including dropped pokemon)
     const currentRosterIds = new Set(coachRosters.map((r) => r.pokemonId));
@@ -515,7 +518,7 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
       inheritedWins,
       inheritedLosses,
       inheritedDifferential,
-      roster,
+      roster: sortedRoster,
       allPokemonStats,
       schedule,
       nearbyStandings,
