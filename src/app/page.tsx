@@ -65,8 +65,9 @@ async function getCurrentGamesOfTheWeek(
   return featuredMatches
     .filter((match) => match.week === displayWeek)
     .sort((a, b) => {
-      const aOrder = DRAFT_DIVISION_ORDER.indexOf(a.division?.name as typeof DRAFT_DIVISION_ORDER[number]);
-      const bOrder = DRAFT_DIVISION_ORDER.indexOf(b.division?.name as typeof DRAFT_DIVISION_ORDER[number]);
+      const normalizedOrder = DRAFT_DIVISION_ORDER.map(normalizeDivisionName);
+      const aOrder = normalizedOrder.indexOf(normalizeDivisionName(a.division?.name || ""));
+      const bOrder = normalizedOrder.indexOf(normalizeDivisionName(b.division?.name || ""));
       return (aOrder === -1 ? 99 : aOrder) - (bOrder === -1 ? 99 : bOrder);
     });
 }
@@ -796,8 +797,8 @@ function GamesOfTheWeekPanel({
   if (games.length === 0) return null;
 
   return (
-    <section className={`poke-card p-4 sm:p-5 ${className}`}>
-      <div className="mb-5 text-center">
+    <section className={`poke-card p-4 ${className}`}>
+      <div className="mb-4 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-400">
           Games of the Week
         </p>
@@ -805,38 +806,43 @@ function GamesOfTheWeekPanel({
           Featured Matchups · Week {games[0].week}
         </p>
       </div>
-      <div className="flex flex-wrap justify-center gap-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {games.map((game) => {
-          const divisionColor = DIVISION_COLORS[game.division?.name || ""] || "#facc15";
+          const divisionName = game.division?.name || "";
+          const normalizedDivisionName = normalizeDivisionName(divisionName);
+          const divisionLabel = normalizedDivisionName === "infinity" ? "Infinity" : divisionName;
+          const divisionColor = normalizedDivisionName === "infinity"
+            ? "#E2A3C7"
+            : DIVISION_COLORS[divisionName] || "#facc15";
           return (
             <Link
               key={game.id}
               href={`/matches/${game.id}`}
-              className="group w-full max-w-md overflow-hidden rounded-xl border bg-[var(--background-secondary)] transition-all hover:-translate-y-0.5 hover:bg-[var(--background-tertiary)]/70"
+              className="group min-w-0 overflow-hidden rounded-xl border bg-[var(--background-secondary)] transition-all hover:-translate-y-0.5 hover:bg-[var(--background-tertiary)]/70"
               style={{ borderColor: `${divisionColor}66`, boxShadow: `0 0 24px ${divisionColor}14` }}
             >
               <div className="border-b border-white/5 px-4 py-2 text-center">
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: divisionColor }}>
-                  {game.division?.name || "Division"} Division
+                  {divisionLabel || "Division"} Division
                 </p>
               </div>
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-5">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-3">
                 {[game.coach1, game.coach2].map((team, index) => (
                   <div key={team?.id ?? index} className={`min-w-0 text-center ${index === 1 ? "order-3" : ""}`}>
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-[var(--background)]">
+                    <div className="mx-auto flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-[var(--background)]">
                       {team?.teamLogoUrl ? (
-                        <Image src={team.teamLogoUrl} alt="" width={48} height={48} className="h-12 w-12 object-contain" />
+                        <Image src={team.teamLogoUrl} alt="" width={40} height={40} className="h-10 w-10 object-contain" />
                       ) : (
                         <span className="text-xs font-bold text-[var(--foreground-muted)]">{team?.teamAbbreviation || "PBO"}</span>
                       )}
                     </div>
-                    <p className="mt-2 truncate text-sm font-bold text-white">{team?.teamName || "TBD"}</p>
+                    <p className="mt-1.5 min-h-8 text-xs font-bold leading-4 text-white">{team?.teamName || "TBD"}</p>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--foreground-subtle)]">{team?.teamAbbreviation || ""}</p>
                   </div>
                 ))}
                 <span className="order-2 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-2.5 py-1 font-mono text-xs font-bold text-yellow-300">VS</span>
               </div>
-              <div className="border-t border-white/5 px-4 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)] transition-colors group-hover:text-white">
+              <div className="border-t border-white/5 px-3 py-1.5 text-center text-[9px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)] transition-colors group-hover:text-white">
                 View Match →
               </div>
             </Link>
