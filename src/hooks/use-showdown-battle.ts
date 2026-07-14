@@ -333,6 +333,14 @@ export function useShowdownBattle(
     p2: new Map(),
   });
 
+  // A switch announced under Illusion temporarily writes the disguised
+  // Pokemon's card. Keep its prior state so a later |replace| can restore that
+  // card after moving the on-field state to Zoroark.
+  const switchStateSnapshotRef = useRef<{
+    p1: Map<string, PokemonBattleState>;
+    p2: Map<string, PokemonBattleState>;
+  }>({ p1: new Map(), p2: new Map() });
+
   // Team preview pokemon (from |poke| events)
   const teamPreviewRef = useRef<{ p1: string[]; p2: string[] }>({ p1: [], p2: [] });
 
@@ -493,6 +501,18 @@ export function useShowdownBattle(
               const species = event.species;
               nickMap.set(event.nickname, species);
 
+              const snapshotMap = switchStateSnapshotRef.current[event.player];
+              const existingState = pokeMap.get(species);
+              if (existingState) {
+                snapshotMap.set(event.nickname, {
+                  ...existingState,
+                  boosts: { ...existingState.boosts },
+                  movesUsed: [...existingState.movesUsed],
+                });
+              } else {
+                snapshotMap.delete(event.nickname);
+              }
+
               // Clear active flag on all Pokemon for this player
               for (const [, ps] of pokeMap) ps.active = false;
 
@@ -520,12 +540,35 @@ export function useShowdownBattle(
               if (!event.player || !event.nickname || !event.species) break;
               const oldSpecies = nickMap.get(event.nickname);
               nickMap.set(event.nickname, event.species);
-              // Transfer state from the illusion Pokemon
+              // Transfer all on-field state accumulated while the Pokemon was
+              // disguised, then restore the disguised species' prior card.
               if (oldSpecies && oldSpecies !== event.species) {
                 const oldState = pokeMap.get(oldSpecies);
-                if (oldState) oldState.active = false;
-              }
-              if (!pokeMap.has(event.species)) {
+                const revealedState = pokeMap.get(event.species)
+                  ?? createPokemonState(event.species, event.nickname, event.battleForm);
+                if (oldState) {
+                  pokeMap.set(event.species, {
+                    ...revealedState,
+                    ...oldState,
+                    species: event.species,
+                    nickname: event.nickname,
+                    battleForm: event.battleForm || revealedState.battleForm,
+                    active: true,
+                    brought: true,
+                    boosts: { ...oldState.boosts },
+                    movesUsed: [...oldState.movesUsed],
+                  });
+
+                  const snapshotMap = switchStateSnapshotRef.current[event.player];
+                  const priorDisguiseState = snapshotMap.get(event.nickname);
+                  if (priorDisguiseState) {
+                    pokeMap.set(oldSpecies, { ...priorDisguiseState, active: false });
+                  } else {
+                    oldState.active = false;
+                  }
+                  snapshotMap.delete(event.nickname);
+                }
+              } else if (!pokeMap.has(event.species)) {
                 pokeMap.set(event.species, createPokemonState(event.species, event.nickname, event.battleForm));
               }
               const rps = pokeMap.get(event.species)!;
@@ -1173,6 +1216,7 @@ export function useShowdownBattle(
   const seekToTurn = useCallback((n: number) => {
     // Reset all mutable refs
     nicknameMapRef.current = { p1: new Map(), p2: new Map() };
+    switchStateSnapshotRef.current = { p1: new Map(), p2: new Map() };
     teamPreviewRef.current = { p1: [], p2: [] };
     ktRef.current = createKillTracking();
 
@@ -1235,6 +1279,7 @@ export function useShowdownBattle(
   const goLive = useCallback(() => {
     // Reset all mutable refs
     nicknameMapRef.current = { p1: new Map(), p2: new Map() };
+    switchStateSnapshotRef.current = { p1: new Map(), p2: new Map() };
     teamPreviewRef.current = { p1: [], p2: [] };
     ktRef.current = createKillTracking();
 
@@ -1274,6 +1319,7 @@ export function useShowdownBattle(
       // Unpausing while live — flush any events that arrived while paused
       // by replaying all stored events
       nicknameMapRef.current = { p1: new Map(), p2: new Map() };
+      switchStateSnapshotRef.current = { p1: new Map(), p2: new Map() };
       teamPreviewRef.current = { p1: [], p2: [] };
       ktRef.current = createKillTracking();
       clearPhaseQueue();
@@ -1526,6 +1572,7 @@ export function useShowdownBattle(
 
     setState(createInitialState());
     nicknameMapRef.current = { p1: new Map(), p2: new Map() };
+    switchStateSnapshotRef.current = { p1: new Map(), p2: new Map() };
     teamPreviewRef.current = { p1: [], p2: [] };
     ktRef.current = createKillTracking();
     caughtUpRef.current = false;
