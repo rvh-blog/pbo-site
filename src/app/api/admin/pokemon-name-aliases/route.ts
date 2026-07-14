@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import { logAdminAudit } from "@/lib/admin-audit";
 import { db } from "@/lib/db";
 import { pokemon, pokemonNameAliases } from "@/lib/schema";
+import { invalidatePokemonAliasMapsCache } from "@/lib/pokemon-name-aliases";
 import {
   getHardcodedPokemonNameAliases,
   normalizePokemonName,
@@ -197,6 +198,8 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
+    invalidatePokemonAliasMapsCache();
+
     await logAdminAudit({
       session: await getSession(),
       action: "pokemon_alias_create",
@@ -241,6 +244,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   await db.delete(pokemonNameAliases).where(eq(pokemonNameAliases.id, aliasId));
+  invalidatePokemonAliasMapsCache();
 
   await logAdminAudit({
     session: await getSession(),

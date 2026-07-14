@@ -53,4 +53,13 @@ for (const alias of ["Dragalge-Mega", "Dragalge Mega", "Mega Dragalge", "Mega-Dr
 }
 assert.equal(getBattlefieldSpriteOverride("Dragalge"), null, "Base Dragalge must keep Showdown's normal sprite");
 
+for (const alias of ["Falinks-Mega", "Falinks Mega", "Mega Falinks", "Mega-Falinks"]) {
+  assert.equal(
+    getBattlefieldSpriteOverride(alias)?.url,
+    "/images/pokemon/sprites/10303.png",
+    `${alias} should use the local Mega Falinks battlefield sprite`,
+  );
+}
+assert.equal(getBattlefieldSpriteOverride("Falinks"), null, "Base Falinks must keep Showdown's normal sprite");
+
 console.log(`Overlay sync checks passed: ${megaCases.length} Mega cases and Showdown room/season rules`);

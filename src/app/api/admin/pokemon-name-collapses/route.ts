@@ -6,6 +6,7 @@ import { logAdminAudit } from "@/lib/admin-audit";
 import { db } from "@/lib/db";
 import { pokemon, pokemonNameCollapses } from "@/lib/schema";
 import { pokemonNameKey } from "@/lib/pokemon-name-utils";
+import { invalidatePokemonAliasMapsCache } from "@/lib/pokemon-name-aliases";
 
 async function requireAdmin() {
   if (!(await isAuthenticated())) {
@@ -68,6 +69,8 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
+    invalidatePokemonAliasMapsCache();
+
     await logAdminAudit({
       session: await getSession(),
       action: "pokemon_collapse_create",
@@ -112,6 +115,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   await db.delete(pokemonNameCollapses).where(eq(pokemonNameCollapses.id, collapseId));
+  invalidatePokemonAliasMapsCache();
 
   await logAdminAudit({
     session: await getSession(),

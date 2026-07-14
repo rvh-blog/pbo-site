@@ -4,7 +4,7 @@ import { and, like, or, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicVisibilityState } from "@/lib/public-visibility";
 import { customPokemonAliasesForRow, getPokemonAliasMaps, type PokemonAliasMaps } from "@/lib/pokemon-name-aliases";
-import { pokemonSearchAliases } from "@/lib/pokemon-name-utils";
+import { isHiddenPublicPokemonForm, pokemonSearchAliases } from "@/lib/pokemon-name-utils";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -161,6 +161,7 @@ export async function GET(request: NextRequest) {
     };
   }
   const pokemonResults = allPokemonForSearch
+    .filter((row) => !isHiddenPublicPokemonForm(row.name, row.displayName))
     .map((row) => ({
       ...row,
       aliases: [

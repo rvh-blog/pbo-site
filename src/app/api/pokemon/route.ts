@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { pokemon, seasonPokemonPrices } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
+import { isHiddenPublicPokemonForm } from "@/lib/pokemon-name-utils";
 
 const READ_CACHE_HEADERS = {
   "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
       ]);
 
       return NextResponse.json(
-        allPokemon.map((p) => ({
+        allPokemon.filter((p) => !isHiddenPublicPokemonForm(p.name, p.displayName)).map((p) => ({
           ...p,
           price: null,
           teraCaptainCost: null,
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json(
-      allPokemon.map(({ seasonPrices, ...p }) => {
+      allPokemon.filter(({ name, displayName }) => !isHiddenPublicPokemonForm(name, displayName)).map(({ seasonPrices, ...p }) => {
         const seasonPrice = seasonPrices[0];
 
         return {
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json(
-      allPokemon.map((p) => ({
+      allPokemon.filter((p) => !isHiddenPublicPokemonForm(p.name, p.displayName)).map((p) => ({
         ...p,
         price: p.seasonPrices[0]?.price ?? null,
         teraCaptainCost: p.seasonPrices[0]?.teraCaptainCost ?? null,
@@ -128,7 +129,7 @@ export async function GET(request: NextRequest) {
     getPokemonAliasMaps(),
   ]);
   return NextResponse.json(
-    allPokemon.map((p) => ({ ...p, nameAliases: customPokemonAliasesForRow(p, aliasMaps) })),
+    allPokemon.filter((p) => !isHiddenPublicPokemonForm(p.name, p.displayName)).map((p) => ({ ...p, nameAliases: customPokemonAliasesForRow(p, aliasMaps) })),
     { headers: READ_CACHE_HEADERS }
   );
 }

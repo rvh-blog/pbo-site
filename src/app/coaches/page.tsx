@@ -9,32 +9,67 @@ export const dynamic = 'force-dynamic';
 async function getCoachesData() {
   // Run all queries in parallel for much better performance on network-attached storage
   const [allCoaches, latestSeason, allSeasonCoaches, allMatches, allSeasons, allDivisions] = await Promise.all([
-    db.query.coaches.findMany(),
+    db.query.coaches.findMany({
+      columns: { id: true, name: true, eloRating: true },
+    }),
     db.query.seasons.findFirst({
+      columns: { id: true, seasonNumber: true },
       orderBy: [desc(seasons.seasonNumber)],
     }),
     db.query.seasonCoaches.findMany({
+      columns: {
+        id: true,
+        coachId: true,
+        divisionId: true,
+        teamName: true,
+        teamAbbreviation: true,
+        teamLogoUrl: true,
+        isActive: true,
+      },
       with: {
         division: {
+          columns: { id: true, name: true, seasonId: true },
           with: {
-            season: true,
+            season: { columns: { id: true, seasonNumber: true } },
           },
         },
       },
     }),
-    db.query.matches.findMany(),
+    db.query.matches.findMany({
+      columns: {
+        id: true,
+        coach1SeasonId: true,
+        coach2SeasonId: true,
+        winnerId: true,
+        coach1Differential: true,
+        coach2Differential: true,
+        isForfeit: true,
+        divisionId: true,
+        seasonId: true,
+      },
+    }),
     db.query.seasons.findMany({
+      columns: { id: true, seasonNumber: true, name: true },
       orderBy: [desc(seasons.seasonNumber)],
     }),
-    db.query.divisions.findMany(),
+    db.query.divisions.findMany({
+      columns: { id: true, name: true, seasonId: true },
+    }),
   ]);
 
   const latestSeasonId = latestSeason?.id;
   const cosmetics = await getAllCoachCosmetics(allCoaches.map((coach) => coach.id));
 
+  const participationsByCoach = new Map<number, typeof allSeasonCoaches>();
+  for (const participation of allSeasonCoaches) {
+    const entries = participationsByCoach.get(participation.coachId) ?? [];
+    entries.push(participation);
+    participationsByCoach.set(participation.coachId, entries);
+  }
+
   // Build coach data with latest team info
   const coachData = allCoaches.map(coach => {
-    const participations = allSeasonCoaches.filter(sc => sc.coachId === coach.id);
+    const participations = participationsByCoach.get(coach.id) ?? [];
 
     // Sort by season number descending
     participations.sort((a, b) => {

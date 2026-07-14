@@ -15,6 +15,7 @@ Open this note first in Obsidian. The local graph from this note should show the
 - [[Fantasy]]
 - [[Draft Planner]]
 - [[Admin And Engagement]]
+- [[Admin Control Center]]
 - [[Store And Cosmetics]]
 - [[Blog]]
 - [[Public Tools And Stats]]

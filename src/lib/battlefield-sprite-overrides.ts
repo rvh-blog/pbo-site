@@ -19,6 +19,15 @@ const MEGA_DRAGALGE: BattlefieldSpriteOverride = {
   pixelated: true,
 };
 
+const MEGA_FALINKS: BattlefieldSpriteOverride = {
+  url: "/images/pokemon/sprites/10303.png",
+  emergencyUrl: "/images/pokemon/sprites/870.png",
+  width: 96,
+  height: 96,
+  y: 0,
+  pixelated: true,
+};
+
 function normalizeBattlefieldSpecies(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -26,6 +35,7 @@ function normalizeBattlefieldSpecies(value: string) {
 export function getBattlefieldSpriteOverride(speciesOrForm: string | null | undefined) {
   const id = normalizeBattlefieldSpecies(speciesOrForm ?? "");
   if (id === "dragalgemega" || id === "megadragalge") return MEGA_DRAGALGE;
+  if (id === "falinksmega" || id === "megafalinks") return MEGA_FALINKS;
   return null;
 }
 
@@ -34,5 +44,6 @@ export function getBattlefieldSpriteOverrideForFailedUrl(url: string) {
   try { decoded = decodeURIComponent(url); } catch {}
   const normalized = normalizeBattlefieldSpecies(decoded);
   if (normalized.includes("dragalgemega") || normalized.includes("megadragalge")) return MEGA_DRAGALGE;
+  if (normalized.includes("falinksmega") || normalized.includes("megafalinks")) return MEGA_FALINKS;
   return null;
 }

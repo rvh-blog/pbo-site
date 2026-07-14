@@ -7,10 +7,14 @@ import { getPokemonLeaderboardStats } from "@/lib/pokemon-leaderboard";
 
 export const dynamic = 'force-dynamic';
 
+type CoachSummary = { id: number; name: string; eloRating: number };
+type SeasonCoachSummary = { id: number; coachId: number; teamName: string; teamLogoUrl: string | null };
+type MatchSummary = { coach1SeasonId: number; coach2SeasonId: number; winnerId: number | null };
+
 function getTopEloCoach(
-  allCoaches: Awaited<ReturnType<typeof db.query.coaches.findMany>>,
-  allSeasonCoaches: Awaited<ReturnType<typeof db.query.seasonCoaches.findMany>>,
-  allMatches: Awaited<ReturnType<typeof db.query.matches.findMany>>
+  allCoaches: CoachSummary[],
+  allSeasonCoaches: SeasonCoachSummary[],
+  allMatches: MatchSummary[]
 ) {
   // Find the coach with the highest ELO rating
   const topCoach = allCoaches.reduce((best, coach) =>
@@ -59,9 +63,9 @@ function getTopEloCoach(
 }
 
 function getCoachStats(
-  allCoaches: Awaited<ReturnType<typeof db.query.coaches.findMany>>,
-  allSeasonCoaches: Awaited<ReturnType<typeof db.query.seasonCoaches.findMany>>,
-  allMatches: Awaited<ReturnType<typeof db.query.matches.findMany>>
+  allCoaches: CoachSummary[],
+  allSeasonCoaches: SeasonCoachSummary[],
+  allMatches: MatchSummary[]
 ) {
   // Build lookup: coachId -> array of seasonCoachIds
   const coachSeasonIds = new Map<number, number[]>();
@@ -125,11 +129,15 @@ function getCoachStats(
 async function getMostLovedPairs() {
   // Get all roster entries with coach and pokemon data
   const allRosters = await db.query.rosters.findMany({
+    columns: { seasonCoachId: true, pokemonId: true },
     with: {
-      pokemon: true,
+      pokemon: {
+        columns: { id: true, name: true, displayName: true, spriteUrl: true },
+      },
       seasonCoach: {
+        columns: { id: true, teamLogoUrl: true },
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true } },
         },
       },
     },
@@ -191,17 +199,26 @@ async function getMostLovedPairs() {
 export default async function LeaderboardsPage() {
   // Fetch shared data once - eliminates N+1 queries
   const [allCoaches, allSeasonCoaches, allMatches, pokemonStats, mostLovedPairs, playoffFinals, allRosters] = await Promise.all([
-    db.query.coaches.findMany(),
-    db.query.seasonCoaches.findMany(),
-    db.query.matches.findMany(),
+    db.query.coaches.findMany({
+      columns: { id: true, name: true, eloRating: true },
+    }),
+    db.query.seasonCoaches.findMany({
+      columns: { id: true, coachId: true, teamName: true, teamLogoUrl: true },
+    }),
+    db.query.matches.findMany({
+      columns: { coach1SeasonId: true, coach2SeasonId: true, winnerId: true },
+    }),
     getPokemonLeaderboardStats(),
     getMostLovedPairs(),
     // Get all playoff finals (round 3) for championship counts
     db.query.playoffMatches.findMany({
+      columns: { winnerId: true },
       where: eq(playoffMatches.round, 3),
     }),
     // Get all rosters for championship lookup
-    db.query.rosters.findMany(),
+    db.query.rosters.findMany({
+      columns: { seasonCoachId: true, pokemonId: true },
+    }),
   ]);
 
   // Process with pre-fetched data (no additional DB queries)

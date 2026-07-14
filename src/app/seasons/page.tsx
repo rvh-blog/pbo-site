@@ -32,11 +32,15 @@ async function getSeasons() {
   const [allSeasons, allSeasonCoaches, visibility] = await Promise.all([
     db.query.seasons.findMany({
       with: {
-        divisions: true,
+        divisions: {
+          columns: { id: true, name: true, seasonId: true, displayOrder: true, logoUrl: true },
+        },
       },
       orderBy: (seasons, { desc }) => [desc(seasons.seasonNumber)],
     }),
-    db.query.seasonCoaches.findMany(),
+    db.query.seasonCoaches.findMany({
+      columns: { divisionId: true },
+    }),
     getPublicVisibilityState(),
   ]);
 

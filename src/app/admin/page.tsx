@@ -81,8 +81,9 @@ async function getDashboardData() {
 
   const [currentSeason, adminPoll, featureSettings] = await Promise.all([
     db.query.seasons.findFirst({
+      columns: { id: true, name: true, draftBudget: true, isPublic: true, isSchedulePublic: true },
       where: eq(seasons.isCurrent, true),
-      with: { divisions: true },
+      with: { divisions: { columns: { id: true, name: true } } },
     }),
     getAdminPoll(),
     getSiteFeatureSettings(),
@@ -90,6 +91,7 @@ async function getDashboardData() {
 
   if (!currentSeason) {
     const recentAudit = await db.query.adminAuditLogs.findMany({
+      columns: { id: true, summary: true, actorName: true, action: true, createdAt: true },
       orderBy: [desc(adminAuditLogs.createdAt)],
       limit: 5,
     });
@@ -110,27 +112,34 @@ async function getDashboardData() {
     visibility,
   ] = await Promise.all([
     db.query.seasonCoaches.findMany({
+      columns: { id: true, teamLogoUrl: true, divisionId: true },
       where: (table, { inArray }) => inArray(table.divisionId, divisionIds),
-      with: { rosters: true },
+      with: { rosters: { columns: { id: true } } },
     }),
     db.query.matches.findMany({
+      columns: { id: true, week: true, winnerId: true },
       where: eq(matches.seasonId, currentSeason.id),
-      with: { matchPokemon: true },
+      with: { matchPokemon: { columns: { id: true } } },
     }),
     db.query.transactions.findMany({
+      columns: { createdAt: true },
       where: eq(transactions.seasonId, currentSeason.id),
       orderBy: [desc(transactions.createdAt)],
     }),
     db.query.playoffMatches.findMany({
+      columns: { higherSeedId: true, lowerSeedId: true, winnerId: true, matchId: true },
       where: eq(playoffMatches.seasonId, currentSeason.id),
     }),
     db.query.divisionSheetSync.findMany({
+      columns: { lastSyncStatus: true, syncEnabled: true, lastSyncAt: true },
       where: (table, { inArray }) => inArray(table.divisionId, divisionIds),
     }),
     db.query.pickEmParticipants.findMany({
+      columns: { id: true },
       where: eq(pickEmParticipants.seasonId, currentSeason.id),
     }),
     db.query.adminAuditLogs.findMany({
+      columns: { id: true, summary: true, actorName: true, action: true, createdAt: true },
       orderBy: [desc(adminAuditLogs.createdAt)],
       limit: 5,
     }),

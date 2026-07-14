@@ -106,6 +106,8 @@ Missing Showdown battlefield art is handled by a shared, form-specific registry
 used by both overlay variants. Mega Dragalge resolves `Dragalge-Mega`,
 `Dragalge Mega`, `Mega Dragalge`, and `Mega-Dragalge` to the local form sprite.
 Regular Dragalge remains on Showdown's normal sprite until it Mega Evolves.
+Mega Falinks follows the same behavior for `Falinks-Mega`, `Falinks Mega`,
+`Mega Falinks`, and `Mega-Falinks`, with regular Falinks left unchanged.
 
 The override wraps `Dex.getSpriteData` and changes only the bitmap URL and
 geometry returned to Showdown. It does not replace Showdown's `PokemonSprite`,
