@@ -1414,7 +1414,7 @@ export function useShowdownBattle(
           // First room message — initial state dump, feed without animation
           receivedRoomInitRef.current = true;
           battleSceneRef.current.addLinesImmediate(rawLines);
-          battleSceneRef.current.seekTurn(Infinity);
+          void battleSceneRef.current.catchUpToLive();
           battleSceneForwardedUpToRef.current = allRawLinesRef.current.length;
         } else if (!isPausedRef.current && reviewingTurnRef.current === null) {
           // Live play — feed lines with phased animation.
@@ -1517,7 +1517,7 @@ export function useShowdownBattle(
       pendingRawLinesRef.current = [];
       receivedRoomInitRef.current = true;
       battleSceneForwardedUpToRef.current = allRawLinesRef.current.length;
-      battleSceneRef.current.seekTurn(Infinity);
+      void battleSceneRef.current.catchUpToLive();
     }
   }, [battleSceneRef]);
 
