@@ -214,6 +214,21 @@ function waitForAnimations(battle: any, isCancelled: () => boolean): Promise<voi
   });
 }
 
+/** Wait until Showdown has completely finished an animation-disabled seek.
+ * Live phases must not be fed before both flags settle or the scene can remain
+ * static, or process the seek and live queue concurrently. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function waitForSeekEnd(battle: any, isCancelled: () => boolean): Promise<void> {
+  return new Promise((resolve) => {
+    const waitForEnd = setInterval(() => {
+      if (isCancelled() || (battle.seeking === null && battle.atQueueEnd)) {
+        clearInterval(waitForEnd);
+        resolve();
+      }
+    }, 50);
+  });
+}
+
 /**
  * Detect end-of-turn residual/system lines (weather upkeep, status damage,
  * item healing, etc.).  Must be conservative — mid-move effects like Life Orb
@@ -306,18 +321,13 @@ async function feedLinesInPhases(
       battle.add(line);
     }
 
-    // Wait for this phase's animations to finish before feeding the next
-    if (i < phases.length - 1) {
-      await waitForAnimations(battle, isCancelled);
-      if (!isCancelled()) {
-        onPhaseDone?.();
-      }
+    // Wait for every phase, including the final one. This keeps later socket
+    // messages serialized behind the visible animation and makes the hook's
+    // state update only after that phase has actually completed.
+    await waitForAnimations(battle, isCancelled);
+    if (!isCancelled()) {
+      onPhaseDone?.();
     }
-  }
-
-  // After the last phase, poll for overall completion
-  if (!isCancelled()) {
-    pollForQueueEnd(battle);
   }
 
   return phases.length;
@@ -350,6 +360,9 @@ export interface ChatLogEntry {
 
 export interface BattleSceneHandle {
   seekTurn(n: number): void;
+  /** Seek initial history without animation, then enter a known-good live
+   * animation state before queued socket messages are processed. */
+  catchUpToLive(): Promise<void>;
   pause(): void;
   play(): void;
   setSpeed(speed: number): void;
@@ -445,6 +458,29 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
         for (const c of chatLogRef.current) c.live = false;
         battleObjRef.current.seekTurn(n);
       }
+    },
+    catchUpToLive(): Promise<void> {
+      if (!battleObjRef.current) return Promise.resolve();
+      const battle = battleObjRef.current;
+      const prev = addLinesQueueRef.current;
+      const next = prev.then(async () => {
+        if (cancelledRef.current || battleObjRef.current !== battle) return;
+        battle.seekTurn(Infinity);
+        await waitForSeekEnd(
+          battle,
+          () => cancelledRef.current || battleObjRef.current !== battle
+        );
+        if (cancelledRef.current || battleObjRef.current !== battle) return;
+
+        // seekTurn disables animations while rebuilding current state.
+        // Restore both the scene and Battle playback only after seek completion;
+        // calling play earlier races nextStep and leaves duplicate sprites.
+        battle.scene?.animationOn?.();
+        battle.play();
+        pollForQueueEnd(battle);
+      });
+      addLinesQueueRef.current = next;
+      return next;
     },
     pause() {
       if (battleObjRef.current) {

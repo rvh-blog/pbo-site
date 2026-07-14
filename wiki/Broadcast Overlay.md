@@ -85,6 +85,15 @@ and species overrides are read from `BattleTeambuilderTable.champions`. Omitting
 that data stops the renderer with an `overrideAbilityData` error, leaving the
 battlefield empty even though sidebar protocol state continues updating.
 
+Initial history catch-up and live animation are separate serialized phases.
+The renderer seeks through existing history with animations disabled, waits for
+Showdown to report both `seeking === null` and `atQueueEnd`, then explicitly
+restores animation and playback before accepting live protocol phases. Every
+live phase, including the final phase in a socket message, must finish its
+animation before the next message is processed. Do not call `play()` while a
+seek is still active; that races Showdown's queue and can cause either static or
+overlapping sprites.
+
 ## Verification
 
 Run the focused synchronization checks:
