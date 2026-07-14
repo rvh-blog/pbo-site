@@ -678,7 +678,10 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
           side="left"
           divisionColor={divisionColor}
         />
-        <div className="flex-1 flex flex-col justify-between gap-1 min-h-0 pb-1">
+        <div
+          className="flex-1 grid gap-1 min-h-0 pb-1"
+          style={{ gridTemplateRows: `repeat(${Math.max(leftDisplay.length, 1)}, minmax(0, 1fr))` }}
+        >
           {leftDisplay.map((mon, i) => (
             <PokemonCard key={i} pokemon={mon} divisionColor={divisionColor} side="left" teamTeraUsed={leftDisplay.some((m) => m.terastallized)} isReviewing={reviewingTurn !== null || isPaused} />
           ))}
@@ -711,7 +714,10 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
           side="right"
           divisionColor={divisionColor}
         />
-        <div className="flex-1 flex flex-col justify-between gap-1 min-h-0 pb-1">
+        <div
+          className="flex-1 grid gap-1 min-h-0 pb-1"
+          style={{ gridTemplateRows: `repeat(${Math.max(rightDisplay.length, 1)}, minmax(0, 1fr))` }}
+        >
           {rightDisplay.map((mon, i) => (
             <PokemonCard key={i} pokemon={mon} divisionColor={divisionColor} side="right" teamTeraUsed={rightDisplay.some((m) => m.terastallized)} isReviewing={reviewingTurn !== null || isPaused} />
           ))}
@@ -1302,7 +1308,7 @@ function PokemonCard({
 
   return (
     <div
-      className={`relative flex items-center p-1.5 rounded-lg transition-all duration-500 border
+      className={`relative flex items-center min-h-0 h-full p-1.5 rounded-lg transition-all duration-500 border
         ${showFainted ? "bg-slate-950/40" : "bg-slate-900/40 backdrop-blur-md shadow-lg"}`}
       style={{
         borderColor: divisionColor,
@@ -1315,7 +1321,7 @@ function PokemonCard({
       {hovered && <PokemonTooltip pokemon={pokemon} side={side} divisionColor={divisionColor} />}
 
       {/* Sprite */}
-      <div className={`relative w-16 h-16 flex-shrink-0 transition-all duration-500 ${faintStyle}`}>
+      <div className={`relative w-16 h-full min-h-0 max-h-16 flex-shrink-0 transition-all duration-500 ${faintStyle}`}>
         {sprite && (
           <>
             <img

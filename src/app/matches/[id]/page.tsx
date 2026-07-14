@@ -536,7 +536,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
   );
   const showBattleSummaryOnly =
     match.id === 2778 ||
-    (isPlayed && (match.season?.seasonNumber ?? 0) >= 11 && Boolean(match.replayUrl));
+    (isPlayed && (match.season?.seasonNumber ?? 0) >= 11);
   const decidingTurnsEditorHidden = decidingTurnsEditorHiddenSetting?.value === "true";
 
   return (
@@ -546,8 +546,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
         <VictoryAnimation winnerSide={coach1Won ? "left" : "right"} />
       )}
 
-      {/* Page Header */}
-      <div className="poke-card p-4 sm:p-6">
+      {/* The Season 11+ report uses the compact broadcast-style composition;
+          older and upcoming matches retain the standard page heading. */}
+      {!showBattleSummaryOnly && <div className="poke-card p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-6">
           <div className="min-w-0">
             {/* Breadcrumb */}
@@ -606,7 +607,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Match Header */}
       <div className="poke-card p-4 sm:p-6">

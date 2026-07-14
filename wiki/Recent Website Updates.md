@@ -4,6 +4,23 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 13, 2026
+
+- Completed Season 11 and later match pages consistently use the compact battle
+  report layout, whether or not a replay URL is present.
+- The redundant `MATCH RESULTS / COMPLETED` page-heading card is omitted for
+  the compact Season 11+ report. Older seasons and upcoming matches retain the
+  standard page heading.
+- Match statistics and deciding-turn descriptions remain match-specific data;
+  the layout change does not copy values from another game.
+- Both overlay variants share a narrowly scoped Mega Dragalge battlefield
+  sprite override. It supports the known Mega name aliases, leaves regular
+  Dragalge unchanged before Mega Evolution, preserves Showdown's animation
+  objects, and uses a controlled emergency image fallback instead of a broken
+  image icon.
+- Both overlay sidebars use bounded brought-Pokemon rows, preventing the sixth
+  team member from being covered by Bench when all six preview slots match.
+
 ## July 11, 2026
 
 Season 11 Stat Points:
