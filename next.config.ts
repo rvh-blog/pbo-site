@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  experimental: {
+    // Next 16.1 enables the persistent development cache by default. It grew
+    // `.next/dev/cache/turbopack` to hundreds of GB on the OneDrive-backed
+    // Windows checkout, so keep reusable Turbopack data in memory instead.
+    turbopackFileSystemCacheForDev: false,
+    turbopackFileSystemCacheForBuild: false,
+  },
   async headers() {
     return [
       {
