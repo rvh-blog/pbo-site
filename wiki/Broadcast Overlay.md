@@ -111,6 +111,8 @@ sprites when Showdown has no battlefield art. The registry accepts both
 species-first and `Mega ...` form names, including X/Y/Z and alternate-form
 suffixes, and recovers failed Showdown sprite URLs. Regular forms remain on
 Showdown's normal sprites.
+Mega Falinks follows the same behavior for `Falinks-Mega`, `Falinks Mega`,
+`Mega Falinks`, and `Mega-Falinks`, with regular Falinks left unchanged.
 
 The override wraps `Dex.getSpriteData` and changes only the bitmap URL and
 geometry returned to Showdown. It does not replace Showdown's `PokemonSprite`,

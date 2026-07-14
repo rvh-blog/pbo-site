@@ -496,3 +496,17 @@ export function pokemonSearchAliases(
 
   return Array.from(aliases);
 }
+
+// These Showdown-only Mimikyu totem variants are not supported as separate
+// league Pokemon. Keep the regular Busted/Disguised forms available while
+// hiding only the duplicate totem entries from public selectors and search.
+const HIDDEN_PUBLIC_POKEMON_FORMS = new Set([
+  "mimikyu-totem-busted",
+  "mimikyu-totem-disguised",
+]);
+
+export function isHiddenPublicPokemonForm(name: string | null | undefined, displayName?: string | null) {
+  return [name, displayName]
+    .filter((value): value is string => Boolean(value))
+    .some((value) => HIDDEN_PUBLIC_POKEMON_FORMS.has(value.trim().toLowerCase()));
+}

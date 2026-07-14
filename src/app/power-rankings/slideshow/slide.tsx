@@ -26,6 +26,9 @@ export function Slide({ data, divisionColor }: Props) {
   const rosterCols = Math.ceil(data.roster.length / 2);
   const row1 = data.roster.slice(0, rosterCols);
   const row2 = data.roster.slice(rosterCols);
+  const speedTiers = [...data.roster]
+    .filter((pokemon) => pokemon.speed > 0)
+    .sort((a, b) => b.speed - a.speed || (a.displayName || a.name).localeCompare(b.displayName || b.name));
 
   const slideRef = useRef<HTMLDivElement>(null);
   const [hoveredMatch, setHoveredMatch] = useState<{ idx: number; top: number } | null>(null);
@@ -172,7 +175,8 @@ export function Slide({ data, divisionColor }: Props) {
           </div>
         </div>
 
-        {/* RIGHT: Roster Grid */}
+        {/* RIGHT: Roster Grid + Speed Tiers */}
+        <div className="flex-1 flex gap-5 min-w-0">
         <div className="flex-1 flex flex-col justify-center min-w-0">
           {/* Header */}
           <div className="flex items-end gap-3 mb-5 pb-2" style={{ borderBottom: `4px solid ${divisionColor}` }}>
@@ -197,6 +201,31 @@ export function Slide({ data, divisionColor }: Props) {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="w-[18%] min-w-[150px] max-w-[220px] self-stretch slide-poke-card rounded-lg p-3 flex flex-col">
+          <div className="flex items-center justify-center border-b border-slate-700 pb-2">
+            <h3 className="font-pixel text-[11px] text-yellow-300 uppercase tracking-wide text-center">Speed Tiers</h3>
+          </div>
+          <div className="mt-2 flex-1 space-y-1 overflow-hidden">
+            {speedTiers.length > 0 ? speedTiers.map((pokemon) => (
+              <div key={pokemon.pokemonId} className="flex items-center gap-2 rounded px-1.5 py-1" style={{ background: "#020617" }}>
+                {pokemon.spriteUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={pokemon.spriteUrl} alt="" className="h-7 w-7 shrink-0 object-contain" />
+                ) : (
+                  <span className="h-7 w-7 shrink-0 rounded bg-slate-800" />
+                )}
+                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-slate-300">
+                  {pokemon.displayName || pokemon.name}
+                </span>
+                <span className="shrink-0 font-pixel text-sm text-white">{pokemon.speed}</span>
+              </div>
+            )) : (
+              <span className="block pt-4 text-center text-xs italic text-slate-600">NO SPEED DATA</span>
+            )}
+          </div>
+        </div>
         </div>
       </div>
 

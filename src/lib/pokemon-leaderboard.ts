@@ -20,9 +20,18 @@ export function sortPokemonAllTimeByKills<T extends { kills: number; gamesPlayed
 
 export async function getPokemonLeaderboardStats(): Promise<PokemonLeaderboardStat[]> {
   const allMatchPokemon = await db.query.matchPokemon.findMany({
+    columns: {
+      kills: true,
+      deaths: true,
+      seasonCoachId: true,
+    },
     with: {
-      pokemon: true,
-      match: true,
+      pokemon: {
+        columns: { id: true, name: true, displayName: true, spriteUrl: true },
+      },
+      match: {
+        columns: { winnerId: true },
+      },
     },
   });
 

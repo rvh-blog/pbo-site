@@ -1,21 +1,5 @@
 import { isAuthenticated } from "@/lib/auth";
-import Link from "next/link";
-import { LogoutButton } from "@/components/logout-button";
-
-const adminNavItems = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/coaches", label: "Coaches" },
-  { href: "/admin/seasons", label: "Seasons" },
-  { href: "/admin/pokemon", label: "Pokemon" },
-  { href: "/admin/rosters", label: "Rosters" },
-  { href: "/admin/transactions", label: "Transactions" },
-  { href: "/admin/matches", label: "Matches" },
-  { href: "/admin/battle-records", label: "Records" },
-  { href: "/admin/discord", label: "Discord" },
-  { href: "/admin/sheets", label: "Sheets" },
-  { href: "/admin/engagement", label: "Engagement" },
-  { href: "/admin/audit-log", label: "Audit Log" },
-];
+import { AdminShell } from "@/components/admin/admin-shell";
 
 export default async function AdminLayout({
   children,
@@ -24,27 +8,11 @@ export default async function AdminLayout({
 }) {
   const authenticated = await isAuthenticated();
 
-  // Allow access to login page without authentication
-  // The login page will handle its own redirect after successful login
+  if (!authenticated) return <>{children}</>;
 
   return (
-    <div className="space-y-6">
-      {authenticated && (
-        <nav className="flex items-center gap-2 flex-wrap p-4 rounded-lg bg-[var(--card)] border border-[var(--card-hover)]">
-          {adminNavItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
-            >
-              {item.label}
-            </Link>
-          ))}
-          <div className="flex-1" />
-          <LogoutButton />
-        </nav>
-      )}
+    <AdminShell includeDevTools={process.env.NODE_ENV !== "production"}>
       {children}
-    </div>
+    </AdminShell>
   );
 }

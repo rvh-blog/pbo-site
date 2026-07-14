@@ -91,9 +91,25 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
 
   // Calculate stats for each coach based on filters
   const coachesWithStats = useMemo(() => {
+    const entriesByCoach = new Map<number, SeasonCoachEntry[]>();
+    for (const entry of seasonCoachEntries) {
+      const entries = entriesByCoach.get(entry.coachId) ?? [];
+      entries.push(entry);
+      entriesByCoach.set(entry.coachId, entries);
+    }
+
+    const matchesBySeasonCoach = new Map<number, Match[]>();
+    for (const match of matches) {
+      for (const seasonCoachId of [match.coach1SeasonId, match.coach2SeasonId]) {
+        const coachMatches = matchesBySeasonCoach.get(seasonCoachId) ?? [];
+        coachMatches.push(match);
+        matchesBySeasonCoach.set(seasonCoachId, coachMatches);
+      }
+    }
+
     return coaches.map(coach => {
       // Get season coach IDs for this coach
-      const relevantEntries = seasonCoachEntries.filter(sc => sc.coachId === coach.id);
+      const relevantEntries = entriesByCoach.get(coach.id) ?? [];
 
       // For stats, use all-time or filtered based on toggle
       let statsEntries = relevantEntries;
@@ -113,25 +129,27 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
         filterEntries = relevantEntries.filter(sc => sc.seasonId === selectedSeasonId);
       }
 
-      const statsSeasonCoachIds = statsEntries.map(sc => sc.id);
+      const statsSeasonCoachIds = new Set(statsEntries.map(sc => sc.id));
       const hasMatchesInFilter = filterEntries.length > 0;
 
-      // Filter matches for stats
-      let relevantMatches = matches.filter(m =>
-        statsSeasonCoachIds.includes(m.coach1SeasonId) || statsSeasonCoachIds.includes(m.coach2SeasonId)
-      );
+      // Read matches through the season-coach index instead of scanning the full
+      // match list for every coach (important for all-time views).
+      const relevantMatches = new Map<number, Match>();
+      for (const seasonCoachId of statsSeasonCoachIds) {
+        for (const match of matchesBySeasonCoach.get(seasonCoachId) ?? []) {
+          relevantMatches.set(match.id, match);
+        }
+      }
 
       // Filter by forfeit toggle
-      if (!includeForfeits) {
-        relevantMatches = relevantMatches.filter(m => !m.isForfeit);
-      }
+      const filteredMatches = [...relevantMatches.values()].filter((match) => includeForfeits || !match.isForfeit);
 
       let wins = 0;
       let losses = 0;
       let differential = 0;
 
-      for (const match of relevantMatches) {
-        const isCoach1 = statsSeasonCoachIds.includes(match.coach1SeasonId);
+      for (const match of filteredMatches) {
+        const isCoach1 = statsSeasonCoachIds.has(match.coach1SeasonId);
         const mySeasonCoachId = isCoach1 ? match.coach1SeasonId : match.coach2SeasonId;
 
         if (match.winnerId === mySeasonCoachId) {

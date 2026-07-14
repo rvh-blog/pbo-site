@@ -24,6 +24,10 @@ export type SerializedPokemonAliasMaps = {
   collapseKeyToCanonicalName: [string, string][];
 };
 
+const ALIAS_MAP_CACHE_TTL_MS = 60_000;
+let aliasMapCache: { value: PokemonAliasMaps; expiresAt: number } | null = null;
+let aliasMapCachePromise: Promise<PokemonAliasMaps> | null = null;
+
 type PokemonLookupRow = {
   pokemonId?: number | null;
   id?: number | null;
@@ -32,6 +36,29 @@ type PokemonLookupRow = {
 };
 
 export async function getPokemonAliasMaps(): Promise<PokemonAliasMaps> {
+  if (aliasMapCache && aliasMapCache.expiresAt > Date.now()) {
+    return aliasMapCache.value;
+  }
+
+  if (aliasMapCachePromise) {
+    return aliasMapCachePromise;
+  }
+
+  aliasMapCachePromise = loadPokemonAliasMaps();
+  try {
+    const value = await aliasMapCachePromise;
+    aliasMapCache = { value, expiresAt: Date.now() + ALIAS_MAP_CACHE_TTL_MS };
+    return value;
+  } finally {
+    aliasMapCachePromise = null;
+  }
+}
+
+export function invalidatePokemonAliasMapsCache() {
+  aliasMapCache = null;
+}
+
+async function loadPokemonAliasMaps(): Promise<PokemonAliasMaps> {
   const [aliasRows, collapseRows] = await Promise.all([
     db
       .select({
