@@ -1358,14 +1358,14 @@ function PokemonCard({
       {/* Data */}
       <div className={`flex-grow px-2 ${isLeft ? "text-left" : "text-right"}`}>
         <div className={`flex items-center gap-1.5 mb-1 ${isLeft ? "justify-start" : "justify-end"}`}>
-          {!isLeft && kills > 0 && (
+          {!isLeft && kills > 0 && !showFainted && (
             <div className={`relative z-20 flex items-center justify-center gap-1 bg-red-600 rounded px-2 py-1 border border-red-500/50 transition-all duration-500 ${faintGrayscale}`}>
               <Skull size={14} className="text-white" />
               <span className="text-[13px] font-black text-white leading-none">{kills}</span>
             </div>
           )}
           <h4 className={`text-sm font-bold truncate text-slate-100 uppercase tracking-tight leading-none transition-all duration-500 ${isLeft ? "text-left" : "text-right"} ${faintStyle}`}>{name}</h4>
-          {isLeft && kills > 0 && (
+          {isLeft && kills > 0 && !showFainted && (
             <div className={`relative z-20 flex items-center justify-center gap-1 bg-red-600 rounded px-2 py-1 border border-red-500/50 transition-all duration-500 ${faintGrayscale}`}>
               <Skull size={14} className="text-white" />
               <span className="text-[13px] font-black text-white leading-none">{kills}</span>
@@ -1390,10 +1390,16 @@ function PokemonCard({
 
       {/* Fainted overlay */}
       {showFainted && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 opacity-40 grayscale">
+        <div className="absolute inset-0 flex items-center justify-center gap-1.5 pointer-events-none z-30 opacity-40 grayscale">
           <div className="bg-slate-950/80 px-2 py-0.5 rounded border border-red-900/50 text-[10px] font-bold text-red-500 uppercase tracking-widest">
             Fainted
           </div>
+          {kills > 0 && (
+            <div className="flex items-center justify-center gap-1 bg-red-600 rounded px-2 py-1 border border-red-500/50">
+              <Skull size={14} className="text-white" />
+              <span className="text-[13px] font-black text-white leading-none">{kills}</span>
+            </div>
+          )}
         </div>
       )}
 
