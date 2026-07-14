@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
+import {
+  getBattlefieldSpriteOverride,
+  getBattlefieldSpriteOverrideForFailedUrl,
+} from "@/lib/battlefield-sprite-overrides";
 
 /* ═══════════════════════════════════════════════
    Showdown Client Renderer
@@ -105,6 +109,45 @@ function setupCjsShim(w: any) {
   w.__cjsShimInstalled = true;
 }
 
+/** Add narrowly scoped form fallbacks without replacing Showdown's
+ * PokemonSprite objects. The engine continues to own every animation; only
+ * the resolved bitmap URL and its intrinsic geometry are changed. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function installBattlefieldSpriteOverrides(w: any) {
+  const dex = w.Dex;
+  if (!dex?.getSpriteData || dex.__pboBattlefieldSpriteOverridesInstalled) return;
+
+  const originalGetSpriteData = dex.getSpriteData;
+  dex.getSpriteData = function getSpriteDataWithPboFallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pokemon: any,
+    isFront: boolean,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    options: any
+  ) {
+    const spriteData = originalGetSpriteData.call(this, pokemon, isFront, options);
+    const speciesForme = typeof pokemon === "string"
+      ? pokemon
+      : pokemon?.volatiles?.formechange?.[1]
+        ?? pokemon?.getSpeciesForme?.()
+        ?? pokemon?.speciesForme
+        ?? pokemon?.species;
+    const override = getBattlefieldSpriteOverride(speciesForme);
+    if (!override) return spriteData;
+
+    return {
+      ...spriteData,
+      url: override.url,
+      w: override.width,
+      h: override.height,
+      y: override.y,
+      pixelated: override.pixelated,
+      isFrontSprite: Boolean(isFront),
+    };
+  };
+  dex.__pboBattlefieldSpriteOverridesInstalled = true;
+}
+
 /** Load all Showdown scripts once (idempotent). */
 async function ensureShowdownLoaded(): Promise<void> {
   if (scriptsLoaded) return;
@@ -165,6 +208,8 @@ async function ensureShowdownLoaded(): Promise<void> {
     if (!w.BattleTeambuilderTable?.champions) {
       throw new Error("Showdown Champions teambuilder data failed to load");
     }
+
+    installBattlefieldSpriteOverrides(w);
 
     // Mute all battle sounds
     try { w.BattleSound?.setMute?.(true); } catch {}
@@ -546,6 +591,22 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
 
     cancelledRef.current = false;
 
+    // Last-resort image recovery for a known missing Showdown form. This is
+    // scoped to the battle frame and known registry URLs so move effects and
+    // unrelated Pokemon are never modified.
+    const frame = frameRef.current;
+    const handleImageError = (event: Event) => {
+      const image = event.target;
+      if (!(image instanceof HTMLImageElement) || image.dataset.pboSpriteFallback === "done") return;
+      const override = getBattlefieldSpriteOverrideForFailedUrl(image.currentSrc || image.src);
+      if (!override) return;
+      image.dataset.pboSpriteFallback = "done";
+      let failedPath = "";
+      try { failedPath = new URL(image.currentSrc || image.src, window.location.href).pathname; } catch {}
+      image.src = failedPath === override.url ? override.emergencyUrl : override.url;
+    };
+    frame.addEventListener("error", handleImageError, true);
+
     async function boot() {
       try {
         await ensureShowdownLoaded();
@@ -598,6 +659,7 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
 
     return () => {
       cancelledRef.current = true;
+      frame.removeEventListener("error", handleImageError, true);
       if (battleObjRef.current) {
         try { battleObjRef.current.destroy?.(); } catch {}
         battleObjRef.current = null;

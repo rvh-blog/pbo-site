@@ -58,6 +58,12 @@ confirmed, both the six-card area and Bench remain empty. Once confirmed:
 - A Pokemon cannot appear simultaneously as a main card and a bench chip.
 - The fixed-height sidebar must not be allowed to overflow into Bench.
 
+The brought-card region uses a bounded grid with one row per displayed Pokemon.
+Do not use distributed fixed-height flex cards here: with six brought Pokemon,
+the sixth row can extend beneath Bench and appear missing even though its battle
+identity was matched correctly. Each row and card must retain `min-height: 0`
+so all six rows shrink within the reserved region without overlapping Bench.
+
 On fainted cards, the `FAINTED` label and any KO skull count render as one
 centered row inside the card, with the skull badge immediately to the right of
 the label. The skull number remains that Pokemon's credited KO count; it is not
@@ -93,6 +99,22 @@ live phase, including the final phase in a socket message, must finish its
 animation before the next message is processed. Do not call `play()` while a
 seek is still active; that races Showdown's queue and can cause either static or
 overlapping sprites.
+
+## Battlefield Sprite Overrides
+
+Missing Showdown battlefield art is handled by a shared, form-specific registry
+used by both overlay variants. Mega Dragalge resolves `Dragalge-Mega`,
+`Dragalge Mega`, `Mega Dragalge`, and `Mega-Dragalge` to the local form sprite.
+Regular Dragalge remains on Showdown's normal sprite until it Mega Evolves.
+
+The override wraps `Dex.getSpriteData` and changes only the bitmap URL and
+geometry returned to Showdown. It does not replace Showdown's `PokemonSprite`,
+so switch, move, damage, faint, and Mega-transition animations retain their
+normal lifecycle. Because the current asset set has no distinct back frame, the
+correct static Mega form art is used from both perspectives. A frame-scoped
+image-error handler provides a controlled base-Dragalge emergency substitute
+only if that local Mega asset also fails; it never intercepts move-effect or
+unrelated Pokemon images.
 
 ## Verification
 
