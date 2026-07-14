@@ -418,9 +418,14 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
   const leftMons = leftRoster.brought.map((rp) => mergeMon(rp, leftPokemon, data.pokemonNameAliases));
   const rightMons = rightRoster.brought.map((rp) => mergeMon(rp, rightPokemon, data.pokemonNameAliases));
 
-  // If no pokemon brought yet, show full roster as placeholder
-  const leftDisplay = leftMons.length > 0 ? leftMons : leftTeam.roster.map((rp) => mergeMon(rp, leftPokemon, data.pokemonNameAliases));
-  const rightDisplay = rightMons.length > 0 ? rightMons : rightTeam.roster.map((rp) => mergeMon(rp, rightPokemon, data.pokemonNameAliases));
+  // Do not render the full roster while team preview is still loading. Doing
+  // so would show the same Pokemon as both a main card and a bench chip, and a
+  // draft roster can overflow the fixed-height sidebar. Champions battles
+  // have six brought Pokemon, so cap the visual list defensively as well.
+  const leftTeamConfirmed = leftMons.length > 0;
+  const rightTeamConfirmed = rightMons.length > 0;
+  const leftDisplay = leftTeamConfirmed ? leftMons.slice(0, 6) : [];
+  const rightDisplay = rightTeamConfirmed ? rightMons.slice(0, 6) : [];
 
   // Damage calc toggle + state (lifted here so it survives panel toggle)
   const [showDamageCalc, setShowDamageCalc] = useState(false);
@@ -679,7 +684,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
           ))}
         </div>
 
-        {leftRoster.unbrought.length > 0 && (
+        {leftTeamConfirmed && leftRoster.unbrought.length > 0 && (
           <div className="mt-1 shrink-0">
             <span className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.2em] mb-1 block">Bench</span>
             <div className="flex gap-2 flex-wrap">
@@ -712,7 +717,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
           ))}
         </div>
 
-        {rightRoster.unbrought.length > 0 && (
+        {rightTeamConfirmed && rightRoster.unbrought.length > 0 && (
           <div className="mt-1 shrink-0 flex flex-col items-end">
             <span className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.2em] mb-1 block">Bench</span>
             <div className="flex gap-2 flex-wrap justify-end">
