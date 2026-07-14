@@ -47,6 +47,22 @@ transition. This generic rule also covers X/Y Megas.
 If a Pokemon appears during preview or battle, its matching roster entry belongs
 in the brought list and must not remain under Bench.
 
+## Sidebar Presentation Invariants
+
+The sidebars must not infer a battle team from the full draft roster while
+Showdown team preview is still loading. Until at least one brought Pokemon is
+confirmed, both the six-card area and Bench remain empty. Once confirmed:
+
+- The main card area displays at most six brought Pokemon.
+- Bench is rendered only from unbrought roster entries.
+- A Pokemon cannot appear simultaneously as a main card and a bench chip.
+- The fixed-height sidebar must not be allowed to overflow into Bench.
+
+On fainted cards, the `FAINTED` label and any KO skull count render as one
+centered row inside the card, with the skull badge immediately to the right of
+the label. The skull number remains that Pokemon's credited KO count; it is not
+a death counter.
+
 Competitive forms that are separately draftable must remain distinct. Follow
 the Pokemon normalization guidance in [[Change Guide]] before broadening form
 collapses.
