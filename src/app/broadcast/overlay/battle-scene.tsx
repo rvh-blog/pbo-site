@@ -10,7 +10,9 @@ import { useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 
    battle protocol lines from the hook via an imperative API.  No WebSocket
    connection — the hook owns the single WS and forwards raw lines here.
 
-   The scripts are loaded once (cached by the browser) and total ~3 MB.
+   The scripts are loaded once and cached by the browser. Teambuilder tables
+   are required because modded formats (including Champions) read their
+   species, move, item, and ability overrides during battle playback.
    ═══════════════════════════════════════════════ */
 
 const SHOWDOWN = "https://play.pokemonshowdown.com";
@@ -27,6 +29,7 @@ const SCRIPTS = [
   `${SHOWDOWN}/data/moves.js`,
   `${SHOWDOWN}/data/abilities.js`,
   `${SHOWDOWN}/data/items.js`,
+  `${SHOWDOWN}/data/teambuilder-tables.js`,
   // Core engine (load order: deps before dependents)
   `${SHOWDOWN}/js/battle-sound.js`,
   `${SHOWDOWN}/js/battledata.js`,           // Dex, toID
@@ -130,6 +133,8 @@ async function ensureShowdownLoaded(): Promise<void> {
     }
 
     // ── Stubs for optional data Showdown references ──
+    // BattleTeambuilderTable is populated by teambuilder-tables.js above.
+    // The temporary object keeps earlier core scripts safe while loading.
     w.BattleTeambuilderTable ??= {};
     w.BattleFormats ??= {};
     w.BattleAliases ??= {};
@@ -153,6 +158,12 @@ async function ensureShowdownLoaded(): Promise<void> {
     // ── Scripts (sequential — each depends on the previous) ──
     for (const src of SCRIPTS) {
       await loadScript(src);
+    }
+
+    // A missing mod table makes Showdown fail later with a misleading
+    // `overrideAbilityData` error and stops all scene playback.
+    if (!w.BattleTeambuilderTable?.champions) {
+      throw new Error("Showdown Champions teambuilder data failed to load");
     }
 
     // Mute all battle sounds
