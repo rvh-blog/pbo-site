@@ -279,8 +279,8 @@ function BattleSummaryTeam({
           ["Set Up Moves Used", stats.setupMoves],
           ["Favorable Crits/Flinch/Miss/Status Proc", stats.favorableEvents],
         ].map(([label, value]) => (
-          <div key={label} className="flex min-h-[76px] flex-col rounded border border-white/15 bg-black/35 px-2 py-2">
-            <div className="flex min-h-[28px] items-start justify-center text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">
+          <div key={label} className="flex min-h-[60px] flex-col rounded border border-white/15 bg-black/35 px-2 py-1.5">
+            <div className="flex min-h-[22px] items-start justify-center text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">
               {label === "Favorable Crits/Flinch/Miss/Status Proc" ? (
                 <span>
                   <span className="block">Favorable Crits/Flinches</span>
@@ -290,7 +290,7 @@ function BattleSummaryTeam({
                 label
               )}
             </div>
-            <div className="mt-auto text-lg sm:text-xl font-black text-white">{value}</div>
+            <div className="mt-0.5 text-lg sm:text-xl font-black text-white">{value}</div>
           </div>
         ))}
       </div>

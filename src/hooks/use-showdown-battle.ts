@@ -1602,6 +1602,34 @@ export function useShowdownBattle(
     };
   }, [battleUrl, connect, clearPhaseQueue]);
 
+  // Broadcast pages are often left open in a background tab. Pause the
+  // websocket and reconnect loop while hidden so an idle overlay does not
+  // keep consuming a connection or scheduling timers.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+          reconnectTimerRef.current = null;
+        }
+        if (wsRef.current) {
+          wsRef.current.onclose = null;
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        setState((prev) => ({ ...prev, connected: false }));
+        return;
+      }
+
+      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        connect();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [connect]);
+
   return {
     ...state,
     seekToTurn,

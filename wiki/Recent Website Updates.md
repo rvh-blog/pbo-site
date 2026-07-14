@@ -4,6 +4,41 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 14, 2026
+
+Performance and rendering:
+
+- Added shared public and admin loading states so route transitions stream a useful skeleton instead of a blank page.
+- Reduced database payloads on Coaches, Leaderboards, Seasons, Draft Planner, the Admin Dashboard, and the Audit Log by selecting only fields used by each view.
+- Coach filtering now indexes season entries and matches once instead of rescanning every full dataset for every coach.
+- The Audit Log is paginated at 50 entries per page.
+- Pokémon alias maps use a short in-process cache and are invalidated after alias or collapse edits.
+- Broadcast battle WebSockets pause while the overlay tab is hidden and reconnect when it becomes visible again.
+
+Admin Control Center:
+
+- The responsive admin shell, dashboard action queue, compact dashboard metrics, command search, mobile drawer, and persistent desktop collapse state are documented in [[Admin Control Center|Admin Control Center]].
+- The admin navigation uses Battles as the group label and a Poké Ball icon for Pokémon.
+- Admin dashboard queries now use count-oriented projections for teams, matches, rosters, transactions, sheets, pick-ems, and audit activity.
+
+Power Rankings slideshow:
+
+- Team slides now include a Speed Tiers panel showing each active roster Pokémon's base Speed, sprite, and name sorted fastest to slowest.
+
+Public Pokémon lists:
+
+- `Mimikyu-Totem-Busted` and `Mimikyu-Totem-Disguised` are hidden from public search, roster selectors, and Draft Planner lists.
+- The regular `Mimikyu-Busted` and `Mimikyu-Disguised` forms remain available, and historical match data is preserved.
+
+Match detail:
+
+- Hazard-damage metric cards are shorter with reduced internal spacing between their labels and values.
+
+Verification:
+
+- `npx tsc --noEmit` passes.
+- The production build passes. Targeted slideshow lint still reports pre-existing warnings/errors in the untouched hover callback and legacy `any` usage.
+
 ## July 13, 2026
 
 - Completed Season 11 and later match pages consistently use the compact battle

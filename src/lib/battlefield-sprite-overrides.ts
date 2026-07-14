@@ -66,6 +66,15 @@ export const NEW_MEGA_BATTLEFIELD_SPRITES: readonly NewMegaSpriteDefinition[] = 
   { forme: "baxcalibur-mega", spriteId: 10325, baseSpriteId: 998 },
 ] as const;
 
+const MEGA_FALINKS: BattlefieldSpriteOverride = {
+  url: "/images/pokemon/sprites/10303.png",
+  emergencyUrl: "/images/pokemon/sprites/870.png",
+  width: 96,
+  height: 96,
+  y: 0,
+  pixelated: true,
+};
+
 function normalizeBattlefieldSpecies(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }

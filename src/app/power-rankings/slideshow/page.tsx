@@ -61,6 +61,7 @@ export interface RosterPokemon {
   displayName: string | null;
   spriteUrl: string | null;
   artworkUrl: string | null;
+  speed: number;
   price: number;
   isTeraCaptain: boolean | null;
   kills: number;
@@ -284,6 +285,7 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
         displayName: r.pokemon?.displayName || null,
         spriteUrl: r.pokemon?.spriteUrl || null,
         artworkUrl: r.pokemon?.artworkUrl || null,
+        speed: r.pokemon?.speed || 0,
         price: r.price,
         isTeraCaptain: r.isTeraCaptain,
         kills: stats.kills,

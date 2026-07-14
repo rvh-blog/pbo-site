@@ -4,6 +4,7 @@ import { eq, desc, inArray } from "drizzle-orm";
 import { DraftPlanner } from "./draft-planner";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
 import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
+import { isHiddenPublicPokemonForm } from "@/lib/pokemon-name-utils";
 
 interface PageProps {
   searchParams: Promise<{ coach?: string; season?: string }>;
@@ -108,11 +109,13 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
       },
     }),
     db.query.seasons.findMany({
+      columns: { id: true, seasonNumber: true, name: true, draftBudget: true },
       orderBy: desc(seasons.seasonNumber),
     }),
     // Fetch prices in parallel if seasonId is known from URL
     seasonIdParam
       ? db.query.seasonPokemonPrices.findMany({
+          columns: { pokemonId: true, price: true, teraCaptainCost: true, complexBanReason: true },
           where: eq(seasonPokemonPrices.seasonId, seasonIdParam),
         })
       : Promise.resolve([]),
@@ -134,16 +137,44 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
   if (coachId) {
     [coach, allSeasonCoaches] = await Promise.all([
       db.query.coaches.findFirst({
+        columns: { id: true, name: true },
         where: eq(coaches.id, coachId),
       }),
       db.query.seasonCoaches.findMany({
+        columns: {
+          id: true,
+          coachId: true,
+          teamName: true,
+          teamLogoUrl: true,
+        },
         where: eq(seasonCoaches.coachId, coachId),
         with: {
           division: {
-            with: { season: true },
+            columns: { id: true },
+            with: { season: { columns: { id: true, draftBudget: true } } },
           },
           rosters: {
-            with: { pokemon: true },
+            columns: { id: true, pokemonId: true, price: true, isTeraCaptain: true, draftOrder: true },
+            with: {
+              pokemon: {
+                columns: {
+                  name: true,
+                  displayName: true,
+                  spriteUrl: true,
+                  artworkUrl: true,
+                  types: true,
+                  abilities: true,
+                  moves: true,
+                  hp: true,
+                  attack: true,
+                  defense: true,
+                  specialAttack: true,
+                  specialDefense: true,
+                  speed: true,
+                  baseStatTotal: true,
+                },
+              },
+            },
           },
         },
         orderBy: desc(seasonCoaches.id),
@@ -216,6 +247,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
       ? urlSeasonPrices // Already fetched in parallel
       : selectedSeasonId
         ? await db.query.seasonPokemonPrices.findMany({
+            columns: { pokemonId: true, price: true, teraCaptainCost: true, complexBanReason: true },
             where: eq(seasonPokemonPrices.seasonId, selectedSeasonId),
           })
         : [];
@@ -223,11 +255,13 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
     ? await getSeasonPokemonMovesMap(selectedSeasonId)
     : new Map<number, string[]>();
 
-  const allPokemonForSeason = allPokemon.map((poke) => ({
+  const allPokemonForSeason = allPokemon
+    .filter((poke) => !isHiddenPublicPokemonForm(poke.name, poke.displayName))
+    .map((poke) => ({
     ...poke,
     nameAliases: customPokemonAliasesForRow(poke, aliasMaps),
     moves: movesForSeasonPokemon(poke.id, poke.moves, seasonMoves),
-  }));
+    }));
 
   if (rosterData.length > 0) {
     rosterData = rosterData.map((poke) => ({
