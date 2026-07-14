@@ -3,7 +3,10 @@ import { rosterPokemonMatchesName } from "../src/lib/broadcast-pokemon-matching"
 import { pokemonExactLookupKeys } from "../src/lib/pokemon-name-utils";
 import { getSeasonBattleRules } from "../src/lib/season-battle-rules";
 import { extractShowdownFormatId, extractShowdownRoomId } from "../src/lib/showdown-room";
-import { getBattlefieldSpriteOverride } from "../src/lib/battlefield-sprite-overrides";
+import {
+  getBattlefieldSpriteOverride,
+  getBattlefieldSpriteOverrideForFailedUrl,
+} from "../src/lib/battlefield-sprite-overrides";
 
 const megaCases = [
   ["Pinsir-Mega", "Pinsir"],
@@ -52,5 +55,19 @@ for (const alias of ["Dragalge-Mega", "Dragalge Mega", "Mega Dragalge", "Mega-Dr
   );
 }
 assert.equal(getBattlefieldSpriteOverride("Dragalge"), null, "Base Dragalge must keep Showdown's normal sprite");
+
+for (const alias of ["Falinks-Mega", "Falinks Mega", "Mega Falinks", "Mega-Falinks"]) {
+  assert.equal(
+    getBattlefieldSpriteOverride(alias)?.url,
+    "/images/pokemon/sprites/10303.png",
+    `${alias} should use the local Mega Falinks battlefield sprite`,
+  );
+}
+assert.equal(getBattlefieldSpriteOverride("Falinks"), null, "Base Falinks must keep Showdown's normal sprite");
+assert.equal(
+  getBattlefieldSpriteOverrideForFailedUrl("https://play.pokemonshowdown.com/sprites/gen5/falinksmega.png")?.url,
+  "/images/pokemon/sprites/10303.png",
+  "A failed Showdown Mega Falinks URL should recover with the local battlefield sprite",
+);
 
 console.log(`Overlay sync checks passed: ${megaCases.length} Mega cases and Showdown room/season rules`);
