@@ -3,10 +3,9 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { parseMessages, type BattleEvent } from "@/lib/battle-event-parser";
 import type { BattleSceneHandle } from "@/app/broadcast/overlay/battle-scene";
-import {
-  pokemonLookupKeysForClientRow,
-  serializedPokemonAliasLookupKeys,
-} from "@/lib/pokemon-name-client";
+import { serializedPokemonAliasLookupKeys } from "@/lib/pokemon-name-client";
+import { rosterPokemonMatchesKeys } from "@/lib/broadcast-pokemon-matching";
+import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 
 export interface RosterPokemon {
@@ -57,23 +56,6 @@ export interface PokemonBattleState {
   terastallized: boolean;
   /** The type this Pokemon terastallized into (e.g. "Fire", "Water") */
   teraType: string | null;
-}
-
-function rosterMatchesKeys(
-  rosterPokemon: RosterPokemon,
-  keys: Set<string>,
-  aliasMaps?: SerializedPokemonAliasMaps | null
-) {
-  const rowKeys = new Set([
-    ...(rosterPokemon.lookupKeys || []),
-    ...pokemonLookupKeysForClientRow(rosterPokemon, aliasMaps),
-  ]);
-
-  for (const key of keys) {
-    if (rowKeys.has(key)) return true;
-  }
-
-  return false;
 }
 
 export interface SideConditions {
@@ -397,13 +379,13 @@ export function useShowdownBattle(
 
     for (const pokeName of teamPreviewRef.current.p1) {
       const keys = serializedPokemonAliasLookupKeys(pokeName, pokemonNameAliases);
-      if (team1Roster.some((r) => rosterMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam1++;
-      if (team2Roster.some((r) => rosterMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam2++;
+      if (team1Roster.some((r) => rosterPokemonMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam1++;
+      if (team2Roster.some((r) => rosterPokemonMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam2++;
     }
     for (const pokeName of teamPreviewRef.current.p2) {
       const keys = serializedPokemonAliasLookupKeys(pokeName, pokemonNameAliases);
-      if (team1Roster.some((r) => rosterMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam2++;
-      if (team2Roster.some((r) => rosterMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam1++;
+      if (team1Roster.some((r) => rosterPokemonMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam2++;
+      if (team2Roster.some((r) => rosterPokemonMatchesKeys(r, keys, pokemonNameAliases))) p1MatchesTeam1++;
     }
 
     if (p1MatchesTeam1 > p1MatchesTeam2) return true;
@@ -1330,9 +1312,8 @@ export function useShowdownBattle(
   const connect = useCallback(() => {
     if (!battleUrl) return;
 
-    const urlMatch = battleUrl.match(/battle-[a-z0-9]+-\d+(?:-[a-z0-9]+)?/i) || battleUrl.match(/battle-[a-z0-9-]+/i);
-    if (!urlMatch) return;
-    const roomId = urlMatch[0];
+    const roomId = extractShowdownRoomId(battleUrl);
+    if (!roomId) return;
 
     const server = SHOWDOWN_SERVERS[serverIndexRef.current % SHOWDOWN_SERVERS.length];
     const ws = new WebSocket(`wss://${server}/showdown/websocket`);

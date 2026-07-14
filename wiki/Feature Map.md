@@ -41,6 +41,7 @@ See also:
 
 Feature notes:
 
+- [[Broadcast Overlay]]
 - [[Draft Planner]]
 - [[Fantasy]]
 - [[Store And Cosmetics]]

@@ -1,3 +1,5 @@
+import { getSeasonBattleRules } from "@/lib/season-battle-rules";
+
 function cleanPokemonNameInput(name: string): string {
   let cleaned = name.split(",")[0].trim();
   cleaned = cleaned.replace(/^\*/, "").replace(/-\*$/, "");
@@ -79,6 +81,10 @@ function megaPokemonNameAliases(name: string): string[] {
     ["Mega", baseHyphen, suffixHyphen].filter(Boolean).join("-"),
     [baseSpace, "Mega", suffixSpace].filter(Boolean).join(" "),
     ["Mega", baseSpace, suffixSpace].filter(Boolean).join(" "),
+    // Showdown team preview identifies a Mega by its base species, then emits
+    // the Mega forme after evolution. Keep both events tied to one roster slot.
+    baseHyphen,
+    baseSpace,
   ];
 }
 
@@ -210,7 +216,7 @@ function rotomFormAliases(name: string): string[] {
 }
 
 export function shouldUseFriendlyMegaNamesForSeason(seasonNumber: number | null | undefined) {
-  return (seasonNumber ?? 0) >= 11;
+  return getSeasonBattleRules(seasonNumber).friendlyMegaNames;
 }
 
 export function formatPokemonDisplayName(
