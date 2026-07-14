@@ -7,14 +7,16 @@ import {
   type RosterPokemon,
   type PokemonBattleState,
 } from "@/hooks/use-showdown-battle";
-import { normalizePokemonName } from "@/lib/battle-event-parser";
-import { pokemonNamesMatchForClient } from "@/lib/pokemon-name-client";
+import { getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
+import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
-import { BattleScene, type BattleSceneHandle, type ChatLogEntry } from "./battle-scene-v2";
+import { BattleScene, type BattleSceneHandle, type ChatLogEntry } from "./battle-scene";
 import type { OverlayData, TeamData } from "./overlay-client";
 import { ArrowLeftRight, Calculator, ChevronLeft, ChevronRight, Diamond, Mic, Pause, Play, Radio, ScrollText, SkipBack, SkipForward, Skull, Sword, Video, Zap } from "lucide-react";
 import { calcDamage, type CalcMon, type CalcFieldState, type DamageResult, type EvSpread, EV_PRESETS, DEFAULT_EVS, STAT_POINT_PRESETS, DEFAULT_STAT_POINTS } from "@/lib/damage-calc";
 import type { SideConditions } from "@/hooks/use-showdown-battle";
+import { getSeasonBattleRules } from "@/lib/season-battle-rules";
+import { getDexSpriteUrl, getGen5SpriteUrl, getGen5StaticSpriteUrl, getShowdownSpriteUrl, getStaticSpriteUrl } from "@/lib/showdown-sprites";
 
 /* ═══════════════════════════════════════════════
    Layout Constants
@@ -68,99 +70,6 @@ function getTrainerSpriteUrl(avatar: string): string {
   return `https://play.pokemonshowdown.com/sprites/trainers/${avatar}.png`;
 }
 
-/** Map form names to their actual Showdown sprite filenames when they differ */
-const SPRITE_NAME_OVERRIDES: Record<string, string> = {
-  // Urshifu: Single-Strike is the base sprite, Rapid-Strike drops the hyphen
-  "urshifu-rapid-strike": "urshifu-rapidstrike",
-  "urshifu-single-strike": "urshifu",
-  "urshifu-rapid-strike-gmax": "urshifu-gmax",
-  "urshifu-single-strike-gmax": "urshifu-gmax",
-  // Default forms that Showdown names differently from the sprite file
-  "palafin-zero": "palafin",
-  "sinistcha-artisan": "sinistcha",
-  "shaymin-land": "shaymin",
-  "xerneas-active": "xerneas",
-  // Incarnate forms use the base sprite (no -incarnate suffix in filenames)
-  "enamorus-incarnate": "enamorus",
-  "landorus-incarnate": "landorus",
-  "tornadus-incarnate": "tornadus",
-  "thundurus-incarnate": "thundurus",
-  // Galarian Darmanitan Zen uses the Galar sprite, not the base Zen sprite
-  "darmanitan-galar-zen": "darmanitan-galar",
-  // Terapagos: all forms 404 in ani/dex but exist in gen5ani with correct names —
-  // no override needed, the fallback chain (ani→dex→gen5ani) handles it.
-  // Indeedee-M: base sprite IS the male form
-  "indeedee-m": "indeedee",
-  // Dudunsparce: sprite file omits the hyphen between "three" and "segment"
-  "dudunsparce-three-segment": "dudunsparce-threesegment",
-  // Alcremie: no individual cream/sweet sprites, all use base
-  "alcremie-vanilla-cream": "alcremie",
-  "alcremie-ruby-cream": "alcremie",
-  "alcremie-matcha-cream": "alcremie",
-  "alcremie-mint-cream": "alcremie",
-  "alcremie-lemon-cream": "alcremie",
-  "alcremie-salted-cream": "alcremie",
-  "alcremie-ruby-swirl": "alcremie",
-  "alcremie-caramel-swirl": "alcremie",
-  "alcremie-rainbow-swirl": "alcremie",
-  // Florges: red form 404s, others may too — safe to map all color forms
-  "florges-red": "florges",
-  "florges-orange": "florges",
-  "florges-yellow": "florges",
-  "florges-white": "florges",
-  // Ogerpon tera forms: sprite filename merges "tera" without a hyphen
-  "ogerpon-cornerstone-tera": "ogerpon-cornerstonetera",
-  "ogerpon-wellspring-tera": "ogerpon-wellspringtera",
-  "ogerpon-hearthflame-tera": "ogerpon-hearthflametera",
-};
-
-function getShowdownSpriteUrl(battleForm: string): string {
-  let id = battleForm.toLowerCase().replace(/[^a-z0-9-]/g, "");
-  id = SPRITE_NAME_OVERRIDES[id] ?? id;
-  return `https://play.pokemonshowdown.com/sprites/ani/${id}.gif`;
-}
-
-function getStaticSpriteUrl(name: string): string {
-  let id = name.toLowerCase().replace(/[^a-z0-9-]/g, "");
-  id = SPRITE_NAME_OVERRIDES[id] ?? id;
-  return `https://play.pokemonshowdown.com/sprites/ani/${id}.gif`;
-}
-
-/** Dex sprite overrides — applied after hyphen stripping (dex uses no hyphens
- *  except for forms where the hyphenated name is the actual filename). */
-const DEX_SPRITE_OVERRIDES: Record<string, string> = {
-  "ogerponcornerstone": "ogerpon-cornerstone",
-  "ogerponwellspring": "ogerpon-wellspring",
-  "ogerponhearthflame": "ogerpon-hearthflame",
-  "ogerponcornerstonetera": "ogerpon-cornerstonetera",
-  "ogerponwellspringtera": "ogerpon-wellspringtera",
-  "ogerponhearthflametera": "ogerpon-hearthflametera",
-};
-
-/** Fallback sprite URL for Pokemon without animated GIFs (e.g. Gen 9) */
-function getDexSpriteUrl(name: string): string {
-  let id = name.toLowerCase().replace(/[^a-z0-9-]/g, "");
-  id = SPRITE_NAME_OVERRIDES[id] ?? id;
-  id = id.replace(/-/g, "");
-  id = DEX_SPRITE_OVERRIDES[id] ?? id;
-  return `https://play.pokemonshowdown.com/sprites/dex/${id}.png`;
-}
-
-/** Second fallback: gen5-style animated sprites (some Gen 9 Pokemon like Terapagos are here) */
-function getGen5SpriteUrl(name: string): string {
-  let id = name.toLowerCase().replace(/[^a-z0-9-]/g, "");
-  id = SPRITE_NAME_OVERRIDES[id] ?? id;
-  return `https://play.pokemonshowdown.com/sprites/gen5ani/${id}.gif`;
-}
-
-/** Final fallback: gen5 static sprites (Iron Boulder, etc.) */
-function getGen5StaticSpriteUrl(name: string): string {
-  let id = name.toLowerCase().replace(/[^a-z0-9-]/g, "");
-  id = SPRITE_NAME_OVERRIDES[id] ?? id;
-  id = id.replace(/-/g, "");
-  return `https://play.pokemonshowdown.com/sprites/gen5/${id}.png`;
-}
-
 
 /* ═══════════════════════════════════════════════
    Merged Mon (roster + battle state)
@@ -185,22 +94,6 @@ interface MergedMon {
   movesUsed: string[];
   boosts: Record<string, number>;
   level: number;
-}
-
-function getRosterBattleState(
-  rp: RosterPokemon,
-  stateMap: Map<string, PokemonBattleState>,
-  pokemonNameAliases?: SerializedPokemonAliasMaps | null
-): PokemonBattleState | undefined {
-  const rosterName = rp.displayName || rp.name;
-  const normalizedRosterName = normalizePokemonName(rosterName);
-  const compactRosterId = normalizedRosterName.replace(/[^a-z0-9]/g, "");
-  return stateMap.get(normalizedRosterName) || [...stateMap.values()].find((state) =>
-    pokemonNamesMatchForClient(state.species, rosterName, pokemonNameAliases) ||
-    pokemonNamesMatchForClient(state.battleForm, rosterName, pokemonNameAliases) ||
-    normalizePokemonName(state.species).replace(/[^a-z0-9]/g, "") === compactRosterId ||
-    normalizePokemonName(state.battleForm).replace(/[^a-z0-9]/g, "") === compactRosterId
-  );
 }
 
 function mergeMon(
@@ -276,7 +169,7 @@ interface Props {
   context?: MatchContext;
 }
 
-export function Overlay2Client({ data, battleUrl, context }: Props) {
+export function OverlayV1Client({ data, battleUrl, context }: Props) {
   const battleSceneRef = useRef<BattleSceneHandle>(null);
   const battle = useShowdownBattle(
     battleUrl,
@@ -288,7 +181,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
   const { seekToTurn, goLive, setPaused, maxTurn: hookMaxTurn, reviewingTurn, isPaused, playTurnPhased, onBattleSceneReady, syncBattleScene } = battle;
 
   // Extract room ID from battle URL for the BattleScene component
-  const roomId = (battleUrl.match(/battle-[a-z0-9]+-\d+(?:-[a-z0-9]+)?/i) || battleUrl.match(/battle-[a-z0-9-]+/i))?.[0] || "";
+  const roomId = extractShowdownRoomId(battleUrl) || "";
 
   // Track max turn from BattleScene's visual engine (may differ slightly from hook)
   const [battleMaxTurn, setBattleMaxTurn] = useState(0);
@@ -481,12 +374,12 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
   if (p1Species.length > 0 || p2Species.length > 0) {
     let p1MatchesT1 = 0, p1MatchesT2 = 0;
     for (const species of p1Species) {
-      if (data.team1.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT1++;
-      if (data.team2.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT2++;
+      if (data.team1.roster.some((r) => rosterPokemonMatchesName(r, species, data.pokemonNameAliases))) p1MatchesT1++;
+      if (data.team2.roster.some((r) => rosterPokemonMatchesName(r, species, data.pokemonNameAliases))) p1MatchesT2++;
     }
     for (const species of p2Species) {
-      if (data.team1.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT2++;
-      if (data.team2.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT1++;
+      if (data.team1.roster.some((r) => rosterPokemonMatchesName(r, species, data.pokemonNameAliases))) p1MatchesT2++;
+      if (data.team2.roster.some((r) => rosterPokemonMatchesName(r, species, data.pokemonNameAliases))) p1MatchesT1++;
     }
     if (p1MatchesT1 > p1MatchesT2) p1IsTeam1 = true;
     else if (p1MatchesT2 > p1MatchesT1) p1IsTeam1 = false;
@@ -681,7 +574,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
           height: viewport.h,
         }}
       >
-        <BattleScene ref={battleSceneRef} roomId={roomId} onReady={onBattleSceneReady} onTurnUpdate={handleBattleTurnUpdate} />
+        <BattleScene ref={battleSceneRef} roomId={roomId} variant="fullscreen" onReady={onBattleSceneReady} onTurnUpdate={handleBattleTurnUpdate} />
       </div>
 
       {/* ── No masking needed in fullscreen mode ── */}
@@ -870,7 +763,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
             </div>
             <div style={{ display: footerTab === "calc" ? "block" : "none" }} className="h-full overflow-y-auto">
               <DamageCalcPanel
-                usesStatPoints={data.seasonNumber === 11}
+                usesStatPoints={getSeasonBattleRules(data.seasonNumber).usesStatPoints}
                 leftMons={leftDisplay}
                 rightMons={rightDisplay}
                 leftTeamAbbr={leftTeam.teamAbbreviation || leftTeam.teamName.slice(0, 3).toUpperCase()}

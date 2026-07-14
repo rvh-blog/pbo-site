@@ -164,14 +164,6 @@ async function ensureShowdownLoaded(): Promise<void> {
   return scriptsLoading;
 }
 
-/* ─── Extract room ID from a Showdown battle URL ─── */
-
-function extractRoomId(url: string): string | null {
-  // Include any password suffix for private battles (e.g. battle-gen9ou-12345-abcdefpassword)
-  const m = url.match(/battle-[a-z0-9]+-\d+(?:-[a-z0-9]+)?/i) || url.match(/battle-[a-z0-9-]+/i);
-  return m ? m[0] : null;
-}
-
 /* ─── Animation-complete detection ─── */
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -367,12 +359,13 @@ export interface BattleSceneHandle {
 
 interface BattleSceneProps {
   roomId: string;
+  variant?: "contained" | "fullscreen";
   onReady?: () => void;
   onTurnUpdate?: (maxTurn: number) => void;
 }
 
 export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
-  function BattleScene({ roomId, onReady, onTurnUpdate }, ref) {
+  function BattleScene({ roomId, variant = "contained", onReady, onTurnUpdate }, ref) {
   const frameRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -566,10 +559,12 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
     };
   }, [roomId]);
 
-  const scale = CONTAINER_W / BATTLE_W;
+  const fullscreen = variant === "fullscreen";
+  const scale = (fullscreen ? 1920 : CONTAINER_W) / BATTLE_W;
 
   return (
-    <div className="relative w-full h-full overflow-hidden" style={{ background: "#111" }}>
+    <div className="relative w-full h-full overflow-hidden" style={{ background: fullscreen ? "transparent" : "#111" }}>
+      {fullscreen && <style>{`.showdown-frame .turn { margin-left: 12px; }`}</style>}
       {/* Showdown renders the battle scene into this div.
           The "showdown-frame" class resets Tailwind preflight so
           Showdown's own CSS works correctly. */}
@@ -581,7 +576,7 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
           height: BATTLE_H,
           position: "absolute",
           top: 0,
-          left: 0,
+          left: fullscreen ? -2 : 0,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
         }}

@@ -3,8 +3,8 @@
 import { useRef, useEffect, useState } from "react";
 import { useShowdownBattle, type RosterPokemon, type PokemonBattleState } from "@/hooks/use-showdown-battle";
 import type { BattleSceneHandle } from "./battle-scene";
-import { normalizePokemonName } from "@/lib/battle-event-parser";
-import { pokemonNamesMatchForClient } from "@/lib/pokemon-name-client";
+import { getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
+import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene } from "./battle-scene";
 import Image from "next/image";
@@ -177,35 +177,6 @@ function getTrainerSpriteUrl(avatar: string): string {
   return `https://play.pokemonshowdown.com/sprites/trainers/${avatar}.png`;
 }
 
-function pokemonId(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function getRosterBattleState(
-  poke: RosterPokemon,
-  stateMap: Map<string, PokemonBattleState>,
-  pokemonNameAliases?: SerializedPokemonAliasMaps | null
-): PokemonBattleState | null {
-  const rosterName = poke.displayName || poke.name;
-  const normalizedRosterName = normalizePokemonName(rosterName);
-  const direct = stateMap.get(normalizedRosterName);
-  if (direct) return direct;
-
-  const rosterId = pokemonId(rosterName);
-  for (const state of stateMap.values()) {
-    if (
-      pokemonNamesMatchForClient(state.species, rosterName, pokemonNameAliases) ||
-      pokemonNamesMatchForClient(state.battleForm, rosterName, pokemonNameAliases) ||
-      pokemonId(state.species) === rosterId ||
-      pokemonId(state.battleForm) === rosterId
-    ) {
-      return state;
-    }
-  }
-
-  return null;
-}
-
 /* ═══════════════════════════════════════════════
    Main Component
    ═══════════════════════════════════════════════ */
@@ -221,7 +192,7 @@ export function OverlayClient({ data, battleUrl }: Props) {
   );
 
   // Extract room ID from battle URL
-  const roomId = (battleUrl.match(/battle-[a-z0-9]+-\d+(?:-[a-z0-9]+)?/i) || battleUrl.match(/battle-[a-z0-9-]+/i))?.[0] || "";
+  const roomId = extractShowdownRoomId(battleUrl) || "";
 
   // Resolve p1/p2 → team1/team2 mapping by matching Pokemon against rosters
   const p1Species = [...battle.p1Pokemon.keys()];
@@ -232,12 +203,12 @@ export function OverlayClient({ data, battleUrl }: Props) {
     let p1MatchesT1 = 0;
     let p1MatchesT2 = 0;
     for (const species of p1Species) {
-      if (data.team1.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT1++;
-      if (data.team2.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT2++;
+      if (data.team1.roster.some((r) => rosterPokemonMatchesName(r, species, data.pokemonNameAliases))) p1MatchesT1++;
+      if (data.team2.roster.some((r) => rosterPokemonMatchesName(r, species, data.pokemonNameAliases))) p1MatchesT2++;
     }
     for (const species of p2Species) {
-      if (data.team1.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT2++;
-      if (data.team2.roster.some((r) => pokemonNamesMatchForClient(species, r.displayName || r.name, data.pokemonNameAliases))) p1MatchesT1++;
+      if (data.team1.roster.some((r) => rosterPokemonMatchesName(r, species, data.pokemonNameAliases))) p1MatchesT2++;
+      if (data.team2.roster.some((r) => rosterPokemonMatchesName(r, species, data.pokemonNameAliases))) p1MatchesT1++;
     }
     if (p1MatchesT1 > p1MatchesT2) p1IsTeam1 = true;
     else if (p1MatchesT2 > p1MatchesT1) p1IsTeam1 = false;

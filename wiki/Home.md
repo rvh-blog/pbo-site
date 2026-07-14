@@ -18,6 +18,7 @@ Open this note first in Obsidian. The local graph from this note should show the
 - [[Store And Cosmetics]]
 - [[Blog]]
 - [[Public Tools And Stats]]
+- [[Broadcast Overlay]]
 - [[Recent Website Updates]]
 
 ## GitHub And Fly

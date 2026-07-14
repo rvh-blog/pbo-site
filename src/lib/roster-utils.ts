@@ -72,7 +72,7 @@ export async function getTimeSyncedRoster(
   coachTransactions?: TimeSyncTransaction[]
 ): Promise<{
   filteredRosters: RosterEntry[];
-  droppedPokemonDetails: Pokemon[];
+  droppedPokemonDetails: (Pokemon & { isTeraCaptain: boolean })[];
 }> {
   // Use provided transactions or fetch them
   // Normalize P2P trades where this coach is the trading partner:
