@@ -1415,7 +1415,6 @@ export function useShowdownBattle(
           receivedRoomInitRef.current = true;
           battleSceneRef.current.addLinesImmediate(rawLines);
           battleSceneRef.current.seekTurn(Infinity);
-          battleSceneRef.current.play();
           battleSceneForwardedUpToRef.current = allRawLinesRef.current.length;
         } else if (!isPausedRef.current && reviewingTurnRef.current === null) {
           // Live play — feed lines with phased animation.
@@ -1519,7 +1518,6 @@ export function useShowdownBattle(
       receivedRoomInitRef.current = true;
       battleSceneForwardedUpToRef.current = allRawLinesRef.current.length;
       battleSceneRef.current.seekTurn(Infinity);
-      battleSceneRef.current.play();
     }
   }, [battleSceneRef]);
 
