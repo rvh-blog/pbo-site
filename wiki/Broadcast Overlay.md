@@ -63,6 +63,12 @@ getSeasonBattleRules(11) currently defines:
 The room parser accepts standard live links, replay links, numeric room IDs, and
 optional private-room suffixes. Both overlay variants use the same parser.
 
+The shared battle scene loads Showdown's official teambuilder tables before
+starting playback. Champions is a Showdown mod, and its ability, move, item,
+and species overrides are read from `BattleTeambuilderTable.champions`. Omitting
+that data stops the renderer with an `overrideAbilityData` error, leaving the
+battlefield empty even though sidebar protocol state continues updating.
+
 ## Verification
 
 Run the focused synchronization checks:
