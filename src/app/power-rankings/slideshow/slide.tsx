@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import type { SlideData, TransactionPokemon, RosterPokemon, MatchPokemonStat, ScheduleMatch } from "./page";
-import { getTypeColor } from "@/lib/utils";
 
 interface Props {
   data: SlideData;
@@ -192,13 +191,13 @@ export function Slide({ data, divisionColor }: Props) {
           <div className="w-full h-full max-h-[500px] flex flex-col gap-4 justify-center">
             <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${row1.length}, minmax(0, 1fr))` }}>
               {row1.map((pk) => (
-                <RosterCard key={pk.pokemonId} pk={pk} divisionColor={divisionColor} showTypeIcons={data.showTypeIcons} />
+                <RosterCard key={pk.pokemonId} pk={pk} divisionColor={divisionColor} />
               ))}
             </div>
             {row2.length > 0 && (
               <div className="grid gap-3 px-[4%]" style={{ gridTemplateColumns: `repeat(${row2.length}, minmax(0, 1fr))` }}>
                 {row2.map((pk) => (
-                  <RosterCard key={pk.pokemonId} pk={pk} divisionColor={divisionColor} showTypeIcons={data.showTypeIcons} />
+                  <RosterCard key={pk.pokemonId} pk={pk} divisionColor={divisionColor} />
                 ))}
               </div>
             )}
@@ -397,7 +396,7 @@ export function Slide({ data, divisionColor }: Props) {
   );
 }
 
-function RosterCard({ pk, divisionColor, showTypeIcons }: { pk: RosterPokemon; divisionColor: string; showTypeIcons: boolean }) {
+function RosterCard({ pk, divisionColor }: { pk: RosterPokemon; divisionColor: string }) {
   return (
     <div className="group relative w-full h-full min-h-[220px] flex flex-col items-center justify-end pb-3">
       {/* Card Base (Slot Style) */}
@@ -443,19 +442,6 @@ function RosterCard({ pk, divisionColor, showTypeIcons }: { pk: RosterPokemon; d
           <span className="font-pixel text-[9px] text-slate-200 tracking-tight leading-none uppercase truncate min-w-0">
             {pk.displayName || pk.name}
           </span>
-          {showTypeIcons && pk.types.length > 0 && (
-            <span className="flex shrink-0 items-center gap-0.5" aria-label={`${pk.displayName || pk.name} types: ${pk.types.join(", ")}`}>
-              {pk.types.map((type) => (
-                <span
-                  key={type}
-                  title={type}
-                  className={`${getTypeColor(type)} inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-sm px-0.5 text-[6px] font-bold uppercase leading-none`}
-                >
-                  {type.slice(0, 3)}
-                </span>
-              ))}
-            </span>
-          )}
         </div>
       </div>
 
