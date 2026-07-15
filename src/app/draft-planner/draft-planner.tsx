@@ -1618,7 +1618,7 @@ export function DraftPlanner({
               </div>
             )}
             <div className="min-w-0">
-              <h1 className="truncate font-pixel text-sm text-white sm:text-base">{teamName || "Draft Planner"}</h1>
+              <h1 className="truncate font-pixel text-sm text-white sm:text-base">{teamName || "Free Agency"}</h1>
               <span className="block text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
                 {allSeasons.find((season) => season.id === currentSeasonId)?.name || "Current season"}
               </span>
@@ -1645,9 +1645,13 @@ export function DraftPlanner({
               className="draft-control h-[34px] w-full rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 text-xs text-white lg:w-auto lg:max-w-[10rem]"
             >
               <option value="">All divisions</option>
-              {divisionOptions.map((division) => (
-                <option key={division.id} value={division.id}>{division.name}</option>
-              ))}
+              {currentSeasonId && (
+                <optgroup label={allSeasons.find((season) => season.id === currentSeasonId)?.name ?? "Selected Season"}>
+                  {divisionOptions.map((division) => (
+                    <option key={division.id} value={division.id}>{division.name}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             <select
               value={coach?.id ?? ""}

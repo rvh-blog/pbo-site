@@ -26,18 +26,30 @@ See also:
 - Division page: `src/app/seasons/[id]/divisions/[divId]/page.tsx`
 - Match details: `src/app/matches/[id]/page.tsx`
 - Coaches: `src/app/coaches`
-- Battle Record: `src/app/battle-record`
-- Leaderboards: `src/app/leaderboards`
-- Draft planner: `src/app/draft-planner`
+- Battle Record: `src/app/battle-record` (available from the PBO Stats menu)
+- PBO Stats: `src/app/leaderboards`
+- Free Agency: `src/app/draft-planner`
 - Matchup prep: `src/app/matchup-prep`
 - Pick-ems: `src/app/pick-ems`
 - Fantasy: `src/app/fantasy`
 - Power rankings: `src/app/power-rankings`
 - Broadcast overlay: `src/app/broadcast`
-- Replay analyzer: `src/app/analyzer`
+- Replay Analyzer: `src/app/analyzer`
 - Blog: `src/app/blog`
 - Elo tracker: `src/app/elo-tracker`
 - Pokemon stats: `src/app/pokemon/stats`
+- Pokemon combinations: `src/app/pokemon/combinations`
+
+## Current UI And Performance Notes
+
+- Division selectors use season-grouped options (`<optgroup>`): season headings contain their divisions across public, admin, broadcast, matchup, coach, and Free Agency flows.
+- Match Prep navigation contains Free Agency and Replay Analyzer.
+- PBO Stats navigation contains the Leaderboards page and Battle Record.
+- Fantasy About visibility is persisted by the Fantasy page client and can be hidden per browser.
+- Image delivery uses AVIF/WebP where supported, with high-traffic sprites migrated to `next/image`.
+- Browser performance samples are collected by `src/components/performance-monitor.tsx` and exposed through `src/app/api/performance/route.ts` and the health endpoint.
+- Query diagnostics aggregate slow-query fingerprints in `src/lib/db.ts`.
+- Additional read indexes are declared in `src/lib/schema.ts` and documented in `migrations/add-query-performance-indexes.sql`.
 
 Feature notes:
 

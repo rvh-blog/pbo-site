@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { getTypeColor } from "@/lib/utils";
 
 interface Pokemon {
@@ -95,9 +96,12 @@ function RosterCard({
               )}
               <div className="flex flex-col items-center text-center">
                 {r.pokemon?.spriteUrl ? (
-                  <img
+                  <Image
                     src={r.pokemon.spriteUrl}
                     alt={r.pokemon.displayName || r.pokemon.name}
+                    width={56}
+                    height={56}
+                    sizes="56px"
                     className="w-10 h-10 sm:w-14 sm:h-14 object-contain"
                   />
                 ) : (
@@ -156,9 +160,12 @@ function RosterCard({
               )}
               <div className="flex flex-col items-center text-center">
                 {p.spriteUrl ? (
-                  <img
+                  <Image
                     src={p.spriteUrl}
                     alt={p.displayName || p.name}
+                    width={56}
+                    height={56}
+                    sizes="56px"
                     className="w-10 h-10 sm:w-14 sm:h-14 object-contain"
                   />
                 ) : (
@@ -250,7 +257,7 @@ function SpeedComparison({ team1Roster, team2Roster, team1Dropped, team2Dropped 
             <div key={idx} className="flex flex-col items-center">
               <div className="w-7 h-7">
                 {p.spriteUrl ? (
-                  <img src={p.spriteUrl} alt={p.name} className="w-7 h-7 object-contain" />
+                  <Image src={p.spriteUrl} alt={p.name} width={28} height={28} sizes="28px" className="w-7 h-7 object-contain" />
                 ) : (
                   <span className="text-[var(--foreground-muted)] text-[10px]">?</span>
                 )}
@@ -272,7 +279,7 @@ function SpeedComparison({ team1Roster, team2Roster, team1Dropped, team2Dropped 
               </span>
               <div className="w-7 h-7">
                 {p.spriteUrl ? (
-                  <img src={p.spriteUrl} alt={p.name} className="w-7 h-7 object-contain" />
+                  <Image src={p.spriteUrl} alt={p.name} width={28} height={28} sizes="28px" className="w-7 h-7 object-contain" />
                 ) : (
                   <span className="text-[var(--foreground-muted)] text-[10px]">?</span>
                 )}
@@ -297,7 +304,7 @@ function SpeedComparison({ team1Roster, team2Roster, team1Dropped, team2Dropped 
             >
               <div className="w-8 h-8 flex items-center justify-center">
                 {p1?.spriteUrl ? (
-                  <img src={p1.spriteUrl} alt={p1.name} className="w-8 h-8 object-contain" />
+                  <Image src={p1.spriteUrl} alt={p1.name} width={32} height={32} sizes="32px" className="w-8 h-8 object-contain" />
                 ) : p1 ? (
                   <span className="text-[var(--foreground-muted)] text-xs">?</span>
                 ) : (
@@ -315,7 +322,7 @@ function SpeedComparison({ team1Roster, team2Roster, team1Dropped, team2Dropped 
               </div>
               <div className="w-8 h-8 flex items-center justify-center">
                 {p2?.spriteUrl ? (
-                  <img src={p2.spriteUrl} alt={p2.name} className="w-8 h-8 object-contain" />
+                  <Image src={p2.spriteUrl} alt={p2.name} width={32} height={32} sizes="32px" className="w-8 h-8 object-contain" />
                 ) : p2 ? (
                   <span className="text-[var(--foreground-muted)] text-xs">?</span>
                 ) : (

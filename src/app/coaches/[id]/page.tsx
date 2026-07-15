@@ -1917,7 +1917,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                   href={`/draft-planner?coach=${coachId}&season=${selectedSeasonEntry.division?.season?.id}`}
                   className="flex items-center gap-1.5 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors font-bold shrink-0"
                 >
-                  Draft Planner
+                  Free Agency
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>

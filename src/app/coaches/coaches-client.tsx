@@ -415,9 +415,13 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                     className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="">All Divs</option>
-                    {filteredDivisions.map(d => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
+                    {selectedSeasonId && (
+                      <optgroup label={seasons.find((season) => season.id === selectedSeasonId)?.name ?? "Selected Season"}>
+                        {filteredDivisions.map(d => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 

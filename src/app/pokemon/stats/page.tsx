@@ -675,12 +675,19 @@ export default async function PokemonStatsPage() {
           </Link>
           <span className="text-[var(--foreground-subtle)]">/</span>
         </div>
-        <h1 className="font-pixel text-xl md:text-2xl text-white">
-          Pokemon Battle Stats
-        </h1>
-        <p className="text-sm text-[var(--foreground-muted)] mt-1">
-          All-time damage dealt, damage taken, and HP recovered
-        </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="font-pixel text-xl md:text-2xl text-white">
+              Pokemon Battle Stats
+            </h1>
+            <p className="text-sm text-[var(--foreground-muted)] mt-1">
+              All-time damage dealt, damage taken, and HP recovered
+            </p>
+          </div>
+          <Link href="/pokemon/combinations" className="btn-retro-secondary inline-flex w-fit px-3 py-2 text-[10px]">
+            View Combinations
+          </Link>
+        </div>
       </div>
 
       <PokemonStatsClient

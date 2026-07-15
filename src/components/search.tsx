@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 interface SearchResult {
   type: "coach" | "team" | "season" | "division" | "pokemon" | "draft" | "roster" | "transaction" | "move" | "powerRanking";
@@ -286,9 +287,12 @@ export function Search() {
                           }`}
                         >
                           {result.sprite ? (
-                            <img
+                            <Image
                               src={result.sprite}
                               alt={result.name}
+                              width={24}
+                              height={24}
+                              sizes="24px"
                               className="w-6 h-6"
                             />
                           ) : (

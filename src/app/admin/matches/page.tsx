@@ -1428,9 +1428,11 @@ export default function AdminMatchesPage() {
                   className="w-48"
                 >
                   <option value="">Select a division</option>
-                  {selectedSeason.divisions.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
+                  <optgroup label={selectedSeason.name}>
+                    {selectedSeason.divisions.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </optgroup>
                 </Select>
               </div>
             )}

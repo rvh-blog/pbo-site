@@ -552,11 +552,13 @@ export default function AdminTransactionsPage() {
                   className="w-48"
                 >
                   <option value="">All Divisions</option>
-                  {selectedSeason.divisions.map((div) => (
-                    <option key={div.id} value={div.id}>
-                      {div.name}
-                    </option>
-                  ))}
+                  <optgroup label={selectedSeason.name}>
+                    {selectedSeason.divisions.map((div) => (
+                      <option key={div.id} value={div.id}>
+                        {div.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 </Select>
               </div>
             )}
