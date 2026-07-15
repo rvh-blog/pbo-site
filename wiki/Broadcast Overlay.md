@@ -106,6 +106,11 @@ Missing Showdown battlefield art is handled by a shared, form-specific registry
 used by both overlay variants. Mega Dragalge resolves `Dragalge-Mega`,
 `Dragalge Mega`, `Mega Dragalge`, and `Mega-Dragalge` to the local form sprite.
 Regular Dragalge remains on Showdown's normal sprite until it Mega Evolves.
+All 48 newly supported Champions Mega forms use their existing local static
+sprites when Showdown has no battlefield art. The registry accepts both
+species-first and `Mega ...` form names, including X/Y/Z and alternate-form
+suffixes, and recovers failed Showdown sprite URLs. Regular forms remain on
+Showdown's normal sprites.
 Mega Falinks follows the same behavior for `Falinks-Mega`, `Falinks Mega`,
 `Mega Falinks`, and `Mega-Falinks`, with regular Falinks left unchanged.
 

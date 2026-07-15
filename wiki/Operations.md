@@ -26,6 +26,12 @@ Run the app:
 npm run dev
 ```
 
+Persistent Turbopack filesystem caching is disabled in `next.config.ts`. Next
+16.1 enables it by default, but on the OneDrive-backed Windows checkout its
+`.next/dev/cache/turbopack` blob store grew beyond 200 GB. `.next` remains
+generated and disposable; disabling the persistent cache trades some cold-start
+speed for bounded local disk use.
+
 Build and typecheck:
 
 ```bash
