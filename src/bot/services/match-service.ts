@@ -22,6 +22,7 @@ import { checkAndAwardPickEmRewards, awardGotwBonus } from "@/lib/pick-em-reward
 import { syncDivision } from "@/lib/sheets-sync-all";
 import {
   pokemonExactLookupKeys,
+  pokemonNameKey,
   pokemonNormalizedLookupKeys,
 } from "@/lib/pokemon-name-utils";
 import {
@@ -976,6 +977,10 @@ export async function buildPokemonDataFromReplay(
         favorableSleep: replayPoke.favorableSleep,
         hpRestored: replayPoke.hpRestored,
       });
+    } else {
+      console.warn(
+        `[Match Service] Could not match replay Pokemon "${replayPoke.name}" to coach ${coach1SeasonId}'s roster`
+      );
     }
   }
 
@@ -1004,6 +1009,10 @@ export async function buildPokemonDataFromReplay(
         favorableSleep: replayPoke.favorableSleep,
         hpRestored: replayPoke.hpRestored,
       });
+    } else {
+      console.warn(
+        `[Match Service] Could not match replay Pokemon "${replayPoke.name}" to coach ${coach2SeasonId}'s roster`
+      );
     }
   }
 
@@ -1044,6 +1053,15 @@ function findMatchingRosterPokemon(
   replayPokemonName: string,
   aliasMaps?: PokemonAliasMaps
 ) {
+  // Match equivalent database/Showdown spellings even when the optional
+  // admin alias tables are unavailable or have not been populated yet.
+  const compactReplayKey = pokemonNameKey(replayPokemonName);
+  const compactMatch = roster.find((row) => (
+    pokemonNameKey(row.name) === compactReplayKey
+    || pokemonNameKey(row.displayName) === compactReplayKey
+  ));
+  if (compactMatch) return compactMatch;
+
   if (!aliasMaps) {
     return roster.find((row) => pokemonNamesMatch(replayPokemonName, row.displayName || row.name));
   }
@@ -1055,7 +1073,15 @@ function findMatchingRosterPokemon(
   if (exactMatch) return exactMatch;
 
   const normalizedKeys = pokemonNormalizedLookupKeysWithAliases(replayPokemonName, aliasMaps);
-  return roster.find((row) => (
+  const normalizedMatch = roster.find((row) => (
     setsIntersect(normalizedKeys, pokemonLookupKeysForRowWithAliases(row, aliasMaps, {}, true))
+  ));
+  if (normalizedMatch) return normalizedMatch;
+
+  // Last, use the built-in alias catalogue independently of database-backed
+  // aliases so known forms such as Single Strike Urshifu still resolve.
+  return roster.find((row) => (
+    pokemonNamesMatch(replayPokemonName, row.name)
+    || pokemonNamesMatch(replayPokemonName, row.displayName)
   ));
 }

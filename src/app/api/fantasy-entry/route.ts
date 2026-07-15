@@ -11,6 +11,7 @@ import {
   seasons,
 } from "@/lib/schema";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
+import { getFantasyWeeklyStatsForWeek } from "@/lib/fantasy-stats";
 
 const FANTASY_MIN_SEASON = 10;
 const FANTASY_ROSTER_SIZE = 6;
@@ -20,21 +21,6 @@ const FANTASY_SLOT_RULES = ["Infinity", "Stargazer", "Sunset", "Crystal", "Neon"
 
 function normalizeDivisionName(name: string | null | undefined) {
   return name?.trim().toLowerCase() || "";
-}
-
-function scorePokemonGame(mp: {
-  kills: number | null;
-  deaths: number | null;
-  seasonCoachId: number;
-  match: {
-    winnerId: number | null;
-  };
-}) {
-  const kills = mp.kills ?? 0;
-  const deaths = mp.deaths ?? 0;
-  const teamResult = mp.match.winnerId === mp.seasonCoachId ? 2 : -2;
-
-  return kills * 5 - deaths + teamResult;
 }
 
 async function getFantasySeason(seasonId: number) {
@@ -68,29 +54,13 @@ async function getPokemonScores(
     return new Map<string, number>();
   }
 
-  const seasonMatches = await db.query.matches.findMany({
-    where: eq(matches.seasonId, seasonId),
-  });
-  const scoringMatches = seasonMatches.filter((match) => match.week === scoringWeek);
-  const matchIds = new Set(scoringMatches.map((match) => match.id));
-  const matchesById = new Map(scoringMatches.map((match) => [match.id, match]));
-
-  if (matchIds.size === 0) {
-    return new Map<string, number>();
-  }
-
-  const allMatchPokemon = await db.query.matchPokemon.findMany();
-  const scoreMap = new Map<string, number>();
-
-  for (const mp of allMatchPokemon) {
-    if (!matchIds.has(mp.matchId)) continue;
-    const match = matchesById.get(mp.matchId);
-    if (!match || !match.winnerId) continue;
-    const key = fantasyPickKey(mp);
-    scoreMap.set(key, (scoreMap.get(key) ?? 0) + scorePokemonGame({ ...mp, match }));
-  }
-
-  return scoreMap;
+  const stats = await getFantasyWeeklyStatsForWeek(seasonId, scoringWeek);
+  return new Map(
+    stats.map((stat) => [
+      fantasyPickKey({ pokemonId: stat.pokemonId, seasonCoachId: stat.seasonCoachId }),
+      stat.score,
+    ])
+  );
 }
 
 async function getPriceMap(seasonId: number) {

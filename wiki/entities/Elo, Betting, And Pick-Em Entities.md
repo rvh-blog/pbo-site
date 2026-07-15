@@ -72,9 +72,9 @@ Rewards are explicitly tracked. Re-resolution reverses coins and deletes/recreat
 
 Current tiers:
 
-- 1st: 100 PBO Coin
-- 2nd: 50 PBO Coin
-- 3rd: 25 PBO Coin
+- 1st: 250 PBO Coin
+- 2nd: 125 PBO Coin
+- 3rd: 75 PBO Coin
 
 Fantasy reward resolution is tied to completed weekly match results for Season 10 and later.
 
