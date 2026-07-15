@@ -540,14 +540,16 @@ export default function AdminRostersPage() {
                     className="w-48"
                   >
                     <option value="all">All Divisions ({seasonCoaches.length} teams)</option>
-                    {selectedSeason.divisions.map((div) => {
-                      const divTeamCount = seasonCoaches.filter((sc) => sc.divisionId === div.id).length;
-                      return (
-                        <option key={div.id} value={div.id}>
-                          {div.name} ({divTeamCount} teams)
-                        </option>
-                      );
-                    })}
+                    <optgroup label={selectedSeason.name}>
+                      {selectedSeason.divisions.map((div) => {
+                        const divTeamCount = seasonCoaches.filter((sc) => sc.divisionId === div.id).length;
+                        return (
+                          <option key={div.id} value={div.id}>
+                            {div.name} ({divTeamCount} teams)
+                          </option>
+                        );
+                      })}
+                    </optgroup>
                   </Select>
                 </div>
                 <Button
@@ -634,11 +636,13 @@ export default function AdminRostersPage() {
                       }
                     >
                       <option value="">Select division</option>
-                      {selectedSeason.divisions.map((div) => (
-                        <option key={div.id} value={div.id}>
-                          {div.name}
-                        </option>
-                      ))}
+                      <optgroup label={selectedSeason.name}>
+                        {selectedSeason.divisions.map((div) => (
+                          <option key={div.id} value={div.id}>
+                            {div.name}
+                          </option>
+                        ))}
+                      </optgroup>
                     </Select>
                   </div>
                 </div>
@@ -1089,13 +1093,15 @@ export default function AdminRostersPage() {
                   onChange={(e) => setMoveDivisionId(e.target.value)}
                 >
                   <option value="">Select division</option>
-                  {selectedSeason.divisions
-                    .filter((division) => division.id !== movingTeam.divisionId)
-                    .map((division) => (
-                      <option key={division.id} value={division.id}>
-                        {division.name}
-                      </option>
-                    ))}
+                  <optgroup label={selectedSeason.name}>
+                    {selectedSeason.divisions
+                      .filter((division) => division.id !== movingTeam.divisionId)
+                      .map((division) => (
+                        <option key={division.id} value={division.id}>
+                          {division.name}
+                        </option>
+                      ))}
+                  </optgroup>
                 </Select>
               </div>
               <div className="p-3 rounded-lg bg-[var(--background-secondary)] text-sm text-[var(--foreground-muted)]">

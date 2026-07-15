@@ -16,6 +16,7 @@ const slowQueryThresholdMs = Number(
 let slowQueryCount = 0;
 let slowestQueryMs = 0;
 let totalQueryMs = 0;
+const slowQuerySamples = new Map<string, { count: number; totalMs: number; maxMs: number }>();
 
 function getStatementPreview(statement: unknown) {
   if (typeof statement === "string") return statement;
@@ -34,6 +35,14 @@ function recordQueryTiming(kind: "query" | "batch", statement: unknown, duration
 
   slowQueryCount++;
   const preview = getStatementPreview(statement).replace(/\s+/g, " ").slice(0, 220);
+  const fingerprint = preview
+    .replace(/'[^']*'/g, "?")
+    .replace(/\b\d+\b/g, "?");
+  const sample = slowQuerySamples.get(fingerprint) || { count: 0, totalMs: 0, maxMs: 0 };
+  sample.count++;
+  sample.totalMs += durationMs;
+  sample.maxMs = Math.max(sample.maxMs, durationMs);
+  slowQuerySamples.set(fingerprint, sample);
   console.warn(`[DB Slow ${kind}] ${Math.round(durationMs)}ms ${preview}`);
 }
 
@@ -100,6 +109,9 @@ async function ensurePerformanceIndexes() {
     "CREATE INDEX IF NOT EXISTS idx_matches_coach1_season_id ON matches(coach1_season_id)",
     "CREATE INDEX IF NOT EXISTS idx_matches_coach2_season_id ON matches(coach2_season_id)",
     "CREATE INDEX IF NOT EXISTS idx_matches_division_week ON matches(division_id, week)",
+    "CREATE INDEX IF NOT EXISTS idx_matches_season_week ON matches(season_id, week)",
+    "CREATE INDEX IF NOT EXISTS idx_match_pokemon_season_coach_pokemon ON match_pokemon(season_coach_id, pokemon_id)",
+    "CREATE INDEX IF NOT EXISTS idx_transactions_season_coach ON transactions(season_id, season_coach_id)",
     "CREATE INDEX IF NOT EXISTS idx_playoff_matches_division_id ON playoff_matches(division_id)",
     "CREATE INDEX IF NOT EXISTS idx_playoff_matches_higher_seed_id ON playoff_matches(higher_seed_id)",
     "CREATE INDEX IF NOT EXISTS idx_playoff_matches_lower_seed_id ON playoff_matches(lower_seed_id)",
@@ -149,7 +161,11 @@ export const db = drizzle(client, {
 
 // Export helper to get query stats
 export function getQueryStats() {
-  return { queryCount, totalRowsRead, slowQueryCount, slowestQueryMs, totalQueryMs, slowQueryThresholdMs };
+  const slowQueries = [...slowQuerySamples.entries()]
+    .map(([statement, sample]) => ({ statement, ...sample }))
+    .sort((a, b) => b.totalMs - a.totalMs)
+    .slice(0, 10);
+  return { queryCount, totalRowsRead, slowQueryCount, slowestQueryMs, totalQueryMs, slowQueryThresholdMs, slowQueries };
 }
 
 export function resetQueryStats() {
@@ -158,4 +174,5 @@ export function resetQueryStats() {
   slowQueryCount = 0;
   slowestQueryMs = 0;
   totalQueryMs = 0;
+  slowQuerySamples.clear();
 }

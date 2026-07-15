@@ -4,6 +4,7 @@ import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
 import { Navigation } from "@/components/navigation";
+import { PerformanceMonitor } from "@/components/performance-monitor";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -78,6 +79,7 @@ export default function RootLayout({
         </div>
 
         <Navigation />
+        <PerformanceMonitor />
         <main className="relative z-10 container mx-auto px-4 sm:px-6 py-8 sm:py-12">{children}</main>
 
         <footer className="relative z-10 border-t-4 border-[var(--background-tertiary)] mt-16 bg-[var(--background-secondary)] py-8 sm:mt-20 sm:py-12">
@@ -116,7 +118,7 @@ export default function RootLayout({
                 <div className="space-y-1.5 text-sm sm:space-y-2">
                   <Link href="/seasons" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Seasons</Link>
                   <Link href="/coaches" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Coaches</Link>
-                  <Link href="/leaderboards" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Leaderboards</Link>
+                  <Link href="/leaderboards" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">PBO Stats</Link>
                   <a
                     href="https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal"
                     target="_blank"
@@ -131,9 +133,9 @@ export default function RootLayout({
               <div>
                 <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground)] sm:mb-3">Tools</h2>
                 <div className="space-y-1.5 text-sm sm:space-y-2">
-                  <Link href="/draft-planner" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Draft Planner</Link>
+                  <Link href="/draft-planner" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Free Agency</Link>
                   <Link href="/matchup-prep" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Match Prep</Link>
-                  <Link href="/analyzer" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Analyzer</Link>
+                  <Link href="/analyzer" className="block text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Replay Analyzer</Link>
                   <a
                     href="/api/export"
                     download

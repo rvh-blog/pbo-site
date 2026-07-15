@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback } from "react";
+import Image from "next/image";
 import type { SlideData, TransactionPokemon, RosterPokemon, MatchPokemonStat, ScheduleMatch } from "./page";
+import { getTypeColor } from "@/lib/utils";
 
 interface Props {
   data: SlideData;
@@ -122,7 +124,7 @@ export function Slide({ data, divisionColor }: Props) {
               >
                 {data.teamLogoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={data.teamLogoUrl} alt="" className="w-40 h-40 object-contain drop-shadow-md" />
+                  <Image src={data.teamLogoUrl} alt="" width={160} height={160} sizes="160px" className="w-40 h-40 object-contain drop-shadow-md" />
                 ) : (
                   <div className="w-40 h-40 bg-slate-800 rounded" />
                 )}
@@ -190,13 +192,13 @@ export function Slide({ data, divisionColor }: Props) {
           <div className="w-full h-full max-h-[500px] flex flex-col gap-4 justify-center">
             <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${row1.length}, minmax(0, 1fr))` }}>
               {row1.map((pk) => (
-                <RosterCard key={pk.pokemonId} pk={pk} divisionColor={divisionColor} />
+                <RosterCard key={pk.pokemonId} pk={pk} divisionColor={divisionColor} showTypeIcons={data.showTypeIcons} />
               ))}
             </div>
             {row2.length > 0 && (
               <div className="grid gap-3 px-[4%]" style={{ gridTemplateColumns: `repeat(${row2.length}, minmax(0, 1fr))` }}>
                 {row2.map((pk) => (
-                  <RosterCard key={pk.pokemonId} pk={pk} divisionColor={divisionColor} />
+                  <RosterCard key={pk.pokemonId} pk={pk} divisionColor={divisionColor} showTypeIcons={data.showTypeIcons} />
                 ))}
               </div>
             )}
@@ -212,7 +214,7 @@ export function Slide({ data, divisionColor }: Props) {
               <div key={pokemon.pokemonId} className="flex items-center gap-2 rounded px-1.5 py-1" style={{ background: "#020617" }}>
                 {pokemon.spriteUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={pokemon.spriteUrl} alt="" className="h-7 w-7 shrink-0 object-contain" />
+                  <Image src={pokemon.spriteUrl} alt="" width={28} height={28} sizes="28px" className="h-7 w-7 shrink-0 object-contain" />
                 ) : (
                   <span className="h-7 w-7 shrink-0 rounded bg-slate-800" />
                 )}
@@ -256,7 +258,7 @@ export function Slide({ data, divisionColor }: Props) {
                       <div className="flex items-center gap-2 flex-1 px-3 truncate min-w-0">
                         {m.opponentLogoUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={m.opponentLogoUrl} alt="" className="w-5 h-5 object-contain rounded shrink-0" />
+                          <Image src={m.opponentLogoUrl} alt="" width={20} height={20} sizes="20px" className="w-5 h-5 object-contain rounded shrink-0" />
                         )}
                         <span className="text-slate-300 font-bold uppercase truncate text-sm">{m.opponentName}</span>
                       </div>
@@ -317,7 +319,7 @@ export function Slide({ data, divisionColor }: Props) {
                     <div className="w-7 h-7 mr-2 shrink-0">
                       {pk.spriteUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={pk.spriteUrl} className="w-full h-full object-contain" alt="" />
+                        <Image src={pk.spriteUrl} width={28} height={28} sizes="28px" className="w-full h-full object-contain" alt="" />
                       )}
                     </div>
                     <span className="font-bold text-slate-300 truncate flex-1 text-sm">
@@ -395,7 +397,7 @@ export function Slide({ data, divisionColor }: Props) {
   );
 }
 
-function RosterCard({ pk, divisionColor }: { pk: RosterPokemon; divisionColor: string }) {
+function RosterCard({ pk, divisionColor, showTypeIcons }: { pk: RosterPokemon; divisionColor: string; showTypeIcons: boolean }) {
   return (
     <div className="group relative w-full h-full min-h-[220px] flex flex-col items-center justify-end pb-3">
       {/* Card Base (Slot Style) */}
@@ -422,9 +424,12 @@ function RosterCard({ pk, divisionColor }: { pk: RosterPokemon; divisionColor: s
       <div className="absolute inset-0 z-10 flex items-center justify-center transform group-hover:-translate-y-2 transition-transform duration-200">
         {(pk.artworkUrl || pk.spriteUrl) ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={pk.artworkUrl || pk.spriteUrl || ""}
             alt=""
+            width={130}
+            height={130}
+            sizes="130px"
             className="w-[130px] h-[130px] object-contain drop-shadow-[0_4px_0_rgba(0,0,0,0.4)] group-hover:brightness-110 group-hover:contrast-110 transition-all duration-200 scale-125"
           />
         ) : (
@@ -434,9 +439,24 @@ function RosterCard({ pk, divisionColor }: { pk: RosterPokemon; divisionColor: s
 
       {/* Name Plate */}
       <div className="relative z-20 w-[92%] py-1.5 text-center" style={{ background: "#020617", border: "2px solid #475569", boxShadow: "2px 2px 0 rgba(0,0,0,0.3)" }}>
-        <span className="font-pixel text-[9px] text-slate-200 tracking-tight leading-none uppercase block truncate px-1">
-          {pk.displayName || pk.name}
-        </span>
+        <div className="flex items-center justify-center gap-1 px-1 min-w-0">
+          <span className="font-pixel text-[9px] text-slate-200 tracking-tight leading-none uppercase truncate min-w-0">
+            {pk.displayName || pk.name}
+          </span>
+          {showTypeIcons && pk.types.length > 0 && (
+            <span className="flex shrink-0 items-center gap-0.5" aria-label={`${pk.displayName || pk.name} types: ${pk.types.join(", ")}`}>
+              {pk.types.map((type) => (
+                <span
+                  key={type}
+                  title={type}
+                  className={`${getTypeColor(type)} inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-sm px-0.5 text-[6px] font-bold uppercase leading-none`}
+                >
+                  {type.slice(0, 3)}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Stat tooltip on hover */}
@@ -481,7 +501,7 @@ function MatchTooltip({ m, myScore, oppScore, divisionColor, teamName }: { m: Sc
               <div key={i} className="flex items-center gap-2 text-xs">
                 {pk.spriteUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={pk.spriteUrl} alt="" className="w-5 h-5 object-contain shrink-0" />
+                  <Image src={pk.spriteUrl} alt="" width={20} height={20} sizes="20px" className="w-5 h-5 object-contain shrink-0" />
                 )}
                 <span className="text-slate-300 truncate flex-1">{pk.name}</span>
                 <span className="font-mono text-green-400">{pk.kills}</span>
@@ -496,7 +516,7 @@ function MatchTooltip({ m, myScore, oppScore, divisionColor, teamName }: { m: Sc
               <div key={i} className="flex items-center gap-2 text-xs">
                 {pk.spriteUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={pk.spriteUrl} alt="" className="w-5 h-5 object-contain shrink-0" />
+                  <Image src={pk.spriteUrl} alt="" width={20} height={20} sizes="20px" className="w-5 h-5 object-contain shrink-0" />
                 )}
                 <span className="text-slate-300 truncate flex-1">{pk.name}</span>
                 <span className="font-mono text-green-400">{pk.kills}</span>
@@ -515,7 +535,7 @@ function PokemonSprite({ pk }: { pk: TransactionPokemon }) {
   if (!pk.spriteUrl) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={pk.spriteUrl} alt="" className="w-5 h-5 object-contain inline-block align-middle mx-0.5" style={{ filter: "drop-shadow(1px 1px 0 rgba(0,0,0,0.5))" }} />
+    <Image src={pk.spriteUrl} alt="" width={20} height={20} sizes="20px" className="w-5 h-5 object-contain inline-block align-middle mx-0.5" style={{ filter: "drop-shadow(1px 1px 0 rgba(0,0,0,0.5))" }} />
   );
 }
 

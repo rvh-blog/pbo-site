@@ -195,11 +195,15 @@ export default function BroadcastSetupPage() {
             disabled={!selectedSeasonId}
           >
             <option value="">Select division...</option>
-            {divisions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
+            {selectedSeasonId && (
+              <optgroup label={selectedSeason?.name ?? "Selected Season"}>
+                {divisions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
 

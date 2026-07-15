@@ -245,6 +245,7 @@ export const matches = sqliteTable("matches", {
   index("idx_matches_coach1_season_id").on(table.coach1SeasonId),
   index("idx_matches_coach2_season_id").on(table.coach2SeasonId),
   index("idx_matches_division_week").on(table.divisionId, table.week),
+  index("idx_matches_season_week").on(table.seasonId, table.week),
   index("idx_matches_is_forfeit_winner_id").on(table.isForfeit, table.winnerId),
   index("idx_matches_season_winner_id").on(table.seasonId, table.winnerId),
 ]);
@@ -309,6 +310,7 @@ export const matchPokemon = sqliteTable("match_pokemon", {
 }, (table) => [
   index("idx_match_pokemon_match_id").on(table.matchId),
   index("idx_match_pokemon_season_coach_id").on(table.seasonCoachId),
+  index("idx_match_pokemon_season_coach_pokemon").on(table.seasonCoachId, table.pokemonId),
 ]);
 
 // Kill Events - normalized table for individual kills
@@ -395,6 +397,7 @@ export const transactions = sqliteTable("transactions", {
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
 }, (table) => [
   index("idx_transactions_season_coach_id").on(table.seasonCoachId),
+  index("idx_transactions_season_coach").on(table.seasonId, table.seasonCoachId),
   index("idx_transactions_trading_partner_season_coach_id").on(table.tradingPartnerSeasonCoachId),
   index("idx_transactions_season_id").on(table.seasonId),
 ]);

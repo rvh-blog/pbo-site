@@ -760,11 +760,15 @@ export function MatchupPrepClient({
               className="w-full px-3 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] text-sm disabled:opacity-50"
             >
               <option value="">Select division...</option>
-              {divisions.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
+              {selectedSeason && (
+                <optgroup label={seasons.find((season) => season.id === selectedSeason)?.name ?? "Selected Season"}>
+                  {divisions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 

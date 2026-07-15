@@ -1,10 +1,13 @@
 import { db } from "@/lib/db";
-import { divisions, matches, matchPokemon, seasons, killEvents } from "@/lib/schema";
+import { divisions, matches, seasons } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { processCombinationLeaderboards } from "@/lib/pokemon-combinations";
+import { PokemonCombinationRankings } from "@/components/pokemon-combination-rankings";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -213,6 +216,11 @@ export default async function KillLeadersPage({ params }: PageProps) {
   // Process leaderboards from pre-fetched data
   const pokemonLeaderboard = processPokemonLeaderboard(seasonMatchIds, allMatchPokemon);
   const moveLeaderboard = processMoveLeaderboard(seasonMatchIds, allKillEvents);
+  const combinationLeaderboards = processCombinationLeaderboards(
+    seasonMatchIds,
+    allMatchPokemon,
+    new Map(seasonMatches.map((match) => [match.id, match.winnerId]))
+  );
 
   return (
     <div className="space-y-8">
@@ -345,9 +353,12 @@ export default async function KillLeadersPage({ params }: PageProps) {
                 {/* Pokemon Info */}
                 <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
                   {entry.spriteUrl ? (
-                    <img
+                    <Image
                       src={entry.spriteUrl}
                       alt={entry.pokemonDisplayName || entry.pokemonName}
+                      width={28}
+                      height={28}
+                      sizes="28px"
                       className="w-6 h-6 sm:w-7 sm:h-7 object-contain"
                     />
                   ) : (
@@ -482,6 +493,13 @@ export default async function KillLeadersPage({ params }: PageProps) {
           </div>
         )}
       </div>
+
+      <PokemonCombinationRankings
+        leaderboards={combinationLeaderboards}
+        title="Most Used Battle Combinations"
+        description="Pokémon brought together by the same team in this season's battles. See the PBO-wide page for all seasons."
+        allTimeHref="/pokemon/combinations"
+      />
     </div>
   );
 }

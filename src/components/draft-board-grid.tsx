@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface PokemonData {
   id: number;
@@ -398,7 +399,7 @@ export function DraftBoardGrid({
         }`}
       >
         {poke.spriteUrl && (
-          <img src={poke.spriteUrl} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
+          <Image src={poke.spriteUrl} alt="" width={24} height={24} sizes="24px" className="w-6 h-6 object-contain flex-shrink-0" />
         )}
         <span className="flex-1 font-medium text-[13px] leading-tight" title={poke.displayName || poke.name}>
           {poke.displayName || poke.name}
@@ -451,7 +452,7 @@ export function DraftBoardGrid({
         }`}
       >
         {poke.spriteUrl && (
-          <img src={poke.spriteUrl} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
+          <Image src={poke.spriteUrl} alt="" width={24} height={24} sizes="24px" className="w-6 h-6 object-contain flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
           <span className="font-medium text-[13px] leading-tight block" title={poke.displayName || poke.name}>

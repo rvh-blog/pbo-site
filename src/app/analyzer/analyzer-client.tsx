@@ -244,7 +244,7 @@ export function AnalyzerClient() {
           <div className="max-w-5xl">
             <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--background-tertiary)] bg-[var(--glass)] px-3 py-1.5 text-xs font-black uppercase tracking-widest text-[var(--accent)]">
               <BarChart3 className="h-4 w-4" />
-              Analyzer
+              Replay Analyzer
             </div>
             <h1 className="mt-5 font-pixel text-2xl leading-relaxed text-white sm:text-4xl">
               Showdown replay analyzer

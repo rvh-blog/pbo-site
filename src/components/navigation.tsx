@@ -26,13 +26,19 @@ interface FeatureSettings {
 const navItems = [
   { href: "/seasons", label: "Seasons" },
   { href: "/coaches", label: "Coaches" },
-  { href: "/draft-planner", label: "Draft Planner" },
   { href: "/matchup-prep", label: "Match Prep" },
-  { href: "/analyzer", label: "Analyzer" },
   { href: "/pick-ems", label: "Pick-Ems" },
   { href: "/fantasy", label: "Fantasy" },
   { href: "/blog", label: "Blog" },
-  { href: "/leaderboards", label: "Leaderboards" },
+  { href: "/leaderboards", label: "PBO Stats" },
+];
+
+const matchPrepLinks = [
+  { href: "/draft-planner", label: "Free Agency" },
+  { href: "/analyzer", label: "Replay Analyzer" },
+];
+
+const pboStatsLinks = [
   { href: "/battle-record", label: "Battle Record" },
 ];
 
@@ -44,6 +50,8 @@ export function Navigation() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProjectMewPrompt, setShowProjectMewPrompt] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  const [mobileMatchPrepOpen, setMobileMatchPrepOpen] = useState(false);
+  const [mobilePboStatsOpen, setMobilePboStatsOpen] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
     fantasyUiHidden: false,
@@ -134,6 +142,11 @@ export function Navigation() {
     if (item.href === "/blog") return !featureSettings.blogUiHidden;
     return true;
   });
+  const matchPrepActive =
+    pathname === "/matchup-prep" ||
+    pathname.startsWith("/draft-planner") ||
+    pathname.startsWith("/analyzer");
+  const pboStatsActive = pathname === "/leaderboards" || pathname.startsWith("/leaderboards/") || pathname === "/battle-record" || pathname.startsWith("/battle-record/");
   const userInitial = authUser?.name.trim().charAt(0).toUpperCase() ?? "";
 
   async function handleLogout() {
@@ -207,9 +220,91 @@ export function Navigation() {
         {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-6">
           {visibleNavItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/" && pathname.startsWith(item.href));
+            const isActive = item.href === "/matchup-prep"
+              ? matchPrepActive
+              : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+
+            if (item.href === "/matchup-prep") {
+              return (
+                <div key={item.href} className="group relative">
+                  <Link
+                    href={item.href}
+                    aria-haspopup="menu"
+                    className={`inline-flex items-center gap-1 font-bold uppercase text-sm tracking-wide transition-all ${
+                      isActive
+                        ? "text-[var(--foreground)] underline decoration-[var(--primary)] decoration-2 underline-offset-4"
+                        : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-[var(--primary)] hover:decoration-2 hover:underline-offset-4"
+                    }`}
+                  >
+                    {item.label}
+                    <svg className="h-3 w-3 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                    </svg>
+                  </Link>
+                  <div className="invisible absolute left-1/2 top-full z-50 w-44 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                    <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
+                      {matchPrepLinks.map((subItem) => {
+                        const subActive = pathname === subItem.href || pathname.startsWith(`${subItem.href}/`);
+                        return (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            role="menuitem"
+                            className={`block rounded px-3 py-2 text-xs font-bold uppercase transition-colors ${
+                              subActive
+                                ? "bg-[var(--background-tertiary)] text-white"
+                                : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                            }`}
+                          >
+                            {subItem.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.href === "/leaderboards") {
+              return (
+                <div key={item.href} className="group relative">
+                  <Link
+                    href={item.href}
+                    aria-haspopup="menu"
+                    className={`inline-flex items-center gap-1 font-bold uppercase text-sm tracking-wide transition-all ${
+                      pboStatsActive
+                        ? "text-[var(--foreground)] underline decoration-[var(--primary)] decoration-2 underline-offset-4"
+                        : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-[var(--primary)] hover:decoration-2 hover:underline-offset-4"
+                    }`}
+                  >
+                    {item.label}
+                    <svg className="h-3 w-3 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                    </svg>
+                  </Link>
+                  <div className="invisible absolute left-1/2 top-full z-50 w-44 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                    <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
+                      {pboStatsLinks.map((subItem) => (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href}
+                          role="menuitem"
+                          className={`block rounded px-3 py-2 text-xs font-bold uppercase transition-colors ${
+                            pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)
+                              ? "bg-[var(--background-tertiary)] text-white"
+                              : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                          }`}
+                        >
+                          {subItem.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.href}
@@ -466,9 +561,108 @@ export function Navigation() {
             </div>
 
             {visibleNavItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/" && pathname.startsWith(item.href));
+              const isActive = item.href === "/matchup-prep"
+                ? matchPrepActive
+                : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+
+              if (item.href === "/matchup-prep") {
+                return (
+                  <div key={item.href}>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex-1 rounded-lg px-4 py-3 font-bold uppercase text-sm tracking-wide transition-all ${
+                          isActive
+                            ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
+                            : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setMobileMatchPrepOpen((open) => !open)}
+                        aria-label="Toggle Match Prep menu"
+                        aria-expanded={mobileMatchPrepOpen}
+                        className="rounded-lg px-3 py-3 text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                      >
+                        <svg className={`h-4 w-4 transition-transform ${mobileMatchPrepOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                        </svg>
+                      </button>
+                    </div>
+                    {mobileMatchPrepOpen && (
+                      <div className="ml-4 space-y-1 border-l-2 border-[var(--background-tertiary)] pl-3">
+                        {matchPrepLinks.map((subItem) => (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={`block rounded-lg px-4 py-2 text-xs font-bold uppercase transition-colors ${
+                              pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)
+                                ? "bg-[var(--background-tertiary)] text-white"
+                                : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                            }`}
+                          >
+                            {subItem.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              if (item.href === "/leaderboards") {
+                return (
+                  <div key={item.href}>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex-1 rounded-lg px-4 py-3 font-bold uppercase text-sm tracking-wide transition-all ${
+                          pboStatsActive
+                            ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
+                            : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setMobilePboStatsOpen((open) => !open)}
+                        aria-label="Toggle PBO Stats menu"
+                        aria-expanded={mobilePboStatsOpen}
+                        className="rounded-lg px-3 py-3 text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                      >
+                        <svg className={`h-4 w-4 transition-transform ${mobilePboStatsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                        </svg>
+                      </button>
+                    </div>
+                    {mobilePboStatsOpen && (
+                      <div className="ml-4 space-y-1 border-l-2 border-[var(--background-tertiary)] pl-3">
+                        {pboStatsLinks.map((subItem) => (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={`block rounded-lg px-4 py-2 text-xs font-bold uppercase transition-colors ${
+                              pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)
+                                ? "bg-[var(--background-tertiary)] text-white"
+                                : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                            }`}
+                          >
+                            {subItem.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <Link
                   key={item.href}

@@ -162,10 +162,33 @@ export function PokemonStatsClient({ stats, seasons, divisions }: PokemonStatsCl
   const [seasonId, setSeasonId] = useState<number | "all">("all");
   const [divisionId, setDivisionId] = useState<number | "all">("all");
 
-  const divisionOptions = useMemo(() => {
-    const list = seasonId === "all" ? divisions : divisions.filter((d) => d.seasonId === seasonId);
-    return [...list].sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
-  }, [divisions, seasonId]);
+  const divisionGroups = useMemo(() => {
+    const visibleSeasonIds = seasonId === "all" ? seasons.map((season) => season.id) : [seasonId];
+    const divisionsBySeason = new Map<number, DivisionOption[]>();
+
+    for (const division of divisions) {
+      if (!visibleSeasonIds.includes(division.seasonId)) continue;
+      const seasonDivisions = divisionsBySeason.get(division.seasonId) ?? [];
+      seasonDivisions.push(division);
+      divisionsBySeason.set(division.seasonId, seasonDivisions);
+    }
+
+    return visibleSeasonIds
+      .map((visibleSeasonId) => {
+        const season = seasons.find((candidate) => candidate.id === visibleSeasonId);
+        const seasonDivisions = divisionsBySeason.get(visibleSeasonId) ?? [];
+        return {
+          id: visibleSeasonId,
+          label: season?.name ?? "Unknown Season",
+          divisions: [...seasonDivisions].sort(
+            (a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name),
+          ),
+        };
+      })
+      .filter((group) => group.divisions.length > 0);
+  }, [divisions, seasonId, seasons]);
+
+  const divisionOptionCount = divisionGroups.reduce((count, group) => count + group.divisions.length, 0);
 
   const handleSeasonChange = (value: string) => {
     const next = value === "all" ? "all" : parseInt(value);
@@ -239,15 +262,17 @@ export function PokemonStatsClient({ stats, seasons, divisions }: PokemonStatsCl
               setDivisionId(e.target.value === "all" ? "all" : parseInt(e.target.value))
             }
             className="px-2 py-1 text-xs font-bold rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground)] focus:border-[var(--primary)] focus:outline-none disabled:opacity-50"
-            disabled={divisionOptions.length === 0}
+            disabled={divisionOptionCount === 0}
           >
             <option value="all">All Divisions</option>
-            {divisionOptions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {seasonId === "all"
-                  ? `${d.name} (${seasons.find((s) => s.id === d.seasonId)?.name ?? ""})`
-                  : d.name}
-              </option>
+            {divisionGroups.map((group) => (
+              <optgroup key={group.id} label={group.label}>
+                {group.divisions.map((division) => (
+                  <option key={division.id} value={division.id}>
+                    {division.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>
