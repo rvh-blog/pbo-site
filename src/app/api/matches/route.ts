@@ -9,6 +9,7 @@ import { resolveDeathBetsForMatch, refundDeathBetsForMatch } from "@/lib/death-b
 import { reResolveBetsForMatch } from "@/lib/bet-resolution";
 import { checkAndAwardPickEmRewards, reResolvePickEmRewards, awardGotwBonus, reverseGotwBonus } from "@/lib/pick-em-rewards";
 import { resolveFantasyWeeklyRewardForMatch } from "@/lib/fantasy-rewards";
+import { refreshFantasyWeeklyStatsForWeek } from "@/lib/fantasy-stats";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { logAdminAudit } from "@/lib/admin-audit";
@@ -349,6 +350,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (winnerId) {
+    try {
+      await refreshFantasyWeeklyStatsForWeek(match.seasonId, match.week);
+    } catch (fantasyStatsError) {
+      console.error("[Matches API] Error refreshing fantasy weekly stats:", fantasyStatsError);
+    }
+  }
+
   await logAdminAudit({
     session,
     action: winnerId ? "match_result_create" : "match_schedule_create",
@@ -508,6 +517,7 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
+        await refreshFantasyWeeklyStatsForWeek(previousMatch.seasonId, previousMatch.week);
         const fantasyResult = await resolveFantasyWeeklyRewardForMatch(id);
         if (fantasyResult.awarded.length > 0 || fantasyResult.reversed.length > 0) {
           console.log("[Matches API] Fantasy rewards resolved:", fantasyResult);
@@ -582,6 +592,7 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
+        await refreshFantasyWeeklyStatsForWeek(previousMatch.seasonId, previousMatch.week);
         const fantasyResult = await resolveFantasyWeeklyRewardForMatch(id);
         if (fantasyResult.awarded.length > 0 || fantasyResult.reversed.length > 0) {
           console.log("[Matches API] Fantasy rewards re-resolved:", fantasyResult);

@@ -37,6 +37,7 @@ type UsedFantasyInstance = {
 
 type SortKey = "pokemon" | "cost" | "recent" | "total" | "trend" | "ppg" | "kd" | "wl";
 type SortDirection = "asc" | "desc";
+type PointTotalFilter = number | "all";
 
 function formatScore(value: number) {
   return value.toFixed(1);
@@ -121,9 +122,11 @@ export function PokemonBoardClient({
   targetWeek: number;
 }) {
   const [selectedDivision, setSelectedDivision] = useState("");
+  const [selectedPointTotal, setSelectedPointTotal] = useState<PointTotalFilter>("all");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [visibleRowCount, setVisibleRowCount] = useState(40);
   const [usedInstances, setUsedInstances] = useState<UsedFantasyInstance[]>([]);
 
   useEffect(() => {
@@ -151,6 +154,18 @@ export function PokemonBoardClient({
     };
   }, [seasonId, targetWeek]);
 
+  const pointTotalOptions = useMemo(
+    () =>
+      [...new Set(rows.map((row) => row.cost).filter((cost): cost is number => cost !== null))].sort(
+        (a, b) => a - b
+      ),
+    [rows]
+  );
+  const activePointTotal =
+    selectedPointTotal === "all" || pointTotalOptions.includes(selectedPointTotal)
+      ? selectedPointTotal
+      : "all";
+
   function toggleSort(nextSortKey: SortKey) {
     if (nextSortKey === sortKey) {
       setSortDirection((current) => (current === "desc" ? "asc" : "desc"));
@@ -174,6 +189,7 @@ export function PokemonBoardClient({
             ? row.divisionName.toLowerCase() === selectedDivision.toLowerCase()
             : true
         )
+        .filter((row) => activePointTotal === "all" || row.cost === activePointTotal)
         .filter((row) => {
           if (!normalizedQuery) return true;
           return (
@@ -202,10 +218,9 @@ export function PokemonBoardClient({
           const nameCompare = a.name.localeCompare(b.name);
           if (nameCompare !== 0) return nameCompare;
           return a.teamName.localeCompare(b.teamName);
-        })
-        .slice(0, 80);
+        });
     },
-    [query, rows, selectedDivision, sortDirection, sortKey, usedInstances]
+    [activePointTotal, query, rows, selectedDivision, sortDirection, sortKey, usedInstances]
   );
 
   const filteredUsedInstances = useMemo(() => {
@@ -229,6 +244,8 @@ export function PokemonBoardClient({
         return a.teamName.localeCompare(b.teamName);
       });
   }, [query, usedInstances]);
+
+  const visibleRows = filteredRows.slice(0, visibleRowCount);
 
   function renderSortHeader(label: string, value: SortKey) {
     const isActive = sortKey === value;
@@ -295,6 +312,39 @@ export function PokemonBoardClient({
             Previously Selected
           </button>
         </div>
+        <div
+          aria-label="Filter Pokemon by point total"
+          className="flex flex-wrap items-center gap-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-1"
+        >
+          <span className="px-2 py-1 text-[10px] font-bold uppercase text-[var(--foreground-subtle)]">
+            Point Total
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedPointTotal("all")}
+            className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${
+              activePointTotal === "all"
+                ? "bg-[var(--primary)] text-white"
+                : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+            }`}
+          >
+            All
+          </button>
+          {pointTotalOptions.map((pointTotal) => (
+            <button
+              key={pointTotal}
+              type="button"
+              onClick={() => setSelectedPointTotal(pointTotal)}
+              className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${
+                activePointTotal === pointTotal
+                  ? "bg-[var(--primary)] text-white"
+                  : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+              }`}
+            >
+              {pointTotal} pt
+            </button>
+          ))}
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto scrollbar-thin px-4 pb-4 sm:px-5 sm:pb-5">
         {selectedDivision === "__previously-selected" ? (
@@ -336,6 +386,7 @@ export function PokemonBoardClient({
             )}
           </div>
         ) : (
+        <>
         <table className="premium-table min-w-[900px]">
           <thead>
             <tr>
@@ -350,7 +401,7 @@ export function PokemonBoardClient({
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map((row) => {
+            {visibleRows.map((row) => {
               const trend = row.recentScore - row.previousScore;
               return (
                 <tr key={`${row.pokemonId}-${row.seasonCoachId}`}>
@@ -395,6 +446,21 @@ export function PokemonBoardClient({
             })}
           </tbody>
         </table>
+        {filteredRows.length > visibleRowCount && (
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--background-tertiary)] px-2 py-3">
+            <span className="text-xs text-[var(--foreground-muted)]">
+              Showing {visibleRows.length} of {filteredRows.length} Pokemon
+            </span>
+            <button
+              type="button"
+              onClick={() => setVisibleRowCount((count) => count + 40)}
+              className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-[10px] font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:text-white"
+            >
+              Show More
+            </button>
+          </div>
+        )}
+        </>
         )}
       </div>
     </>

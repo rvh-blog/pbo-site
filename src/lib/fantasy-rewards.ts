@@ -10,7 +10,7 @@ import {
 } from "@/lib/schema";
 
 const FANTASY_MIN_SEASON = 10;
-const FANTASY_WEEKLY_REWARD_TIERS = [100, 50, 25] as const;
+const FANTASY_WEEKLY_REWARD_TIERS = [250, 125, 75] as const;
 const FANTASY_REWARD_REASON = "Weekly fantasy placement";
 
 function fantasyPickKey(pick: { pokemonId: number; seasonCoachId: number | null }) {
@@ -32,15 +32,21 @@ function scorePokemonGame(mp: {
   return kills * 5 - deaths + teamResult;
 }
 
-async function addCoins(target: { coachId: number | null; userId: number | null }, amount: number) {
+type RewardDb = Pick<typeof db, "query" | "update" | "delete" | "insert">;
+
+async function addCoins(
+  database: RewardDb,
+  target: { coachId: number | null; userId: number | null },
+  amount: number
+) {
   if (target.coachId !== null) {
-    const coach = await db.query.coaches.findFirst({
+    const coach = await database.query.coaches.findFirst({
       where: eq(coaches.id, target.coachId),
       columns: { pboCoin: true },
     });
 
     if (coach) {
-      await db
+      await database
         .update(coaches)
         .set({ pboCoin: Math.max(0, coach.pboCoin + amount) })
         .where(eq(coaches.id, target.coachId));
@@ -48,13 +54,13 @@ async function addCoins(target: { coachId: number | null; userId: number | null 
   }
 
   if (target.userId !== null) {
-    const user = await db.query.users.findFirst({
+    const user = await database.query.users.findFirst({
       where: eq(users.id, target.userId),
       columns: { pboCoin: true },
     });
 
     if (user) {
-      await db
+      await database
         .update(users)
         .set({ pboCoin: Math.max(0, user.pboCoin + amount) })
         .where(eq(users.id, target.userId));
@@ -97,10 +103,13 @@ async function isFantasyWeekComplete(seasonId: number, week: number) {
   return weekMatches.length > 0 && weekMatches.every((match) => match.winnerId !== null || match.isForfeit);
 }
 
-async function reverseExistingRewards(existingRewards: Awaited<ReturnType<typeof getExistingRewards>>) {
+async function reverseExistingRewards(
+  database: RewardDb,
+  existingRewards: Awaited<ReturnType<typeof getExistingRewards>>
+) {
   for (const reward of existingRewards) {
-    await addCoins({ coachId: reward.coachId, userId: reward.userId }, -reward.amount);
-    await db.delete(fantasyRewards).where(eq(fantasyRewards.id, reward.id));
+    await addCoins(database, { coachId: reward.coachId, userId: reward.userId }, -reward.amount);
+    await database.delete(fantasyRewards).where(eq(fantasyRewards.id, reward.id));
   }
 }
 
@@ -164,36 +173,39 @@ export async function resolveFantasyWeeklyRewardForMatch(matchId: number) {
     return { awarded: [], reversed: [], skipped: "already-awarded" as const };
   }
 
-  await reverseExistingRewards(existingRewards);
+  const awarded = await db.transaction(async (tx) => {
+    await reverseExistingRewards(tx, existingRewards);
 
-  const awarded = [];
-  for (const [index, row] of placementRows.entries()) {
-    const entry = row.entry;
-    const amount = FANTASY_WEEKLY_REWARD_TIERS[index];
-    await addCoins({ coachId: entry.coachId, userId: entry.userId }, amount);
-    const [reward] = await db
-      .insert(fantasyRewards)
-      .values({
+    const rows = [];
+    for (const [index, row] of placementRows.entries()) {
+      const entry = row.entry;
+      const amount = FANTASY_WEEKLY_REWARD_TIERS[index];
+      await addCoins(tx, { coachId: entry.coachId, userId: entry.userId }, amount);
+      const [reward] = await tx
+        .insert(fantasyRewards)
+        .values({
+          entryId: entry.id,
+          seasonId: match.seasonId,
+          week: match.week,
+          coachId: entry.coachId,
+          userId: entry.userId,
+          amount,
+          reason: `${FANTASY_REWARD_REASON} #${index + 1} - Week ${match.week}`,
+          createdAt: new Date().toISOString(),
+        })
+        .returning();
+
+      rows.push({
         entryId: entry.id,
-        seasonId: match.seasonId,
-        week: match.week,
-        coachId: entry.coachId,
-        userId: entry.userId,
+        displayName: entry.displayName,
         amount,
-        reason: `${FANTASY_REWARD_REASON} #${index + 1} - Week ${match.week}`,
-        createdAt: new Date().toISOString(),
-      })
-      .returning();
-
-    awarded.push({
-      entryId: entry.id,
-      displayName: entry.displayName,
-      amount,
-      rank: index + 1,
-      totalScore: row.totalScore,
-      rewardId: reward.id,
-    });
-  }
+        rank: index + 1,
+        totalScore: row.totalScore,
+        rewardId: reward.id,
+      });
+    }
+    return rows;
+  });
 
   return {
     awarded,

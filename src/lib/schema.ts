@@ -740,6 +740,39 @@ export const fantasyRewards = sqliteTable("fantasy_rewards", {
   index("idx_fantasy_rewards_user_id").on(table.userId),
 ]);
 
+// Fantasy Weekly Stats - persisted per-team Pokemon scoring aggregates
+export const fantasyWeeklyStats = sqliteTable("fantasy_weekly_stats", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  week: integer("week").notNull(),
+  pokemonId: integer("pokemon_id")
+    .notNull()
+    .references(() => pokemon.id),
+  seasonCoachId: integer("season_coach_id")
+    .notNull()
+    .references(() => seasonCoaches.id),
+  score: integer("score").notNull().default(0),
+  games: integer("games").notNull().default(0),
+  kills: integer("kills").notNull().default(0),
+  deaths: integer("deaths").notNull().default(0),
+  wins: integer("wins").notNull().default(0),
+  losses: integer("losses").notNull().default(0),
+  damage: integer("damage").notNull().default(0),
+  indirectDamage: integer("indirect_damage").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_fantasy_weekly_stats_instance").on(
+    table.seasonId,
+    table.week,
+    table.pokemonId,
+    table.seasonCoachId
+  ),
+  index("idx_fantasy_weekly_stats_season_week").on(table.seasonId, table.week),
+  index("idx_fantasy_weekly_stats_season_coach").on(table.seasonId, table.seasonCoachId),
+]);
+
 // Pick-Em Rewards - tracks awarded coins for pick-em performance
 export const pickEmRewards = sqliteTable("pick_em_rewards", {
   id: integer("id").primaryKey({ autoIncrement: true }),

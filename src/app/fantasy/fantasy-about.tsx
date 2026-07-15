@@ -87,7 +87,7 @@ export function FantasyAbout() {
         </div>
         <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
           <h4 className="mb-2 font-bold uppercase text-white">Weekly PBO Coin</h4>
-          <p>Each completed fantasy week awards 100 PBO Coin to the top roster, 50 to second place, and 25 to third place.</p>
+          <p>Each completed fantasy week awards 250 PBO Coin to the top roster, 125 to second place, and 75 to third place.</p>
         </div>
       </div>
     </div>

@@ -4,6 +4,32 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 15, 2026
+
+Fantasy and performance:
+
+- Fantasy Pokémon Board filters now support exact point totals, so users can show only Pokémon at a selected cost.
+- Large Fantasy Pokémon lists render progressively, with a Show More control instead of loading every row at once.
+- Public Fantasy data is cached briefly and repeated weekly Pokémon statistics are precomputed for faster page loads.
+- Fantasy entry selection is lazy-loaded, and reward settlement uses one database transaction so coin balances and reward records cannot partially update.
+- Match and Fantasy writes refresh the affected precomputed weekly statistics.
+
+Fantasy rewards:
+
+- Weekly Fantasy rewards are now 250 PBO coins for first place, 125 for second place, and 75 for third place.
+
+Replay and sheet sync:
+
+- Replay roster matching now accepts normalized database and Showdown spellings, including Urshifu Single Strike variants.
+- Unmatched replay Pokémon are logged instead of being silently omitted from recorded match statistics.
+- The Infinity Grass Graspers vs Stockholm Staraptors discrepancy was traced to the missing Urshifu-Single-Strike `1 K / 1 D` row; the stored website match remains correctly recorded as 2–0.
+
+Verification:
+
+- `npx tsc --noEmit` passes.
+- Targeted ESLint passes with pre-existing warnings only.
+- `npm run build` passes.
+
 ## July 14, 2026
 
 Performance and rendering:
@@ -510,7 +536,7 @@ Blog:
 Fantasy rewards:
 
 - Weekly fantasy rewards are tracked in `fantasy_rewards`.
-- Current weekly reward tiers are 100, 50, and 25 PBO Coin.
+- Current weekly reward tiers are 250, 125, and 75 PBO Coin.
 
 Pokemon and coach stats:
 

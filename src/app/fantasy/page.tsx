@@ -1,8 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
+import nextDynamic from "next/dynamic";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import {
   matches,
+  rosters,
   seasonCoaches,
   seasonPokemonPrices,
   seasons,
@@ -10,14 +13,22 @@ import {
 } from "@/lib/schema";
 import { getTimeSyncedRoster, type TimeSyncTransaction } from "@/lib/roster-utils";
 import { MatchedHeightGrid } from "@/components/matched-height-grid";
-import { desc, eq } from "drizzle-orm";
-import { FantasyEntryClient, type FantasyPokemonOption } from "./fantasy-entry-client";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import type { FantasyPokemonOption } from "./fantasy-entry-client";
 import { PokemonBoardClient, type PokemonBoardRow } from "./pokemon-board-client";
 import { ScheduleBoardClient, type FantasyScheduleRow } from "./schedule-board-client";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
 import { getSession } from "@/lib/session";
 import { formatPokemonDisplayName, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
 import { FantasyAbout } from "./fantasy-about";
+import { getFantasyWeeklyStatsForWeeks } from "@/lib/fantasy-stats";
+
+const FantasyEntryClient = nextDynamic(
+  () => import("./fantasy-entry-client").then((module) => module.FantasyEntryClient),
+  {
+    loading: () => <div className="poke-card min-h-24 animate-pulse" />,
+  }
+);
 
 export const dynamic = "force-dynamic";
 
@@ -167,21 +178,6 @@ function getDivisionStats(
   return created;
 }
 
-function scorePokemonGame(mp: {
-  kills: number | null;
-  deaths: number | null;
-  seasonCoachId: number;
-  match: {
-    winnerId: number | null;
-  };
-}) {
-  const kills = mp.kills ?? 0;
-  const deaths = mp.deaths ?? 0;
-  const teamResult = mp.match.winnerId === mp.seasonCoachId ? 2 : -2;
-
-  return kills * 5 - deaths + teamResult;
-}
-
 function formatScore(value: number) {
   return value.toFixed(1);
 }
@@ -233,15 +229,7 @@ async function getFantasyData(
   seasonNumber: number,
   requestedWeek: number | null
 ) {
-  const [
-    session,
-    seasonMatches,
-    activeTeams,
-    rosterRows,
-    priceRows,
-    seasonTransactions,
-  ] = await Promise.all([
-    getSession(),
+  const [seasonMatches, activeTeams, priceRows, seasonTransactions] = await Promise.all([
     db.query.matches.findMany({
       where: eq(matches.seasonId, seasonId),
       with: {
@@ -255,16 +243,6 @@ async function getFantasyData(
       with: {
         coach: true,
         division: true,
-      },
-    }),
-    db.query.rosters.findMany({
-      with: {
-        pokemon: true,
-        seasonCoach: {
-          with: {
-            division: true,
-          },
-        },
       },
     }),
     db.query.seasonPokemonPrices.findMany({
@@ -290,8 +268,21 @@ async function getFantasyData(
   const seasonTeamIds = new Set(
     activeTeams
       .filter((team) => team.division?.seasonId === seasonId)
-      .map((team) => team.id)
+    .map((team) => team.id)
   );
+  const rosterRows = seasonTeamIds.size
+    ? await db.query.rosters.findMany({
+        where: inArray(rosters.seasonCoachId, [...seasonTeamIds]),
+        with: {
+          pokemon: true,
+          seasonCoach: {
+            with: {
+              division: true,
+            },
+          },
+        },
+      })
+    : [];
   const seasonDivisionNames = [
     ...new Set(
       activeTeams
@@ -300,16 +291,6 @@ async function getFantasyData(
       .filter(Boolean)
     ),
   ];
-  const defaultScheduleDivisionName =
-    session?.type === "coach"
-      ? activeTeams.find(
-          (team) =>
-            team.coachId === session.id &&
-            team.division?.seasonId === seasonId &&
-            team.division?.name
-        )?.division?.name ?? null
-      : null;
-  const matchIds = new Set(seasonMatches.map((match) => match.id));
   const regularSeasonMatches = seasonMatches.filter(
     (match) => match.week > 0 && match.week < 100
   );
@@ -332,22 +313,6 @@ async function getFantasyData(
     .filter((week) => week < latestScoutingCompletedWeek)
     .sort((a, b) => b - a)[0] ?? 0;
 
-  const allMatchPokemon = matchIds.size
-    ? await db.query.matchPokemon.findMany({
-        with: {
-          pokemon: true,
-          match: true,
-          seasonCoach: {
-            with: {
-              coach: true,
-              division: true,
-            },
-          },
-        },
-      })
-    : [];
-
-  const seasonMatchPokemon = allMatchPokemon.filter((mp) => matchIds.has(mp.matchId));
   const priceByPokemon = new Map<number, number | null>();
   for (const row of priceRows) {
     priceByPokemon.set(row.pokemonId, row.price >= 0 ? row.price : null);
@@ -445,49 +410,45 @@ async function getFantasyData(
     })
   );
 
-  for (const mp of seasonMatchPokemon) {
-    if (!mp.pokemon || !mp.match || !seasonTeamIds.has(mp.seasonCoachId)) continue;
-    if (!rosteredInstanceKeys.has(`${mp.pokemonId}:${mp.seasonCoachId}`)) continue;
+  const scoringWeeks = completedMatches
+    .filter((match) => match.week < targetWeek)
+    .map((match) => match.week);
+  const weeklyStats = await getFantasyWeeklyStatsForWeeks(seasonId, scoringWeeks);
+  for (const [week, stats] of weeklyStats) {
+    for (const stat of stats) {
+      if (!seasonTeamIds.has(stat.seasonCoachId)) continue;
+      if (!rosteredInstanceKeys.has(`${stat.pokemonId}:${stat.seasonCoachId}`)) continue;
 
-    const row = pokemonMap.get(mp.pokemonId) ??
-      createFantasyRow(mp.pokemonId, mp.pokemon, priceByPokemon.get(mp.pokemonId) ?? null, seasonNumber);
+      const row = pokemonMap.get(stat.pokemonId);
+      const team = teamMap.get(stat.seasonCoachId);
+      if (!row || !team) continue;
 
-    const score = scorePokemonGame(mp);
-    row.games += 1;
-    row.kills += mp.kills ?? 0;
-    row.deaths += mp.deaths ?? 0;
-    row.damage += mp.damageDealt ?? 0;
-    row.indirectDamage += mp.damageDealtIndirect ?? 0;
-    row.healing += mp.hpRestored ?? 0;
-    row.totalScore += score;
-    if (mp.match.week === latestCompletedWeek) row.recentScore += score;
-    if (mp.match.week === previousCompletedWeek) row.previousScore += score;
-    const divisionName = normalizeDivisionName(mp.seasonCoach?.division?.name);
-    const team = teamMap.get(mp.seasonCoachId);
-    if (divisionName && team && mp.match.winnerId && mp.match.week < targetWeek) {
-      const divisionStats = getDivisionStats(row, divisionName, mp.seasonCoachId, team.teamName);
-      divisionStats.score += score;
-      if (mp.match.week === latestScoutingCompletedWeek) divisionStats.recentScore += score;
-      if (mp.match.week === previousCompletedWeek) divisionStats.previousScore += score;
-      divisionStats.games += 1;
-      divisionStats.kills += mp.kills ?? 0;
-      divisionStats.deaths += mp.deaths ?? 0;
-      if (mp.match.winnerId === mp.seasonCoachId) {
-        divisionStats.wins += 1;
-      } else {
-        divisionStats.losses += 1;
-      }
-      divisionStats.damage += mp.damageDealt ?? 0;
-      divisionStats.indirectDamage += mp.damageDealtIndirect ?? 0;
-    }
-    pokemonMap.set(mp.pokemonId, row);
+      row.games += stat.games;
+      row.kills += stat.kills;
+      row.deaths += stat.deaths;
+      row.damage += stat.damage;
+      row.indirectDamage += stat.indirectDamage;
+      row.totalScore += stat.score;
+      if (week === latestCompletedWeek) row.recentScore += stat.score;
+      if (week === previousCompletedWeek) row.previousScore += stat.score;
 
-    if (team) {
-      team.totalScore += score;
-      if (mp.match.week === latestCompletedWeek) team.recentScore += score;
-      team.games += 1;
-      team.kills += mp.kills ?? 0;
-      team.deaths += mp.deaths ?? 0;
+      const divisionStats = getDivisionStats(row, team.divisionName, stat.seasonCoachId, team.teamName);
+      divisionStats.score += stat.score;
+      if (week === latestScoutingCompletedWeek) divisionStats.recentScore += stat.score;
+      if (week === previousCompletedWeek) divisionStats.previousScore += stat.score;
+      divisionStats.games += stat.games;
+      divisionStats.kills += stat.kills;
+      divisionStats.deaths += stat.deaths;
+      divisionStats.wins += stat.wins;
+      divisionStats.losses += stat.losses;
+      divisionStats.damage += stat.damage;
+      divisionStats.indirectDamage += stat.indirectDamage;
+
+      team.totalScore += stat.score;
+      if (week === latestCompletedWeek) team.recentScore += stat.score;
+      team.games += stat.games;
+      team.kills += stat.kills;
+      team.deaths += stat.deaths;
     }
   }
 
@@ -554,7 +515,7 @@ async function getFantasyData(
   return {
     totalTeams: teamMap.size,
     divisionNames: seasonDivisionNames,
-    defaultScheduleDivisionName,
+    defaultScheduleDivisionName: null,
     targetWeek,
     scoringThroughWeek,
     latestCompletedWeek,
@@ -571,6 +532,28 @@ async function getFantasyData(
     upcomingMatches,
     recentResults,
   };
+}
+
+const getCachedFantasyData = unstable_cache(
+  async (seasonId: number, seasonNumber: number, requestedWeek: number | null) =>
+    getFantasyData(seasonId, seasonNumber, requestedWeek),
+  ["fantasy-public-data-v1"],
+  { revalidate: 60 }
+);
+
+async function getDefaultScheduleDivisionName(seasonId: number) {
+  const session = await getSession();
+  if (session?.type !== "coach") return null;
+
+  const team = await db.query.seasonCoaches.findFirst({
+    where: and(
+      eq(seasonCoaches.coachId, session.id),
+      eq(seasonCoaches.isActive, true)
+    ),
+    with: { division: true },
+  });
+
+  return team?.division?.seasonId === seasonId ? team.division.name : null;
 }
 
 function PokemonAvatar({ row, size = 40 }: { row: PokemonFantasyRow; size?: number }) {
@@ -623,7 +606,10 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
   }
 
   const requestedWeek = getRequestedWeek(params);
-  const data = await getFantasyData(selected.id, selected.seasonNumber, requestedWeek);
+  const [data, defaultScheduleDivisionName] = await Promise.all([
+    getCachedFantasyData(selected.id, selected.seasonNumber, requestedWeek),
+    getDefaultScheduleDivisionName(selected.id),
+  ]);
   const pokemonBoardRows: PokemonBoardRow[] = data.pokemonRows
     .flatMap((row) =>
       [...row.divisionStats.values()].map((stats) => ({
@@ -890,8 +876,8 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
           </div>
         </div>
 
-        <ScheduleBoardClient
-          defaultDivisionName={data.defaultScheduleDivisionName}
+          <ScheduleBoardClient
+          defaultDivisionName={defaultScheduleDivisionName}
           divisionNames={data.divisionNames}
           matches={scheduleRows}
         />

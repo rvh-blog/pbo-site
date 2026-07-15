@@ -78,9 +78,9 @@ Weekly fantasy rewards are tracked in `fantasy_rewards` and paid in PBO Coin aft
 
 Reward tiers:
 
-- 1st: 100 PBO Coin
-- 2nd: 50 PBO Coin
-- 3rd: 25 PBO Coin
+- 1st: 250 PBO Coin
+- 2nd: 125 PBO Coin
+- 3rd: 75 PBO Coin
 
 Reward resolution reverses existing rewards for the week before recalculating when needed. The reward code applies to Season 10 and later.
 
