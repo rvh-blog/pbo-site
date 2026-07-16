@@ -52,3 +52,30 @@ export function getRosterBattleState(
   }
   return null;
 }
+
+/**
+ * Count alive drafted slots from the normalized roster view.
+ *
+ * Showdown can emit separate base-form and evolved-form state entries for one
+ * drafted Pokemon. Counting the raw state map would count those entries twice;
+ * the roster is the authoritative set of unique drafted slots.
+ */
+export function countAliveRosterSlots(
+  roster: RosterPokemon[],
+  stateMap: Map<string, PokemonBattleState>,
+  aliasMaps?: SerializedPokemonAliasMaps | null
+) {
+  const broughtRoster = roster.filter((rosterPokemon) => {
+    return getRosterBattleState(rosterPokemon, stateMap, aliasMaps)?.brought;
+  });
+
+  if (broughtRoster.length > 0) {
+    return broughtRoster.filter((rosterPokemon) => {
+      const state = getRosterBattleState(rosterPokemon, stateMap, aliasMaps);
+      return !state?.fainted;
+    }).length;
+  }
+
+  // During the initial connection the roster may not have matched yet.
+  return [...stateMap.values()].filter((state) => state.brought && !state.fainted).length || 6;
+}

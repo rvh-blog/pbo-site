@@ -7,7 +7,7 @@ import {
   type RosterPokemon,
   type PokemonBattleState,
 } from "@/hooks/use-showdown-battle";
-import { getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
+import { countAliveRosterSlots, getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
 import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene, type BattleSceneHandle, type ChatLogEntry } from "./battle-scene";
@@ -393,33 +393,8 @@ export function OverlayV1Client({ data, battleUrl, context }: Props) {
   const leftPokemon = battle.p1Pokemon;
   const rightPokemon = battle.p2Pokemon;
 
-  // Count unique drafted roster slots rather than raw battle-state entries.
-  // Showdown can emit a base-form team-preview entry and a second entry for
-  // the evolved form (for example, Meganium -> Meganium-Mega). Both entries
-  // are marked as brought, but they represent one drafted Pokemon and should
-  // only produce one sidebar card and one alive count.
-  const countAliveRosterSlots = (
-    team: TeamData,
-    stateMap: Map<string, PokemonBattleState>
-  ) => {
-    const broughtRoster = team.roster.filter((rosterPokemon) => {
-      return getRosterBattleState(rosterPokemon, stateMap, data.pokemonNameAliases)?.brought;
-    });
-
-    if (broughtRoster.length > 0) {
-      return broughtRoster.filter((rosterPokemon) => {
-        const state = getRosterBattleState(rosterPokemon, stateMap, data.pokemonNameAliases);
-        return !state?.fainted;
-      }).length;
-    }
-
-    // During the initial connection the roster may not have matched yet.
-    // Preserve the previous fallback until normalized roster state is ready.
-    return [...stateMap.values()].filter((state) => state.brought && !state.fainted).length || 6;
-  };
-
-  const leftAlive = countAliveRosterSlots(leftTeam, leftPokemon);
-  const rightAlive = countAliveRosterSlots(rightTeam, rightPokemon);
+  const leftAlive = countAliveRosterSlots(leftTeam.roster, leftPokemon, data.pokemonNameAliases);
+  const rightAlive = countAliveRosterSlots(rightTeam.roster, rightPokemon, data.pokemonNameAliases);
   const leftAvatar = battle.p1Avatar;
   const rightAvatar = battle.p2Avatar;
 
