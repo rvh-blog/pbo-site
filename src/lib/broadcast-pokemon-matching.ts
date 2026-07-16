@@ -6,6 +6,21 @@ import {
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { normalizePokemonName } from "@/lib/pokemon-name-utils";
 
+const URSHIFU_FORM_KEYS = new Set([
+  "urshifusinglestrike",
+  "urshifusinglestrikegmax",
+  "urshifurapidstrike",
+  "urshifurapidstrikegmax",
+]);
+
+function matchesUrshifuBaseAndForm(leftKeys: Set<string>, rightKeys: Set<string>) {
+  const leftIsBase = leftKeys.has("urshifu");
+  const rightIsBase = rightKeys.has("urshifu");
+  const leftIsForm = [...leftKeys].some((key) => URSHIFU_FORM_KEYS.has(key));
+  const rightIsForm = [...rightKeys].some((key) => URSHIFU_FORM_KEYS.has(key));
+  return (leftIsBase && rightIsForm) || (rightIsBase && leftIsForm);
+}
+
 export function rosterPokemonMatchesKeys(
   pokemon: RosterPokemon,
   keys: Set<string>,
@@ -18,7 +33,7 @@ export function rosterPokemonMatchesKeys(
   for (const key of keys) {
     if (rosterKeys.has(key)) return true;
   }
-  return false;
+  return matchesUrshifuBaseAndForm(rosterKeys, keys);
 }
 
 export function rosterPokemonMatchesName(
