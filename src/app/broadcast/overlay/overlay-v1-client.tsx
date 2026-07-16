@@ -7,7 +7,7 @@ import {
   type RosterPokemon,
   type PokemonBattleState,
 } from "@/hooks/use-showdown-battle";
-import { getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
+import { countAliveRosterSlots, getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
 import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene, type BattleSceneHandle, type ChatLogEntry } from "./battle-scene";
@@ -392,10 +392,9 @@ export function OverlayV1Client({ data, battleUrl, context }: Props) {
   const rightTeam = p1IsTeam1 ? data.team2 : data.team1;
   const leftPokemon = battle.p1Pokemon;
   const rightPokemon = battle.p2Pokemon;
-  const leftBrought = [...battle.p1Pokemon.values()].filter((p) => p.brought);
-  const rightBrought = [...battle.p2Pokemon.values()].filter((p) => p.brought);
-  const leftAlive = leftBrought.length > 0 ? leftBrought.filter((p) => !p.fainted).length : battle.p1Pokemon.size || 6;
-  const rightAlive = rightBrought.length > 0 ? rightBrought.filter((p) => !p.fainted).length : battle.p2Pokemon.size || 6;
+
+  const leftAlive = countAliveRosterSlots(leftTeam.roster, leftPokemon, data.pokemonNameAliases);
+  const rightAlive = countAliveRosterSlots(rightTeam.roster, rightPokemon, data.pokemonNameAliases);
   const leftAvatar = battle.p1Avatar;
   const rightAvatar = battle.p2Avatar;
 
