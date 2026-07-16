@@ -534,9 +534,77 @@ async function getFantasyData(
   };
 }
 
+type FantasyData = Awaited<ReturnType<typeof getFantasyData>>;
+type SerializedPokemonFantasyRow = Omit<
+  PokemonFantasyRow,
+  "rosteredTeams" | "teamNames" | "divisionNames" | "divisionStats"
+> & {
+  rosteredTeams: number[];
+  teamNames: string[];
+  divisionNames: string[];
+  divisionStats: PokemonDivisionFantasyStats[];
+};
+type SerializedFantasyData = Omit<FantasyData, "pokemonRows" | "valueRows" | "starterSix"> & {
+  pokemonRows: SerializedPokemonFantasyRow[];
+  valueRows: SerializedPokemonFantasyRow[];
+  starterSix: {
+    picks: SerializedPokemonFantasyRow[];
+    cost: number;
+  };
+};
+
+function serializePokemonFantasyRow(row: PokemonFantasyRow): SerializedPokemonFantasyRow {
+  return {
+    ...row,
+    rosteredTeams: [...row.rosteredTeams],
+    teamNames: [...row.teamNames],
+    divisionNames: [...row.divisionNames],
+    divisionStats: [...row.divisionStats.values()],
+  };
+}
+
+function serializeFantasyData(data: FantasyData): SerializedFantasyData {
+  return {
+    ...data,
+    pokemonRows: data.pokemonRows.map(serializePokemonFantasyRow),
+    valueRows: data.valueRows.map(serializePokemonFantasyRow),
+    starterSix: {
+      picks: data.starterSix.picks.map(serializePokemonFantasyRow),
+      cost: data.starterSix.cost,
+    },
+  };
+}
+
+function hydratePokemonFantasyRow(row: SerializedPokemonFantasyRow): PokemonFantasyRow {
+  return {
+    ...row,
+    rosteredTeams: new Set(row.rosteredTeams),
+    teamNames: new Set(row.teamNames),
+    divisionNames: new Set(row.divisionNames),
+    divisionStats: new Map(
+      row.divisionStats.map((stats) => [
+        `${normalizeDivisionName(stats.divisionName)}:${stats.seasonCoachId}`,
+        stats,
+      ])
+    ),
+  };
+}
+
+function hydrateFantasyData(data: SerializedFantasyData): FantasyData {
+  return {
+    ...data,
+    pokemonRows: data.pokemonRows.map(hydratePokemonFantasyRow),
+    valueRows: data.valueRows.map(hydratePokemonFantasyRow),
+    starterSix: {
+      picks: data.starterSix.picks.map(hydratePokemonFantasyRow),
+      cost: data.starterSix.cost,
+    },
+  };
+}
+
 const getCachedFantasyData = unstable_cache(
   async (seasonId: number, seasonNumber: number, requestedWeek: number | null) =>
-    getFantasyData(seasonId, seasonNumber, requestedWeek),
+    serializeFantasyData(await getFantasyData(seasonId, seasonNumber, requestedWeek)),
   ["fantasy-public-data-v1"],
   { revalidate: 60 }
 );
@@ -606,10 +674,11 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
   }
 
   const requestedWeek = getRequestedWeek(params);
-  const [data, defaultScheduleDivisionName] = await Promise.all([
+  const [serializedData, defaultScheduleDivisionName] = await Promise.all([
     getCachedFantasyData(selected.id, selected.seasonNumber, requestedWeek),
     getDefaultScheduleDivisionName(selected.id),
   ]);
+  const data = hydrateFantasyData(serializedData);
   const pokemonBoardRows: PokemonBoardRow[] = data.pokemonRows
     .flatMap((row) =>
       [...row.divisionStats.values()].map((stats) => ({

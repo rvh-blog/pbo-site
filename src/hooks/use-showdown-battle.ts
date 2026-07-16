@@ -5,6 +5,7 @@ import { parseMessages, type BattleEvent } from "@/lib/battle-event-parser";
 import type { BattleSceneHandle } from "@/app/broadcast/overlay/battle-scene";
 import { serializedPokemonAliasLookupKeys } from "@/lib/pokemon-name-client";
 import { rosterPokemonMatchesKeys } from "@/lib/broadcast-pokemon-matching";
+import { normalizePokemonName } from "@/lib/pokemon-name-utils";
 import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 
@@ -207,6 +208,60 @@ function createPokemonState(species: string, nickname: string, battleForm?: stri
     terastallized: false,
     teraType: null,
   };
+}
+
+function getMegaBaseSpecies(species: string): string | null {
+  const match = species.match(/^(.*)-Mega(?:-[A-Z])?$/i);
+  return match?.[1] || null;
+}
+
+/**
+ * Showdown's team preview reports a Mega as its base species, then reports the
+ * Mega species when it enters the field. Keep both events on one state entry
+ * so kills and battle history remain attached to the roster's Mega slot.
+ */
+function promoteStateToBattleForm(
+  pokeMap: Map<string, PokemonBattleState>,
+  species: string,
+  nickname: string,
+  battleForm?: string,
+  hp?: number,
+  maxHp?: number,
+): PokemonBattleState | null {
+  const existingFormState = pokeMap.get(species);
+  const baseSpecies = getMegaBaseSpecies(species);
+  const baseState = baseSpecies ? pokeMap.get(baseSpecies) : undefined;
+
+  if (!existingFormState && !baseState) return null;
+
+  if (baseState && baseSpecies && baseSpecies !== species) {
+    const merged = existingFormState
+      ? {
+          ...baseState,
+          ...existingFormState,
+          kills: baseState.kills + existingFormState.kills,
+          movesUsed: [...new Set([...baseState.movesUsed, ...existingFormState.movesUsed])],
+          species,
+        }
+      : {
+          ...baseState,
+          species,
+        };
+
+    pokeMap.delete(baseSpecies);
+    pokeMap.set(species, merged);
+  }
+
+  const state = pokeMap.get(species);
+  if (!state) return null;
+
+  state.nickname = nickname;
+  state.battleForm = battleForm || species;
+  if (hp !== undefined) state.hp = hp;
+  if (maxHp !== undefined) state.maxHp = maxHp;
+  state.active = true;
+  state.brought = true;
+  return state;
 }
 
 /** Get or create a Pokemon state entry, looking up by nickname */
@@ -498,7 +553,11 @@ export function useShowdownBattle(
             case "switch":
             case "drag": {
               if (!event.player || !event.nickname || !event.species) break;
-              const species = event.species;
+              // Some replay formats report the base species in the switch
+              // details and only expose the active Mega in battleForm.
+              const species = event.battleForm && getMegaBaseSpecies(normalizePokemonName(event.battleForm))
+                ? normalizePokemonName(event.battleForm)
+                : event.species;
               nickMap.set(event.nickname, species);
 
               const snapshotMap = switchStateSnapshotRef.current[event.player];
@@ -516,7 +575,16 @@ export function useShowdownBattle(
               // Clear active flag on all Pokemon for this player
               for (const [, ps] of pokeMap) ps.active = false;
 
-              if (!pokeMap.has(species)) {
+              const promotedState = promoteStateToBattleForm(
+                pokeMap,
+                species,
+                event.nickname,
+                event.battleForm,
+                event.hp,
+                event.maxHp,
+              );
+
+              if (!promotedState && !pokeMap.has(species)) {
                 pokeMap.set(species, createPokemonState(species, event.nickname, event.battleForm, event.level));
               }
               const ps = pokeMap.get(species)!;
@@ -1122,7 +1190,15 @@ export function useShowdownBattle(
             case "formechange":
             case "detailschange": {
               if (!event.player || !event.nickname || !event.battleForm) break;
-              const fcPs = getByNickname(pokeMap, nickMap, event.nickname);
+              const formSpecies = normalizePokemonName(event.battleForm);
+              const promotedState = promoteStateToBattleForm(
+                pokeMap,
+                formSpecies,
+                event.nickname,
+                event.battleForm,
+              );
+              if (promotedState) nickMap.set(event.nickname, formSpecies);
+              const fcPs = promotedState || getByNickname(pokeMap, nickMap, event.nickname);
               if (fcPs) {
                 fcPs.battleForm = event.battleForm;
               }
