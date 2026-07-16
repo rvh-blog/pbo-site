@@ -392,10 +392,34 @@ export function OverlayV1Client({ data, battleUrl, context }: Props) {
   const rightTeam = p1IsTeam1 ? data.team2 : data.team1;
   const leftPokemon = battle.p1Pokemon;
   const rightPokemon = battle.p2Pokemon;
-  const leftBrought = [...battle.p1Pokemon.values()].filter((p) => p.brought);
-  const rightBrought = [...battle.p2Pokemon.values()].filter((p) => p.brought);
-  const leftAlive = leftBrought.length > 0 ? leftBrought.filter((p) => !p.fainted).length : battle.p1Pokemon.size || 6;
-  const rightAlive = rightBrought.length > 0 ? rightBrought.filter((p) => !p.fainted).length : battle.p2Pokemon.size || 6;
+
+  // Count unique drafted roster slots rather than raw battle-state entries.
+  // Showdown can emit a base-form team-preview entry and a second entry for
+  // the evolved form (for example, Meganium -> Meganium-Mega). Both entries
+  // are marked as brought, but they represent one drafted Pokemon and should
+  // only produce one sidebar card and one alive count.
+  const countAliveRosterSlots = (
+    team: TeamData,
+    stateMap: Map<string, PokemonBattleState>
+  ) => {
+    const broughtRoster = team.roster.filter((rosterPokemon) => {
+      return getRosterBattleState(rosterPokemon, stateMap, data.pokemonNameAliases)?.brought;
+    });
+
+    if (broughtRoster.length > 0) {
+      return broughtRoster.filter((rosterPokemon) => {
+        const state = getRosterBattleState(rosterPokemon, stateMap, data.pokemonNameAliases);
+        return !state?.fainted;
+      }).length;
+    }
+
+    // During the initial connection the roster may not have matched yet.
+    // Preserve the previous fallback until normalized roster state is ready.
+    return [...stateMap.values()].filter((state) => state.brought && !state.fainted).length || 6;
+  };
+
+  const leftAlive = countAliveRosterSlots(leftTeam, leftPokemon);
+  const rightAlive = countAliveRosterSlots(rightTeam, rightPokemon);
   const leftAvatar = battle.p1Avatar;
   const rightAvatar = battle.p2Avatar;
 
