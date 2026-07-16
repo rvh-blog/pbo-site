@@ -73,7 +73,7 @@ function pokeApiNameToShowdownName(apiName: string): string {
     "oinkologne-female": "Oinkologne-F",
 
     // Urshifu
-    "urshifu-single-strike": "Urshifu",
+    "urshifu-single-strike": "Urshifu-Single-Strike",
     "urshifu-rapid-strike": "Urshifu-Rapid-Strike",
 
     // Toxtricity

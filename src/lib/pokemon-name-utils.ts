@@ -89,8 +89,10 @@ function megaPokemonNameAliases(name: string): string[] {
 }
 
 const HARDCODED_NAME_ALIAS_INPUTS: { alias: string; canonical: string }[] = [
-  { alias: "Urshifu", canonical: "Urshifu" },
-  { alias: "Urshifu-Gmax", canonical: "Urshifu" },
+  // PBO treats the unqualified Showdown Urshifu preview as Single-Strike.
+  // Rapid-Strike remains a separate explicit form and never uses this alias.
+  { alias: "Urshifu", canonical: "Urshifu-Single-Strike" },
+  { alias: "Urshifu-Gmax", canonical: "Urshifu-Single-Strike-Gmax" },
   { alias: "Urshifu Rapid", canonical: "Urshifu-Rapid-Strike" },
   { alias: "Urshifu Rapid Strike", canonical: "Urshifu-Rapid-Strike" },
   { alias: "Urshifu Rapid Strike Style", canonical: "Urshifu-Rapid-Strike" },
