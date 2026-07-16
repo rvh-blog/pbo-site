@@ -7,7 +7,7 @@ import {
   type RosterPokemon,
   type PokemonBattleState,
 } from "@/hooks/use-showdown-battle";
-import { countAliveRosterSlots, getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
+import { countAliveRosterSlots, getRosterBattleStateForTeam, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
 import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene, type BattleSceneHandle, type ChatLogEntry } from "./battle-scene";
@@ -98,10 +98,11 @@ interface MergedMon {
 
 function mergeMon(
   rp: RosterPokemon,
+  roster: RosterPokemon[],
   stateMap: Map<string, PokemonBattleState>,
   pokemonNameAliases?: SerializedPokemonAliasMaps | null
 ): MergedMon {
-  const s = getRosterBattleState(rp, stateMap, pokemonNameAliases);
+  const s = getRosterBattleStateForTeam(rp, roster, stateMap, pokemonNameAliases);
   return {
     name: s?.battleForm || rp.displayName || rp.name,
     sprite: s?.battleForm
@@ -403,7 +404,7 @@ export function OverlayV1Client({ data, battleUrl, context }: Props) {
     const brought: RosterPokemon[] = [];
     const unbrought: RosterPokemon[] = [];
     team.roster.forEach((p) => {
-      const state = getRosterBattleState(p, stateMap, data.pokemonNameAliases);
+      const state = getRosterBattleStateForTeam(p, team.roster, stateMap, data.pokemonNameAliases);
       if (state?.brought) brought.push(p);
       else unbrought.push(p);
     });
@@ -414,8 +415,8 @@ export function OverlayV1Client({ data, battleUrl, context }: Props) {
   const rightRoster = splitRoster(rightTeam, rightPokemon);
 
   // Merge brought pokemon with battle state
-  const leftMons = leftRoster.brought.map((rp) => mergeMon(rp, leftPokemon, data.pokemonNameAliases));
-  const rightMons = rightRoster.brought.map((rp) => mergeMon(rp, rightPokemon, data.pokemonNameAliases));
+  const leftMons = leftRoster.brought.map((rp) => mergeMon(rp, leftTeam.roster, leftPokemon, data.pokemonNameAliases));
+  const rightMons = rightRoster.brought.map((rp) => mergeMon(rp, rightTeam.roster, rightPokemon, data.pokemonNameAliases));
 
   // Do not render the full roster while team preview is still loading. Doing
   // so would show the same Pokemon as both a main card and a bench chip, and a

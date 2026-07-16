@@ -144,7 +144,8 @@ so one file stays responsible for name behavior.
 Be careful with competitive forms. Some visual or battle-state forms collapse to
 base species, but forms that PBO drafts separately must remain distinguishable.
 For example, `Urshifu-Single-Strike` and `Urshifu-Rapid-Strike` are separate DB
-Pokemon, while replay preview may initially show `Urshifu-*`.
+Pokemon. PBO treats an unqualified replay preview name `Urshifu` as
+`Urshifu-Single-Strike`; Rapid-Strike must be explicit.
 
 Regression checks before changing this area:
 
