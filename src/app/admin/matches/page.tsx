@@ -975,6 +975,8 @@ export default function AdminMatchesPage() {
       .replace(/incarnate$/, "incarnate");
 
     if (normalized.startsWith("keldeo")) normalized = "keldeo";
+    // PBO drafts base Silvally; Showdown exposes typed forms such as Silvally-Fairy.
+    if (normalized.startsWith("silvally")) normalized = "silvally";
     if (normalized.startsWith("greninja")) normalized = "greninja";
     if (normalized.startsWith("mimikyu")) normalized = "mimikyu";
     if (normalized.startsWith("palafin")) normalized = "palafin";

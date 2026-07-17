@@ -302,6 +302,8 @@ export function normalizePokemonName(name: string): string {
     "Thundurus-Incarnate",
   ]);
   const knownFormPrefixes = [
+    // PBO drafts base Silvally; Showdown exposes its held-memory type as a form.
+    "Silvally-",
     "Alcremie-",
     "Florges-",
     "Dudunsparce-",
@@ -340,6 +342,7 @@ export function normalizePokemonName(name: string): string {
   if (formMappings[normalized]) normalized = formMappings[normalized];
 
   if (normalized.startsWith("Alcremie-") && normalized !== "Alcremie-Gmax") normalized = "Alcremie";
+  if (normalized.startsWith("Silvally-")) normalized = "Silvally";
   if (normalized.startsWith("Florges-")) normalized = "Florges";
   if (normalized.startsWith("Dudunsparce-")) normalized = "Dudunsparce";
   if (normalized.startsWith("Keldeo-")) normalized = "Keldeo";

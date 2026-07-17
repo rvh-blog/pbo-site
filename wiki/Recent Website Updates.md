@@ -4,6 +4,28 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 17, 2026
+
+Replay and broadcast matching:
+
+- Showdown forms such as `Silvally-Fairy`, `Silvally-Bug`, and other `Silvally-*` names now normalize to the drafted base `Silvally` row during replay scraping and admin roster matching.
+- The shared normalization change propagates to both broadcast overlay variants, so typed Silvally forms match the roster and remain visible in overlay battle state.
+
+Homepage:
+
+- Infinity division badges in the Battle Log now use the pink Infinity accent (`#E2A3C7`) like the other division badges.
+- Infinity color lookup handles case differences and the defensive historical `Infinty` spelling.
+
+Maintenance:
+
+- The Move Usage index is now ensured during normal database startup.
+
+Verification:
+
+- `npx tsc --noEmit` passes.
+- Targeted ESLint passes for the changed files.
+- Silvally normalization checks pass for hyphenated, spaced, underscored, and base names.
+
 ## July 16, 2026
 
 Battle Record Move Usage:
