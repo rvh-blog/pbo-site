@@ -352,6 +352,9 @@ export async function POST(request: NextRequest) {
     const hpPercentMap: Map<string, number> = new Map();
     let currentTurn = 0;
     let lastMoveInfo: { player: "p1" | "p2"; nickname: string; moveName: string; turn: number } | null = null;
+    // Showdown emits a miss when a Pokemon attacks a Phantom Force user during
+    // the user's semi-invulnerable turn. That is not an accuracy/luck event.
+    let phantomForceSemiInvulnerable: PlayerRef | null = null;
     const switchedInThisTurn: Set<string> = new Set();
     const switchedInThisBattleTurn: Set<string> = new Set();
     const movedThisTurn: Set<string> = new Set();
@@ -717,6 +720,7 @@ export async function POST(request: NextRequest) {
               });
             }
             currentTurn = turnNum;
+            phantomForceSemiInvulnerable = null;
             faintedPlayersThisTurn.clear();
             switchedInThisBattleTurn.clear();
             movedThisTurn.clear();
@@ -736,6 +740,14 @@ export async function POST(request: NextRequest) {
 
             const pokemon = getPokemonByRef(parsed);
             const normalizedMoveName = moveName.trim().replace(/\s+/g, " ");
+
+            if (
+              normalizedMoveName.toLowerCase() === "phantom force" &&
+              (parts[4] === "" || parts[5] === "[still]")
+            ) {
+              phantomForceSemiInvulnerable = parsed;
+            }
+
             if (pokemon && normalizedMoveName && normalizedMoveName.toLowerCase() !== "unknown move") {
               pokemon.movesUsed[normalizedMoveName] = (pokemon.movesUsed[normalizedMoveName] || 0) + 1;
             }
@@ -767,6 +779,16 @@ export async function POST(request: NextRequest) {
         case "-miss": {
           const attacker = extractNicknameOwner(parts[2]);
           const target = extractNicknameOwner(parts[3] || "");
+
+          if (
+            target &&
+            phantomForceSemiInvulnerable &&
+            target.player === phantomForceSemiInvulnerable.player &&
+            target.nickname === phantomForceSemiInvulnerable.nickname
+          ) {
+            break;
+          }
+
           incrementFavorableEvent(target || (attacker ? getOpponentActiveRef(attacker.player) : null), "favorableMisses");
           break;
         }
