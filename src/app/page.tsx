@@ -1402,12 +1402,18 @@ export default async function Home() {
             {/* Battle Log Items */}
             {recentBattles.length > 0 ? (
               <div className="space-y-3">
-                {recentBattles.map((battle) => (
-                  <Link
-                    key={battle.id}
-                    href={`/matches/${battle.matchId}`}
-                    className="block"
-                  >
+                {recentBattles.map((battle) => {
+                  const divisionColorKey = normalizeDivisionName(battle.divisionName || "") === "infinity"
+                    ? "Infinity"
+                    : battle.divisionName || "";
+                  const divisionColor = DIVISION_COLORS[divisionColorKey];
+
+                  return (
+                    <Link
+                      key={battle.id}
+                      href={`/matches/${battle.matchId}`}
+                      className="block"
+                    >
                     <div className="battle-log-item">
                       {/* Week/Round Badge */}
                       <div className={`week-badge shrink-0 ${battle.type === "playoff" ? "playoff" : ""}`}>
@@ -1473,8 +1479,8 @@ export default async function Home() {
                         {battle.divisionName && (
                           <span
                             className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
-                            style={battle.divisionName && DIVISION_COLORS[battle.divisionName]
-                              ? { color: DIVISION_COLORS[battle.divisionName], backgroundColor: `${DIVISION_COLORS[battle.divisionName]}15`, border: `1px solid ${DIVISION_COLORS[battle.divisionName]}30` }
+                            style={divisionColor
+                              ? { color: divisionColor, backgroundColor: `${divisionColor}15`, border: `1px solid ${divisionColor}30` }
                               : { backgroundColor: 'var(--background-tertiary)', color: 'var(--foreground-muted)' }
                             }
                           >
@@ -1483,8 +1489,9 @@ export default async function Home() {
                         )}
                       </div>
                     </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-[var(--foreground-muted)] text-center py-8">No battles recorded yet</p>
