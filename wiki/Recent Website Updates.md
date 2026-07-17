@@ -12,6 +12,7 @@ Replay and broadcast matching:
 - The shared normalization change propagates to both broadcast overlay variants, so typed Silvally forms match the roster and remain visible in overlay battle state.
 - Broadcast matching now treats `Gourgeist-Average`, `Gourgeist-Small`, `Gourgeist-Large`, and `Gourgeist-Super` as one visual form family. The roster keeps its stored/displayed form while any Gourgeist form emitted by Showdown can match it in the overlay.
 - Broadcast matching now treats `Floette-Eternal` as the pre-Mega battle form for a rostered `Floette-Mega`, keeping the slot visible before and after Mega Evolution.
+- Replay favorable-miss statistics now exclude misses caused by Phantom Force semi-invulnerability while continuing to count ordinary accuracy misses.
 
 Homepage:
 
@@ -27,6 +28,7 @@ Verification:
 - `npx tsc --noEmit` passes.
 - Targeted ESLint passes for the changed files.
 - Silvally normalization checks pass for hyphenated, spaced, underscored, and base names.
+- The supplied replay `2649848831` now records zero favorable Phantom Force misses for Dragapult while preserving the legitimate Stone Edge miss.
 
 ## July 16, 2026
 
