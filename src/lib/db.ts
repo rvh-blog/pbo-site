@@ -110,6 +110,7 @@ async function ensurePerformanceIndexes() {
     "CREATE INDEX IF NOT EXISTS idx_matches_coach2_season_id ON matches(coach2_season_id)",
     "CREATE INDEX IF NOT EXISTS idx_matches_division_week ON matches(division_id, week)",
     "CREATE INDEX IF NOT EXISTS idx_matches_season_week ON matches(season_id, week)",
+    "CREATE INDEX IF NOT EXISTS idx_matches_move_records_filter ON matches(is_forfeit, winner_id, played_at)",
     "CREATE INDEX IF NOT EXISTS idx_match_pokemon_season_coach_pokemon ON match_pokemon(season_coach_id, pokemon_id)",
     "CREATE INDEX IF NOT EXISTS idx_transactions_season_coach ON transactions(season_id, season_coach_id)",
     "CREATE INDEX IF NOT EXISTS idx_playoff_matches_division_id ON playoff_matches(division_id)",

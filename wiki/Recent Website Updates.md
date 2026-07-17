@@ -24,6 +24,7 @@ Resilience and public-page performance:
 - Those stats routes render at runtime so the Docker image does not try to query the development-only SQLite database while building.
 - Public roster payloads and season reference data are cached for five minutes, while roster queries are limited to the selected division's teams and required columns.
 - Pokemon Stats and roster data loaders now select only fields used by their calculations and UI.
+- The Move Usage match filter index is created both by migration and by the normal startup performance-index guard.
 
 Visual updates:
 
@@ -42,6 +43,7 @@ Verification:
 - Targeted ESLint passes with existing raw-image warnings only.
 - Local Stats, Fun Facts, and roster routes returned 200.
 - The Fly image build was smoke-tested; its first attempt exposed the missing build-time SQLite database and the runtime-rendering safeguard was added before release.
+- Production Move Usage backfill completed for 271 Season 9+ matches, updating 3,251 Pokémon rows with zero failures.
 
 ## July 15, 2026
 
