@@ -10,6 +10,7 @@ Replay and broadcast matching:
 
 - Showdown forms such as `Silvally-Fairy`, `Silvally-Bug`, and other `Silvally-*` names now normalize to the drafted base `Silvally` row during replay scraping and admin roster matching.
 - The shared normalization change propagates to both broadcast overlay variants, so typed Silvally forms match the roster and remain visible in overlay battle state.
+- Broadcast matching now treats `Gourgeist-Average`, `Gourgeist-Small`, `Gourgeist-Large`, and `Gourgeist-Super` as one visual form family. The roster keeps its stored/displayed form while any Gourgeist form emitted by Showdown can match it in the overlay.
 
 Homepage:
 

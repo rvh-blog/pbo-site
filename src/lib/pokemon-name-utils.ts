@@ -378,6 +378,24 @@ export function normalizePokemonName(name: string): string {
   return normalized;
 }
 
+/**
+ * Return lookup keys for visual battle forms that the broadcast overlay may
+ * treat as one drafted species family. Gourgeist forms remain separate
+ * database records, but Showdown can use a different size form from the
+ * roster's stored form.
+ */
+export function pokemonFormFamilyLookupKeys(name: string | null | undefined): string[] {
+  const normalizedName = normalizePokemonName(name || "");
+  if (
+    normalizedName === "Gourgeist" ||
+    /^Gourgeist-(Average|Small|Large|Super)$/i.test(normalizedName)
+  ) {
+    return ["gourgeist"];
+  }
+
+  return [];
+}
+
 export function getHardcodedPokemonNameAliases(name: string | null | undefined): string[] {
   const rawName = name || "";
   const canonical = normalizePokemonName(rawName);
