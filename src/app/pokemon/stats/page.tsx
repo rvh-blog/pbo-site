@@ -4,7 +4,7 @@ import { matchPokemon, killEvents } from "@/lib/schema";
 import { isNotNull } from "drizzle-orm";
 import { PokemonStatsClient } from "./pokemon-stats-client";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export const metadata = {
   title: "Pokemon Battle Stats",
@@ -13,8 +13,18 @@ export const metadata = {
 async function getPokemonBattleStats() {
   const allMatchPokemon = await db.query.matchPokemon.findMany({
     where: isNotNull(matchPokemon.damageDealt),
+    columns: {
+      pokemonId: true,
+      damageDealt: true,
+      damageDealtIndirect: true,
+      damageTaken: true,
+      damageTakenIndirect: true,
+      hpRestored: true,
+    },
     with: {
-      pokemon: true,
+      pokemon: {
+        columns: { id: true, name: true, displayName: true, spriteUrl: true },
+      },
       match: { columns: { seasonId: true, divisionId: true } },
     },
   });
@@ -74,8 +84,12 @@ async function getPokemonBattleStats() {
 
 async function getSeasonsAndDivisions() {
   const [allSeasons, allDivisions] = await Promise.all([
-    db.query.seasons.findMany(),
-    db.query.divisions.findMany(),
+    db.query.seasons.findMany({
+      columns: { id: true, name: true, seasonNumber: true },
+    }),
+    db.query.divisions.findMany({
+      columns: { id: true, name: true, seasonId: true, displayOrder: true },
+    }),
   ]);
   return {
     seasons: allSeasons
@@ -129,29 +143,65 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
   const entries: MiscStatEntry[] = [];
 
   // Get Season 10 IDs first (needed to filter everything else)
-  const allSeasons = await db.query.seasons.findMany();
+  const allSeasons = await db.query.seasons.findMany({
+    columns: { id: true, seasonNumber: true },
+  });
   const season10Ids = new Set(allSeasons.filter((s) => s.seasonNumber === 10).map((s) => s.id));
 
   // Run all data queries in parallel
   const [rawKills, rawRosters, rawMP] = await Promise.all([
     db.query.killEvents.findMany({
       where: isNotNull(killEvents.killerPokemonId),
+      columns: {
+        matchId: true,
+        turn: true,
+        killerPokemonId: true,
+        killerSeasonCoachId: true,
+        victimPokemonId: true,
+        victimSeasonCoachId: true,
+        cause: true,
+      },
       with: {
-        killerPokemon: true,
-        victimPokemon: true,
-        killerSeasonCoach: { with: { coach: true } },
-        victimSeasonCoach: { with: { coach: true } },
-        match: true,
+        killerPokemon: {
+          columns: { id: true, name: true, displayName: true, spriteUrl: true },
+        },
+        victimPokemon: {
+          columns: { id: true, name: true, displayName: true, spriteUrl: true },
+        },
+        killerSeasonCoach: {
+          columns: { coachId: true },
+          with: { coach: { columns: { name: true } } },
+        },
+        victimSeasonCoach: {
+          columns: { coachId: true },
+          with: { coach: { columns: { name: true } } },
+        },
+        match: { columns: { seasonId: true } },
       },
     }),
     db.query.rosters.findMany({
-      with: { seasonCoach: true },
+      columns: { seasonCoachId: true, pokemonId: true, price: true },
     }),
     db.query.matchPokemon.findMany({
+      columns: {
+        pokemonId: true,
+        seasonCoachId: true,
+        kills: true,
+        deaths: true,
+        damageTaken: true,
+        damageTakenIndirect: true,
+        damageDealtIndirect: true,
+        hpRestored: true,
+      },
       with: {
-        pokemon: true,
-        match: true,
-        seasonCoach: { with: { coach: true } },
+        pokemon: {
+          columns: { id: true, name: true, displayName: true, spriteUrl: true },
+        },
+        match: { columns: { seasonId: true } },
+        seasonCoach: {
+          columns: { coachId: true },
+          with: { coach: { columns: { name: true } } },
+        },
       },
     }),
   ]);

@@ -1099,7 +1099,7 @@ export default async function Home() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <Link href={currentSeason ? `/seasons/${currentSeason.id}` : "/seasons"}>
-                <button className="btn-retro">
+                <button className="btn-retro !bg-[#dc143c] hover:!bg-[#b01030]">
                   {currentSeason ? "View Season" : "Past Seasons"}
                 </button>
               </Link>

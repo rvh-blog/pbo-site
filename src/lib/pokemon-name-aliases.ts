@@ -59,28 +59,47 @@ export function invalidatePokemonAliasMapsCache() {
 }
 
 async function loadPokemonAliasMaps(): Promise<PokemonAliasMaps> {
-  const [aliasRows, collapseRows] = await Promise.all([
-    db
-      .select({
-        pokemonId: pokemonNameAliases.pokemonId,
-        alias: pokemonNameAliases.alias,
-        aliasKey: pokemonNameAliases.aliasKey,
-        pokemonName: pokemon.name,
-        displayName: pokemon.displayName,
-      })
-      .from(pokemonNameAliases)
-      .innerJoin(pokemon, eq(pokemonNameAliases.pokemonId, pokemon.id)),
-    db
-      .select({
-        targetPokemonId: pokemonNameCollapses.targetPokemonId,
-        sourceName: pokemonNameCollapses.sourceName,
-        sourceKey: pokemonNameCollapses.sourceKey,
-        pokemonName: pokemon.name,
-        displayName: pokemon.displayName,
-      })
-      .from(pokemonNameCollapses)
-      .innerJoin(pokemon, eq(pokemonNameCollapses.targetPokemonId, pokemon.id)),
-  ]);
+  let aliasRows: Array<{
+    pokemonId: number;
+    alias: string;
+    aliasKey: string;
+    pokemonName: string;
+    displayName: string | null;
+  }> = [];
+  let collapseRows: Array<{
+    targetPokemonId: number;
+    sourceName: string;
+    sourceKey: string;
+    pokemonName: string;
+    displayName: string | null;
+  }> = [];
+
+  try {
+    [aliasRows, collapseRows] = await Promise.all([
+      db
+        .select({
+          pokemonId: pokemonNameAliases.pokemonId,
+          alias: pokemonNameAliases.alias,
+          aliasKey: pokemonNameAliases.aliasKey,
+          pokemonName: pokemon.name,
+          displayName: pokemon.displayName,
+        })
+        .from(pokemonNameAliases)
+        .innerJoin(pokemon, eq(pokemonNameAliases.pokemonId, pokemon.id)),
+      db
+        .select({
+          targetPokemonId: pokemonNameCollapses.targetPokemonId,
+          sourceName: pokemonNameCollapses.sourceName,
+          sourceKey: pokemonNameCollapses.sourceKey,
+          pokemonName: pokemon.name,
+          displayName: pokemon.displayName,
+        })
+        .from(pokemonNameCollapses)
+        .innerJoin(pokemon, eq(pokemonNameCollapses.targetPokemonId, pokemon.id)),
+    ]);
+  } catch (error) {
+    console.warn("[Pokemon Aliases] Alias tables unavailable; continuing without custom aliases.", error);
+  }
 
   const aliasKeyToCanonicalName = new Map<string, string>();
   const pokemonIdToAliases = new Map<number, string[]>();

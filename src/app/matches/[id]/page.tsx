@@ -307,9 +307,11 @@ function BattleSummaryTeam({
             const kills = mp.kills || 0;
             const deaths = mp.deaths || 0;
             const totalDamage = (mp.damageDealt || 0) + (mp.damageDealtIndirect || 0);
-            const rowTone = deaths > 0
-              ? "bg-red-500/18 border-red-400/30"
-              : "bg-emerald-500/18 border-emerald-400/30";
+            const rowTone = mp.turnsActive === 0
+              ? "bg-gray-500/18 border-gray-400/30"
+              : deaths > 0
+                ? "bg-red-500/18 border-red-400/30"
+                : "bg-emerald-500/18 border-emerald-400/30";
 
             return (
               <div key={mp.id} className={`grid grid-cols-[1fr_52px_82px_56px] items-center border-l-4 ${rowTone} px-2 py-1.5`}>

@@ -307,6 +307,7 @@ export const matchPokemon = sqliteTable("match_pokemon", {
   favorableBurns: integer("favorable_burns"), // Opponent is burned, excluding Will-O-Wisp
   favorableSleep: integer("favorable_sleep"), // Opponent is put to sleep by a favorable status proc
   hpRestored: integer("hp_restored"), // HP healed
+  movesUsed: text("moves_used", { mode: "json" }).$type<Record<string, number>>(), // Replay move name -> usage count
 }, (table) => [
   index("idx_match_pokemon_match_id").on(table.matchId),
   index("idx_match_pokemon_season_coach_id").on(table.seasonCoachId),

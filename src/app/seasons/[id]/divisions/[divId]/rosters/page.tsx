@@ -1,7 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
-import { divisions, seasonCoaches, matches, transactions, seasonPokemonPrices } from "@/lib/schema";
+import { divisions, seasonCoaches, matches, transactions, seasonPokemonPrices, rosters } from "@/lib/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
@@ -37,37 +38,96 @@ function sortRosterByDisplayPrice<T extends {
   });
 }
 
-async function getDivisionData(divisionId: number) {
-  // Fetch all data in parallel
-  const [division, coaches, allRosters, divisionMatches] = await Promise.all([
+async function loadDivisionData(divisionId: number) {
+  const [division, coaches] = await Promise.all([
     db.query.divisions.findFirst({
       where: eq(divisions.id, divisionId),
-      with: { season: true },
+      columns: { id: true, seasonId: true, name: true, logoUrl: true },
+      with: {
+        season: {
+          columns: { id: true, name: true, draftBudget: true, isPublic: true },
+        },
+      },
     }),
     db.query.seasonCoaches.findMany({
       where: eq(seasonCoaches.divisionId, divisionId),
-      with: { coach: true },
+      columns: {
+        id: true,
+        coachId: true,
+        teamName: true,
+        teamAbbreviation: true,
+        teamLogoUrl: true,
+        isActive: true,
+      },
+      with: { coach: { columns: { name: true } } },
     }),
-    db.query.rosters.findMany({
-      with: { pokemon: true },
-    }),
+  ]);
+
+  const coachIds = coaches.map((coach) => coach.id);
+  const [allRosters, divisionMatches] = await Promise.all([
+    coachIds.length > 0
+      ? db.query.rosters.findMany({
+          where: inArray(rosters.seasonCoachId, coachIds),
+          columns: {
+            id: true,
+            seasonCoachId: true,
+            pokemonId: true,
+            price: true,
+            draftOrder: true,
+            isTeraCaptain: true,
+            acquiredWeek: true,
+          },
+          with: {
+            pokemon: {
+              columns: { id: true, name: true, displayName: true, spriteUrl: true },
+            },
+          },
+        })
+      : [],
     db.query.matches.findMany({
       where: eq(matches.divisionId, divisionId),
+      columns: {
+        coach1SeasonId: true,
+        coach2SeasonId: true,
+        week: true,
+        winnerId: true,
+      },
     }),
   ]);
 
   // Fetch transactions for all coaches in this division (including partner P2P trades)
-  const coachIds = coaches.map(c => c.id);
   const [allTransactions, allPartnerP2PTxs] = coachIds.length > 0
     ? await Promise.all([
         db.query.transactions.findMany({
           where: inArray(transactions.seasonCoachId, coachIds),
+          columns: {
+            id: true,
+            seasonCoachId: true,
+            tradingPartnerSeasonCoachId: true,
+            type: true,
+            week: true,
+            pokemonIn: true,
+            pokemonOut: true,
+            newTeraCaptainId: true,
+            oldTeraCaptainId: true,
+          },
         }),
         db.query.transactions.findMany({
           where: and(
             eq(transactions.type, "P2P_TRADE"),
             inArray(transactions.tradingPartnerSeasonCoachId, coachIds),
           ),
+          columns: {
+            id: true,
+            seasonCoachId: true,
+            tradingPartnerSeasonCoachId: true,
+            type: true,
+            week: true,
+            pokemonIn: true,
+            pokemonOut: true,
+            newTeraCaptainId: true,
+            oldTeraCaptainId: true,
+          },
         }),
       ])
     : [[], []];
@@ -96,6 +156,26 @@ async function getDivisionData(divisionId: number) {
   return { division, coaches, allRosters, divisionMatches, txBySeasonCoach };
 }
 
+const getDivisionData = unstable_cache(
+  loadDivisionData,
+  ["public-division-roster-data"],
+  { revalidate: 300 },
+);
+
+const getRosterReferenceData = unstable_cache(
+  async (seasonId: number) => Promise.all([
+    db.query.pokemon.findMany({
+      columns: { id: true, name: true, displayName: true, spriteUrl: true },
+    }),
+    db.query.seasonPokemonPrices.findMany({
+      where: eq(seasonPokemonPrices.seasonId, seasonId),
+      columns: { pokemonId: true, price: true, teraCaptainCost: true },
+    }),
+  ]),
+  ["public-roster-reference-data"],
+  { revalidate: 300 },
+);
+
 export default async function DivisionRostersPage({ params }: PageProps) {
   const resolvedParams = await params;
   const seasonId = parseInt(resolvedParams.id);
@@ -119,12 +199,7 @@ export default async function DivisionRostersPage({ params }: PageProps) {
   }
 
   // Build Pokemon lookup for dropped Pokemon details and fetch season prices
-  const [allPokemon, seasonPrices] = await Promise.all([
-    db.query.pokemon.findMany(),
-    db.query.seasonPokemonPrices.findMany({
-      where: eq(seasonPokemonPrices.seasonId, seasonId),
-    }),
-  ]);
+  const [allPokemon, seasonPrices] = await getRosterReferenceData(seasonId);
 
   // Build price lookup: pokemonId -> { basePrice, teraCost }
   const priceByPokemonId = new Map<number, { basePrice: number; teraCost: number }>();
@@ -367,7 +442,7 @@ export default async function DivisionRostersPage({ params }: PageProps) {
           <p className="text-[var(--foreground-muted)]">No active teams in this division</p>
         </div>
       ) : (
-        <div id="rosters" className="scroll-mt-32 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
+        <div id="rosters" className="scroll-mt-32 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           {teamsWithRosters.map(({ coach, rosters: teamRosters, droppedPokemon, budgetLeft }) => (
             <div key={coach.id} className="poke-card p-0 sm:p-4 flex flex-col">
               <details className="sm:hidden">

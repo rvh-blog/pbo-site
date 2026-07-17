@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { BattleRecordTable, type BattleRecordRow } from "./battle-record-table";
+import { PokemonMoveRecords, type PokemonMoveDivision, type PokemonMoveRecord } from "./pokemon-move-records";
 
 export interface PboRecordEntry {
   title: string;
@@ -15,11 +16,12 @@ export interface PboRecordCategory {
   entries: PboRecordEntry[];
 }
 
-type BattleRecordTab = "coach-records" | "pbo-records";
+type BattleRecordTab = "coach-records" | "pokemon-moves" | "pbo-records";
 type PboRecordScope = "regular-season" | "playoffs";
 
 const tabs: Array<{ id: BattleRecordTab; label: string }> = [
   { id: "coach-records", label: "Coach Records" },
+  { id: "pokemon-moves", label: "Move Usage" },
   { id: "pbo-records", label: "PBO Records" },
 ];
 
@@ -74,14 +76,22 @@ export function BattleRecordView({
   records,
   regularSeasonPboRecords,
   playoffPboRecords,
+  pokemonMoveRecords,
+  pokemonMoveDivisions,
 }: {
   records: BattleRecordRow[];
   regularSeasonPboRecords: PboRecordCategory[];
   playoffPboRecords: PboRecordCategory[];
+  pokemonMoveRecords: PokemonMoveRecord[];
+  pokemonMoveDivisions: PokemonMoveDivision[];
 }) {
   const [activeTab, setActiveTab] = useState<BattleRecordTab>("coach-records");
   const [pboRecordScope, setPboRecordScope] = useState<PboRecordScope>("regular-season");
-  const activeTitle = activeTab === "coach-records" ? "Coach Records" : "PBO Records";
+  const activeTitle = activeTab === "coach-records"
+    ? "Coach Records"
+    : activeTab === "pokemon-moves"
+      ? "Move Usage"
+      : "PBO Records";
   const activePboRecords = pboRecordScope === "regular-season"
     ? regularSeasonPboRecords
     : playoffPboRecords;
@@ -117,10 +127,10 @@ export function BattleRecordView({
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`rounded-lg border-2 px-4 py-3 text-center text-xs font-bold uppercase tracking-widest transition-colors sm:min-w-36 ${
+                    className={`rounded-lg border-2 px-4 py-3 text-center text-xs font-bold uppercase tracking-widest transition-colors sm:min-w-36 ${
                     active
-                      ? "border-[var(--primary)] bg-[var(--primary)] text-white"
-                      : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:border-[var(--primary)] hover:text-white"
+                      ? "border-sky-300 bg-sky-300 text-slate-950"
+                      : "border-sky-300/35 bg-sky-300/5 text-sky-200 hover:border-sky-200 hover:bg-sky-300/15 hover:text-white"
                   }`}
                 >
                   {tab.label}
@@ -145,6 +155,8 @@ export function BattleRecordView({
 
         {activeTab === "coach-records" ? (
           <BattleRecordTable records={records} />
+        ) : activeTab === "pokemon-moves" ? (
+          <PokemonMoveRecords records={pokemonMoveRecords} divisions={pokemonMoveDivisions} />
         ) : (
           <div>
             <div className="flex justify-center border-b-2 border-[var(--background-tertiary)] p-3 sm:p-4">
