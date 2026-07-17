@@ -20,7 +20,8 @@ Resilience and public-page performance:
 
 - Added a global error boundary with a retry action so a single rendering failure shows a recoverable page instead of a blank exception screen.
 - Client error-boundary reports now reach structured server logs through `/api/client-errors`.
-- Public Pokemon Stats and Fun Facts pages revalidate every five minutes.
+- Public Pokemon Stats and Fun Facts data loaders cache their results for five minutes.
+- Those stats routes render at runtime so the Docker image does not try to query the development-only SQLite database while building.
 - Public roster payloads and season reference data are cached for five minutes, while roster queries are limited to the selected division's teams and required columns.
 - Pokemon Stats and roster data loaders now select only fields used by their calculations and UI.
 
@@ -40,6 +41,7 @@ Verification:
 - `npx tsc --noEmit` passes.
 - Targeted ESLint passes with existing raw-image warnings only.
 - Local Stats, Fun Facts, and roster routes returned 200.
+- The Fly image build was smoke-tested; its first attempt exposed the missing build-time SQLite database and the runtime-rendering safeguard was added before release.
 
 ## July 15, 2026
 
