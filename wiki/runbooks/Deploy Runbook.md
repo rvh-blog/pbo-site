@@ -14,6 +14,19 @@ Deploy:
 fly deploy
 ```
 
+The default Fly remote build can take several minutes for this app. For a
+non-interactive deployment, submit it detached and monitor the app separately:
+
+```bash
+flyctl deploy --remote-only --detach --yes
+flyctl status
+flyctl releases
+```
+
+The Docker context excludes local `backups/` and other development-only files.
+The tracked `public/images` assets remain part of the image because the site
+serves them at runtime.
+
 In the shared GitHub flow, deploy from merged `main`, not from an unreviewed local branch:
 
 ```bash

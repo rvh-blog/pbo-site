@@ -26,6 +26,7 @@ pbo.db-shm
 *.db-wal
 *.db-shm
 data/
+backups/
 public/uploads/
 pbo-discord-worker/
 scripts/pokeapi-cache.json
