@@ -3,6 +3,7 @@ import { and, eq, gt, isNotNull, lte } from "drizzle-orm";
 import { matches } from "@/lib/schema";
 import type { BattleRecordRow } from "./battle-record-table";
 import { BattleRecordView, type PboRecordCategory, type PboRecordEntry } from "./battle-record-tabs";
+import type { PokemonMoveRecord } from "./pokemon-move-records";
 import {
   applyBattleRecordOverrides,
   getBattleRecordOverrides,
@@ -182,6 +183,86 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
       b.averageDifferential - a.averageDifferential ||
       a.coachName.localeCompare(b.coachName)
     );
+}
+
+const POKEMON_MOVE_RECORD_START = "2026-01-08T00:00:00.000Z";
+
+async function getPokemonMoveRecords(): Promise<PokemonMoveRecord[]> {
+  const rows = await db.query.matchPokemon.findMany({
+    columns: {
+      pokemonId: true,
+      movesUsed: true,
+    },
+    with: {
+      pokemon: {
+        columns: {
+          name: true,
+          displayName: true,
+          spriteUrl: true,
+        },
+      },
+      match: {
+        columns: {
+          winnerId: true,
+          isForfeit: true,
+          playedAt: true,
+        },
+      },
+    },
+  });
+
+  const records = new Map<number, {
+    pokemonId: number;
+    pokemonName: string;
+    spriteUrl: string | null;
+    games: number;
+    moves: Map<string, { name: string; uses: number }>;
+  }>();
+
+  for (const row of rows) {
+    const match = row.match;
+    if (
+      !match?.winnerId ||
+      match.isForfeit ||
+      !match.playedAt ||
+      match.playedAt < POKEMON_MOVE_RECORD_START ||
+      !row.movesUsed
+    ) {
+      continue;
+    }
+
+    const record = records.get(row.pokemonId) ?? {
+      pokemonId: row.pokemonId,
+      pokemonName: row.pokemon?.displayName || row.pokemon?.name || "Unknown",
+      spriteUrl: row.pokemon?.spriteUrl || null,
+      games: 0,
+      moves: new Map<string, { name: string; uses: number }>(),
+    };
+    record.games += 1;
+
+    for (const [rawName, rawUses] of Object.entries(row.movesUsed)) {
+      const uses = Number(rawUses);
+      if (!rawName.trim() || !Number.isFinite(uses) || uses <= 0) continue;
+      const key = rawName.trim().replace(/\s+/g, " ").toLowerCase();
+      const move = record.moves.get(key) ?? { name: rawName.trim().replace(/\s+/g, " "), uses: 0 };
+      move.uses += uses;
+      record.moves.set(key, move);
+    }
+
+    records.set(row.pokemonId, record);
+  }
+
+  return [...records.values()]
+    .map((record) => {
+      const moves = [...record.moves.values()].sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name));
+      return {
+        ...record,
+        totalUses: moves.reduce((sum, move) => sum + move.uses, 0),
+        moves,
+      };
+    })
+    .filter((record) => record.totalUses > 0)
+    .sort((a, b) => b.totalUses - a.totalUses || b.games - a.games || a.pokemonName.localeCompare(b.pokemonName));
 }
 
 type MatchRecord = {
@@ -662,11 +743,12 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
 }
 
 export default async function BattleRecordPage() {
-  const [battleRecords, calculatedRegularSeasonRecords, calculatedPlayoffRecords, manualOverrides] = await Promise.all([
+  const [battleRecords, calculatedRegularSeasonRecords, calculatedPlayoffRecords, manualOverrides, pokemonMoveRecords] = await Promise.all([
     getBattleRecords(),
     getPboRecords("regular-season"),
     getPboRecords("playoffs"),
     getBattleRecordOverrides(true),
+    getPokemonMoveRecords(),
   ]);
   const regularSeasonPboRecords = applyBattleRecordOverrides(
     calculatedRegularSeasonRecords,
@@ -684,6 +766,7 @@ export default async function BattleRecordPage() {
       records={battleRecords}
       regularSeasonPboRecords={regularSeasonPboRecords}
       playoffPboRecords={playoffPboRecords}
+      pokemonMoveRecords={pokemonMoveRecords}
     />
   );
 }

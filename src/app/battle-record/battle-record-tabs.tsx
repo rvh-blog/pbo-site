@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { BattleRecordTable, type BattleRecordRow } from "./battle-record-table";
+import { PokemonMoveRecords, type PokemonMoveRecord } from "./pokemon-move-records";
 
 export interface PboRecordEntry {
   title: string;
@@ -15,11 +16,12 @@ export interface PboRecordCategory {
   entries: PboRecordEntry[];
 }
 
-type BattleRecordTab = "coach-records" | "pbo-records";
+type BattleRecordTab = "coach-records" | "pokemon-moves" | "pbo-records";
 type PboRecordScope = "regular-season" | "playoffs";
 
 const tabs: Array<{ id: BattleRecordTab; label: string }> = [
   { id: "coach-records", label: "Coach Records" },
+  { id: "pokemon-moves", label: "Pokemon Moves" },
   { id: "pbo-records", label: "PBO Records" },
 ];
 
@@ -74,14 +76,20 @@ export function BattleRecordView({
   records,
   regularSeasonPboRecords,
   playoffPboRecords,
+  pokemonMoveRecords,
 }: {
   records: BattleRecordRow[];
   regularSeasonPboRecords: PboRecordCategory[];
   playoffPboRecords: PboRecordCategory[];
+  pokemonMoveRecords: PokemonMoveRecord[];
 }) {
   const [activeTab, setActiveTab] = useState<BattleRecordTab>("coach-records");
   const [pboRecordScope, setPboRecordScope] = useState<PboRecordScope>("regular-season");
-  const activeTitle = activeTab === "coach-records" ? "Coach Records" : "PBO Records";
+  const activeTitle = activeTab === "coach-records"
+    ? "Coach Records"
+    : activeTab === "pokemon-moves"
+      ? "Pokemon Moves"
+      : "PBO Records";
   const activePboRecords = pboRecordScope === "regular-season"
     ? regularSeasonPboRecords
     : playoffPboRecords;
@@ -145,6 +153,8 @@ export function BattleRecordView({
 
         {activeTab === "coach-records" ? (
           <BattleRecordTable records={records} />
+        ) : activeTab === "pokemon-moves" ? (
+          <PokemonMoveRecords records={pokemonMoveRecords} />
         ) : (
           <div>
             <div className="flex justify-center border-b-2 border-[var(--background-tertiary)] p-3 sm:p-4">

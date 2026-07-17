@@ -70,6 +70,7 @@ interface MatchPokemon {
   favorableBurns?: number | null;
   favorableSleep?: number | null;
   hpRestored?: number | null;
+  movesUsed?: Record<string, number> | null;
   pokemon: Pokemon;
 }
 
@@ -125,6 +126,7 @@ interface PokemonEntry {
   favorableBurns?: number;
   favorableSleep?: number;
   hpRestored?: number;
+  movesUsed?: Record<string, number>;
 }
 
 type MatchPokemonPayload = {
@@ -147,6 +149,7 @@ type MatchPokemonPayload = {
   favorableBurns?: number;
   favorableSleep?: number;
   hpRestored?: number;
+  movesUsed?: Record<string, number>;
 };
 
 type TabType = "schedule" | "results" | "playoffs";
@@ -606,6 +609,7 @@ export default function AdminMatchesPage() {
         favorableBurns: coach1Pokemon[i]?.favorableBurns ?? undefined,
         favorableSleep: coach1Pokemon[i]?.favorableSleep ?? undefined,
         hpRestored: coach1Pokemon[i]?.hpRestored ?? undefined,
+        movesUsed: coach1Pokemon[i]?.movesUsed ?? undefined,
       }))
     );
     setTeam2Pokemon(
@@ -628,6 +632,7 @@ export default function AdminMatchesPage() {
         favorableBurns: coach2Pokemon[i]?.favorableBurns ?? undefined,
         favorableSleep: coach2Pokemon[i]?.favorableSleep ?? undefined,
         hpRestored: coach2Pokemon[i]?.hpRestored ?? undefined,
+        movesUsed: coach2Pokemon[i]?.movesUsed ?? undefined,
       }))
     );
   }
@@ -670,6 +675,7 @@ export default function AdminMatchesPage() {
             favorableBurns: p.favorableBurns,
             favorableSleep: p.favorableSleep,
             hpRestored: p.hpRestored,
+            movesUsed: p.movesUsed,
           });
         }
       });
@@ -696,6 +702,7 @@ export default function AdminMatchesPage() {
             favorableBurns: p.favorableBurns,
             favorableSleep: p.favorableSleep,
             hpRestored: p.hpRestored,
+            movesUsed: p.movesUsed,
           });
         }
       });
@@ -821,6 +828,7 @@ export default function AdminMatchesPage() {
           favorableBurns: p.favorableBurns,
           favorableSleep: p.favorableSleep,
           hpRestored: p.hpRestored,
+          movesUsed: p.movesUsed,
         });
       }
     });
@@ -847,6 +855,7 @@ export default function AdminMatchesPage() {
           favorableBurns: p.favorableBurns,
           favorableSleep: p.favorableSleep,
           hpRestored: p.hpRestored,
+          movesUsed: p.movesUsed,
         });
       }
     });
@@ -1104,6 +1113,7 @@ export default function AdminMatchesPage() {
             favorableBurns: replayPoke.favorableBurns,
             favorableSleep: replayPoke.favorableSleep,
             hpRestored: replayPoke.hpRestored,
+            movesUsed: replayPoke.movesUsed,
           });
         }
       }
@@ -1138,6 +1148,7 @@ export default function AdminMatchesPage() {
             favorableBurns: replayPoke.favorableBurns,
             favorableSleep: replayPoke.favorableSleep,
             hpRestored: replayPoke.hpRestored,
+            movesUsed: replayPoke.movesUsed,
           });
         }
       }

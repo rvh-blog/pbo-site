@@ -25,6 +25,7 @@ interface PokemonStats {
   favorableBurns: number;
   favorableSleep: number;
   hpRestored: number;
+  movesUsed: Record<string, number>;
 }
 
 interface TurnSnapshot {
@@ -546,6 +547,7 @@ export async function POST(request: NextRequest) {
             favorableBurns: 0,
             favorableSleep: 0,
             hpRestored: 0,
+            movesUsed: {},
           };
 
           if (player === "p1") {
@@ -732,8 +734,13 @@ export async function POST(request: NextRequest) {
             lastMoveInfo = { ...parsed, moveName, turn: currentTurn };
             movedThisTurn.add(`${parsed.player}:${parsed.nickname}`);
 
+            const pokemon = getPokemonByRef(parsed);
+            const normalizedMoveName = moveName.trim().replace(/\s+/g, " ");
+            if (pokemon && normalizedMoveName && normalizedMoveName.toLowerCase() !== "unknown move") {
+              pokemon.movesUsed[normalizedMoveName] = (pokemon.movesUsed[normalizedMoveName] || 0) + 1;
+            }
+
             if (SETUP_MOVES.has(moveName.toLowerCase())) {
-              const pokemon = getPokemonByRef(parsed);
               if (pokemon) {
                 pokemon.setupMovesUsed++;
               }
