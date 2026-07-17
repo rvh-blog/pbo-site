@@ -22,7 +22,7 @@ export type PokemonMoveDivision = {
   records: PokemonMoveRecord[];
 };
 
-const DIVISION_ORDER = ["Stargazer", "Sunset", "Crystal", "Neon", "Infinity"];
+const DIVISION_ORDER = ["Infinity", "Neon", "Crystal", "Sunset", "Stargazer"];
 
 function divisionOrder(name: string) {
   const index = DIVISION_ORDER.indexOf(name);

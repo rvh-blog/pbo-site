@@ -37,7 +37,7 @@ Battle Record Move Usage:
 - Added a Move Usage tab beside Coach Records and PBO Records.
 - Replay `|move|` events are attributed to the active Pokemon and aggregated into per-Pokemon and overall move totals.
 - Move Usage includes Season 9 and onward, including historical Season 9 divisions whose `played_at` value is blank.
-- Division filters are grouped by season and ordered Stargazer, Sunset, Crystal, Neon, and Infinity.
+- Division filters are grouped by season and ordered from highest to lowest tier: Infinity, Neon, Crystal, Sunset, and Stargazer.
 - Move data is backfilled offline so replay scraping does not run during page loads. The local development backfill processed 261 replay-backed matches and 3,131 Pokemon rows with zero failures.
 - Selected Pokemon with no detected move usage remain represented with zero moves instead of being dropped from the aggregate.
 - Added a match move-record index and verified the Move Usage query plan uses the match and match-Pokemon indexes.
