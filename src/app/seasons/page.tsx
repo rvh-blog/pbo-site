@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { compareDivisions } from "@/lib/division-order";
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,7 @@ async function getSeasons() {
   const seasons = allSeasons.filter(isPublicSeasonVisible);
   for (const season of seasons) {
     season.divisions = filterPublicDivisions(season.divisions, visibility);
-    season.divisions.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    season.divisions.sort(compareDivisions);
   }
 
   // Count coaches per division in memory (no N+1 queries!)

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { AuthModal } from "@/components/auth-modal";
 import { StoreModal } from "@/components/store-modal";
 import { MobileTooltip } from "@/components/mobile-tooltip";
+import { compareDivisions } from "@/lib/division-order";
 import type { CoachOption } from "./page";
 
 interface Season {
@@ -891,7 +892,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
         }
       }
     }
-    return Array.from(divMap.values()).sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    return Array.from(divMap.values()).sort(compareDivisions);
   })();
 
   // Calculate which weeks are unlocked for picks/bets
@@ -2225,7 +2226,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
                   new Map(
                     selectedWeekData.matches.map((m) => [m.division.id, m.division])
                   ).values()
-                ).sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                ).sort(compareDivisions);
 
                 if (divisions.length <= 1) return null;
 

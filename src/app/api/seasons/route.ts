@@ -4,6 +4,7 @@ import { seasons, divisions, seasonPokemonPrices, pokemon } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { compareDivisions } from "@/lib/division-order";
 
 const PUBLIC_READ_CACHE_HEADERS = {
   "Cache-Control": "public, max-age=120, s-maxage=600, stale-while-revalidate=1800",
@@ -26,22 +27,26 @@ export async function GET(request: NextRequest) {
     },
     orderBy: (seasons, { desc }) => [desc(seasons.seasonNumber)],
   });
+  const orderedSeasons = allSeasons.map((season) => ({
+    ...season,
+    divisions: [...season.divisions].sort(compareDivisions),
+  }));
 
   // Public callers only see revealed seasons and divisions. Mods can still use
   // the unfiltered endpoint for admin tools unless publicOnly is requested.
   if (publicOnly || !canSeePrivate) {
     return NextResponse.json(
-      allSeasons
+      orderedSeasons
         .filter(isPublicSeasonVisible)
         .map((season) => ({
           ...season,
-          divisions: filterPublicDivisions(season.divisions, visibility),
+          divisions: filterPublicDivisions(season.divisions, visibility).sort(compareDivisions),
         })),
       { headers: PUBLIC_READ_CACHE_HEADERS }
     );
   }
 
-  return NextResponse.json(allSeasons, { headers: PRIVATE_READ_CACHE_HEADERS });
+  return NextResponse.json(orderedSeasons, { headers: PRIVATE_READ_CACHE_HEADERS });
 }
 
 export async function POST(request: NextRequest) {

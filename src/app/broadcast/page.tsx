@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { compareDivisions } from "@/lib/division-order";
 
 interface Season {
   id: number;
@@ -136,7 +137,7 @@ export default function BroadcastSetupPage() {
   }, [selectedSeasonId]);
 
   const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
-  const divisions = selectedSeason?.divisions?.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)) || [];
+  const divisions = [...(selectedSeason?.divisions ?? [])].sort(compareDivisions);
 
   // Derive distinct weeks from matches
   const weeks = [...new Set(matches.map((m) => m.week))].sort((a, b) => a - b);

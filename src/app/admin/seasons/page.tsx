@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { DIVISION_HIERARCHY } from "@/lib/division-order";
 
 interface Division {
   id: number;
@@ -47,7 +48,7 @@ export default function AdminSeasonsPage() {
     isCurrent: false,
     isPublic: false,
     movesetFormat: "scarlet-violet" as MovesetFormat,
-    divisionNames: ["Stargazer", "Sunset", "Crystal", "Neon"],
+    divisionNames: [...DIVISION_HIERARCHY] as string[],
   });
   const [newSeasonDraftBoard, setNewSeasonDraftBoard] = useState<DraftBoardEntry[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
@@ -199,7 +200,7 @@ export default function AdminSeasonsPage() {
       isCurrent: false,
       isPublic: false,
       movesetFormat: "scarlet-violet",
-      divisionNames: ["Stargazer", "Sunset", "Crystal", "Neon"],
+      divisionNames: [...DIVISION_HIERARCHY] as string[],
     });
     setNewSeasonDraftBoard([]);
     setCsvFileName("");

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { computeAndSortStandings } from "@/lib/standings-sort";
 import { filterPublicDivisions, getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { compareDivisions } from "@/lib/division-order";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -61,14 +62,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No season found" }, { status: 404, headers: CORS_HEADERS });
   }
 
-  const divs = filterPublicDivisions(season.divisions ?? [], visibility);
+  const divs = filterPublicDivisions(season.divisions ?? [], visibility).sort(compareDivisions);
   if (divs.length === 0) {
     return NextResponse.json({ error: "No divisions in season" }, { status: 404, headers: CORS_HEADERS });
   }
 
   const division = divisionIdParam
     ? divs.find((d) => d.id === parseInt(divisionIdParam))
-    : [...divs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))[0];
+    : divs[0];
 
   if (!division) {
     return NextResponse.json({ error: "Division not found" }, { status: 404, headers: CORS_HEADERS });
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest) {
   }));
 
   const sortedDivisions = [...divs]
-    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+    .sort(compareDivisions)
     .map((d) => ({ id: d.id, name: d.name, logoUrl: absolutize(d.logoUrl) }));
 
   return NextResponse.json(

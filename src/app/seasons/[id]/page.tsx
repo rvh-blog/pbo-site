@@ -11,6 +11,7 @@ import { KillLeadersToggle } from "@/components/kill-leaders-toggle";
 import { computeAndSortStandings } from "@/lib/standings-sort";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
+import { compareDivisionNames, compareDivisions } from "@/lib/division-order";
 
 const DIVISION_COLORS: Record<string, string> = {
   "Infinity": "#E2A3C7",
@@ -95,8 +96,7 @@ async function getSeason(id: number) {
   });
 
   if (season) {
-    // Sort divisions by displayOrder
-    season.divisions.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    season.divisions.sort(compareDivisions);
   }
 
   return season;
@@ -186,11 +186,9 @@ async function getUpcomingBattles(seasonId: number, visibleDivisionIds?: Set<num
   const earliestWeek = Math.min(...visibleUnplayed.map((m) => m.week));
   const earliestWeekMatches = visibleUnplayed.filter((m) => m.week === earliestWeek);
 
-  // Sort by division displayOrder (lower = higher priority)
+  // Sort by the permanent division hierarchy.
   earliestWeekMatches.sort((a, b) => {
-    const aOrder = a.division?.displayOrder ?? 99;
-    const bOrder = b.division?.displayOrder ?? 99;
-    return aOrder - bOrder;
+    return compareDivisionNames(a.division?.name, b.division?.name);
   });
 
   return earliestWeekMatches.slice(0, 5).map((m) => ({
@@ -303,21 +301,12 @@ async function getRecentBattles(
     };
   });
 
-  const divisionOrder: Record<string, number> = {
-    "Stargazer": 1,
-    "Sunset": 2,
-    "Crystal": 3,
-    "Neon": 4,
-  };
-
   const allBattles = [...regularBattles, ...playoffBattles];
   allBattles.sort((a, b) => {
     const aOrder = a.type === "playoff" ? 100 + (a.round || 0) : (a.week || 0);
     const bOrder = b.type === "playoff" ? 100 + (b.round || 0) : (b.week || 0);
     if (bOrder !== aOrder) return bOrder - aOrder;
-    const aDivOrder = divisionOrder[a.divisionName || ""] || 99;
-    const bDivOrder = divisionOrder[b.divisionName || ""] || 99;
-    return aDivOrder - bDivOrder;
+    return compareDivisionNames(a.divisionName, b.divisionName);
   });
 
   return allBattles.slice(0, 5);

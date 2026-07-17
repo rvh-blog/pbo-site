@@ -7,6 +7,7 @@ import { getTypeColor } from "@/lib/utils";
 import { getAllCoachCosmetics } from "@/lib/glow-utils";
 import { CoachRow } from "@/components/coach-row";
 import { getPokemonAllTimeKillRank } from "@/lib/pokemon-leaderboard";
+import { compareDivisionNames } from "@/lib/division-order";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -163,9 +164,6 @@ async function getCurrentDrafts(pokemonId: number) {
 
   if (currentRosters.length === 0) return [];
 
-  // Define division order for sorting
-  const divisionOrder = ["Stargazer", "Sunset", "Crystal", "Neon", "Unova", "Kalos"];
-
   return currentRosters
     .map((roster) => ({
       teamName: roster.seasonCoach!.teamName,
@@ -179,12 +177,8 @@ async function getCurrentDrafts(pokemonId: number) {
       seasonName: currentSeason.name,
     }))
     .sort((a, b) => {
-      // Sort by division order first
-      const aIndex = divisionOrder.indexOf(a.divisionName);
-      const bIndex = divisionOrder.indexOf(b.divisionName);
-      const aOrder = aIndex === -1 ? 999 : aIndex;
-      const bOrder = bIndex === -1 ? 999 : bIndex;
-      if (aOrder !== bOrder) return aOrder - bOrder;
+      const divisionComparison = compareDivisionNames(a.divisionName, b.divisionName);
+      if (divisionComparison !== 0) return divisionComparison;
       // Then by team name alphabetically
       return a.teamName.localeCompare(b.teamName);
     });
@@ -884,16 +878,9 @@ export default async function PokemonDetailPage({ params }: PageProps) {
                         divisionCounts.set(champ.divisionName, { name: champ.divisionName, count: 1 });
                       }
                     }
-                    // Sort by predefined division order
-                    const divisionOrder = ["Stargazer", "Sunset", "Crystal", "Neon", "Unova", "Kalos"];
-                    const sorted = Array.from(divisionCounts.values()).sort((a, b) => {
-                      const aIndex = divisionOrder.indexOf(a.name);
-                      const bIndex = divisionOrder.indexOf(b.name);
-                      // Put unknown divisions at the end
-                      const aOrder = aIndex === -1 ? 999 : aIndex;
-                      const bOrder = bIndex === -1 ? 999 : bIndex;
-                      return aOrder - bOrder;
-                    });
+                    const sorted = Array.from(divisionCounts.values()).sort((a, b) =>
+                      compareDivisionNames(a.name, b.name)
+                    );
                     return sorted.map((div) => (
                       <div key={div.name} className="flex items-center justify-between">
                         <span className="text-sm text-[var(--foreground-muted)]">{div.name}</span>

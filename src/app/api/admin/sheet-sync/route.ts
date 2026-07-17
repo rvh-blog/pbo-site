@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
+import { compareDivisions } from "@/lib/division-order";
 import { divisionSheetSync, seasons } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { getServiceAccountEmail } from "@/lib/sheets-sync-all";
@@ -33,7 +34,7 @@ export async function GET() {
         id: season.id,
         name: season.name,
         isCurrent: season.isCurrent,
-        divisions: season.divisions.map((div) => ({
+        divisions: [...season.divisions].sort(compareDivisions).map((div) => ({
           id: div.id,
           name: div.name,
           sheetSync: div.sheetSync

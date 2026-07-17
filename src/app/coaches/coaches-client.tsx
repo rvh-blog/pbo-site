@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { LogoFrame } from "@/components/logo-frame";
+import { compareDivisions } from "@/lib/division-order";
 
 type Coach = {
   id: number;
@@ -80,7 +81,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
   // Get divisions for selected season
   const filteredDivisions = useMemo(() => {
     if (!selectedSeasonId) return [];
-    return divisions.filter(d => d.seasonId === selectedSeasonId);
+    return divisions.filter(d => d.seasonId === selectedSeasonId).sort(compareDivisions);
   }, [selectedSeasonId, divisions]);
 
   // Reset division when season changes

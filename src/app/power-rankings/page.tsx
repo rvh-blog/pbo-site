@@ -3,6 +3,7 @@ import { seasons, seasonCoaches, matches } from "@/lib/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { PowerRankingsClient } from "./power-rankings-client";
 import { computeAndSortStandings } from "@/lib/standings-sort";
+import { compareDivisions } from "@/lib/division-order";
 
 export const metadata = {
   title: "Power Rankings",
@@ -20,9 +21,9 @@ export default async function PowerRankingsPage() {
     orderBy: [desc(seasons.seasonNumber)],
   });
 
-  // Sort divisions within each season by displayOrder
+  // Sort divisions within each season by the permanent hierarchy.
   for (const season of allSeasons) {
-    season.divisions.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    season.divisions.sort(compareDivisions);
   }
 
   // Preload every public season through one shared server-side standings path.

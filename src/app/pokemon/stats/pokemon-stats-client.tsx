@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { compareDivisions } from "@/lib/division-order";
 import Link from "next/link";
 
 interface PokemonStatGroup {
@@ -180,9 +181,7 @@ export function PokemonStatsClient({ stats, seasons, divisions }: PokemonStatsCl
         return {
           id: visibleSeasonId,
           label: season?.name ?? "Unknown Season",
-          divisions: [...seasonDivisions].sort(
-            (a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name),
-          ),
+          divisions: [...seasonDivisions].sort(compareDivisions),
         };
       })
       .filter((group) => group.divisions.length > 0);

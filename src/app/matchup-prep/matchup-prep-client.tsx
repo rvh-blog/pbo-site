@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { compareDivisions } from "@/lib/division-order";
 
 // Type effectiveness chart (attacking type -> defending type -> multiplier)
 const TYPE_CHART: Record<string, Record<string, number>> = {
@@ -387,7 +388,7 @@ export function MatchupPrepClient({
   // Get divisions for selected season
   const divisions = useMemo(() => {
     const season = seasons.find((s) => s.id === selectedSeason);
-    return season?.divisions || [];
+    return [...(season?.divisions || [])].sort(compareDivisions);
   }, [seasons, selectedSeason]);
 
   const usesStatPoints = useMemo(
