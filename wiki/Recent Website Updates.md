@@ -4,6 +4,43 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 16, 2026
+
+Battle Record Move Usage:
+
+- Added a Move Usage tab beside Coach Records and PBO Records.
+- Replay `|move|` events are attributed to the active Pokemon and aggregated into per-Pokemon and overall move totals.
+- Move Usage includes Season 9 and onward, including historical Season 9 divisions whose `played_at` value is blank.
+- Division filters are grouped by season and ordered Stargazer, Sunset, Crystal, Neon, and Infinity.
+- Move data is backfilled offline so replay scraping does not run during page loads. The local development backfill processed 261 replay-backed matches and 3,131 Pokemon rows with zero failures.
+- Selected Pokemon with no detected move usage remain represented with zero moves instead of being dropped from the aggregate.
+- Added a match move-record index and verified the Move Usage query plan uses the match and match-Pokemon indexes.
+
+Resilience and public-page performance:
+
+- Added a global error boundary with a retry action so a single rendering failure shows a recoverable page instead of a blank exception screen.
+- Client error-boundary reports now reach structured server logs through `/api/client-errors`.
+- Public Pokemon Stats and Fun Facts pages revalidate every five minutes.
+- Public roster payloads and season reference data are cached for five minutes, while roster queries are limited to the selected division's teams and required columns.
+- Pokemon Stats and roster data loaders now select only fields used by their calculations and UI.
+
+Visual updates:
+
+- Battle Record tabs use a soft-blue active/inactive treatment.
+- Navigation active and hover underlines use soft yellow.
+- The PBO logo and View Season action use crimson red.
+- Public division roster grids use a maximum of four columns on large screens.
+
+Production incident:
+
+- The live `match_pokemon` table was repaired with the additive `moves_used` column after production logs showed a schema mismatch. Existing match data was preserved, and the health, homepage, and Battle Record routes returned 200 after the repair.
+
+Verification:
+
+- `npx tsc --noEmit` passes.
+- Targeted ESLint passes with existing raw-image warnings only.
+- Local Stats, Fun Facts, and roster routes returned 200.
+
 ## July 15, 2026
 
 Fantasy and performance:

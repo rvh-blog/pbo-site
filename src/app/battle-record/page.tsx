@@ -1,9 +1,9 @@
 import { db } from "@/lib/db";
-import { and, eq, gt, isNotNull, lte } from "drizzle-orm";
-import { matches } from "@/lib/schema";
+import { and, eq, gt, gte, isNotNull, lte } from "drizzle-orm";
+import { divisions, matches, matchPokemon, pokemon, seasons } from "@/lib/schema";
 import type { BattleRecordRow } from "./battle-record-table";
 import { BattleRecordView, type PboRecordCategory, type PboRecordEntry } from "./battle-record-tabs";
-import type { PokemonMoveRecord } from "./pokemon-move-records";
+import type { PokemonMoveDivision, PokemonMoveRecord } from "./pokemon-move-records";
 import {
   applyBattleRecordOverrides,
   getBattleRecordOverrides,
@@ -185,84 +185,103 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
     );
 }
 
-const POKEMON_MOVE_RECORD_START = "2026-01-08T00:00:00.000Z";
+async function getPokemonMoveRecords(): Promise<{
+  records: PokemonMoveRecord[];
+  divisions: PokemonMoveDivision[];
+}> {
+  const rows = await db
+    .select({
+      pokemonId: matchPokemon.pokemonId,
+      movesUsed: matchPokemon.movesUsed,
+      pokemonName: pokemon.name,
+      pokemonDisplayName: pokemon.displayName,
+      spriteUrl: pokemon.spriteUrl,
+      divisionId: matches.divisionId,
+      divisionName: divisions.name,
+      seasonNumber: seasons.seasonNumber,
+    })
+    .from(matchPokemon)
+    .innerJoin(matches, eq(matchPokemon.matchId, matches.id))
+    .innerJoin(pokemon, eq(matchPokemon.pokemonId, pokemon.id))
+    .innerJoin(divisions, eq(matches.divisionId, divisions.id))
+    .innerJoin(seasons, eq(matches.seasonId, seasons.id))
+    .where(and(
+      isNotNull(matches.winnerId),
+      eq(matches.isForfeit, false),
+      gte(seasons.seasonNumber, 9),
+      isNotNull(matchPokemon.movesUsed),
+    ));
 
-async function getPokemonMoveRecords(): Promise<PokemonMoveRecord[]> {
-  const rows = await db.query.matchPokemon.findMany({
-    columns: {
-      pokemonId: true,
-      movesUsed: true,
-    },
-    with: {
-      pokemon: {
-        columns: {
-          name: true,
-          displayName: true,
-          spriteUrl: true,
-        },
-      },
-      match: {
-        columns: {
-          winnerId: true,
-          isForfeit: true,
-          playedAt: true,
-        },
-      },
-    },
-  });
-
-  const records = new Map<number, {
+  type MoveUsageRow = (typeof rows)[number];
+  const aggregateRecords = (sourceRows: MoveUsageRow[]): PokemonMoveRecord[] => {
+    const records = new Map<number, {
     pokemonId: number;
     pokemonName: string;
     spriteUrl: string | null;
     games: number;
     moves: Map<string, { name: string; uses: number }>;
-  }>();
+    }>();
 
+    for (const row of sourceRows) {
+      if (!row.movesUsed) continue;
+
+      const record = records.get(row.pokemonId) ?? {
+        pokemonId: row.pokemonId,
+        pokemonName: row.pokemonDisplayName || row.pokemonName || "Unknown",
+        spriteUrl: row.spriteUrl || null,
+        games: 0,
+        moves: new Map<string, { name: string; uses: number }>(),
+      };
+      record.games += 1;
+
+      for (const [rawName, rawUses] of Object.entries(row.movesUsed)) {
+        const uses = Number(rawUses);
+        if (!rawName.trim() || !Number.isFinite(uses) || uses <= 0) continue;
+        const key = rawName.trim().replace(/\s+/g, " ").toLowerCase();
+        const move = record.moves.get(key) ?? { name: rawName.trim().replace(/\s+/g, " "), uses: 0 };
+        move.uses += uses;
+        record.moves.set(key, move);
+      }
+
+      records.set(row.pokemonId, record);
+    }
+
+    return [...records.values()]
+      .map((record) => {
+        const moves = [...record.moves.values()].sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name));
+        return {
+          ...record,
+          totalUses: moves.reduce((sum, move) => sum + move.uses, 0),
+          moves,
+        };
+      })
+      .filter((record) => record.totalUses > 0)
+      .sort((a, b) => b.totalUses - a.totalUses || b.games - a.games || a.pokemonName.localeCompare(b.pokemonName));
+  };
+
+  const divisionRows = new Map<number, { seasonNumber: number; divisionName: string; rows: MoveUsageRow[] }>();
   for (const row of rows) {
-    const match = row.match;
-    if (
-      !match?.winnerId ||
-      match.isForfeit ||
-      !match.playedAt ||
-      match.playedAt < POKEMON_MOVE_RECORD_START ||
-      !row.movesUsed
-    ) {
-      continue;
-    }
-
-    const record = records.get(row.pokemonId) ?? {
-      pokemonId: row.pokemonId,
-      pokemonName: row.pokemon?.displayName || row.pokemon?.name || "Unknown",
-      spriteUrl: row.pokemon?.spriteUrl || null,
-      games: 0,
-      moves: new Map<string, { name: string; uses: number }>(),
+    const existing = divisionRows.get(row.divisionId) ?? {
+      seasonNumber: row.seasonNumber,
+      divisionName: row.divisionName,
+      rows: [],
     };
-    record.games += 1;
-
-    for (const [rawName, rawUses] of Object.entries(row.movesUsed)) {
-      const uses = Number(rawUses);
-      if (!rawName.trim() || !Number.isFinite(uses) || uses <= 0) continue;
-      const key = rawName.trim().replace(/\s+/g, " ").toLowerCase();
-      const move = record.moves.get(key) ?? { name: rawName.trim().replace(/\s+/g, " "), uses: 0 };
-      move.uses += uses;
-      record.moves.set(key, move);
-    }
-
-    records.set(row.pokemonId, record);
+    existing.rows.push(row);
+    divisionRows.set(row.divisionId, existing);
   }
 
-  return [...records.values()]
-    .map((record) => {
-      const moves = [...record.moves.values()].sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name));
-      return {
-        ...record,
-        totalUses: moves.reduce((sum, move) => sum + move.uses, 0),
-        moves,
-      };
-    })
-    .filter((record) => record.totalUses > 0)
-    .sort((a, b) => b.totalUses - a.totalUses || b.games - a.games || a.pokemonName.localeCompare(b.pokemonName));
+  return {
+    records: aggregateRecords(rows),
+    divisions: [...divisionRows.entries()]
+      .map(([divisionId, division]) => ({
+        divisionId,
+        seasonNumber: division.seasonNumber,
+        divisionName: division.divisionName,
+        records: aggregateRecords(division.rows),
+      }))
+      .filter((division) => division.records.length > 0)
+      .sort((a, b) => b.seasonNumber - a.seasonNumber || a.divisionName.localeCompare(b.divisionName)),
+  };
 }
 
 type MatchRecord = {
@@ -766,7 +785,8 @@ export default async function BattleRecordPage() {
       records={battleRecords}
       regularSeasonPboRecords={regularSeasonPboRecords}
       playoffPboRecords={playoffPboRecords}
-      pokemonMoveRecords={pokemonMoveRecords}
+      pokemonMoveRecords={pokemonMoveRecords.records}
+      pokemonMoveDivisions={pokemonMoveRecords.divisions}
     />
   );
 }

@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-const START_DATE = process.env.MOVE_USAGE_START_DATE || "2026-01-08T00:00:00.000Z";
+const MIN_SEASON = Number(process.env.MOVE_USAGE_MIN_SEASON || "9");
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL = process.env.REPLAY_SCRAPE_URL || "http://127.0.0.1:3000/api/replay-scrape";
 const dryRun = process.argv.includes("--dry-run");
@@ -44,15 +44,16 @@ const db = new Database(DATABASE_PATH);
 db.pragma("busy_timeout = 30000");
 
 const matches = db.prepare(`
-  SELECT id, replay_url, coach1_season_id, coach2_season_id
-  FROM matches
-  WHERE winner_id IS NOT NULL
-    AND is_forfeit = 0
-    AND replay_url IS NOT NULL
-    AND replay_url != ''
-    AND played_at >= ?
-  ORDER BY id
-`).all(START_DATE);
+  SELECT m.id, m.replay_url, m.coach1_season_id, m.coach2_season_id
+  FROM matches m
+  JOIN seasons s ON s.id = m.season_id
+  WHERE m.winner_id IS NOT NULL
+    AND m.is_forfeit = 0
+    AND m.replay_url IS NOT NULL
+    AND m.replay_url != ''
+    AND s.season_number >= ?
+  ORDER BY m.id
+`).all(MIN_SEASON);
 
 const rowsByMatch = db.prepare(`
   SELECT mp.id, mp.season_coach_id, p.name AS pokemon_name, p.display_name AS pokemon_display_name
@@ -84,8 +85,11 @@ for (const match of matches) {
     const updateRows = [];
     for (const row of matchRows) {
       const replayPokemon = findTeamMatch(teamBySeasonCoach.get(row.season_coach_id) || [], row);
-      if (!replayPokemon) continue;
-      updateRows.push({ rowId: row.id, movesUsed: replayPokemon.movesUsed || {} });
+      // Keep every selected Pokemon in the aggregate. An empty object means the
+      // replay did not record a move for that row (for example, it never entered
+      // the field or the replay used a different form), rather than omitting the
+      // Pokemon from the season/division totals entirely.
+      updateRows.push({ rowId: row.id, movesUsed: replayPokemon?.movesUsed || {} });
     }
 
     if (!dryRun) {

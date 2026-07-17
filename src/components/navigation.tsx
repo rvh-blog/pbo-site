@@ -200,11 +200,11 @@ export function Navigation() {
       <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group" onClick={() => setMobileMenuOpen(false)}>
-          <div className="w-10 h-10 bg-[var(--primary)] rounded-lg flex items-center justify-center shadow-[4px_4px_0px_var(--primary-dark)] border-2 border-white/20 group-hover:translate-y-1 group-hover:shadow-none transition-all overflow-hidden">
+          <div className="w-10 h-10 bg-[#dc143c] rounded-lg flex items-center justify-center shadow-[4px_4px_0px_#8b0a1a] border-2 border-white/20 group-hover:translate-y-1 group-hover:shadow-none transition-all overflow-hidden">
             {/* Pokeball Icon */}
-            <div className="w-6 h-6 rounded-full border-2 border-white relative bg-[var(--primary)] overflow-hidden">
+            <div className="w-6 h-6 rounded-full border-2 border-white relative bg-[#dc143c] overflow-hidden">
               <div className="absolute bottom-0 w-full h-1/2 bg-white border-t-2 border-white" />
-              <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-white rounded-full border-2 border-[var(--primary)] -translate-x-1/2 -translate-y-1/2 z-10" />
+              <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-white rounded-full border-2 border-[#dc143c] -translate-x-1/2 -translate-y-1/2 z-10" />
             </div>
           </div>
           <div className="flex flex-col">
@@ -232,8 +232,8 @@ export function Navigation() {
                     aria-haspopup="menu"
                     className={`inline-flex items-center gap-1 font-bold uppercase text-sm tracking-wide transition-all ${
                       isActive
-                        ? "text-[var(--foreground)] underline decoration-[var(--primary)] decoration-2 underline-offset-4"
-                        : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-[var(--primary)] hover:decoration-2 hover:underline-offset-4"
+                        ? "text-[var(--foreground)] underline decoration-yellow-300 decoration-2 underline-offset-4"
+                        : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-yellow-300 hover:decoration-2 hover:underline-offset-4"
                     }`}
                   >
                     {item.label}
@@ -274,8 +274,8 @@ export function Navigation() {
                     aria-haspopup="menu"
                     className={`inline-flex items-center gap-1 font-bold uppercase text-sm tracking-wide transition-all ${
                       pboStatsActive
-                        ? "text-[var(--foreground)] underline decoration-[var(--primary)] decoration-2 underline-offset-4"
-                        : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-[var(--primary)] hover:decoration-2 hover:underline-offset-4"
+                        ? "text-[var(--foreground)] underline decoration-yellow-300 decoration-2 underline-offset-4"
+                        : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-yellow-300 hover:decoration-2 hover:underline-offset-4"
                     }`}
                   >
                     {item.label}
@@ -311,8 +311,8 @@ export function Navigation() {
                 href={item.href}
                 className={`font-bold uppercase text-sm tracking-wide transition-all ${
                   isActive
-                    ? "text-[var(--foreground)] underline decoration-[var(--primary)] decoration-2 underline-offset-4"
-                    : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-[var(--primary)] hover:decoration-2 hover:underline-offset-4"
+                    ? "text-[var(--foreground)] underline decoration-yellow-300 decoration-2 underline-offset-4"
+                    : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-yellow-300 hover:decoration-2 hover:underline-offset-4"
                 }`}
               >
                 {item.label}
