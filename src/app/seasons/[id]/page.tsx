@@ -32,6 +32,13 @@ function getDivisionColor(name: string | null | undefined) {
   return colorKey ? DIVISION_COLORS[colorKey] : undefined;
 }
 
+function getDivisionBadgeStyle(name: string | null | undefined) {
+  const color = getDivisionColor(name);
+  return color
+    ? { color, backgroundColor: `${color}15`, border: `1px solid ${color}30` }
+    : { backgroundColor: "var(--background-tertiary)", color: "var(--foreground-muted)" };
+}
+
 type BattleLogItem = {
   id: number;
   matchId: number;
@@ -919,10 +926,7 @@ export default async function SeasonPage({ params }: PageProps) {
                         {battle.divisionName && (
                           <span
                             className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
-                            style={battle.divisionName && DIVISION_COLORS[battle.divisionName]
-                              ? { color: DIVISION_COLORS[battle.divisionName], backgroundColor: `${DIVISION_COLORS[battle.divisionName]}15`, border: `1px solid ${DIVISION_COLORS[battle.divisionName]}30` }
-                              : { backgroundColor: 'var(--background-tertiary)', color: 'var(--foreground-muted)' }
-                            }
+                            style={getDivisionBadgeStyle(battle.divisionName)}
                           >
                             {battle.divisionName}
                           </span>
@@ -1019,10 +1023,7 @@ export default async function SeasonPage({ params }: PageProps) {
                         {battle.divisionName && (
                           <span
                             className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
-                            style={battle.divisionName && DIVISION_COLORS[battle.divisionName]
-                              ? { color: DIVISION_COLORS[battle.divisionName], backgroundColor: `${DIVISION_COLORS[battle.divisionName]}15`, border: `1px solid ${DIVISION_COLORS[battle.divisionName]}30` }
-                              : { backgroundColor: 'var(--background-tertiary)', color: 'var(--foreground-muted)' }
-                            }
+                            style={getDivisionBadgeStyle(battle.divisionName)}
                           >
                             {battle.divisionName}
                           </span>
