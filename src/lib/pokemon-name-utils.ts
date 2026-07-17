@@ -385,12 +385,19 @@ export function normalizePokemonName(name: string): string {
  * roster's stored form.
  */
 export function pokemonFormFamilyLookupKeys(name: string | null | undefined): string[] {
-  const normalizedName = normalizePokemonName(name || "");
+  const rawName = name?.trim() || "";
+  const normalizedName = normalizePokemonName(rawName);
+  const compactName = pokemonNameKey(rawName);
   if (
     normalizedName === "Gourgeist" ||
     /^Gourgeist-(Average|Small|Large|Super)$/i.test(normalizedName)
   ) {
     return ["gourgeist"];
+  }
+
+  // Showdown uses Floette-Eternal before a rostered Floette-Mega evolves.
+  if (compactName === "floetteeternal" || compactName === "floettemega" || compactName === "megafloette") {
+    return ["floettemega"];
   }
 
   return [];
