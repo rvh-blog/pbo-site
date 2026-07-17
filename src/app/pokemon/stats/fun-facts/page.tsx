@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { getPokemonFunFacts } from "../page";
 
-export const revalidate = 300;
+// Data is cached in getPokemonFunFacts, but the page must render at runtime
+// because the production Docker image intentionally excludes the local DB.
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Pokemon Fun Facts",

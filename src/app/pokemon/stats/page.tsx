@@ -1,16 +1,20 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { matchPokemon, killEvents } from "@/lib/schema";
 import { isNotNull } from "drizzle-orm";
 import { PokemonStatsClient } from "./pokemon-stats-client";
 
-export const revalidate = 300;
+// The production image does not contain the local SQLite database used during
+// development, so keep the route runtime-rendered and cache the data queries
+// instead of attempting to query SQLite during the Docker build.
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Pokemon Battle Stats",
 };
 
-async function getPokemonBattleStats() {
+async function getPokemonBattleStatsUncached() {
   const allMatchPokemon = await db.query.matchPokemon.findMany({
     where: isNotNull(matchPokemon.damageDealt),
     columns: {
@@ -82,7 +86,7 @@ async function getPokemonBattleStats() {
   return Array.from(groupMap.values());
 }
 
-async function getSeasonsAndDivisions() {
+async function getSeasonsAndDivisionsUncached() {
   const [allSeasons, allDivisions] = await Promise.all([
     db.query.seasons.findMany({
       columns: { id: true, name: true, seasonNumber: true },
@@ -103,6 +107,18 @@ async function getSeasonsAndDivisions() {
     })),
   };
 }
+
+const getPokemonBattleStats = unstable_cache(
+  getPokemonBattleStatsUncached,
+  ["pokemon-stats-battle"],
+  { revalidate: 300 }
+);
+
+const getSeasonsAndDivisions = unstable_cache(
+  getSeasonsAndDivisionsUncached,
+  ["pokemon-stats-seasons-divisions"],
+  { revalidate: 300 }
+);
 
 export interface MiscStatEntry {
   label: string;
@@ -139,7 +155,7 @@ function getContributorList(
   );
 }
 
-export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
+async function getPokemonFunFactsUncached(): Promise<MiscStatEntry[]> {
   const entries: MiscStatEntry[] = [];
 
   // Get Season 10 IDs first (needed to filter everything else)
@@ -705,6 +721,12 @@ export async function getPokemonFunFacts(): Promise<MiscStatEntry[]> {
 
   return entries;
 }
+
+export const getPokemonFunFacts = unstable_cache(
+  getPokemonFunFactsUncached,
+  ["pokemon-stats-fun-facts"],
+  { revalidate: 300 }
+);
 
 export default async function PokemonStatsPage() {
   const [stats, filterOptions] = await Promise.all([
