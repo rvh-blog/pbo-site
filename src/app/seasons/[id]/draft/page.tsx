@@ -9,6 +9,7 @@ import { DraftRulesDisclaimer } from "@/components/draft-rules-disclaimer";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
+import { compareDivisions } from "@/lib/division-order";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -24,8 +25,7 @@ async function getSeason(id: number) {
   });
 
   if (season) {
-    // Sort divisions by displayOrder
-    season.divisions.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    season.divisions.sort(compareDivisions);
   }
 
   return season;

@@ -9,6 +9,7 @@ import { SyncedHeightGrid } from "@/components/synced-height-grid";
 import { HomeLiveDraftRefresh } from "@/components/home-live-draft-refresh";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
 import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
+import { compareDivisionNames, DIVISION_HIERARCHY } from "@/lib/division-order";
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +22,8 @@ const DIVISION_COLORS: Record<string, string> = {
   "Neon": "#4ade80",
 };
 
-const DIVISION_ORDER = ["Stargazer", "Sunset", "Crystal", "Neon"] as const;
-const DRAFT_DIVISION_ORDER = ["Infinity", "Stargazer", "Sunset", "Crystal", "Neon"] as const;
+const DIVISION_ORDER = DIVISION_HIERARCHY;
+const DRAFT_DIVISION_ORDER = DIVISION_HIERARCHY;
 const RULEBOOK_URL = "https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal";
 
 function normalizeDivisionName(name: string) {
@@ -353,14 +354,6 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
     divisionName: p.division?.name,
   }));
 
-  // Division order priority: Stargazer, Sunset, Crystal, Neon
-  const divisionOrder: Record<string, number> = {
-    "Stargazer": 1,
-    "Sunset": 2,
-    "Crystal": 3,
-    "Neon": 4,
-  };
-
   // Combine and sort
   const allBattles = [...regularBattles, ...playoffBattles];
   allBattles.sort((a, b) => {
@@ -377,9 +370,7 @@ async function getRecentBattles(): Promise<BattleLogItem[]> {
     const aOrder = a.type === "playoff" ? 100 + (a.round || 0) : (a.week || 0);
     const bOrder = b.type === "playoff" ? 100 + (b.round || 0) : (b.week || 0);
     if (bOrder !== aOrder) return bOrder - aOrder;
-    const aDivOrder = divisionOrder[a.divisionName || ""] || 99;
-    const bDivOrder = divisionOrder[b.divisionName || ""] || 99;
-    return aDivOrder - bDivOrder;
+    return compareDivisionNames(a.divisionName, b.divisionName);
   });
 
   return allBattles.slice(0, 8);
@@ -391,14 +382,9 @@ async function getRecentDraftPicksByDivision(
   const currentSeason = await currentSeasonPromise;
   if (!currentSeason) return [];
 
-  const sortedDivisions = [...currentSeason.divisions].sort((a, b) => {
-    const aOrder = DRAFT_DIVISION_ORDER.findIndex((name) => normalizeDivisionName(name) === normalizeDivisionName(a.name));
-    const bOrder = DRAFT_DIVISION_ORDER.findIndex((name) => normalizeDivisionName(name) === normalizeDivisionName(b.name));
-    const normalizedA = aOrder === -1 ? 99 : aOrder;
-    const normalizedB = bOrder === -1 ? 99 : bOrder;
-    if (normalizedA !== normalizedB) return normalizedA - normalizedB;
-    return (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
-  });
+  const sortedDivisions = [...currentSeason.divisions].sort((a, b) =>
+    compareDivisionNames(a.name, b.name)
+  );
   const divisionIds = sortedDivisions.map((division) => division.id);
 
   if (divisionIds.length === 0) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { compareDivisions } from "@/lib/division-order";
 import { matches, divisions, seasons } from "@/lib/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { awardGotwBonus, reverseGotwBonus } from "@/lib/pick-em-rewards";
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         season: activeSeason,
-        divisions: activeSeason.divisions,
+        divisions: [...activeSeason.divisions].sort(compareDivisions),
         weeks,
       });
     }

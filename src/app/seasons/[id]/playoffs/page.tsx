@@ -6,14 +6,7 @@ import { notFound } from "next/navigation";
 import { computeAndSortStandings } from "@/lib/standings-sort";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
-
-// Division hierarchy (1 = top, 4 = bottom)
-const DIVISION_TIERS: Record<string, number> = {
-  "Stargazer": 1,
-  "Sunset": 2,
-  "Crystal": 3,
-  "Neon": 4,
-};
+import { compareDivisions, getDivisionHierarchyIndex } from "@/lib/division-order";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -28,7 +21,7 @@ async function getSeason(id: number) {
   });
 
   if (season) {
-    season.divisions.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    season.divisions.sort(compareDivisions);
   }
 
   return season;
@@ -224,7 +217,7 @@ function PlayoffBracket({
   const champion = finals[0]?.winner;
 
   // Check if this division promotes finalists
-  const divisionTier = DIVISION_TIERS[divisionName] || 2;
+  const divisionTier = getDivisionHierarchyIndex(divisionName) + 1;
   const canPromote = divisionTier > 1; // Not top division
 
   return (

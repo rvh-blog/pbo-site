@@ -5,6 +5,7 @@ import { DraftPlanner } from "./draft-planner";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
 import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { isHiddenPublicPokemonForm } from "@/lib/pokemon-name-utils";
+import { compareDivisions } from "@/lib/division-order";
 
 interface PageProps {
   searchParams: Promise<{ coach?: string; season?: string }>;
@@ -271,7 +272,7 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
   }
 
   // Season/division/team directory for the header selectors
-  const sortedDivisions = [...allDivisions].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  const sortedDivisions = [...allDivisions].sort(compareDivisions);
   const plannerDivisions = sortedDivisions.map((d) => ({ id: d.id, name: d.name, seasonId: d.seasonId }));
   const plannerTeams = sortedDivisions
     .flatMap((d) =>

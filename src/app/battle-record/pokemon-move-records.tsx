@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { compareDivisionNames } from "@/lib/division-order";
 
 export type PokemonMoveRecord = {
   pokemonId: number;
@@ -21,13 +22,6 @@ export type PokemonMoveDivision = {
   divisionName: string;
   records: PokemonMoveRecord[];
 };
-
-const DIVISION_ORDER = ["Stargazer", "Sunset", "Crystal", "Neon", "Infinity"];
-
-function divisionOrder(name: string) {
-  const index = DIVISION_ORDER.indexOf(name);
-  return index === -1 ? DIVISION_ORDER.length : index;
-}
 
 export function PokemonMoveRecords({
   records,
@@ -81,7 +75,7 @@ export function PokemonMoveRecords({
           {[...divisionsBySeason.entries()].sort(([a], [b]) => b - a).map(([seasonNumber, seasonDivisions]) => (
             <optgroup key={seasonNumber} label={`Season ${seasonNumber}`}>
               {seasonDivisions
-                .sort((a, b) => divisionOrder(a.divisionName) - divisionOrder(b.divisionName))
+                .sort((a, b) => compareDivisionNames(a.divisionName, b.divisionName))
                 .map((division) => (
                   <option key={division.divisionId} value={division.divisionId}>
                     {division.divisionName}
