@@ -4,23 +4,33 @@ import {
   serializedPokemonAliasLookupKeys,
 } from "@/lib/pokemon-name-client";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
-import { normalizePokemonName } from "@/lib/pokemon-name-utils";
+import { normalizePokemonName, pokemonFormFamilyLookupKeys } from "@/lib/pokemon-name-utils";
 
 const URSHIFU_SINGLE_STRIKE_KEYS = new Set([
   "urshifusinglestrike",
   "urshifusinglestrikegmax",
 ]);
 
+function withFormFamilyKeys(keys: Iterable<string>) {
+  const expandedKeys = new Set(keys);
+  for (const key of expandedKeys) {
+    for (const familyKey of pokemonFormFamilyLookupKeys(key)) {
+      expandedKeys.add(familyKey);
+    }
+  }
+  return expandedKeys;
+}
+
 export function rosterPokemonMatchesKeys(
   pokemon: RosterPokemon,
   keys: Set<string>,
   aliasMaps?: SerializedPokemonAliasMaps | null
 ) {
-  const rosterKeys = new Set([
+  const rosterKeys = withFormFamilyKeys([
     ...(pokemon.lookupKeys || []),
     ...pokemonLookupKeysForClientRow(pokemon, aliasMaps),
   ]);
-  for (const key of keys) {
+  for (const key of withFormFamilyKeys(keys)) {
     if (rosterKeys.has(key)) return true;
   }
   return false;
