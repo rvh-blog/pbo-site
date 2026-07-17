@@ -306,7 +306,7 @@ function BattleSummaryTeam({
           {pokemonRows.map((mp) => {
             const kills = mp.kills || 0;
             const deaths = mp.deaths || 0;
-            const totalDamage = (mp.damageDealt || 0) + (mp.damageDealtIndirect || 0);
+            const totalDamage = Math.round((mp.damageDealt || 0) + (mp.damageDealtIndirect || 0));
             const rowTone = mp.turnsActive === 0
               ? "bg-gray-500/18 border-gray-400/30"
               : deaths > 0
