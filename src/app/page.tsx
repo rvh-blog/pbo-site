@@ -994,6 +994,33 @@ function getDevelopmentUpcomingBattles(): UpcomingBattleItem[] {
       team2Logo: "/images/teams/new-york-malamars.png",
       divisionName: "Neon",
     },
+    {
+      team1Id: 988,
+      team1Name: "Vancouver Valiants",
+      team1Logo: "/images/teams/vancouver-valiants.png",
+      team2Id: 989,
+      team2Name: "Tokyo Teddiursas",
+      team2Logo: "/images/teams/tokyo-teddiursas.png",
+      divisionName: "Infinity",
+    },
+    {
+      team1Id: 990,
+      team1Name: "Sydney Sylveons",
+      team1Logo: "/images/teams/sydney-sylveons.png",
+      team2Id: 991,
+      team2Name: "Ottawa Donphans",
+      team2Logo: "/images/teams/ottawa-donphans.png",
+      divisionName: "Stargazer",
+    },
+    {
+      team1Id: 992,
+      team1Name: "Richmond Ragingbolts",
+      team1Logo: "/images/teams/richmond-ragingbolts.png",
+      team2Id: 993,
+      team2Name: "Pittsburgh Scizors",
+      team2Logo: "/images/teams/pittsburgh-scizors.png",
+      divisionName: "Sunset",
+    },
   ];
 
   return matchups.map((matchup, index) => ({
@@ -1215,7 +1242,7 @@ export default async function Home() {
       : getRecentDraftPicksByDivision(currentSeasonPromise)
   );
   const upcomingBattlesPromise = currentSeasonPromise.then((season) =>
-    season?.isCurrent ? getUpcomingBattles(season.id) : []
+    season?.isCurrent ? getUpcomingBattles(season.id, undefined, null) : []
   );
   const [currentSeason, previousSeasonChampions, recentBattles, upcomingBattles, recentDraftPicksByDivision, stats, gamesOfTheWeek, topCoaches, personalizedHome] = await Promise.all([
     currentSeasonPromise,
@@ -1358,24 +1385,25 @@ export default async function Home() {
       )}
 
       {personalizedHome && (
-        <section className="poke-card p-4 sm:p-5">
-          <div className="your-league-layout">
+        <section className="poke-card p-5 sm:p-6">
+          <div className={personalizedHome.activeTeam ? "your-league-layout" : "mx-auto max-w-3xl text-center"}>
             <div className="min-w-0">
               <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-1.5">
-                Your League
+                {personalizedHome.activeTeam ? "Your League" : "League Hub"}
               </p>
-              <h2 className="font-bold text-base text-white leading-tight">
+              <h2 className="text-lg font-bold leading-tight text-white">
                 Welcome, {personalizedHome.user.name}
               </h2>
-              <p className="mt-1.5 text-xs text-[var(--foreground-muted)]">
+              <p className="mt-2 text-sm text-[var(--foreground-muted)]">
                 {personalizedHome.activeTeam
                   ? "Active team, next matchup, and prep links."
-                  : "No active-season team is linked to this account right now."}
+                  : "You aren’t linked to a team in the current season."}
               </p>
             </div>
 
             {personalizedHome.activeTeam ? (
-              <div className="your-league-actions-grid">
+              <div className="min-w-0">
+                <div className="your-league-actions-grid">
                 <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-3">
                   <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
                     Next Match
@@ -1422,8 +1450,6 @@ export default async function Home() {
                     </div>
                   </div>
                 </div>
-
-                <PollCard initialPoll={personalizedHome.poll} compact />
 
                 <div className="your-league-link-grid grid grid-cols-2 gap-2 min-w-0">
                   <div className="grid gap-2">
@@ -1481,42 +1507,52 @@ export default async function Home() {
                     )}
                   </div>
                 </div>
+                </div>
+
+                {personalizedHome.poll && (
+                  <div className="mt-5 border-t border-[var(--background-tertiary)] pt-5 text-left">
+                    <PollCard initialPoll={personalizedHome.poll} compact />
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="flex w-full flex-col gap-3 lg:w-auto lg:max-w-[560px] lg:items-end">
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                {personalizedHome.user.type === "coach" && (
+              <div className="mt-5">
+                <div className="flex flex-wrap items-center justify-center gap-2">
                   <Link
-                    href={`/coaches/${personalizedHome.user.id}`}
-                    className="inline-flex w-fit items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    href={currentSeason ? `/seasons/${currentSeason.id}` : "/seasons"}
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[var(--primary)] px-4 py-2.5 text-xs font-bold uppercase text-white transition-colors hover:bg-[#b91c1c]"
                   >
-                    My Coach Page
+                    {currentSeason ? "Browse Current Season" : "Browse Seasons"}
                   </Link>
+                  {personalizedHome.user.type === "coach" && (
+                    <Link
+                      href={`/coaches/${personalizedHome.user.id}`}
+                      className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2.5 text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:text-white"
+                    >
+                      My Coach Page
+                    </Link>
+                  )}
+                  <Link
+                    href="/pick-ems"
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2.5 text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:text-white"
+                  >
+                    Pick-Ems
+                  </Link>
+                  <a
+                    href={RULEBOOK_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2.5 text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:text-white"
+                  >
+                    Rulebook
+                  </a>
+                </div>
+
+                {personalizedHome.poll && (
+                  <div className="mx-auto mt-5 max-w-xl border-t border-[var(--background-tertiary)] pt-5 text-left">
+                    <PollCard initialPoll={personalizedHome.poll} compact />
+                  </div>
                 )}
-                <Link
-                  href="/seasons"
-                  className="inline-flex w-fit items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                >
-                  Browse Seasons
-                </Link>
-                <Link
-                  href="/pick-ems"
-                  className="inline-flex w-fit items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                >
-                  Pick-Ems
-                </Link>
-                <a
-                  href={RULEBOOK_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex w-fit items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                >
-                  Rulebook
-                </a>
-                </div>
-                <div className="w-full max-w-md">
-                  <PollCard initialPoll={personalizedHome.poll} compact />
-                </div>
               </div>
             )}
           </div>

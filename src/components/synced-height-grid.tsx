@@ -9,7 +9,12 @@ interface SyncedHeightGridProps {
   belowGridContent?: ReactNode;
 }
 
-export function SyncedHeightGrid({ leftContent, rightContent, mobileMiddleContent, belowGridContent }: SyncedHeightGridProps) {
+export function SyncedHeightGrid({
+  leftContent,
+  rightContent,
+  mobileMiddleContent,
+  belowGridContent,
+}: SyncedHeightGridProps) {
   const leftRef = useRef<HTMLDivElement>(null);
   const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
 
@@ -71,7 +76,7 @@ export function SyncedHeightGrid({ leftContent, rightContent, mobileMiddleConten
       {/* Right Column */}
       <div
         className="flex flex-col overflow-hidden"
-        style={{ maxHeight }}
+        style={{ height: maxHeight }}
       >
         {rightContent}
       </div>

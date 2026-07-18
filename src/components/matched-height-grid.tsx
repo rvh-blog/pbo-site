@@ -41,7 +41,7 @@ export function MatchedHeightGrid({ leftContent, rightContent }: MatchedHeightGr
   }, []);
 
   return (
-    <div className="grid items-start gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+    <div className="grid items-start gap-5 xl:grid-cols-2">
       <div
         className="min-h-0"
         style={matchedHeight ? { height: matchedHeight, maxHeight: matchedHeight } : undefined}

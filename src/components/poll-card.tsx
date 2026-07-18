@@ -69,15 +69,23 @@ export function PollCard({ initialPoll, compact = false }: { initialPoll: PollDa
 
   if (isHidden) {
     return (
-      <div className={`rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 ${compact ? "p-3" : "p-5"}`}>
+      <div className={`rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 ${compact ? "px-3 py-2.5" : "p-5"}`}>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
-              League Poll
-            </div>
-            <p className="mt-1 truncate text-xs text-[var(--foreground-muted)]">
-              Poll hidden
-            </p>
+            {compact ? (
+              <p className="truncate text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+                League Poll hidden
+              </p>
+            ) : (
+              <>
+                <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
+                  League Poll
+                </div>
+                <p className="mt-1 truncate text-xs text-[var(--foreground-muted)]">
+                  Poll hidden
+                </p>
+              </>
+            )}
           </div>
           <button
             type="button"
