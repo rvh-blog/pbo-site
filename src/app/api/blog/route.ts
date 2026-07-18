@@ -50,11 +50,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const canCreatePost = session.isMod || (session.type === "coach" && session.canPostBlog);
+  const canCreatePost = session.isMod || session.type === "coach";
 
   if (!canCreatePost) {
     return NextResponse.json(
-      { error: "Only admins and approved coaches can create blog posts" },
+      { error: "Only admins and coaches can create blog posts" },
       { status: 403 }
     );
   }
@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const isPublished = session.isMod;
     const [post] = await db
       .insert(blogPosts)
       .values({
@@ -124,13 +125,16 @@ export async function POST(request: NextRequest) {
         imageUrl: imageUrl || null,
         authorCoachId: session.type === "coach" ? session.id : null,
         authorUserId: session.type === "spectator" ? session.id : null,
-        isPublished: true,
+        isPublished,
         createdAt: now,
         updatedAt: now,
       })
       .returning({ id: blogPosts.id });
 
-    return NextResponse.json({ success: true, postId: post.id }, { status: 201 });
+    return NextResponse.json(
+      { success: true, postId: post.id, isPublished },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Blog post create error:", error);
     return NextResponse.json(
@@ -138,6 +142,49 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function PATCH(request: NextRequest) {
+  const featureSettings = await getSiteFeatureSettings();
+  if (featureSettings.blogUiHidden) {
+    return NextResponse.json({ error: "Blog is currently unavailable" }, { status: 404 });
+  }
+
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  if (!session.isMod) {
+    return NextResponse.json(
+      { error: "Only admins can approve blog posts" },
+      { status: 403 }
+    );
+  }
+
+  const postId = Number.parseInt(request.nextUrl.searchParams.get("id") || "", 10);
+  if (!Number.isInteger(postId)) {
+    return NextResponse.json({ error: "Valid post id is required" }, { status: 400 });
+  }
+
+  const existingPost = await db.query.blogPosts.findFirst({
+    where: eq(blogPosts.id, postId),
+  });
+
+  if (!existingPost) {
+    return NextResponse.json({ error: "Blog post not found" }, { status: 404 });
+  }
+
+  if (!existingPost.isPublished) {
+    await db
+      .update(blogPosts)
+      .set({
+        isPublished: true,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(blogPosts.id, postId));
+  }
+
+  return NextResponse.json({ success: true, isPublished: true });
 }
 
 export async function DELETE(request: NextRequest) {

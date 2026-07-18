@@ -6,6 +6,7 @@ import { blogComments, blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
 import { BlogImage } from "@/components/blog-image";
+import { BlogApprovalButton } from "./blog-approval-button";
 import { BlogDeleteButton } from "./blog-delete-button";
 import { BlogCommentForm } from "./blog-comment-form";
 import { BlogCommentsList } from "./blog-comments-list";
@@ -41,27 +42,38 @@ export default async function BlogPostPage({ params }: PageProps) {
     notFound();
   }
 
-  const [post, comments] = await Promise.all([
-    db.query.blogPosts.findFirst({
-      where: eq(blogPosts.id, postId),
-      with: {
-        authorCoach: true,
-        authorUser: true,
-      },
-    }),
-    db.query.blogComments.findMany({
-      where: eq(blogComments.postId, postId),
-      orderBy: [asc(blogComments.createdAt)],
-      with: {
-        authorCoach: true,
-        authorUser: true,
-      },
-    }),
-  ]);
+  const post = await db.query.blogPosts.findFirst({
+    where: eq(blogPosts.id, postId),
+    with: {
+      authorCoach: true,
+      authorUser: true,
+    },
+  });
 
-  if (!post || !post.isPublished) {
+  if (!post) {
     notFound();
   }
+
+  const isAuthor = Boolean(
+    session && (
+      (session.type === "coach" && post.authorCoachId === session.id) ||
+      (session.type === "spectator" && post.authorUserId === session.id)
+    )
+  );
+  if (!post.isPublished && !session?.isMod && !isAuthor) {
+    notFound();
+  }
+
+  const comments = post.isPublished
+    ? await db.query.blogComments.findMany({
+        where: eq(blogComments.postId, postId),
+        orderBy: [asc(blogComments.createdAt)],
+        with: {
+          authorCoach: true,
+          authorUser: true,
+        },
+      })
+    : [];
 
   const authorName = post.authorCoach?.name || post.authorUser?.username || "PBO Staff";
   const authorHref = post.authorCoach ? `/coaches/${post.authorCoach.id}` : null;
@@ -105,8 +117,19 @@ export default async function BlogPostPage({ params }: PageProps) {
           {" · "}
           {formatDate(post.createdAt)}
         </p>
+        {!post.isPublished && (
+          <div className="mt-4 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/10 px-4 py-3">
+            <p className="font-bold text-[var(--warning)]">Pending admin approval</p>
+            <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+              {session?.isMod
+                ? "Review this submission, then approve it to publish it on the blog."
+                : "This preview is only visible to you and admins until an admin approves it."}
+            </p>
+          </div>
+        )}
         {canDeletePost && (
-          <div className="mt-4">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start">
+            {!post.isPublished && <BlogApprovalButton postId={post.id} />}
             <BlogDeleteButton postId={post.id} />
           </div>
         )}
@@ -123,7 +146,8 @@ export default async function BlogPostPage({ params }: PageProps) {
         </div>
       </div>
 
-      <section className="poke-card p-4 sm:p-6">
+      {post.isPublished && (
+        <section className="poke-card p-4 sm:p-6">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="font-pixel text-sm text-white">Comments</h2>
@@ -151,7 +175,8 @@ export default async function BlogPostPage({ params }: PageProps) {
             </p>
           )}
         </div>
-      </section>
+        </section>
+      )}
       </article>
     </div>
   );

@@ -27,7 +27,6 @@ export async function GET() {
     createdAt: coach.createdAt,
     isClaimed: !!coach.passwordHash,
     isMod: coach.isMod ?? false,
-    canPostBlog: coach.canPostBlog ?? false,
     claimedAt: coach.claimedAt,
     pboCoin: coach.pboCoin,
     seasonCoaches: coach.seasonCoaches,

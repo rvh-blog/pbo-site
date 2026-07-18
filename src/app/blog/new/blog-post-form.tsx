@@ -22,7 +22,12 @@ function getImageUrlWarning(value: string) {
   return null;
 }
 
-export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
+interface BlogPostFormProps {
+  canPostImages: boolean;
+  requiresApproval: boolean;
+}
+
+export function BlogPostForm({ canPostImages, requiresApproval }: BlogPostFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -193,7 +198,13 @@ export function BlogPostForm({ canPostImages }: { canPostImages: boolean }) {
           className="btn-retro py-2 px-5 text-[10px]"
           disabled={isSubmitting || Boolean(imageUrlWarning)}
         >
-          {isSubmitting ? "Posting..." : "Publish Post"}
+          {isSubmitting
+            ? requiresApproval
+              ? "Submitting..."
+              : "Posting..."
+            : requiresApproval
+              ? "Submit for Approval"
+              : "Publish Post"}
         </button>
       </div>
     </form>
