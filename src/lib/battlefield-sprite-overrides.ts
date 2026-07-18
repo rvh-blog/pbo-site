@@ -11,6 +11,7 @@ interface NewMegaSpriteDefinition {
   forme: string;
   spriteId: number;
   baseSpriteId: number;
+  localUrl?: string;
 }
 
 /** Champions Mega forms whose local static art fills gaps in Showdown's
@@ -39,7 +40,7 @@ export const NEW_MEGA_BATTLEFIELD_SPRITES: readonly NewMegaSpriteDefinition[] = 
   { forme: "barbaracle-mega", spriteId: 10298, baseSpriteId: 689 },
   { forme: "dragalge-mega", spriteId: 10299, baseSpriteId: 691 },
   { forme: "hawlucha-mega", spriteId: 10300, baseSpriteId: 701 },
-  { forme: "zygarde-mega", spriteId: 10301, baseSpriteId: 718 },
+  { forme: "zygarde-mega", spriteId: 10301, baseSpriteId: 718, localUrl: "/images/pokemon/artwork/10301.png" },
   { forme: "drampa-mega", spriteId: 10302, baseSpriteId: 780 },
   { forme: "falinks-mega", spriteId: 10303, baseSpriteId: 870 },
   { forme: "raichu-mega-x", spriteId: 10304, baseSpriteId: 26 },
@@ -93,7 +94,7 @@ function megaAliases(forme: string) {
 const NEW_MEGA_OVERRIDES = new Map<string, BattlefieldSpriteOverride>();
 for (const definition of NEW_MEGA_BATTLEFIELD_SPRITES) {
   const override: BattlefieldSpriteOverride = {
-    url: `/images/pokemon/sprites/${definition.spriteId}.png`,
+    url: definition.localUrl ?? `/images/pokemon/sprites/${definition.spriteId}.png`,
     emergencyUrl: `/images/pokemon/sprites/${definition.baseSpriteId}.png`,
     width: 96,
     height: 96,

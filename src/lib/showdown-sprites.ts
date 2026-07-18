@@ -1,3 +1,5 @@
+import { getBattlefieldSpriteOverride } from "@/lib/battlefield-sprite-overrides";
+
 const SHOWDOWN_SPRITES = "https://play.pokemonshowdown.com/sprites";
 
 const SPRITE_NAME_OVERRIDES: Record<string, string> = {
@@ -48,8 +50,12 @@ function spriteId(name: string) {
   return SPRITE_NAME_OVERRIDES[id] ?? id;
 }
 
+export function getChampionsMegaSpriteUrl(name: string) {
+  return getBattlefieldSpriteOverride(name)?.url ?? null;
+}
+
 export function getShowdownSpriteUrl(name: string) {
-  return `${SHOWDOWN_SPRITES}/ani/${spriteId(name)}.gif`;
+  return getChampionsMegaSpriteUrl(name) ?? `${SHOWDOWN_SPRITES}/ani/${spriteId(name)}.gif`;
 }
 
 export const getStaticSpriteUrl = getShowdownSpriteUrl;

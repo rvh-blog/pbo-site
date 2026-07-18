@@ -5,6 +5,7 @@ import { useShowdownBattle, type RosterPokemon, type PokemonBattleState } from "
 import type { BattleSceneHandle } from "./battle-scene";
 import { getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
 import { extractShowdownRoomId } from "@/lib/showdown-room";
+import { getChampionsMegaSpriteUrl } from "@/lib/showdown-sprites";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene } from "./battle-scene";
 import Image from "next/image";
@@ -163,6 +164,9 @@ const SPRITE_OVERRIDES: Record<string, string> = {
 
 /** Convert a Showdown battle form name to a sprite URL. */
 function getShowdownSpriteUrl(battleForm: string): string {
+  const championsMegaSprite = getChampionsMegaSpriteUrl(battleForm);
+  if (championsMegaSprite) return championsMegaSprite;
+
   const id = battleForm.toLowerCase().replace(/[^a-z0-9-]/g, "");
   const spriteId = SPRITE_OVERRIDES[id] ?? id;
   return `https://play.pokemonshowdown.com/sprites/gen5/${spriteId}.png`;

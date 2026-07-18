@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { rosterPokemonMatchesName } from "../src/lib/broadcast-pokemon-matching";
 import { pokemonExactLookupKeys } from "../src/lib/pokemon-name-utils";
 import { getSeasonBattleRules } from "../src/lib/season-battle-rules";
@@ -8,6 +10,10 @@ import {
   getBattlefieldSpriteOverride,
   getBattlefieldSpriteOverrideForFailedUrl,
 } from "../src/lib/battlefield-sprite-overrides";
+import {
+  getChampionsMegaSpriteUrl,
+  getShowdownSpriteUrl,
+} from "../src/lib/showdown-sprites";
 
 const megaCases = [
   ["Pinsir-Mega", "Pinsir"],
@@ -49,13 +55,16 @@ assert.equal(getSeasonBattleRules(11).friendlyMegaNames, true);
 assert(getSeasonBattleRules(11).showdownFormats.includes("gen9championsnatdexdraft"));
 
 assert.equal(NEW_MEGA_BATTLEFIELD_SPRITES.length, 48, "All 48 new Mega battlefield sprites must be registered");
-for (const { forme, spriteId } of NEW_MEGA_BATTLEFIELD_SPRITES) {
+for (const { forme, spriteId, localUrl } of NEW_MEGA_BATTLEFIELD_SPRITES) {
   const parts = forme.split("-");
   const megaIndex = parts.indexOf("mega");
   const prefixAlias = ["Mega", ...parts.slice(0, megaIndex), ...parts.slice(megaIndex + 1)].join(" ");
-  const expectedUrl = `/images/pokemon/sprites/${spriteId}.png`;
+  const expectedUrl = localUrl ?? `/images/pokemon/sprites/${spriteId}.png`;
+  assert(existsSync(resolve(process.cwd(), "public", expectedUrl.slice(1))), `${forme}'s local PNG must exist`);
   assert.equal(getBattlefieldSpriteOverride(forme)?.url, expectedUrl, `${forme} must use its local battlefield sprite`);
   assert.equal(getBattlefieldSpriteOverride(prefixAlias)?.url, expectedUrl, `${prefixAlias} must use its local battlefield sprite`);
+  assert.equal(getChampionsMegaSpriteUrl(forme), expectedUrl, `${forme} must use its local sidebar sprite`);
+  assert.equal(getShowdownSpriteUrl(forme), expectedUrl, `${forme} must bypass missing Showdown sidebar art`);
   assert.equal(
     getBattlefieldSpriteOverrideForFailedUrl(`https://play.pokemonshowdown.com/sprites/gen5/${forme.replaceAll("-", "")}.png`)?.url,
     expectedUrl,
@@ -65,6 +74,11 @@ for (const { forme, spriteId } of NEW_MEGA_BATTLEFIELD_SPRITES) {
     getBattlefieldSpriteOverride(parts.slice(0, megaIndex).join("-")),
     null,
     `${forme}'s base form must keep Showdown's normal sprite`,
+  );
+  assert.equal(
+    getChampionsMegaSpriteUrl(parts.slice(0, megaIndex).join("-")),
+    null,
+    `${forme}'s base form must not use a Champions Mega sidebar sprite`,
   );
 }
 
