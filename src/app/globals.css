@@ -175,6 +175,28 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html {
+  scroll-padding-top: 5rem;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a,
+button,
+input,
+select,
+textarea,
+summary {
+  touch-action: manipulation;
+}
+
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 .poke-card,
 .section-title,
 .section-title > *,
@@ -606,6 +628,20 @@ html[data-theme="light"] .poke-card:hover {
   min-height: 220px;
 }
 
+@media (max-width: 639px) {
+  .league-pass {
+    border-width: 3px;
+    border-radius: 14px;
+    padding: 5px;
+  }
+
+  .league-pass-inner {
+    min-height: 200px;
+    border-radius: 10px;
+    padding: 16px;
+  }
+}
+
 /* Gradient text */
 .gradient-text {
   background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
@@ -708,7 +744,7 @@ html[data-theme="light"] .poke-card:hover {
 
 .mobile-section-nav-item {
   display: inline-flex;
-  min-height: 34px;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   white-space: nowrap;
@@ -720,6 +756,21 @@ html[data-theme="light"] .poke-card:hover {
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .mobile-section-nav-item:hover {
