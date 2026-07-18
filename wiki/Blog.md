@@ -20,17 +20,19 @@ Relevant files:
 
 ## Posting Permissions
 
-Admins can create blog posts. Coaches can create blog posts only after an admin grants blog posting permission.
+Admins and logged-in coaches can create blog posts.
 
 Post rules:
 
 - Title is required and limited to 120 characters.
 - Content must be at least 20 characters and no more than 20000 characters.
 - Excerpts are generated from post content.
+- Admin posts are published immediately.
+- Coach posts remain pending until an admin approves them.
+- Pending posts are visible only to admins and their author.
 - Only admins can attach an image to a blog post.
-- Admins can delete blog posts.
-
-Coach blog permission is stored on `coaches.canPostBlog` and can be toggled through admin user/coach tooling.
+- Admins can approve or delete pending posts.
+- Admins can delete published posts.
 
 ## Comments
 

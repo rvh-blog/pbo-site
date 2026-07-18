@@ -21,9 +21,11 @@ function formatDate(value: string) {
 }
 
 export default async function BlogPage() {
-  const [featureSettings, session, posts] = await Promise.all([
+  const [featureSettings, session] = await Promise.all([
     getSiteFeatureSettings(),
     getSession(),
+  ]);
+  const [posts, pendingPosts] = await Promise.all([
     db.query.blogPosts.findMany({
       where: eq(blogPosts.isPublished, true),
       orderBy: [desc(blogPosts.createdAt)],
@@ -32,6 +34,16 @@ export default async function BlogPage() {
         authorUser: true,
       },
     }),
+    session?.isMod
+      ? db.query.blogPosts.findMany({
+          where: eq(blogPosts.isPublished, false),
+          orderBy: [desc(blogPosts.createdAt)],
+          with: {
+            authorCoach: true,
+            authorUser: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
   if (featureSettings.blogUiHidden) {
     return (
@@ -42,9 +54,7 @@ export default async function BlogPage() {
     );
   }
 
-  const canCreate = Boolean(
-    session?.isMod || (session?.type === "coach" && session.canPostBlog)
-  );
+  const canCreate = Boolean(session?.isMod || session?.type === "coach");
 
   return (
     <div className="space-y-6">
@@ -58,8 +68,8 @@ export default async function BlogPage() {
               League posts, recaps, rankings, and coach stories.
             </p>
             <p className="text-sm text-[var(--foreground-muted)] mt-2">
-              Admins can publish directly. Coaches can publish once an admin grants blog posting permission.
-              Signed-in users can comment on posts.
+              Coaches can submit posts for admin approval. Admin posts publish immediately.
+              Signed-in users can comment on published posts.
             </p>
           </div>
           {canCreate && (
@@ -69,6 +79,51 @@ export default async function BlogPage() {
           )}
         </div>
       </div>
+
+      {session?.isMod && pendingPosts.length > 0 && (
+        <section className="poke-card border-[var(--warning)]/50 p-4 sm:p-6">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-pixel text-sm text-[var(--warning)]">Pending Approval</h2>
+              <p className="mt-2 text-sm text-[var(--foreground-muted)]">
+                Review coach submissions before they appear publicly.
+              </p>
+            </div>
+            <span className="text-xs font-bold text-[var(--warning)]">
+              {pendingPosts.length} {pendingPosts.length === 1 ? "post" : "posts"}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3">
+            {pendingPosts.map((post) => {
+              const authorName = post.authorCoach?.name || post.authorUser?.username || "PBO Staff";
+              return (
+                <Link key={post.id} href={`/blog/${post.id}`} className="block group">
+                  <article className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 p-4 transition-colors group-hover:bg-[var(--warning)]/10">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-white group-hover:text-[var(--warning)]">
+                          {post.title}
+                        </h3>
+                        <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+                          By {authorName} · {formatDate(post.createdAt)}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--warning)]">
+                        Review
+                      </span>
+                    </div>
+                    {post.excerpt && (
+                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-[var(--foreground-muted)]">
+                        {post.excerpt}
+                      </p>
+                    )}
+                  </article>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {posts.length === 0 ? (
         <div className="poke-card p-8 text-center">

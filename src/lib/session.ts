@@ -12,7 +12,6 @@ export interface SessionUser {
   id: number; // coach.id or user.id
   name: string;
   isMod: boolean;
-  canPostBlog?: boolean;
 }
 
 /**
@@ -84,7 +83,6 @@ export async function getSession(): Promise<SessionUser | null> {
       id: session.coach.id,
       name: session.coach.name,
       isMod: session.coach.isMod ?? false,
-      canPostBlog: session.coach.canPostBlog ?? false,
     };
   }
 

@@ -4,6 +4,23 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 18, 2026
+
+Blog moderation:
+
+- Every logged-in coach can submit a blog post without individual posting permission.
+- Coach submissions remain pending and do not appear publicly until an admin approves them.
+- Admins can review pending submissions from the blog, preview them, and approve or delete them.
+- Authors can preview their own pending submissions; other non-admin users cannot access them.
+- Admin-authored posts continue to publish immediately.
+- The legacy Allow Blog Posts coach-management control and BLOG permission badge were removed.
+
+Verification:
+
+- `npx tsc --noEmit` passes.
+- Targeted ESLint passes with one pre-existing `<img>` optimization warning in the coach admin page.
+- `npm run build` passes.
+
 ## July 17, 2026
 
 Replay and broadcast matching:

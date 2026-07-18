@@ -21,9 +21,7 @@ export default async function NewBlogPostPage() {
     );
   }
 
-  const canCreate = Boolean(
-    session?.isMod || (session?.type === "coach" && session.canPostBlog)
-  );
+  const canCreate = Boolean(session?.isMod || session?.type === "coach");
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -39,22 +37,31 @@ export default async function NewBlogPostPage() {
           New Blog Post
         </h1>
         {session && (
-          <p className="text-sm text-[var(--foreground-muted)] mt-2">
-            Posting as <span className="font-bold text-white">{session.name}</span>
-          </p>
+          <>
+            <p className="text-sm text-[var(--foreground-muted)] mt-2">
+              Posting as <span className="font-bold text-white">{session.name}</span>
+            </p>
+            {!session.isMod && (
+              <p className="mt-3 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/10 px-4 py-3 text-sm font-semibold text-[var(--warning)]">
+                Coach posts are submitted for admin approval before appearing on the blog.
+              </p>
+            )}
+          </>
         )}
       </div>
 
       {canCreate ? (
-        <BlogPostForm canPostImages={Boolean(session?.isMod)} />
+        <BlogPostForm
+          canPostImages={Boolean(session?.isMod)}
+          requiresApproval={!session?.isMod}
+        />
       ) : (
         <div className="poke-card p-8 text-center">
           <h2 className="font-pixel text-sm text-[var(--warning)] mb-3">
             Blog Posting Access Required
           </h2>
           <p className="text-[var(--foreground-muted)] mb-6">
-            Blog posts can be created by admins or coaches with blog posting permission.
-            Ask an admin for access.
+            Blog posts can be created by admins and logged-in coaches.
           </p>
           <Link href="/blog" className="btn-retro-secondary px-5 py-3 text-[10px]">
             Back to Blog

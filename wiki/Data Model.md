@@ -309,7 +309,11 @@ Blog content uses:
 - `blog_posts`
 - `blog_comments`
 
-Coach blog posting permission is stored on `coaches.canPostBlog`. Blog comments may reference a parent comment for replies.
+`blog_posts.isPublished` is also the moderation state: admin posts are created as
+published, while coach posts remain unpublished until an admin approves them.
+Pending posts are visible only to admins and their author. The legacy
+`coaches.canPostBlog` column is no longer used. Blog comments may reference a
+parent comment for replies.
 
 ## Admin Audit Logs
 
