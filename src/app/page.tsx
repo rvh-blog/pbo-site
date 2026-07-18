@@ -7,9 +7,11 @@ import { getSiteFeatureSettings } from "@/lib/site-settings";
 import { PollCard } from "@/components/poll-card";
 import { SyncedHeightGrid } from "@/components/synced-height-grid";
 import { HomeLiveDraftRefresh } from "@/components/home-live-draft-refresh";
+import { LocalTime } from "@/components/local-time";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
 import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
 import { compareDivisionNames, DIVISION_HIERARCHY } from "@/lib/division-order";
+import { getUpcomingBattles, UpcomingBattleItem } from "@/lib/upcoming-battles";
 
 export const dynamic = 'force-dynamic';
 
@@ -839,6 +841,96 @@ function GamesOfTheWeekPanel({
   );
 }
 
+function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
+  return (
+    <section className="poke-card p-0 overflow-hidden">
+      <div className="section-title mx-6 mt-6">
+        <div className="section-title-icon">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3>Upcoming Battles</h3>
+      </div>
+
+      <div className="p-6 space-y-3">
+        {battles.length === 0 ? (
+          <p className="py-8 text-center text-sm text-[var(--foreground-muted)]">No upcoming battles</p>
+        ) : battles.map((battle) => {
+          const divisionColorKey = normalizeDivisionName(battle.divisionName || "") === "infinity"
+            ? "Infinity"
+            : battle.divisionName || "";
+          const divisionColor = DIVISION_COLORS[divisionColorKey];
+
+          return (
+            <Link key={battle.id} href={`/matches/${battle.matchId}`} className="block">
+              <div className={`battle-log-item ${battle.isUnderway ? "ring-2 ring-[var(--error)]/40" : ""}`}>
+                <div className={`week-badge shrink-0 ${battle.week > 100 ? "playoff" : ""}`}>
+                  {battle.week > 100 ? (
+                    <>
+                      <span>Playoff</span>
+                      <span>{battle.week === 101 ? "QF" : battle.week === 102 ? "SF" : "F"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Week</span>
+                      <span>{battle.week}</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 min-w-0 text-white">
+                    {battle.team1Logo && (
+                      <Image src={battle.team1Logo} alt="" width={24} height={24} className="rounded hidden sm:block shrink-0" />
+                    )}
+                    <span className="font-bold text-xs sm:text-sm truncate">{battle.team1Name}</span>
+                  </div>
+
+                  {battle.isUnderway ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--error)] animate-pulse" />
+                      <span className="text-xs sm:text-sm font-bold text-[var(--error)] uppercase">Live</span>
+                    </div>
+                  ) : battle.scheduledAt ? (
+                    <div className="flex flex-col items-center shrink-0 whitespace-nowrap">
+                      <LocalTime dateString={battle.scheduledAt} format="time" className="text-[10px] sm:text-xs font-bold text-[var(--accent)]" />
+                      <LocalTime dateString={battle.scheduledAt} format="date" className="text-[8px] sm:text-[10px] text-[var(--foreground-subtle)] uppercase" />
+                    </div>
+                  ) : (
+                    <div className="score-display whitespace-nowrap shrink-0">VS</div>
+                  )}
+
+                  <div className="flex items-center gap-1 sm:gap-2 justify-end min-w-0 text-white">
+                    <span className="font-bold text-xs sm:text-sm truncate text-right">{battle.team2Name}</span>
+                    {battle.team2Logo && (
+                      <Image src={battle.team2Logo} alt="" width={24} height={24} className="rounded hidden sm:block shrink-0" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="shrink-0 w-[72px] text-center hidden sm:block">
+                  {battle.divisionName && (
+                    <span
+                      className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
+                      style={divisionColor
+                        ? { color: divisionColor, backgroundColor: `${divisionColor}15`, border: `1px solid ${divisionColor}30` }
+                        : { backgroundColor: "var(--background-tertiary)", color: "var(--foreground-muted)" }
+                      }
+                    >
+                      {battle.divisionName}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPicks[] }) {
   if (divisions.length === 0) return null;
 
@@ -1047,10 +1139,14 @@ export default async function Home() {
       ? []
       : getRecentDraftPicksByDivision(currentSeasonPromise)
   );
-  const [currentSeason, previousSeasonChampions, recentBattles, recentDraftPicksByDivision, stats, gamesOfTheWeek, topCoaches, personalizedHome] = await Promise.all([
+  const upcomingBattlesPromise = currentSeasonPromise.then((season) =>
+    season?.isCurrent ? getUpcomingBattles(season.id) : []
+  );
+  const [currentSeason, previousSeasonChampions, recentBattles, upcomingBattles, recentDraftPicksByDivision, stats, gamesOfTheWeek, topCoaches, personalizedHome] = await Promise.all([
     currentSeasonPromise,
     getPreviousSeasonChampions(),
     getRecentBattles(),
+    upcomingBattlesPromise,
     recentDraftPicksPromise,
     getStats(currentSeasonPromise),
     getCurrentGamesOfTheWeek(currentSeasonPromise),
@@ -1499,8 +1595,9 @@ export default async function Home() {
             )}
           </div>
         }
-        rightContent={
-          <div className="poke-card p-6 h-full flex flex-col">
+        belowGridContent={
+          <div className="mt-6 w-full">
+            <div className="poke-card p-6 flex flex-col">
             {/* Section Title */}
             <div className="section-title flex-shrink-0">
               <div className="section-title-icon">
@@ -1513,7 +1610,7 @@ export default async function Home() {
 
             {/* Trainer List - Scrollable */}
             {visibleTopCoaches.length > 0 ? (
-              <div className="space-y-3 flex-1 overflow-y-auto min-h-0 pr-1">
+              <div className="max-h-[300px] space-y-3 overflow-y-auto pr-2">
                 {visibleTopCoaches.map((coach) => {
                   // Showcase coaches always show their top 2 types
                   const showDualTypes = coach.rank <= 3 || coach.isShowcase;
@@ -1604,8 +1701,10 @@ export default async function Home() {
                 </svg>
               </Link>
             </div>
+            </div>
           </div>
         }
+        rightContent={<UpcomingBattlesPanel battles={upcomingBattles} />}
       />
 
     </div>

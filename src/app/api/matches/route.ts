@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { matches, matchPokemon, eloHistory, playoffMatches, bets, killBets, deathBets, killEvents } from "@/lib/schema";
 import { eq } from "drizzle-orm";
@@ -13,6 +14,11 @@ import { refreshFantasyWeeklyStatsForWeek } from "@/lib/fantasy-stats";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { logAdminAudit } from "@/lib/admin-audit";
+
+async function refreshFantasyStatsForResult(seasonId: number, week: number) {
+  await refreshFantasyWeeklyStatsForWeek(seasonId, week);
+  revalidateTag("fantasy-public-data", { expire: 0 });
+}
 
 interface KeyEventData {
   turn: number;
@@ -354,7 +360,7 @@ export async function POST(request: NextRequest) {
 
   if (winnerId) {
     try {
-      await refreshFantasyWeeklyStatsForWeek(match.seasonId, match.week);
+      await refreshFantasyStatsForResult(match.seasonId, match.week);
     } catch (fantasyStatsError) {
       console.error("[Matches API] Error refreshing fantasy weekly stats:", fantasyStatsError);
     }
@@ -520,7 +526,7 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
-        await refreshFantasyWeeklyStatsForWeek(previousMatch.seasonId, previousMatch.week);
+        await refreshFantasyStatsForResult(previousMatch.seasonId, previousMatch.week);
         const fantasyResult = await resolveFantasyWeeklyRewardForMatch(id);
         if (fantasyResult.awarded.length > 0 || fantasyResult.reversed.length > 0) {
           console.log("[Matches API] Fantasy rewards resolved:", fantasyResult);
@@ -595,7 +601,7 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
-        await refreshFantasyWeeklyStatsForWeek(previousMatch.seasonId, previousMatch.week);
+        await refreshFantasyStatsForResult(previousMatch.seasonId, previousMatch.week);
         const fantasyResult = await resolveFantasyWeeklyRewardForMatch(id);
         if (fantasyResult.awarded.length > 0 || fantasyResult.reversed.length > 0) {
           console.log("[Matches API] Fantasy rewards re-resolved:", fantasyResult);
@@ -603,6 +609,14 @@ export async function PUT(request: NextRequest) {
       } catch (fantasyError) {
         console.error("[Matches API] Error re-resolving fantasy rewards:", fantasyError);
       }
+    }
+  }
+
+  if (winnerId === null && hadPreviousWinner && previousMatch) {
+    try {
+      await refreshFantasyStatsForResult(previousMatch.seasonId, previousMatch.week);
+    } catch (fantasyStatsError) {
+      console.error("[Matches API] Error refreshing fantasy weekly stats after result removal:", fantasyStatsError);
     }
   }
 
@@ -674,6 +688,14 @@ export async function DELETE(request: NextRequest) {
 
     // Delete match
     await db.delete(matches).where(eq(matches.id, matchId));
+
+    if (hadEloImpact && match) {
+      try {
+        await refreshFantasyStatsForResult(match.seasonId, match.week);
+      } catch (fantasyStatsError) {
+        console.error("[Matches API] Error refreshing fantasy weekly stats after deletion:", fantasyStatsError);
+      }
+    }
 
     await logAdminAudit({
       session,

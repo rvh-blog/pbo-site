@@ -197,7 +197,7 @@ export function Navigation() {
 
   return (
     <nav className="sticky top-0 z-50 bg-[var(--background-secondary)]/90 backdrop-blur-md border-b-4 border-[var(--background-tertiary)] shadow-xl relative">
-      <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div className="container relative mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group" onClick={() => setMobileMenuOpen(false)}>
           <div className="w-10 h-10 bg-[#dc143c] rounded-lg flex items-center justify-center shadow-[4px_4px_0px_#8b0a1a] border-2 border-white/20 group-hover:translate-y-1 group-hover:shadow-none transition-all overflow-hidden">
@@ -218,7 +218,7 @@ export function Navigation() {
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-6">
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-5 lg:flex xl:gap-6">
           {visibleNavItems.map((item) => {
             const isActive = item.href === "/matchup-prep"
               ? matchPrepActive
@@ -319,7 +319,9 @@ export function Navigation() {
               </Link>
             );
           })}
+        </div>
 
+        <div className="hidden items-center gap-3 lg:flex">
           <Search />
 
           {themeToggle}
@@ -454,7 +456,7 @@ export function Navigation() {
         </div>
 
         {/* Mobile: Search + Menu Button */}
-        <div className="md:hidden flex items-center gap-2">
+        <div className="flex items-center gap-2 lg:hidden">
           <Search />
           {themeToggle}
           {authUser && (
@@ -482,7 +484,7 @@ export function Navigation() {
 
       {/* Mobile Menu Dropdown - absolute to overlay content */}
       {mobileMenuOpen && (
-        <div className="md:hidden absolute left-0 right-0 top-full border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-xl">
+        <div className="absolute left-0 right-0 top-full border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-xl lg:hidden">
           <div className="container mx-auto px-4 py-4 space-y-1">
             {/* Persona Section */}
             <div className="pb-3 mb-2 border-b border-[var(--background-tertiary)]">
