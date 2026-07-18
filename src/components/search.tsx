@@ -202,7 +202,7 @@ export function Search() {
       <button
         ref={triggerRef}
         onClick={() => setIsOpen(true)}
-        className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-tertiary)] hover:text-white"
         aria-label="Search (⌘K)"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,7 +213,7 @@ export function Search() {
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] px-4">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-4 sm:pt-[10vh]">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -221,9 +221,9 @@ export function Search() {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-xl bg-[var(--background-secondary)] rounded-xl border border-[var(--background-tertiary)] shadow-2xl overflow-hidden">
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-2xl sm:max-h-[80vh]">
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--background-tertiary)]">
+        <div className="flex items-center gap-2 border-b border-[var(--background-tertiary)] px-3 py-3 sm:gap-3 sm:px-4">
           <svg className="w-5 h-5 text-[var(--foreground-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -235,13 +235,13 @@ export function Search() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-[var(--foreground)] caret-[var(--primary)] placeholder-[var(--foreground-subtle)] outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base text-[var(--foreground)] caret-[var(--primary)] placeholder-[var(--foreground-subtle)] outline-none"
           />
           {isLoading && (
             <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
           )}
           <kbd
-            className="px-2 py-1 text-xs text-[var(--foreground-subtle)] bg-[var(--background-tertiary)] rounded cursor-pointer"
+            className="hidden cursor-pointer rounded bg-[var(--background-tertiary)] px-2 py-1 text-xs text-[var(--foreground-subtle)] sm:block"
             onClick={() => setIsOpen(false)}
           >
             ESC
@@ -249,7 +249,7 @@ export function Search() {
         </div>
 
         {/* Results */}
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-[60vh]">
           {query.length < 2 ? (
             <div className="px-4 py-8 text-center text-[var(--foreground-muted)]">
               <p>Type at least two characters to search.</p>
@@ -280,7 +280,7 @@ export function Search() {
                           key={`${result.type}-${result.id}`}
                           onClick={() => handleSelect(result)}
                           onMouseEnter={() => setSelectedIndex(globalIndex)}
-                          className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
+                          className={`flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left transition-colors ${
                             isSelected
                               ? "bg-[var(--primary)]/20 text-white"
                               : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
@@ -324,7 +324,7 @@ export function Search() {
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--background-tertiary)] text-xs text-[var(--foreground-subtle)]">
+        <div className="hidden items-center justify-between border-t border-[var(--background-tertiary)] px-4 py-2 text-xs text-[var(--foreground-subtle)] sm:flex">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
               <kbd className="px-1 py-0.5 bg-[var(--background-tertiary)] rounded">↑</kbd>

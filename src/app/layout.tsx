@@ -80,7 +80,7 @@ export default function RootLayout({
 
         <Navigation />
         <PerformanceMonitor />
-        <main className="relative z-10 container mx-auto px-4 sm:px-6 py-8 sm:py-12">{children}</main>
+        <main className="relative z-10 container mx-auto px-4 py-6 sm:px-6 sm:py-10 lg:py-12">{children}</main>
 
         <footer className="relative z-10 border-t-4 border-[var(--background-tertiary)] mt-16 bg-[var(--background-secondary)] py-8 sm:mt-20 sm:py-12">
           <div className="container mx-auto px-4 sm:px-6">

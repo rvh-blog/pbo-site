@@ -1266,30 +1266,31 @@ export default async function Home() {
       : "/seasons";
 
   return (
-    <div className="space-y-16">
+    <div className="space-y-10 sm:space-y-12 lg:space-y-16">
       <section className="relative">
-        <div className="flex flex-col items-center justify-center space-y-8">
+        <div className="flex flex-col items-center justify-center space-y-6 sm:space-y-8">
           <div className="text-center space-y-4 max-w-3xl">
             <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest">
               {currentSeason ? "Current Season" : "Offseason"}
             </p>
-            <h1 className="text-4xl md:text-5xl font-bold text-white uppercase tracking-tight">
+            <h1 className="text-3xl font-bold uppercase tracking-tight text-white sm:text-4xl md:text-5xl">
               {currentSeason ? currentSeason.name : "PBO Offseason Hub"}
             </h1>
-            <p className="text-[var(--foreground-muted)] text-lg">
+            <p className="text-base text-[var(--foreground-muted)] sm:text-lg">
               {currentSeason
                 ? "Follow the active league board, recent results, and your team shortcuts from one place."
                 : "Review the latest champions, browse past seasons, and keep up with league history before the next draft."}
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-              <Link href={currentSeason ? `/seasons/${currentSeason.id}` : "/seasons"}>
-                <button className="btn-retro !bg-[#dc143c] hover:!bg-[#b01030]">
-                  {currentSeason ? "View Season" : "Past Seasons"}
-                </button>
+            <div className="flex w-full flex-col items-stretch justify-center gap-2 pt-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+              <Link
+                href={currentSeason ? `/seasons/${currentSeason.id}` : "/seasons"}
+                className="btn-retro inline-flex min-h-11 items-center justify-center !bg-[#dc143c] hover:!bg-[#b01030]"
+              >
+                {currentSeason ? "View Season" : "Past Seasons"}
               </Link>
               <Link
                 href={currentSeason ? currentSeasonPrimaryHref : previousSeasonPlayoffHref}
-                className="text-xs text-[var(--foreground-subtle)] hover:text-white uppercase font-bold tracking-widest transition-colors inline-flex items-center gap-2"
+                className="inline-flex min-h-11 items-center justify-center gap-2 px-3 text-xs font-bold uppercase tracking-widest text-[var(--foreground-subtle)] transition-colors hover:text-white"
               >
                 {currentSeason ? "Open First Division" : "Latest Playoffs"}
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1301,7 +1302,7 @@ export default async function Home() {
 
           {/* League Pass Card */}
           {currentSeason && (
-            <div className="w-full max-w-3xl mx-auto transform hover:scale-[1.02] transition-transform duration-300">
+            <div className="mx-auto w-full max-w-3xl transform transition-transform duration-300 sm:hover:scale-[1.02]">
               <div className="league-pass">
                 <div className="league-pass-inner flex flex-col justify-between">
                   {/* Background Pattern */}
@@ -1329,7 +1330,7 @@ export default async function Home() {
                   </div>
 
                   {/* Stats Grid */}
-                  <div className="grid grid-cols-3 gap-4 mt-6 z-10">
+                  <div className="z-10 mt-6 grid grid-cols-3 gap-2 sm:gap-4">
                     <div className="bg-[var(--background)]/50 rounded p-2 border border-[var(--background-tertiary)]">
                       <p className="text-[10px] text-[var(--foreground-muted)] uppercase mb-1">Budget</p>
                       <p className="font-mono text-lg">{currentSeason.draftBudget}</p>
@@ -1581,7 +1582,7 @@ export default async function Home() {
           </div>
         }
         leftContent={
-          <div className="poke-card p-6">
+          <div className="poke-card p-4 sm:p-6">
             {/* Section Title */}
             <div className="section-title">
               <div className="section-title-icon">
@@ -1708,7 +1709,7 @@ export default async function Home() {
         }
         belowGridContent={
           <div className="mt-6 w-full">
-            <div className="poke-card p-6 flex flex-col">
+            <div className="poke-card flex flex-col p-4 sm:p-6">
             {/* Section Title */}
             <div className="section-title flex-shrink-0">
               <div className="section-title-icon">

@@ -67,6 +67,23 @@ export function Navigation() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileMenuOpen]);
+
   function toggleTheme() {
     const nextIsLight = !isLightMode;
     const nextTheme = nextIsLight ? "light" : "dark";
@@ -79,7 +96,7 @@ export function Navigation() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-tertiary)] transition-colors"
+      className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
       aria-label={isLightMode ? "Switch to dark mode" : "Switch to light mode"}
       title={isLightMode ? "Dark mode" : "Light mode"}
     >
@@ -196,11 +213,11 @@ export function Navigation() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-[var(--background-secondary)]/90 backdrop-blur-md border-b-4 border-[var(--background-tertiary)] shadow-xl relative">
+    <nav className="sticky top-0 z-50 border-b-4 border-[var(--background-tertiary)] bg-[var(--background-secondary)]/90 shadow-xl backdrop-blur-md">
       <div className="container relative mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 group" onClick={() => setMobileMenuOpen(false)}>
-          <div className="w-10 h-10 bg-[#dc143c] rounded-lg flex items-center justify-center shadow-[4px_4px_0px_#8b0a1a] border-2 border-white/20 group-hover:translate-y-1 group-hover:shadow-none transition-all overflow-hidden">
+        <Link href="/" className="group flex min-w-0 items-center gap-2 sm:gap-3" onClick={() => setMobileMenuOpen(false)}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 border-white/20 bg-[#dc143c] shadow-[4px_4px_0px_#8b0a1a] transition-all group-hover:translate-y-1 group-hover:shadow-none sm:h-10 sm:w-10">
             {/* Pokeball Icon */}
             <div className="w-6 h-6 rounded-full border-2 border-white relative bg-[#dc143c] overflow-hidden">
               <div className="absolute bottom-0 w-full h-1/2 bg-white border-t-2 border-white" />
@@ -456,18 +473,21 @@ export function Navigation() {
         </div>
 
         {/* Mobile: Search + Menu Button */}
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 lg:hidden">
           <Search />
           {themeToggle}
           {authUser && (
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]/15 text-xs font-bold text-[var(--accent)]">
+            <span className="hidden h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent)]/15 text-xs font-bold text-[var(--accent)] min-[400px]:flex">
               {userInitial}
             </span>
           )}
           <button
-            className="p-2 text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+            type="button"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-controls="mobile-navigation"
+            aria-expanded={mobileMenuOpen}
           >
           {mobileMenuOpen ? (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -484,8 +504,18 @@ export function Navigation() {
 
       {/* Mobile Menu Dropdown - absolute to overlay content */}
       {mobileMenuOpen && (
-        <div className="absolute left-0 right-0 top-full border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-xl lg:hidden">
-          <div className="container mx-auto px-4 py-4 space-y-1">
+        <>
+          <button
+            type="button"
+            className="fixed inset-x-0 bottom-0 top-16 bg-black/40 backdrop-blur-[1px] lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close menu"
+          />
+          <div
+            id="mobile-navigation"
+            className="absolute left-0 right-0 top-full z-10 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-xl lg:hidden"
+          >
+          <div className="container mx-auto space-y-1 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
             {/* Persona Section */}
             <div className="pb-3 mb-2 border-b border-[var(--background-tertiary)]">
               {authUser ? (
@@ -682,7 +712,8 @@ export function Navigation() {
             })}
 
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Auth Modal - portaled to body so it's not constrained by nav */}
