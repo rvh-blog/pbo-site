@@ -20,7 +20,8 @@ export type UpcomingBattleItem = {
 
 export async function getUpcomingBattles(
   seasonId: number,
-  visibleDivisionIds?: Set<number>
+  visibleDivisionIds?: Set<number>,
+  maxItems: number | null = 5
 ): Promise<UpcomingBattleItem[]> {
   const allUnplayed = await db.query.matches.findMany({
     where: and(
@@ -50,7 +51,9 @@ export async function getUpcomingBattles(
       new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime()
     );
 
-    return scheduled.slice(0, 5).map((match) => ({
+    const visibleScheduled = maxItems === null ? scheduled : scheduled.slice(0, maxItems);
+
+    return visibleScheduled.map((match) => ({
       id: match.id,
       matchId: match.id,
       week: match.week,
@@ -73,7 +76,11 @@ export async function getUpcomingBattles(
     .filter((match) => match.week === earliestWeek)
     .sort((a, b) => compareDivisionNames(a.division?.name, b.division?.name));
 
-  return earliestWeekMatches.slice(0, 5).map((match) => ({
+  const visibleEarliestWeekMatches = maxItems === null
+    ? earliestWeekMatches
+    : earliestWeekMatches.slice(0, maxItems);
+
+  return visibleEarliestWeekMatches.map((match) => ({
     id: match.id,
     matchId: match.id,
     week: match.week,

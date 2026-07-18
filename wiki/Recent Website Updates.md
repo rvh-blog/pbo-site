@@ -18,6 +18,21 @@ Homepage:
 
 - Infinity division badges in the Battle Log now use the pink Infinity accent (`#E2A3C7`) like the other division badges.
 - Infinity color lookup handles case differences and the defensive historical `Infinty` spelling.
+- The Upcoming Battles panel now receives the complete ordered upcoming schedule and scrolls internally when more matches are available.
+- The Upcoming Battles and Battle Log cards use the same desktop height, while season overview pages retain their five-match upcoming-battle limit.
+
+League Hub and poll:
+
+- The inactive-team League Hub uses a narrower centered layout, a clearer account-linking message, a primary Browse Current Season action, and secondary coach, Pick-Ems, and Rulebook actions.
+- Active and inactive coach views both place the league poll beneath their information and actions.
+- Hidden polls collapse to a compact League Poll hidden row with an Unhide action, and the saved per-poll Hide/Unhide preference is preserved.
+- When no active poll exists, the poll section is omitted.
+
+Fantasy Scout:
+
+- The Team Leaderboard includes every team, keeps ten rows visible by default, and scrolls internally when more teams are present.
+- Trending and Schedule use matching half-width columns and aligned spacing.
+- Trending scrolls internally with a stationary header, shows the top eight scorers, and includes every addition and drop from the latest transaction week.
 
 Maintenance:
 

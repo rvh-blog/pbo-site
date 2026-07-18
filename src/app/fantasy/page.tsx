@@ -745,12 +745,10 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
   const topValue = data.valueRows.slice(0, 6);
   const topAdded = data.addedPokemonIds
     .map((id) => data.pokemonRows.find((row) => row.id === id))
-    .filter((row): row is PokemonFantasyRow => Boolean(row))
-    .slice(0, 4);
+    .filter((row): row is PokemonFantasyRow => Boolean(row));
   const topDropped = data.droppedPokemonIds
     .map((id) => data.pokemonRows.find((row) => row.id === id))
-    .filter((row): row is PokemonFantasyRow => Boolean(row))
-    .slice(0, 4);
+    .filter((row): row is PokemonFantasyRow => Boolean(row));
   const fantasyPokemonOptions: FantasyPokemonOption[] = data.pokemonRows
     .filter((row) => row.cost !== null)
     .map((row) => ({
@@ -850,9 +848,9 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
         }
 
         rightContent={
-        <aside className="space-y-6">
-          <div className="poke-card p-4 sm:p-5">
-            <div className="section-title">
+        <aside className="min-h-0">
+          <div className="poke-card flex max-h-[980px] min-h-0 flex-col overflow-hidden p-4 sm:p-5">
+            <div className="section-title shrink-0">
               <div className="section-title-icon">
                 <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
@@ -860,13 +858,13 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
               </div>
               <h3>Trending</h3>
             </div>
-            <div className="space-y-5">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pr-2">
               <div>
                 <h4 className="mb-3 text-xs font-bold uppercase text-[var(--foreground-muted)]">
                   Top Scores
                 </h4>
                 <div className="space-y-2">
-                  {topPokemon.slice(0, 5).map((row, index) => (
+                  {topPokemon.map((row, index) => (
                     <Link key={row.id} href={`/pokemon/${row.id}`} className="trainer-card">
                       <div className={`rank-badge ${index === 0 ? "rank-1" : index === 1 ? "rank-2" : index === 2 ? "rank-3" : "bg-[var(--background)] text-[var(--foreground-subtle)]"}`}>
                         {index + 1}
@@ -935,8 +933,8 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
             </div>
             <h3>Team Leaderboard</h3>
           </div>
-          <div className="space-y-2">
-            {data.teamRows.slice(0, 10).map((team, index) => {
+          <div className="max-h-[642px] space-y-2 overflow-y-auto overscroll-contain pr-2">
+            {data.teamRows.map((team, index) => {
               const color = DIVISION_COLORS[team.divisionName];
               return (
                 <Link key={team.id} href={`/coaches/${team.coachId}`} className="trainer-card">
