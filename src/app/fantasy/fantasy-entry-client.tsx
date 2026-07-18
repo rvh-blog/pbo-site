@@ -601,8 +601,11 @@ export function FantasyEntryClient({
             No fantasy rosters saved yet.
           </p>
         ) : (
-          <div className="space-y-2">
-            {leaderboard.slice(0, 10).map((entry, index) => (
+          <div
+            className="max-h-[720px] space-y-2 overflow-y-auto pr-2"
+            aria-label="Fantasy leaderboard rankings"
+          >
+            {leaderboard.map((entry, index) => (
               <div key={entry.id} className="trainer-card">
                 <div className={`rank-badge ${index === 0 ? "rank-1" : index === 1 ? "rank-2" : index === 2 ? "rank-3" : "bg-[var(--background)] text-[var(--foreground-subtle)]"}`}>
                   {index + 1}

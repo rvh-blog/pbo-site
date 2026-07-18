@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
-import { seasons, divisions, seasonCoaches, matches, playoffMatches, matchPokemon, killEvents, moves } from "@/lib/schema";
-import { eq, asc, and, isNotNull, isNull, lte, desc, inArray } from "drizzle-orm";
+import { seasons, seasonCoaches, matches, playoffMatches, killEvents } from "@/lib/schema";
+import { eq, and, isNotNull, lte, desc, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getCoachesGlow } from "@/lib/glow-utils";
 import { getGlowStyle } from "@/components/team-name-glow";
@@ -12,6 +12,7 @@ import { computeAndSortStandings } from "@/lib/standings-sort";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { compareDivisionNames, compareDivisions } from "@/lib/division-order";
+import { getUpcomingBattles } from "@/lib/upcoming-battles";
 
 const DIVISION_COLORS: Record<string, string> = {
   "Infinity": "#E2A3C7",
@@ -67,22 +68,6 @@ function getRoundLabel(round: number): string {
   }
 }
 
-type UpcomingBattleItem = {
-  id: number;
-  matchId: number;
-  week: number;
-  scheduledAt: string | null;
-  isUnderway: boolean;
-  team1Name?: string;
-  team2Name?: string;
-  team1Logo?: string | null;
-  team2Logo?: string | null;
-  team1Id: number;
-  team2Id: number;
-  divisionName?: string;
-  divisionDisplayOrder?: number;
-};
-
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -127,84 +112,6 @@ async function getStandings(divisionId: number, allDivisionMatches: Awaited<Retu
   const divMatches = allDivisionMatches.filter(m => m.divisionId === divisionId);
 
   return computeAndSortStandings(activeCoaches, replacementMap, divMatches);
-}
-
-async function getUpcomingBattles(seasonId: number, visibleDivisionIds?: Set<number>): Promise<UpcomingBattleItem[]> {
-  // Fetch all unplayed matches for this season
-  const allUnplayed = await db.query.matches.findMany({
-    where: and(
-      eq(matches.seasonId, seasonId),
-      isNull(matches.winnerId)
-    ),
-    with: {
-      coach1: true,
-      coach2: true,
-      division: true,
-    },
-  });
-
-  const now = Date.now();
-  const ONE_HOUR = 60 * 60 * 1000;
-
-  // Primary: matches with scheduledAt, still relevant (future or <1hr past)
-  const visibleUnplayed = visibleDivisionIds
-    ? allUnplayed.filter((m) => visibleDivisionIds.has(m.divisionId))
-    : allUnplayed;
-
-  const scheduled = visibleUnplayed.filter((m) => {
-    if (!m.scheduledAt) return false;
-    const scheduledTime = new Date(m.scheduledAt).getTime();
-    return scheduledTime > now - ONE_HOUR;
-  });
-
-  if (scheduled.length > 0) {
-    // Sort by scheduledAt ascending (soonest first)
-    scheduled.sort((a, b) =>
-      new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime()
-    );
-
-    return scheduled.slice(0, 5).map((m) => ({
-      id: m.id,
-      matchId: m.id,
-      week: m.week,
-      scheduledAt: m.scheduledAt,
-      isUnderway: !!m.scheduledAt && new Date(m.scheduledAt).getTime() <= now,
-      team1Name: m.coach1?.teamName,
-      team2Name: m.coach2?.teamName,
-      team1Logo: m.coach1?.teamLogoUrl,
-      team2Logo: m.coach2?.teamLogoUrl,
-      team1Id: m.coach1SeasonId,
-      team2Id: m.coach2SeasonId,
-      divisionName: m.division?.name,
-    }));
-  }
-
-  // Fallback: no scheduled games — show earliest unplayed rounds, higher divisions first
-  if (visibleUnplayed.length === 0) return [];
-
-  // Find the earliest unplayed week
-  const earliestWeek = Math.min(...visibleUnplayed.map((m) => m.week));
-  const earliestWeekMatches = visibleUnplayed.filter((m) => m.week === earliestWeek);
-
-  // Sort by the permanent division hierarchy.
-  earliestWeekMatches.sort((a, b) => {
-    return compareDivisionNames(a.division?.name, b.division?.name);
-  });
-
-  return earliestWeekMatches.slice(0, 5).map((m) => ({
-    id: m.id,
-    matchId: m.id,
-    week: m.week,
-    scheduledAt: m.scheduledAt,
-    isUnderway: false,
-    team1Name: m.coach1?.teamName,
-    team2Name: m.coach2?.teamName,
-    team1Logo: m.coach1?.teamLogoUrl,
-    team2Logo: m.coach2?.teamLogoUrl,
-    team1Id: m.coach1SeasonId,
-    team2Id: m.coach2SeasonId,
-    divisionName: m.division?.name,
-  }));
 }
 
 async function getRecentBattles(

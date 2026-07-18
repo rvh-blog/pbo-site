@@ -410,10 +410,25 @@ async function getFantasyData(
     })
   );
 
-  const scoringWeeks = completedMatches
-    .filter((match) => match.week < targetWeek)
-    .map((match) => match.week);
-  const weeklyStats = await getFantasyWeeklyStatsForWeeks(seasonId, scoringWeeks);
+  const scoutingScoringWeeks = [
+    ...new Set(
+      completedMatches
+        .filter((match) => match.week < targetWeek)
+        .map((match) => match.week)
+    ),
+  ];
+  const teamScoringWeeks = [
+    ...new Set(
+      completedMatches
+        .filter((match) => match.week <= targetWeek)
+        .map((match) => match.week)
+    ),
+  ];
+  const scoutingScoringWeekSet = new Set(scoutingScoringWeeks);
+  const latestTeamCompletedWeek = teamScoringWeeks.length
+    ? Math.max(...teamScoringWeeks)
+    : 0;
+  const weeklyStats = await getFantasyWeeklyStatsForWeeks(seasonId, teamScoringWeeks);
   for (const [week, stats] of weeklyStats) {
     for (const stat of stats) {
       if (!seasonTeamIds.has(stat.seasonCoachId)) continue;
@@ -423,29 +438,31 @@ async function getFantasyData(
       const team = teamMap.get(stat.seasonCoachId);
       if (!row || !team) continue;
 
-      row.games += stat.games;
-      row.kills += stat.kills;
-      row.deaths += stat.deaths;
-      row.damage += stat.damage;
-      row.indirectDamage += stat.indirectDamage;
-      row.totalScore += stat.score;
-      if (week === latestCompletedWeek) row.recentScore += stat.score;
-      if (week === previousCompletedWeek) row.previousScore += stat.score;
+      if (scoutingScoringWeekSet.has(week)) {
+        row.games += stat.games;
+        row.kills += stat.kills;
+        row.deaths += stat.deaths;
+        row.damage += stat.damage;
+        row.indirectDamage += stat.indirectDamage;
+        row.totalScore += stat.score;
+        if (week === latestScoutingCompletedWeek) row.recentScore += stat.score;
+        if (week === previousCompletedWeek) row.previousScore += stat.score;
 
-      const divisionStats = getDivisionStats(row, team.divisionName, stat.seasonCoachId, team.teamName);
-      divisionStats.score += stat.score;
-      if (week === latestScoutingCompletedWeek) divisionStats.recentScore += stat.score;
-      if (week === previousCompletedWeek) divisionStats.previousScore += stat.score;
-      divisionStats.games += stat.games;
-      divisionStats.kills += stat.kills;
-      divisionStats.deaths += stat.deaths;
-      divisionStats.wins += stat.wins;
-      divisionStats.losses += stat.losses;
-      divisionStats.damage += stat.damage;
-      divisionStats.indirectDamage += stat.indirectDamage;
+        const divisionStats = getDivisionStats(row, team.divisionName, stat.seasonCoachId, team.teamName);
+        divisionStats.score += stat.score;
+        if (week === latestScoutingCompletedWeek) divisionStats.recentScore += stat.score;
+        if (week === previousCompletedWeek) divisionStats.previousScore += stat.score;
+        divisionStats.games += stat.games;
+        divisionStats.kills += stat.kills;
+        divisionStats.deaths += stat.deaths;
+        divisionStats.wins += stat.wins;
+        divisionStats.losses += stat.losses;
+        divisionStats.damage += stat.damage;
+        divisionStats.indirectDamage += stat.indirectDamage;
+      }
 
       team.totalScore += stat.score;
-      if (week === latestCompletedWeek) team.recentScore += stat.score;
+      if (week === latestTeamCompletedWeek) team.recentScore += stat.score;
       team.games += stat.games;
       team.kills += stat.kills;
       team.deaths += stat.deaths;
@@ -606,7 +623,7 @@ const getCachedFantasyData = unstable_cache(
   async (seasonId: number, seasonNumber: number, requestedWeek: number | null) =>
     serializeFantasyData(await getFantasyData(seasonId, seasonNumber, requestedWeek)),
   ["fantasy-public-data-v1"],
-  { revalidate: 60 }
+  { revalidate: 60, tags: ["fantasy-public-data"] }
 );
 
 async function getDefaultScheduleDivisionName(seasonId: number) {
