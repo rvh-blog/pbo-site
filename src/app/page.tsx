@@ -844,7 +844,7 @@ function GamesOfTheWeekPanel({
 function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
   return (
     <section className="poke-card p-0 overflow-hidden">
-      <div className="section-title mx-6 mt-6">
+      <div className="section-title mx-6 mt-6 justify-center">
         <div className="section-title-icon">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -863,9 +863,14 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
           const divisionColor = DIVISION_COLORS[divisionColorKey];
 
           return (
-            <Link key={battle.id} href={`/matches/${battle.matchId}`} className="block">
-              <div className={`battle-log-item ${battle.isUnderway ? "ring-2 ring-[var(--error)]/40" : ""}`}>
-                <div className={`week-badge shrink-0 ${battle.week > 100 ? "playoff" : ""}`}>
+            <Link
+              key={battle.id}
+              href={battle.matchId > 0 ? `/matches/${battle.matchId}` : "#"}
+              className="block"
+              aria-disabled={battle.matchId <= 0}
+            >
+              <div className={`battle-log-item relative justify-center ${battle.isUnderway ? "ring-2 ring-[var(--error)]/40" : ""}`}>
+                <div className={`week-badge absolute left-3 top-1/2 shrink-0 -translate-y-1/2 sm:left-4 ${battle.week > 100 ? "playoff" : ""}`}>
                   {battle.week > 100 ? (
                     <>
                       <span>Playoff</span>
@@ -879,48 +884,56 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
                   )}
                 </div>
 
-                <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-2">
-                  <div className="flex items-center gap-1 sm:gap-2 min-w-0 text-white">
-                    {battle.team1Logo && (
-                      <Image src={battle.team1Logo} alt="" width={24} height={24} className="rounded hidden sm:block shrink-0" />
-                    )}
-                    <span className="font-bold text-xs sm:text-sm truncate">{battle.team1Name}</span>
+                <div className="flex w-full min-w-0 flex-col items-center gap-1 pl-20">
+                  <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-[7.5%]">
+                    <div className="flex min-w-0 items-center justify-start gap-2 text-left text-white">
+                      {battle.team1Logo && (
+                        <Image src={battle.team1Logo} alt="" width={24} height={24} className="rounded hidden sm:block shrink-0" />
+                      )}
+                      <span className="min-w-0 break-words text-xs font-bold leading-tight sm:text-sm">
+                        {battle.team1Name}
+                      </span>
+                    </div>
+
+                    <span className="text-[8px] font-bold uppercase leading-none text-[var(--foreground-subtle)]">vs</span>
+
+                    <div className="flex min-w-0 items-center justify-end gap-2 text-right text-white">
+                      <span className="min-w-0 break-words text-xs font-bold leading-tight sm:text-sm">
+                        {battle.team2Name}
+                      </span>
+                      {battle.team2Logo && (
+                        <Image src={battle.team2Logo} alt="" width={24} height={24} className="rounded hidden sm:block shrink-0" />
+                      )}
+                    </div>
                   </div>
 
-                  {battle.isUnderway ? (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--error)] animate-pulse" />
-                      <span className="text-xs sm:text-sm font-bold text-[var(--error)] uppercase">Live</span>
-                    </div>
-                  ) : battle.scheduledAt ? (
-                    <div className="flex flex-col items-center shrink-0 whitespace-nowrap">
-                      <LocalTime dateString={battle.scheduledAt} format="time" className="text-[10px] sm:text-xs font-bold text-[var(--accent)]" />
-                      <LocalTime dateString={battle.scheduledAt} format="date" className="text-[8px] sm:text-[10px] text-[var(--foreground-subtle)] uppercase" />
-                    </div>
-                  ) : (
-                    <div className="score-display whitespace-nowrap shrink-0">VS</div>
-                  )}
+                  <div className="mt-1 flex w-full min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-[7.5%]">
+                    {battle.isUnderway ? (
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--error)] animate-pulse" />
+                        <span className="text-[10px] font-bold uppercase text-[var(--error)] sm:text-xs">Live</span>
+                      </div>
+                    ) : battle.scheduledAt ? (
+                      <div className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
+                        <LocalTime dateString={battle.scheduledAt} format="time" className="text-[10px] font-bold text-[var(--accent)] sm:text-xs" />
+                        <LocalTime dateString={battle.scheduledAt} format="date" className="truncate text-[8px] uppercase text-[var(--foreground-subtle)] sm:text-[10px]" />
+                      </div>
+                    ) : (
+                      <span className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Time TBD</span>
+                    )}
 
-                  <div className="flex items-center gap-1 sm:gap-2 justify-end min-w-0 text-white">
-                    <span className="font-bold text-xs sm:text-sm truncate text-right">{battle.team2Name}</span>
-                    {battle.team2Logo && (
-                      <Image src={battle.team2Logo} alt="" width={24} height={24} className="rounded hidden sm:block shrink-0" />
+                    {battle.divisionName && (
+                      <span
+                        className="shrink-0 rounded px-2 py-1 text-[9px] font-bold uppercase sm:text-[10px]"
+                        style={divisionColor
+                          ? { color: divisionColor, backgroundColor: `${divisionColor}15`, border: `1px solid ${divisionColor}30` }
+                          : { backgroundColor: "var(--background-tertiary)", color: "var(--foreground-muted)" }
+                        }
+                      >
+                        {battle.divisionName}
+                      </span>
                     )}
                   </div>
-                </div>
-
-                <div className="shrink-0 w-[72px] text-center hidden sm:block">
-                  {battle.divisionName && (
-                    <span
-                      className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
-                      style={divisionColor
-                        ? { color: divisionColor, backgroundColor: `${divisionColor}15`, border: `1px solid ${divisionColor}30` }
-                        : { backgroundColor: "var(--background-tertiary)", color: "var(--foreground-muted)" }
-                      }
-                    >
-                      {battle.divisionName}
-                    </span>
-                  )}
                 </div>
               </div>
             </Link>
@@ -929,6 +942,68 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
       </div>
     </section>
   );
+}
+
+function getDevelopmentUpcomingBattles(): UpcomingBattleItem[] {
+  if (process.env.NODE_ENV !== "development") return [];
+
+  const previewStart = Date.now() + 60 * 60 * 1000;
+  const matchups = [
+    {
+      team1Id: 957,
+      team1Name: "Jirachi All-Stars",
+      team1Logo: "/images/teams/jirachi-all-stars.png",
+      team2Id: 958,
+      team2Name: "Blackthorn Crashers",
+      team2Logo: "/images/teams/blackthorn-crashers.png",
+      divisionName: "Infinity",
+    },
+    {
+      team1Id: 973,
+      team1Name: "The Pokerangers",
+      team1Logo: "/images/teams/the-pokerangers.png",
+      team2Id: 983,
+      team2Name: "Gimmighoul Pump N Dumps",
+      team2Logo: "/images/teams/ghimmieghoul-pump-and-dumps.png",
+      divisionName: "Stargazer",
+    },
+    {
+      team1Id: 986,
+      team1Name: "Snowpoint City Snovers",
+      team1Logo: "/images/teams/snowpoint-city-snovers.png",
+      team2Id: 987,
+      team2Name: "Glasgow Glowbros",
+      team2Logo: "/images/teams/glasgow-glowbros.png",
+      divisionName: "Sunset",
+    },
+    {
+      team1Id: 966,
+      team1Name: "Toronto Staraptors",
+      team1Logo: "/images/teams/toronto-staraptors.png",
+      team2Id: 967,
+      team2Name: "Iberia Wattrels",
+      team2Logo: "/images/teams/iberia-wattrels.png",
+      divisionName: "Crystal",
+    },
+    {
+      team1Id: 964,
+      team1Name: "Worcester Woopers",
+      team1Logo: "/images/teams/worcester-woopers.png",
+      team2Id: 969,
+      team2Name: "New York Malamars",
+      team2Logo: "/images/teams/new-york-malamars.png",
+      divisionName: "Neon",
+    },
+  ];
+
+  return matchups.map((matchup, index) => ({
+    id: -(index + 1),
+    matchId: -(index + 1),
+    week: 1,
+    scheduledAt: new Date(previewStart + index * 60 * 60 * 1000).toISOString(),
+    isUnderway: false,
+    ...matchup,
+  }));
 }
 
 function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPicks[] }) {
@@ -1704,7 +1779,15 @@ export default async function Home() {
             </div>
           </div>
         }
-        rightContent={<UpcomingBattlesPanel battles={upcomingBattles} />}
+        rightContent={
+          <UpcomingBattlesPanel
+            battles={
+              upcomingBattles.length > 0
+                ? upcomingBattles
+                : getDevelopmentUpcomingBattles()
+            }
+          />
+        }
       />
 
     </div>
