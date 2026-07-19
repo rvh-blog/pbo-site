@@ -38,7 +38,8 @@ The page header has Season / Division / Team preset selectors. They navigate via
 
 ## Panel Toggles
 
-The planner has visible toggles so users can show or hide major sections they do not want to use. The toggle toolbar is shown only below the `lg` breakpoint; on desktop all sections are always visible:
+The planner has a View toolbar on desktop and mobile so users can show or hide
+major sections they do not want to use:
 
 - Draft Needs
 - Draft Board
@@ -47,6 +48,10 @@ The planner has visible toggles so users can show or hide major sections they do
 - Team Info (analyzer)
 
 These are UI visibility controls only. They do not change saved planner data.
+
+The Draft Board control is labeled Hide Draft Board while the board is visible
+and Show Draft Board while it is hidden. The toolbar remains visible so the
+board can always be restored without reloading the page.
 
 Toggle behavior details:
 

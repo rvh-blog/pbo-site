@@ -23,6 +23,11 @@ export async function GET(request: NextRequest) {
   const exactCoachNameRank = sql`CASE WHEN lower(${coaches.name}) = ${query} THEN 0 ELSE 1 END`;
   const exactTeamNameRank = sql`CASE WHEN lower(${seasonCoaches.teamName}) = ${query} THEN 0 ELSE 1 END`;
   const currentSeasonRank = sql`CASE WHEN ${seasons.isCurrent} THEN 0 ELSE 1 END`;
+  const divisionHierarchyRank = sql`CASE
+    WHEN ${seasons.seasonNumber} BETWEEN 3 AND 5 AND lower(${divisions.name}) = 'unova' THEN 0
+    WHEN ${seasons.seasonNumber} BETWEEN 3 AND 5 AND lower(${divisions.name}) = 'kalos' THEN 1
+    ELSE ${divisions.displayOrder}
+  END`;
 
   // Search coaches by name
   const coachByNameResults = await db
@@ -135,7 +140,7 @@ export async function GET(request: NextRequest) {
       sql`CASE WHEN lower(${divisions.name}) = ${query} THEN 0 ELSE 1 END`,
       currentSeasonRank,
       sql`${seasons.seasonNumber} DESC`,
-      sql`${divisions.displayOrder} ASC`
+      divisionHierarchyRank
     )
     .limit(8);
 
@@ -205,7 +210,7 @@ export async function GET(request: NextRequest) {
       .from(divisions)
       .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
       .where(and(publicSeasonFilter, publicDivisionFilter))
-      .orderBy(sql`${seasons.seasonNumber} DESC`, sql`${divisions.displayOrder} ASC`)
+      .orderBy(sql`${seasons.seasonNumber} DESC`, divisionHierarchyRank)
       .limit(12);
   }
 
@@ -222,7 +227,7 @@ export async function GET(request: NextRequest) {
       .from(divisions)
       .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
       .where(and(publicSeasonFilter, publicDivisionFilter))
-      .orderBy(sql`${seasons.seasonNumber} DESC`, sql`${divisions.displayOrder} ASC`)
+      .orderBy(sql`${seasons.seasonNumber} DESC`, divisionHierarchyRank)
       .limit(12);
   }
 

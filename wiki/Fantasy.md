@@ -71,6 +71,9 @@ uses Pokemon match performance from weeks before N.
 Saved fantasy leaderboard results are scored from the selected fantasy week only.
 For the Season 10 Week 8 test view, Week 8 result data is intentionally ignored
 so saved rosters stay at 0 points until the Season 11 weekly flow is enabled.
+My Fantasy Roster uses those same selected-week scores for each saved pick and
+for the roster Score total. The available Pokemon picker remains a scouting
+surface and continues to show performance from weeks before the selected week.
 
 ## Rewards
 
@@ -117,9 +120,12 @@ Relevant files:
   Pokemon, not a cumulative total across divisions.
 - Saved picks store the selected Pokemon and its start-week `season_coach_id` so
   prior-week usage is tracked by team instance, not species alone.
-- Selected roster cards show Pokemon name, then team name, then performance line.
+- Selected roster cards show Pokemon name, then team name, then a performance
+  line containing the Pokemon's actual score for the selected fantasy week.
+- The My Fantasy Roster Score total sums the six selected-week pick scores and
+  refreshes after recorded match results update the fantasy weekly statistics.
 - Available picker cards also show Pokemon name, then team name, then performance
-  line.
+  line based on pre-week scouting performance.
 
 ## Files
 

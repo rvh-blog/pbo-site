@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { discordGuilds, discordChannels, divisions, seasons } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
+import { compareDivisionNames } from "@/lib/division-order";
 
 // GET - Fetch Discord configuration
 export async function GET(request: NextRequest) {
@@ -40,6 +41,12 @@ export async function GET(request: NextRequest) {
         .from(divisions)
         .innerJoin(seasons, eq(divisions.seasonId, seasons.id))
         .orderBy(desc(seasons.seasonNumber), divisions.displayOrder);
+
+      allDivisions.sort(
+        (a, b) =>
+          b.seasonNumber - a.seasonNumber ||
+          compareDivisionNames(a.name, b.name),
+      );
 
       return NextResponse.json(allDivisions);
     }
