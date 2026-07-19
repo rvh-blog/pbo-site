@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { and, eq, gt, gte, isNotNull, lte } from "drizzle-orm";
 import { divisions, matches, matchPokemon, pokemon, seasons } from "@/lib/schema";
+import { compareDivisionNames } from "@/lib/division-order";
 import type { BattleRecordRow } from "./battle-record-table";
 import { BattleRecordView, type PboRecordCategory, type PboRecordEntry } from "./battle-record-tabs";
 import type { PokemonMoveDivision, PokemonMoveRecord } from "./pokemon-move-records";
@@ -280,7 +281,11 @@ async function getPokemonMoveRecords(): Promise<{
         records: aggregateRecords(division.rows),
       }))
       .filter((division) => division.records.length > 0)
-      .sort((a, b) => b.seasonNumber - a.seasonNumber || a.divisionName.localeCompare(b.divisionName)),
+      .sort(
+        (a, b) =>
+          b.seasonNumber - a.seasonNumber ||
+          compareDivisionNames(a.divisionName, b.divisionName),
+      ),
   };
 }
 

@@ -75,7 +75,7 @@ interface FantasyEntryResponse {
   myEntry: {
     id: number;
     displayName: string;
-    picks?: FantasySlotPick[];
+    picks?: (FantasySlotPick & { score?: number })[];
     pokemonIds?: number[];
     seasonCoachIds?: (number | null)[];
     updatedAt: string;
@@ -145,6 +145,7 @@ export function FantasyEntryClient({
 }: FantasyEntryClientProps) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [selectedSlots, setSelectedSlots] = useState<(FantasySlotPick | null)[]>([]);
+  const [weeklyScores, setWeeklyScores] = useState<Map<string, number>>(new Map());
   const [usedInstances, setUsedInstances] = useState<FantasyUsedInstance[]>([]);
   const [lockedSeasonCoachIds, setLockedSeasonCoachIds] = useState<number[]>([]);
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
@@ -213,7 +214,7 @@ export function FantasyEntryClient({
     if (!row) return sum;
     const slot = normalizedSlots[index];
     if (!slot) return sum;
-    return sum + (getPickedStats(row, slot.seasonCoachId)?.score ?? 0);
+    return sum + (weeklyScores.get(instanceKey(slot)) ?? 0);
   }, 0);
   const overBudget = totalCost > budget;
   const slotValidation = normalizedSlots.map((slot, index) => {
@@ -294,9 +295,18 @@ export function FantasyEntryClient({
             pokemonId,
             seasonCoachId: data.myEntry?.seasonCoachIds?.[index] ?? 0,
           }));
+        setWeeklyScores(
+          new Map<string, number>(
+            entryPicks.map((pick) => [
+              instanceKey(pick),
+              "score" in pick && typeof pick.score === "number" ? pick.score : 0,
+            ])
+          )
+        );
         setSelectedSlots(entryPicks.slice(0, data.settings?.rosterSize || 6));
         setSavedAt(data.myEntry.updatedAt);
       } else {
+        setWeeklyScores(new Map());
         setSelectedSlots([]);
         setSavedAt(null);
       }
@@ -458,7 +468,9 @@ export function FantasyEntryClient({
                         {formatTeamLabel(slotStats?.teamName ?? "")}
                       </div>
                       <div className="text-[10px] text-[var(--foreground-subtle)]">
-                        {row.cost} pts - {formatScore(slotStats?.score ?? 0)} score
+                        {row.cost} pts - {formatScore(
+                          slotPick ? (weeklyScores.get(instanceKey(slotPick)) ?? 0) : 0
+                        )} score
                       </div>
                     </div>
                     {slotIsLocked ? (

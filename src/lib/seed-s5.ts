@@ -565,7 +565,7 @@ async function seedS5() {
   console.log(`Found ${coachToTeamName.size} existing coach-to-team mappings`);
 
   // Seed each division
-  for (const divisionName of DIVISIONS) {
+  for (const [displayOrder, divisionName] of DIVISIONS.entries()) {
     console.log(`\n----------------------------------------`);
     console.log(`Seeding ${divisionName} division...`);
     console.log(`----------------------------------------`);
@@ -582,7 +582,7 @@ async function seedS5() {
       console.log(`Creating ${divisionName} division...`);
       const [newDiv] = await db
         .insert(schema.divisions)
-        .values({ seasonId: season5.id, name: divisionName })
+        .values({ seasonId: season5.id, name: divisionName, displayOrder })
         .returning();
       division = newDiv;
     }

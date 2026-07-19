@@ -6,6 +6,29 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## July 18, 2026
 
+Historical division hierarchy:
+
+- Seasons 3, 4, and 5 consistently order Unova before Kalos across season pages,
+  selectors, standings, playoffs, Battle Record, search results, and Discord
+  admin data.
+- The Season 5 seed assigns matching display-order values for future imports.
+- The modern Infinity, Stargazer, Sunset, Crystal, and Neon hierarchy is
+  unchanged.
+
+Free Agency:
+
+- The Draft Planner View toolbar is available on desktop as well as mobile.
+- The Draft Board has an explicit Hide Draft Board / Show Draft Board toggle.
+  Hiding it leaves the remaining planning tools available.
+
+Fantasy Scout:
+
+- My Fantasy Roster cards display the selected fantasy week's actual score after
+  match results are recorded instead of continuing to show pre-week scouting
+  performance.
+- The roster Score total sums those current-week pick scores. The available
+  Pokemon picker continues to rank candidates by prior scouting performance.
+
 Blog moderation:
 
 - Every logged-in coach can submit a blog post without individual posting permission.

@@ -1716,14 +1716,18 @@ export function DraftPlanner({
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--card-border)]" />
         </div>
 
-        <div className="draft-toggle-toolbar mb-2 flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5 lg:hidden">
+        <div className="draft-toggle-toolbar mb-2 flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--card)] p-1.5">
           <span className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
             <Eye className="h-3.5 w-3.5" />
             View
           </span>
           {[
             { label: "Draft Needs", enabled: showNeedsPanel, onClick: () => setShowNeedsPanel(!showNeedsPanel) },
-            { label: "Draft Board", enabled: showDraftBoard, onClick: () => setShowDraftBoard(!showDraftBoard) },
+            {
+              label: showDraftBoard ? "Hide Draft Board" : "Show Draft Board",
+              enabled: showDraftBoard,
+              onClick: () => setShowDraftBoard(!showDraftBoard),
+            },
             { label: "Compare", enabled: showComparePanel, onClick: () => setShowComparePanel(!showComparePanel) },
             { label: "Notes", enabled: showNotesPanel, onClick: () => setShowNotesPanel(!showNotesPanel) },
             { label: "Team Info", enabled: showTeamAnalyzer, onClick: () => setShowTeamAnalyzer(!showTeamAnalyzer) },

@@ -311,11 +311,18 @@ export async function GET(request: NextRequest) {
 
     const allEntries = await getSeasonFantasyEntries(seasonId);
     const entries = allEntries.filter((entry) => entry.week === scoringWeek);
+    const scoringWeekScoreMap = await getPokemonScores(
+      seasonId,
+      season.seasonNumber,
+      scoringWeek
+    );
     const leaderboard = leaderboardWeek === "overall"
       ? await buildOverallLeaderboard(allEntries, seasonId, season.seasonNumber)
       : buildWeekLeaderboard(
           allEntries,
-          await getPokemonScores(seasonId, season.seasonNumber, leaderboardWeek),
+          leaderboardWeek === scoringWeek
+            ? scoringWeekScoreMap
+            : await getPokemonScores(seasonId, season.seasonNumber, leaderboardWeek),
           leaderboardWeek
         );
 
@@ -362,6 +369,7 @@ export async function GET(request: NextRequest) {
               .map((pick) => ({
                 pokemonId: pick.pokemonId,
                 seasonCoachId: pick.seasonCoachId!,
+                score: scoringWeekScoreMap.get(fantasyPickKey(pick)) ?? 0,
               })),
             pokemonIds: myEntry.picks
               .slice()
