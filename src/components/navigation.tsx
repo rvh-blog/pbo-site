@@ -39,6 +39,7 @@ const matchPrepLinks = [
 ];
 
 const pboStatsLinks = [
+  { href: "/leaderboards/comprehensive", label: "Comprehensive Leaderboard" },
   { href: "/battle-record", label: "Battle Record" },
 ];
 
@@ -300,7 +301,7 @@ export function Navigation() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
                     </svg>
                   </Link>
-                  <div className="invisible absolute left-1/2 top-full z-50 w-44 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                  <div className="invisible absolute left-1/2 top-full z-50 w-64 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                     <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
                       {pboStatsLinks.map((subItem) => (
                         <Link

@@ -32,6 +32,19 @@ See [[Draft Planner]].
 
 Leaderboards live at `/leaderboards` and include coach/Pokemon ranking surfaces. Pokemon detail pages can link into the all-time Pokemon ranking source.
 
+The Comprehensive Leaderboard lives at `/leaderboards/comprehensive`. It lets
+visitors select any public season and ranks each team's Pokemon separately by
+total kills across every visible division in that season. The current season is
+selected by default, and an All Seasons option combines every public season.
+Overall, regular-season, and playoff tabs use the standard PBO playoff week
+boundary (`week > 100`). The Pokemon search filters the active tab by species
+name while keeping each matching team's entry separate. Division, team, coach,
+and minimum-games filters can be combined. The All Seasons table adds a Season
+column so repeated team/Pokemon entries remain attributable to the correct year.
+Kills per game is a sortable rate column. Summary cards identify the active
+view's kill, differential, and kills-per-game leaders, and each Pokemon row can
+expand into a game-by-game opponent, result, kill/death, and replay breakdown.
+
 Battle Record lives at `/battle-record` and is linked from the header beside
 Leaderboards. It shows all-time coach scoreline records from completed
 non-forfeit matches. Default sorting is descending games played, every column is
@@ -64,6 +77,7 @@ Relevant files:
 
 - `src/app/leaderboards/page.tsx`
 - `src/app/leaderboards/leaderboards-client.tsx`
+- `src/app/leaderboards/comprehensive/page.tsx`
 - `src/app/battle-record/page.tsx`
 - `src/app/battle-record/battle-record-table.tsx`
 - `src/app/admin/battle-records/page.tsx`

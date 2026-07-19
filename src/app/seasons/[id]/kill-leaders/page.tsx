@@ -8,83 +8,10 @@ import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { processCombinationLeaderboards } from "@/lib/pokemon-combinations";
 import { PokemonCombinationRankings } from "@/components/pokemon-combination-rankings";
+import { aggregateSeasonPokemonLeaderboard } from "@/lib/pokemon-leaderboard";
 
 interface PageProps {
   params: Promise<{ id: string }>;
-}
-
-// Process pokemon leaderboard from pre-fetched data
-function processPokemonLeaderboard(
-  seasonMatchIds: Set<number>,
-  allMatchPokemon: {
-    id: number;
-    matchId: number;
-    pokemonId: number;
-    kills: number | null;
-    deaths: number | null;
-    pokemon: {
-      id: number;
-      name: string;
-      displayName: string | null;
-      spriteUrl: string | null;
-    } | null;
-  }[]
-) {
-  // Filter to only season matches
-  const seasonMatchPokemon = allMatchPokemon.filter((mp) =>
-    seasonMatchIds.has(mp.matchId)
-  );
-
-  // Aggregate stats by pokemon
-  const statsMap = new Map<
-    number,
-    {
-      pokemonId: number;
-      pokemonName: string;
-      pokemonDisplayName: string | null;
-      spriteUrl: string | null;
-      kills: number;
-      deaths: number;
-      gamesPlayed: number;
-    }
-  >();
-
-  for (const mp of seasonMatchPokemon) {
-    const key = mp.pokemonId;
-
-    if (!statsMap.has(key)) {
-      statsMap.set(key, {
-        pokemonId: mp.pokemonId,
-        pokemonName: mp.pokemon?.name || "Unknown",
-        pokemonDisplayName: mp.pokemon?.displayName || null,
-        spriteUrl: mp.pokemon?.spriteUrl || null,
-        kills: 0,
-        deaths: 0,
-        gamesPlayed: 0,
-      });
-    }
-
-    const stats = statsMap.get(key)!;
-    stats.kills += mp.kills || 0;
-    stats.deaths += mp.deaths || 0;
-    stats.gamesPlayed += 1;
-  }
-
-  // Convert to array and sort
-  const leaderboard = Array.from(statsMap.values()).map((s) => ({
-    ...s,
-    differential: s.kills - s.deaths,
-    kd: s.deaths > 0 ? (s.kills / s.deaths).toFixed(2) : s.kills > 0 ? "∞" : "0.00",
-  }));
-
-  // Sort by kills (desc), then differential (desc), then games played (asc)
-  leaderboard.sort((a, b) => {
-    if (b.kills !== a.kills) return b.kills - a.kills;
-    if (b.differential !== a.differential) return b.differential - a.differential;
-    return a.gamesPlayed - b.gamesPlayed;
-  });
-
-  return leaderboard;
 }
 
 // Process move leaderboard from pre-fetched data
@@ -214,7 +141,7 @@ export default async function KillLeadersPage({ params }: PageProps) {
   );
 
   // Process leaderboards from pre-fetched data
-  const pokemonLeaderboard = processPokemonLeaderboard(seasonMatchIds, allMatchPokemon);
+  const pokemonLeaderboard = aggregateSeasonPokemonLeaderboard(seasonMatchIds, allMatchPokemon);
   const moveLeaderboard = processMoveLeaderboard(seasonMatchIds, allKillEvents);
   const combinationLeaderboards = processCombinationLeaderboards(
     seasonMatchIds,
