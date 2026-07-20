@@ -11,6 +11,7 @@ interface User {
   type: "coach" | "spectator";
   isClaimed: boolean;
   isMod: boolean;
+  isEditor: boolean;
   claimedAt: string | null;
   eloRating: number | null;
 }
@@ -110,6 +111,38 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function handleToggleEditor(id: number, type: "coach" | "spectator") {
+    setActionLoading(true);
+    setActionResult(null);
+
+    try {
+      const response = await fetch(`/api/admin/users/${id}/toggle-editor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === id && u.type === type ? { ...u, isEditor: data.isEditor } : u
+          )
+        );
+        setActionResult({
+          type: "success",
+          message: `Editor status ${data.isEditor ? "enabled" : "disabled"}`,
+        });
+      } else {
+        setActionResult({ type: "error", message: data.error || "Failed to toggle editor status" });
+      }
+    } catch {
+      setActionResult({ type: "error", message: "Failed to toggle editor status" });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function handleUnclaim(id: number) {
     if (!confirm("This will remove the password from this coach account, allowing someone else to claim it. Continue?")) {
       return;
@@ -161,6 +194,7 @@ export default function AdminUsersPage() {
     coaches: users.filter((u) => u.type === "coach").length,
     spectators: users.filter((u) => u.type === "spectator").length,
     claimed: users.filter((u) => u.isClaimed).length,
+    editors: users.filter((u) => u.isEditor && !u.isMod).length,
     mods: users.filter((u) => u.isMod).length,
   };
 
@@ -171,14 +205,20 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">User Management</h1>
+        <h1 className="text-2xl font-bold md:text-3xl">User Management</h1>
         <p className="text-[var(--foreground-muted)]">
           Manage coach and spectator accounts
         </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-blue-400">{stats.editors}</p>
+            <p className="text-xs text-[var(--foreground-muted)]">Editors</p>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold">{stats.total}</p>
@@ -227,14 +267,14 @@ export default function AdminUsersPage() {
       {/* Users List */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle>All Users ({filteredUsers.length})</CardTitle>
-            <div className="flex gap-2">
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
               {(["all", "coaches", "spectators", "claimed", "unclaimed"] as const).map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                  className={`shrink-0 px-3 py-2 rounded text-xs font-medium transition-colors ${
                     filter === f
                       ? "bg-[var(--primary)] text-white"
                       : "bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white"
@@ -291,7 +331,7 @@ export default function AdminUsersPage() {
                     </div>
                   ) : (
                     /* Normal View */
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -319,6 +359,11 @@ export default function AdminUsersPage() {
                                 MOD
                               </span>
                             )}
+                            {user.isEditor && !user.isMod && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400">
+                                EDITOR
+                              </span>
+                            )}
                             {!user.isClaimed && (
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[var(--foreground-muted)]/20 text-[var(--foreground-muted)]">
                                 UNCLAIMED
@@ -332,7 +377,7 @@ export default function AdminUsersPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="hidden flex-wrap gap-2 md:flex">
                         <Button
                           size="sm"
                           variant="outline"
@@ -340,6 +385,16 @@ export default function AdminUsersPage() {
                         >
                           Reset Password
                         </Button>
+                        {user.isClaimed && (
+                          <Button
+                            size="sm"
+                            variant={user.isEditor ? "secondary" : "outline"}
+                            onClick={() => handleToggleEditor(user.id, user.type)}
+                            disabled={actionLoading}
+                          >
+                            {user.isEditor ? "Remove Editor" : "Make Editor"}
+                          </Button>
+                        )}
                         {user.isClaimed && (
                           <Button
                             size="sm"
@@ -361,6 +416,51 @@ export default function AdminUsersPage() {
                           </Button>
                         )}
                       </div>
+                      <details className="group md:hidden">
+                        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 text-sm font-bold text-[var(--foreground-muted)]">
+                          Account actions
+                          <span className="text-lg transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+                        </summary>
+                        <div className="mt-2 grid gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setResettingId({ id: user.id, type: user.type })}
+                          >
+                            Reset Password
+                          </Button>
+                          {user.isClaimed && (
+                            <Button
+                              size="sm"
+                              variant={user.isEditor ? "secondary" : "outline"}
+                              onClick={() => handleToggleEditor(user.id, user.type)}
+                              disabled={actionLoading}
+                            >
+                              {user.isEditor ? "Remove Editor" : "Make Editor"}
+                            </Button>
+                          )}
+                          {user.isClaimed && (
+                            <Button
+                              size="sm"
+                              variant={user.isMod ? "secondary" : "outline"}
+                              onClick={() => handleToggleMod(user.id, user.type)}
+                              disabled={actionLoading}
+                            >
+                              {user.isMod ? "Remove Mod" : "Make Mod"}
+                            </Button>
+                          )}
+                          {user.type === "coach" && user.isClaimed && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleUnclaim(user.id)}
+                              disabled={actionLoading}
+                            >
+                              Unclaim
+                            </Button>
+                          )}
+                        </div>
+                      </details>
                     </div>
                   )}
                 </div>

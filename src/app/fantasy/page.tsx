@@ -303,6 +303,25 @@ async function getFantasyData(
     .sort((a, b) => a.week - b.week)[0]?.week;
   const defaultScoutingWeek = seasonNumber === 10 ? 8 : nextUnplayedWeek ?? (latestCompletedWeek || 1);
   const targetWeek = requestedWeek ?? defaultScoutingWeek;
+  const availableWeeks = [
+    ...new Set(regularSeasonMatches.map((match) => match.week)),
+  ].sort((a, b) => a - b);
+  if (!availableWeeks.includes(targetWeek)) {
+    availableWeeks.push(targetWeek);
+    availableWeeks.sort((a, b) => a - b);
+  }
+  const nextLockAt = regularSeasonMatches
+    .filter(
+      (match) =>
+        match.week === targetWeek &&
+        !match.startedAt &&
+        !match.winnerId &&
+        !match.isForfeit &&
+        match.scheduledAt &&
+        new Date(match.scheduledAt).getTime() > Date.now()
+    )
+    .map((match) => match.scheduledAt!)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null;
   const scoringThroughWeek = Math.max(targetWeek - 1, 0);
   const latestScoutingCompletedWeek = completedMatches
     .map((match) => match.week)
@@ -534,6 +553,8 @@ async function getFantasyData(
     divisionNames: seasonDivisionNames,
     defaultScheduleDivisionName: null,
     targetWeek,
+    availableWeeks,
+    nextLockAt,
     scoringThroughWeek,
     latestCompletedWeek,
     latestScoutingCompletedWeek,
@@ -771,6 +792,12 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
       kills: row.kills,
       deaths: row.deaths,
     }));
+  const currentWeekIndex = data.availableWeeks.indexOf(data.targetWeek);
+  const previousWeek = currentWeekIndex > 0 ? data.availableWeeks[currentWeekIndex - 1] : null;
+  const nextWeek =
+    currentWeekIndex >= 0 && currentWeekIndex < data.availableWeeks.length - 1
+      ? data.availableWeeks[currentWeekIndex + 1]
+      : null;
 
   return (
     <div className="space-y-5">
@@ -812,6 +839,56 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
         <FantasyAbout />
       </section>
 
+      <section className="poke-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+            Scouting week
+          </div>
+          <div className="mt-1 font-pixel text-base text-white">Week {data.targetWeek}</div>
+        </div>
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:flex">
+          {previousWeek === null ? (
+            <span className="rounded-lg border border-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-subtle)] opacity-50">
+              Previous
+            </span>
+          ) : (
+            <Link
+              href={`/fantasy?seasonId=${selected.id}&week=${previousWeek}`}
+              className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:border-[var(--primary)] hover:text-white"
+            >
+              Previous
+            </Link>
+          )}
+          <form action="/fantasy" method="get" className="flex min-w-0 items-center gap-2">
+            <input type="hidden" name="seasonId" value={selected.id} />
+            <label htmlFor="fantasy-week" className="sr-only">Select fantasy week</label>
+            <select
+              id="fantasy-week"
+              name="week"
+              defaultValue={data.targetWeek}
+              className="min-w-0 flex-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold text-white outline-none focus:border-[var(--primary)]"
+            >
+              {data.availableWeeks.map((week) => (
+                <option key={week} value={week}>Week {week}</option>
+              ))}
+            </select>
+            <button type="submit" className="btn-retro-secondary px-3 py-2 text-[9px]">Go</button>
+          </form>
+          {nextWeek === null ? (
+            <span className="rounded-lg border border-[var(--background-tertiary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-subtle)] opacity-50">
+              Next
+            </span>
+          ) : (
+            <Link
+              href={`/fantasy?seasonId=${selected.id}&week=${nextWeek}`}
+              className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:border-[var(--primary)] hover:text-white"
+            >
+              Next
+            </Link>
+          )}
+        </div>
+      </section>
+
       <section className="grid gap-3 md:grid-cols-4">
         <StatPill label="Season" value={selected.name} />
         <StatPill label="Scouting Week" value={`Week ${data.targetWeek}`} />
@@ -824,6 +901,7 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
         divisionNames={data.divisionNames}
         targetWeek={data.targetWeek}
         scoringThroughWeek={data.scoringThroughWeek}
+        nextLockAt={data.nextLockAt}
         pokemon={fantasyPokemonOptions}
       />
 

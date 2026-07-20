@@ -16,11 +16,13 @@ function getDisplayLines(text: string | null) {
 
 export function DecidingTurnsPanel({
   canEdit,
+  canManageEditorVisibility,
   initialText,
   initialEditorHidden,
   matchId,
 }: {
   canEdit: boolean;
+  canManageEditorVisibility: boolean;
   initialText: string | null;
   initialEditorHidden: boolean;
   matchId: number;
@@ -88,14 +90,14 @@ export function DecidingTurnsPanel({
 
   return (
     <div className="rounded border border-white/20 bg-black/45 p-3 self-start xl:mt-20">
-      <div className="text-center text-xs sm:text-sm uppercase font-black text-white tracking-wide">Deciding Turns</div>
+      <div className="text-center text-sm uppercase font-black text-white tracking-wide">Deciding Turns</div>
       <div className="mt-3 space-y-2">
         {displayLines.map((line, index) => {
           const [turnLabel, ...descriptionParts] = line.split(" - ");
           const description = descriptionParts.join(" - ");
 
           return (
-            <div key={`${line}-${index}`} className="rounded bg-white/10 px-3 py-2 text-xs text-white/85">
+            <div key={`${line}-${index}`} className="rounded bg-white/10 px-3 py-2.5 text-sm text-white/85 md:py-2 md:text-xs">
               {description ? (
                 <>
                   <span className="font-black text-white">{turnLabel}</span>
@@ -112,16 +114,18 @@ export function DecidingTurnsPanel({
 
       {canEdit && (
         <div className="mt-3 space-y-2">
-          <label className="flex items-center gap-2 rounded border border-white/15 bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-white/75">
-            <input
-              type="checkbox"
-              checked={isEditorHidden}
-              disabled={isTogglingHidden}
-              onChange={(event) => toggleEditorHidden(event.target.checked)}
-              className="h-4 w-4 accent-[var(--primary)]"
-            />
-            Hide editor for admins
-          </label>
+          {canManageEditorVisibility && (
+            <label className="flex min-h-11 items-center gap-3 rounded border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-wide text-white/75 md:min-h-0 md:gap-2 md:text-[10px]">
+              <input
+                type="checkbox"
+                checked={isEditorHidden}
+                disabled={isTogglingHidden}
+                onChange={(event) => toggleEditorHidden(event.target.checked)}
+                className="h-5 w-5 shrink-0 accent-[var(--primary)] md:h-4 md:w-4"
+              />
+              Hide editor
+            </label>
+          )}
           {!isEditorHidden && (
             <>
               <textarea
@@ -130,13 +134,13 @@ export function DecidingTurnsPanel({
                 placeholder="Turn 4 - Gotham forces the critical trade&#10;Turn 7 - Long Island reclaims momentum"
                 rows={4}
                 maxLength={2000}
-                className="w-full resize-y rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white outline-none placeholder:text-white/35 focus:border-[var(--primary)]"
+                className="min-h-36 w-full resize-y rounded border border-white/20 bg-black/40 px-3 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-[var(--primary)] md:min-h-0 md:py-2 md:text-xs"
               />
               <button
                 type="button"
                 onClick={saveDecidingTurns}
                 disabled={isSaving}
-                className="btn-retro-secondary w-full px-3 py-2 text-[9px] disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn-retro-secondary sticky bottom-[calc(.5rem+env(safe-area-inset-bottom))] z-20 w-full px-3 py-3 text-xs shadow-[0_-8px_24px_rgba(0,0,0,0.55)] disabled:cursor-not-allowed disabled:opacity-50 md:static md:py-2 md:text-[9px] md:shadow-none"
               >
                 {isSaving ? "Saving..." : "Save Deciding Turns"}
               </button>

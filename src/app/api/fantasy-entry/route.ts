@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import {
   fantasyEntries,
   fantasyEntryPicks,
+  fantasyRewards,
   matches,
   seasonCoaches,
   seasonPokemonPrices,
@@ -327,6 +328,41 @@ export async function GET(request: NextRequest) {
         );
 
     const myEntry = session ? entries.find((entry) => entryBelongsToSession(entry, session)) : null;
+    const previousWeek = scoringWeek > 1 ? scoringWeek - 1 : null;
+    let previousWeekSummary: {
+      week: number;
+      rank: number | null;
+      totalScore: number | null;
+      rewardAmount: number;
+    } | null = null;
+
+    if (session && previousWeek !== null) {
+      const previousLeaderboard = buildWeekLeaderboard(
+        allEntries,
+        await getPokemonScores(seasonId, season.seasonNumber, previousWeek),
+        previousWeek
+      );
+      const previousRankIndex = previousLeaderboard.findIndex((entry) =>
+        entryBelongsToSession(entry, session)
+      );
+      const previousEntry = previousRankIndex >= 0 ? previousLeaderboard[previousRankIndex] : null;
+      const previousReward = previousEntry
+        ? await db.query.fantasyRewards.findFirst({
+            where: and(
+              eq(fantasyRewards.seasonId, seasonId),
+              eq(fantasyRewards.week, previousWeek),
+              eq(fantasyRewards.entryId, previousEntry.id)
+            ),
+          })
+        : null;
+
+      previousWeekSummary = {
+        week: previousWeek,
+        rank: previousEntry ? previousRankIndex + 1 : null,
+        totalScore: previousEntry?.totalScore ?? null,
+        rewardAmount: previousReward?.amount ?? 0,
+      };
+    }
     const usedInstances = session
       ? allEntries
           .filter((entry) => entry.week !== scoringWeek && entryBelongsToSession(entry, session))
@@ -384,6 +420,7 @@ export async function GET(request: NextRequest) {
         : null,
       usedInstances,
       lockedSeasonCoachIds,
+      previousWeekSummary,
       leaderboard,
       settings: {
         rosterSize: FANTASY_ROSTER_SIZE,

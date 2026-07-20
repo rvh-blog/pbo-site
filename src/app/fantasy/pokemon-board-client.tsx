@@ -345,6 +345,34 @@ export function PokemonBoardClient({
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-2 md:hidden">
+          <label htmlFor="mobile-pokemon-sort" className="shrink-0 text-[10px] font-bold uppercase text-[var(--foreground-subtle)]">
+            Sort
+          </label>
+          <select
+            id="mobile-pokemon-sort"
+            value={sortKey}
+            onChange={(event) => setSortKey(event.target.value as SortKey)}
+            className="min-w-0 flex-1 rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-2 py-2 text-xs font-bold text-white outline-none focus:border-[var(--primary)]"
+          >
+            <option value="total">Total score</option>
+            <option value="recent">Recent score</option>
+            <option value="trend">Trend</option>
+            <option value="ppg">Points per game</option>
+            <option value="cost">Cost</option>
+            <option value="kd">K/D difference</option>
+            <option value="wl">W/L difference</option>
+            <option value="pokemon">Pokemon name</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setSortDirection((current) => current === "desc" ? "asc" : "desc")}
+            className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-[10px] font-bold uppercase text-[var(--foreground-muted)]"
+            aria-label={`Sort ${sortDirection === "desc" ? "descending" : "ascending"}`}
+          >
+            {sortDirection === "desc" ? "High → Low" : "Low → High"}
+          </button>
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto scrollbar-thin px-4 pb-4 sm:px-5 sm:pb-5">
         {selectedDivision === "__previously-selected" ? (
@@ -387,7 +415,71 @@ export function PokemonBoardClient({
           </div>
         ) : (
         <>
-        <table className="premium-table min-w-[900px]">
+        <div className="grid gap-2 pt-3 md:hidden">
+          {visibleRows.map((row) => {
+            const trend = trendScore(row);
+            return (
+              <Link
+                key={`${row.pokemonId}-${row.seasonCoachId}`}
+                href={`/pokemon/${row.pokemonId}`}
+                className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)]/55 p-3 transition-colors hover:border-[var(--primary)]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--background-secondary)]">
+                    <PokemonAvatar row={row} size={44} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-bold text-white">{row.name}</div>
+                    <div className="truncate text-xs font-bold text-[var(--foreground-muted)]">{row.teamName}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {row.types.slice(0, 2).map((type) => (
+                        <span key={type} className={typeBadgeClass(type)}>{type}</span>
+                      ))}
+                      <span className="rounded bg-[var(--background-tertiary)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[var(--foreground-muted)]">
+                        {row.divisionName}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Total</div>
+                    <div className="font-mono text-lg font-bold text-[var(--accent)]">{formatScore(row.score)}</div>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-1 border-t border-[var(--background-tertiary)] pt-3 text-center">
+                  <div>
+                    <div className="text-[8px] font-bold uppercase text-[var(--foreground-subtle)]">Cost</div>
+                    <div className="mt-1 font-mono text-xs font-bold text-white">{row.cost ?? "--"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[8px] font-bold uppercase text-[var(--foreground-subtle)]">Recent</div>
+                    <div className="mt-1 font-mono text-xs font-bold text-white">{formatScore(row.recentScore)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[8px] font-bold uppercase text-[var(--foreground-subtle)]">Trend</div>
+                    <div className={`mt-1 font-mono text-xs font-bold ${trend >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                      {trend >= 0 ? "+" : ""}{formatScore(trend)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[8px] font-bold uppercase text-[var(--foreground-subtle)]">PPG</div>
+                    <div className="mt-1 font-mono text-xs font-bold text-white">{row.games ? formatScore(row.score / row.games) : "--"}</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[10px] text-[var(--foreground-subtle)]">
+                  <span>{row.kills}/{row.deaths} K/D</span>
+                  <span>{row.wins}/{row.losses} W/L</span>
+                  <span>{row.games} games</span>
+                </div>
+              </Link>
+            );
+          })}
+          {visibleRows.length === 0 && (
+            <p className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-4 text-center text-sm text-[var(--foreground-muted)]">
+              No Pokemon match these filters.
+            </p>
+          )}
+        </div>
+        <table className="premium-table hidden min-w-[900px] md:table">
           <thead>
             <tr>
               <th className={stickyHeaderClass}>{renderSortHeader("Pokemon", "pokemon")}</th>

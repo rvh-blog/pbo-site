@@ -447,7 +447,7 @@ export function ComprehensiveLeaderboardTable({
           No Pokémon named “{searchQuery.trim()}” appear in this view.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="mobile-scroll-region overflow-x-auto" aria-label="Scrollable detailed statistics">
             <div className={showSeasonColumn ? "min-w-[1120px]" : "min-w-[1010px]"}>
             <div className={`grid ${gridColumnsClass} items-center border-b border-[var(--background-tertiary)] px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]`}>
               <span>Rank</span>

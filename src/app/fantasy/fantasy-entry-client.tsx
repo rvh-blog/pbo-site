@@ -31,6 +31,7 @@ interface FantasyEntryClientProps {
   divisionNames: string[];
   targetWeek: number;
   scoringThroughWeek: number;
+  nextLockAt: string | null;
   pokemon: FantasyPokemonOption[];
 }
 
@@ -82,6 +83,12 @@ interface FantasyEntryResponse {
   } | null;
   usedInstances?: FantasyUsedInstance[];
   lockedSeasonCoachIds?: number[];
+  previousWeekSummary?: {
+    week: number;
+    rank: number | null;
+    totalScore: number | null;
+    rewardAmount: number;
+  } | null;
   leaderboard: FantasyLeaderboardEntry[];
   settings: {
     rosterSize: number;
@@ -141,6 +148,7 @@ export function FantasyEntryClient({
   divisionNames,
   targetWeek,
   scoringThroughWeek,
+  nextLockAt,
   pokemon,
 }: FantasyEntryClientProps) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -161,6 +169,10 @@ export function FantasyEntryClient({
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [previousWeekSummary, setPreviousWeekSummary] = useState<
+    FantasyEntryResponse["previousWeekSummary"]
+  >(null);
+  const [currentTime, setCurrentTime] = useState(0);
 
   const pokemonById = useMemo(
     () => new Map(pokemon.map((row) => [row.id, row])),
@@ -234,6 +246,31 @@ export function FantasyEntryClient({
     uniqueSelectedCount === rosterSize &&
     uniqueSelectedInstanceCount === rosterSize;
   const canSave = authUser && rosterComplete && !overBudget && slotsValid && !saving;
+  const rosterStatus = loading
+    ? "Loading"
+    : !authUser
+      ? "Sign in to play"
+      : savedAt
+        ? "Roster saved"
+        : rosterComplete
+          ? "Ready to save"
+          : `${selectedIds.length} of ${rosterSize} selected`;
+  const budgetRemaining = budget - totalCost;
+  const nextLockTime = nextLockAt ? new Date(nextLockAt).getTime() : null;
+  const minutesUntilLock = nextLockTime === null
+    ? null
+    : Math.max(0, Math.ceil((nextLockTime - currentTime) / 60_000));
+  const nextLockLabel = nextLockAt && currentTime === 0
+    ? "Scheduled"
+    : minutesUntilLock === null
+    ? "Per matchup"
+    : minutesUntilLock === 0
+      ? "Locking now"
+      : minutesUntilLock < 60
+        ? `${minutesUntilLock}m`
+        : minutesUntilLock < 1_440
+          ? `${Math.floor(minutesUntilLock / 60)}h ${minutesUntilLock % 60}m`
+          : `${Math.floor(minutesUntilLock / 1_440)}d ${Math.floor((minutesUntilLock % 1_440) / 60)}h`;
 
   const selectedInstanceKeySet = useMemo(
     () => new Set(selectedInstanceKeys),
@@ -287,6 +324,7 @@ export function FantasyEntryClient({
       setLeaderboard(data.leaderboard || []);
       setUsedInstances(data.usedInstances || []);
       setLockedSeasonCoachIds(data.lockedSeasonCoachIds || []);
+      setPreviousWeekSummary(data.previousWeekSummary ?? null);
       setRosterSize(data.settings?.rosterSize || 6);
       setBudget(data.settings?.budget || 90);
       if (data.myEntry) {
@@ -321,7 +359,15 @@ export function FantasyEntryClient({
     loadEntry();
   }, [loadEntry]);
 
+  useEffect(() => {
+    if (!nextLockAt) return;
+    setCurrentTime(Date.now());
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [nextLockAt]);
+
   function removeSlot(index: number) {
+    setSavedAt(null);
     setSelectedSlots((prev) => {
       const next = Array.from({ length: rosterSize }, (_, slotIndex) => prev[slotIndex] ?? null);
       next[index] = null;
@@ -331,6 +377,7 @@ export function FantasyEntryClient({
   }
 
   function choosePokemon(pokemonId: number, seasonCoachId: number) {
+    setSavedAt(null);
     setSelectedSlots((prev) => {
       const next = Array.from({ length: rosterSize }, (_, slotIndex) => prev[slotIndex] ?? null);
       const selectedKey = instanceKey({ pokemonId, seasonCoachId });
@@ -384,8 +431,80 @@ export function FantasyEntryClient({
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-      <div className="poke-card p-4 sm:p-5">
+    <div className="space-y-5">
+      <section className="poke-card overflow-hidden p-4 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+              This week
+            </div>
+            <h2 className="mt-1 font-pixel text-base text-white">Week {targetWeek} Game Plan</h2>
+            <p className="mt-2 text-sm text-[var(--foreground-muted)]">
+              Finish your six picks before their individual matchups begin.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!authUser) {
+                setShowAuthModal(true);
+                return;
+              }
+              document.getElementById("fantasy-roster-builder")?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="btn-retro shrink-0 px-4 py-3 text-[9px]"
+          >
+            {authUser ? "Build / Edit Roster" : "Sign In & Build"}
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
+            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Roster</div>
+            <div className={`mt-1 text-sm font-bold ${savedAt ? "text-[var(--success)]" : "text-white"}`}>
+              {rosterStatus}
+            </div>
+            <div className="mt-1 text-[10px] text-[var(--foreground-subtle)]">{selectedIds.length}/{rosterSize} slots filled</div>
+          </div>
+          <div className={`rounded-lg border p-3 ${overBudget ? "border-[var(--error)]/50 bg-[var(--error)]/10" : "border-[var(--background-tertiary)] bg-[var(--background)]/60"}`}>
+            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Budget left</div>
+            <div className={`mt-1 font-mono text-lg font-bold ${overBudget ? "text-[var(--error)]" : "text-[var(--accent)]"}`}>
+              {budgetRemaining}
+            </div>
+            <div className="mt-1 text-[10px] text-[var(--foreground-subtle)]">{totalCost}/{budget} used</div>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
+            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Next lock</div>
+            <div className="mt-1 font-mono text-lg font-bold text-white">{nextLockLabel}</div>
+            <div className="mt-1 truncate text-[10px] text-[var(--foreground-subtle)]">
+              {nextLockAt ? new Date(nextLockAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Each pick locks at match time"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
+            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Last week</div>
+            <div className="mt-1 text-sm font-bold text-white">
+              {!authUser
+                ? "Sign in to view"
+                : previousWeekSummary?.rank
+                  ? `#${previousWeekSummary.rank} · ${formatScore(previousWeekSummary.totalScore ?? 0)} pts`
+                  : previousWeekSummary
+                    ? "No entry"
+                    : "Not available"}
+            </div>
+            <div className="mt-1 text-[10px] text-[var(--foreground-subtle)]">
+              {previousWeekSummary
+                ? `Week ${previousWeekSummary.week}${previousWeekSummary.rewardAmount > 0 ? ` · +${previousWeekSummary.rewardAmount} PBO Coin` : ""}`
+                : "Previous result and reward"}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--background-tertiary)] pt-3">
+          <span className="text-xs text-[var(--foreground-muted)]">Projected roster score</span>
+          <span className="font-mono text-lg font-bold text-[var(--accent)]">{formatScore(projectedScore)}</span>
+        </div>
+      </section>
+
+      <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+      <div id="fantasy-roster-builder" className="poke-card scroll-mt-24 p-4 sm:p-5">
         <div className="section-title">
           <div className="section-title-icon">
             <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -660,6 +779,7 @@ export function FantasyEntryClient({
         onClose={() => setShowAuthModal(false)}
         onSuccess={handleAuthSuccess}
       />
+      </div>
     </div>
   );
 }

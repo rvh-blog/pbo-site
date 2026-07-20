@@ -481,8 +481,8 @@ export default function AdminCoachesPage() {
                   ) : (
                     /* View Mode */
                     <>
-                      <div className="flex items-center justify-between p-3">
-                        <div className="flex items-center gap-4">
+                      <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-4">
                           <div>
                             <p className="font-medium">
                               {coach.name}
@@ -500,7 +500,7 @@ export default function AdminCoachesPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           {coach.seasonCoaches.length > 0 && (
                             <Button
                               size="sm"
@@ -589,7 +589,7 @@ export default function AdminCoachesPage() {
                   key={spectator.id}
                   className="rounded-lg bg-[var(--background-secondary)] overflow-hidden"
                 >
-                  <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium">
                         {spectator.name}

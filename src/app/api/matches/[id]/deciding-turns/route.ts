@@ -15,8 +15,8 @@ type RouteContext = {
 
 export async function PUT(request: NextRequest, context: RouteContext) {
   const session = await getSession();
-  if (!session?.isMod) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: "Editor access required" }, { status: 403 });
   }
 
   const { id } = await context.params;
@@ -40,6 +40,14 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   const body = await request.json();
   const hasTextUpdate = Object.prototype.hasOwnProperty.call(body, "decidingTurnsText");
   const hasEditorHiddenUpdate = Object.prototype.hasOwnProperty.call(body, "hideDecidingTurnsEditor");
+
+  if (hasTextUpdate && !session.isMod && !session.isEditor) {
+    return NextResponse.json({ error: "Editor access required" }, { status: 403 });
+  }
+
+  if (hasEditorHiddenUpdate && !session.isMod) {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
 
   if (!hasTextUpdate && !hasEditorHiddenUpdate) {
     return NextResponse.json(

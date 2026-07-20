@@ -243,6 +243,132 @@ summary {
   }
 }
 
+/* Mobile readability and device-safe spacing. Desktop utilities remain unchanged. */
+@media (max-width: 767px) {
+  .site-navigation {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  #main-content,
+  footer > .container {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  footer {
+    padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  }
+
+  /* The smallest retro labels were legible on desktop but too small on phones. */
+  [class~="text-[8px]"],
+  [class~="text-[9px]"],
+  [class~="text-[10px]"] {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  main h1.text-3xl {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  label:has(input[type="checkbox"]),
+  label:has(input[type="radio"]) {
+    min-height: 44px;
+  }
+
+  main .overflow-x-auto,
+  .mobile-scroll-region {
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline proximity;
+    scrollbar-width: thin;
+    scrollbar-color: var(--foreground-subtle) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-scroll-region {
+    position: relative;
+    padding-bottom: 0.5rem;
+  }
+
+  .mobile-scroll-region::before {
+    content: "Swipe sideways for more stats";
+    position: sticky;
+    left: 0;
+    display: block;
+    width: max-content;
+    margin: 0.5rem 1rem;
+    color: var(--foreground-subtle);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .mobile-card-table {
+    overflow: visible;
+  }
+
+  .mobile-card-table table,
+  .mobile-card-table tbody,
+  .mobile-card-table tr,
+  .mobile-card-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .mobile-card-table thead {
+    display: none;
+  }
+
+  .mobile-card-table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .mobile-card-table tr {
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    border-radius: 0.75rem;
+    background: var(--background-secondary);
+  }
+
+  .mobile-card-table td {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, 0.42fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--card-border);
+    text-align: left;
+  }
+
+  .mobile-card-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .mobile-card-table td::before {
+    content: attr(data-label);
+    color: var(--foreground-subtle);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .mobile-card-table td > :where(button, a) {
+    justify-self: start;
+  }
+}
+
+@media (hover: none) {
+  .poke-card:hover,
+  .glass-card:hover,
+  .premium-card:hover {
+    transform: none;
+  }
+}
+
 .poke-card,
 .section-title,
 .section-title > *,
