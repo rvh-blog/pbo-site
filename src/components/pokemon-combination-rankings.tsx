@@ -16,8 +16,8 @@ export function PokemonCombinationRankings({
   return (
     <section className="poke-card p-6">
       <div className="section-title mb-2">
-        <div className="section-title-icon !bg-cyan-600" style={{ boxShadow: "0 4px 0 #155e75" }}>
-          <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <div className="section-title-icon !bg-amber-200" style={{ boxShadow: "0 4px 0 #ca8a04" }}>
+          <svg className="h-5 w-5 text-amber-950" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8M5 12h14M8 17h8" />
           </svg>
         </div>

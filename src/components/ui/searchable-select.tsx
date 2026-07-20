@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useId, useMemo } from "react";
 
 interface SearchableSelectOption {
   value: string;
@@ -31,8 +31,11 @@ export function SearchableSelect({
   const [search, setSearch] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const componentId = useId();
+  const listboxId = `${componentId}-listbox`;
 
   // Find selected option label
   const selectedOption = options.find((o) => o.value === value);
@@ -48,11 +51,6 @@ export function SearchableSelect({
       return labelMatch || searchTextMatch;
     });
   }, [options, search]);
-
-  // Reset highlighted index when filtered options change
-  useEffect(() => {
-    setHighlightedIndex(0);
-  }, [filteredOptions]);
 
   // Scroll highlighted item into view
   useEffect(() => {
@@ -80,6 +78,7 @@ export function SearchableSelect({
     onChange(optionValue);
     setIsOpen(false);
     setSearch("");
+    requestAnimationFrame(() => triggerRef.current?.focus());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -95,10 +94,12 @@ export function SearchableSelect({
 
     switch (e.key) {
       case "ArrowDown":
+        if (totalOptions === 0) return;
         e.preventDefault();
         setHighlightedIndex((prev) => (prev + 1) % totalOptions);
         break;
       case "ArrowUp":
+        if (totalOptions === 0) return;
         e.preventDefault();
         setHighlightedIndex((prev) => (prev - 1 + totalOptions) % totalOptions);
         break;
@@ -117,6 +118,7 @@ export function SearchableSelect({
         e.preventDefault();
         setIsOpen(false);
         setSearch("");
+        requestAnimationFrame(() => triggerRef.current?.focus());
         break;
     }
   };
@@ -124,17 +126,22 @@ export function SearchableSelect({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       {/* Display field / trigger */}
-      <div
+      <button
+        ref={triggerRef}
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={listboxId}
         className={`flex items-center gap-2 w-full px-3 py-2 rounded border-2 bg-[var(--background-secondary)] cursor-pointer transition-colors ${
           isOpen
             ? "border-[var(--primary)]"
             : "border-[var(--glass-border)] hover:border-[var(--primary)]"
         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
         onClick={() => {
-          if (!disabled) {
-            setIsOpen(!isOpen);
-            setTimeout(() => inputRef.current?.focus(), 0);
-          }
+          setHighlightedIndex(0);
+          setIsOpen(!isOpen);
+          setTimeout(() => inputRef.current?.focus(), 0);
         }}
       >
         <span className={`flex-1 truncate ${!value ? "text-[var(--foreground-muted)]" : ""}`}>
@@ -145,10 +152,11 @@ export function SearchableSelect({
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
-      </div>
+      </button>
 
       {/* Dropdown */}
       {isOpen && !disabled && (
@@ -159,26 +167,50 @@ export function SearchableSelect({
               ref={inputRef}
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setHighlightedIndex(0);
+              }}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
+              role="combobox"
+              aria-label={placeholder}
+              aria-autocomplete="list"
+              aria-controls={listboxId}
+              aria-expanded="true"
+              aria-activedescendant={
+                filteredOptions.length > 0 || emptyOption
+                  ? `${componentId}-option-${highlightedIndex}`
+                  : undefined
+              }
               className="w-full px-2 py-1.5 text-sm rounded bg-[var(--background)] border border-[var(--glass-border)] focus:border-[var(--primary)] focus:outline-none"
               autoFocus
             />
           </div>
 
           {/* Options list */}
-          <div ref={listRef} className="max-h-60 overflow-y-auto">
+          <div
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            aria-label="Options"
+            className="max-h-60 overflow-y-auto"
+          >
             {emptyOption && (
-              <div
-                className={`px-3 py-2 cursor-pointer text-[var(--foreground-muted)] ${
+              <button
+                id={`${componentId}-option-0`}
+                type="button"
+                role="option"
+                aria-selected={value === ""}
+                tabIndex={-1}
+                className={`block w-full px-3 py-2 text-left cursor-pointer text-[var(--foreground-muted)] ${
                   highlightedIndex === 0 ? "bg-[var(--primary)]/20" : "hover:bg-[var(--card-hover)]"
                 }`}
                 onClick={() => handleSelect("")}
                 onMouseEnter={() => setHighlightedIndex(0)}
               >
                 {emptyOption}
-              </div>
+              </button>
             )}
             {filteredOptions.length === 0 ? (
               <div className="px-3 py-2 text-[var(--foreground-muted)] text-sm">
@@ -188,9 +220,14 @@ export function SearchableSelect({
               filteredOptions.map((option, index) => {
                 const adjustedIndex = emptyOption ? index + 1 : index;
                 return (
-                  <div
+                  <button
                     key={option.value}
-                    className={`px-3 py-2 cursor-pointer truncate ${
+                    id={`${componentId}-option-${adjustedIndex}`}
+                    type="button"
+                    role="option"
+                    aria-selected={option.value === value}
+                    tabIndex={-1}
+                    className={`block w-full px-3 py-2 text-left cursor-pointer truncate ${
                       adjustedIndex === highlightedIndex
                         ? "bg-[var(--primary)]/20"
                         : "hover:bg-[var(--card-hover)]"
@@ -199,7 +236,7 @@ export function SearchableSelect({
                     onMouseEnter={() => setHighlightedIndex(adjustedIndex)}
                   >
                     {option.label}
-                  </div>
+                  </button>
                 );
               })
             )}

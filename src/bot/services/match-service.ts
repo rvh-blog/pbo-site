@@ -3,16 +3,13 @@ import {
   matches,
   matchPokemon,
   seasonCoaches,
-  coaches,
-  divisions,
   rosters,
   pokemon,
   transactions,
   killEvents,
-  moves,
   playoffMatches,
 } from "@/lib/schema";
-import { eq, and, or, isNull } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { updateEloForMatch } from "@/lib/elo-service";
 import { awardMatchCoins, resolveBetsForMatch, refundBetsForMatch } from "@/lib/betting";
 import { resolveKillBetsForMatch, refundKillBetsForMatch } from "@/lib/kill-betting";
@@ -319,7 +316,6 @@ export async function matchUsernamesToCoaches(
   const c1Name = coach1.coach.name.toLowerCase().replace(/\s+/g, "");
   const c2Name = coach2.coach.name.toLowerCase().replace(/\s+/g, "");
   const p1Lower = p1Username.toLowerCase().replace(/\s+/g, "");
-  const p2Lower = p2Username.toLowerCase().replace(/\s+/g, "");
 
   const p1MatchesCoach1 = p1Lower.includes(c1Name) || c1Name.includes(p1Lower);
   const p1MatchesCoach2 = p1Lower.includes(c2Name) || c2Name.includes(p1Lower);
