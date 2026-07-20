@@ -65,6 +65,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
         suppressHydrationWarning
       >
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
+
         {/* Pokeball dot pattern background */}
         <div className="pokeball-bg" />
 
@@ -80,7 +84,13 @@ export default function RootLayout({
 
         <Navigation />
         <PerformanceMonitor />
-        <main className="relative z-10 container mx-auto px-4 py-6 sm:px-6 sm:py-10 lg:py-12">{children}</main>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="relative z-10 container mx-auto px-4 py-6 sm:px-6 sm:py-10 lg:py-12"
+        >
+          {children}
+        </main>
 
         <footer className="relative z-10 border-t-4 border-[var(--background-tertiary)] mt-16 bg-[var(--background-secondary)] py-8 sm:mt-20 sm:py-12">
           <div className="container mx-auto px-4 sm:px-6">

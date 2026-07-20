@@ -4,6 +4,22 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 19, 2026
+
+Accessibility:
+
+- A keyboard-visible Skip to main content link is available on every page.
+- Focus indicators use high-contrast theme-aware colors in both light and dark mode.
+- Muted and status colors have stronger dark-theme contrast while retaining
+  light-theme-specific accessible values.
+- Buttons and form controls meet larger minimum touch targets on coarse-pointer
+  devices without enlarging ordinary inline text links.
+- Reduced-motion preferences disable decorative and celebratory animations and
+  minimize transitions site-wide.
+- The shared searchable select supports native keyboard activation, listbox
+  semantics, active-option announcements, Escape-to-close, and focus return.
+- The account menu exposes its open state and closes with Escape.
+
 ## July 18, 2026
 
 Historical division hierarchy:

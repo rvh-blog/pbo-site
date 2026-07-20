@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Search } from "./search";
 import { AuthModal } from "./auth-modal";
@@ -58,6 +58,7 @@ export function Navigation() {
     fantasyUiHidden: false,
     blogUiHidden: false,
   });
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
   const projectMewReleased = isProjectMewReleased();
 
   useEffect(() => {
@@ -84,6 +85,20 @@ export function Navigation() {
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!personaOpen) return;
+
+    function closeAccountMenuOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPersonaOpen(false);
+        requestAnimationFrame(() => accountButtonRef.current?.focus());
+      }
+    }
+
+    document.addEventListener("keydown", closeAccountMenuOnEscape);
+    return () => document.removeEventListener("keydown", closeAccountMenuOnEscape);
+  }, [personaOpen]);
 
   function toggleTheme() {
     const nextIsLight = !isLightMode;
@@ -347,6 +362,8 @@ export function Navigation() {
           {/* Persona Button */}
           <div className="relative">
             <button
+              ref={accountButtonRef}
+              type="button"
               onClick={() => setPersonaOpen(!personaOpen)}
               className={`relative p-2 rounded-lg transition-colors ${
                 authUser
@@ -354,6 +371,8 @@ export function Navigation() {
                   : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-tertiary)]"
               }`}
               aria-label="Account"
+              aria-expanded={personaOpen}
+              aria-controls="account-menu"
             >
               {authUser ? (
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)]/20 text-[10px] font-bold text-[var(--accent)]">
@@ -375,7 +394,12 @@ export function Navigation() {
                 {/* Backdrop to close */}
                 <div className="fixed inset-0 z-40" onClick={() => setPersonaOpen(false)} />
 
-                <div className="absolute right-0 top-full mt-2 w-56 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] shadow-xl z-50 overflow-hidden">
+                <div
+                  id="account-menu"
+                  role="region"
+                  aria-label="Account menu"
+                  className="absolute right-0 top-full mt-2 w-56 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] shadow-xl z-50 overflow-hidden"
+                >
                   {authUser ? (
                     <div className="p-3 space-y-3">
                       {/* User info */}
