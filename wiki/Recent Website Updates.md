@@ -6,6 +6,29 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## July 19, 2026
 
+Comprehensive Leaderboard:
+
+- PBO Stats now includes `/leaderboards/comprehensive`, which ranks every
+  team-owned Pokemon together across all visible divisions for a selected
+  season or across All Seasons.
+- Overall, Regular Season, and Playoffs views support Pokemon search plus
+  division, team, coach, and minimum-games filters.
+- Columns for Pokemon, team, division, season, kills, deaths, differential,
+  K/D, K/G, and games played are sortable. All Seasons includes the season
+  column, and divisions follow the league hierarchy.
+- Summary totals show entries, matches, kills, and deaths. Leader cards show
+  the active view's kill, differential, and K/G leaders.
+- Each Pokemon entry can expand into its individual week, result, opponent,
+  kills, deaths, and replay records.
+- The header and phase controls use light-blue styling in both themes.
+
+Replay recording:
+
+- Kill-event roster matching now treats an unevolved base replay form as the
+  drafted Mega-capable roster entry. A rostered Garchomp-Mega therefore
+  receives Garchomp's kill when it never Mega Evolves, and the same rule
+  applies to other teams and compatible base/Mega forms.
+
 Accessibility:
 
 - A keyboard-visible Skip to main content link is available on every page.
@@ -19,6 +42,18 @@ Accessibility:
 - The shared searchable select supports native keyboard activation, listbox
   semantics, active-option announcements, Escape-to-close, and focus return.
 - The account menu exposes its open state and closes with Escape.
+
+Stats styling:
+
+- The Most Used Battle Combinations section uses a pastel-yellow icon tile
+  with a dark icon and amber shadow for contrast.
+
+Verification:
+
+- `npx tsc --noEmit`, targeted ESLint, comprehensive-leaderboard regression
+  checks, and the local production build pass.
+- Light- and dark-theme contrast checks pass for the updated text, status, and
+  focus colors.
 
 ## July 18, 2026
 
