@@ -21,17 +21,12 @@ import { getTimeSyncedRoster, type TimeSyncTransaction } from "@/lib/roster-util
 import { checkAndAwardPickEmRewards, awardGotwBonus } from "@/lib/pick-em-rewards";
 import { syncDivision } from "@/lib/sheets-sync-all";
 import {
-  pokemonExactLookupKeys,
-  pokemonNameKey,
-  pokemonNormalizedLookupKeys,
-} from "@/lib/pokemon-name-utils";
-import {
   getPokemonAliasMaps,
-  type PokemonAliasMaps,
-  pokemonExactLookupKeysWithAliases,
-  pokemonLookupKeysForRowWithAliases,
-  pokemonNormalizedLookupKeysWithAliases,
 } from "@/lib/pokemon-name-aliases";
+import {
+  findMatchingRosterPokemon,
+  type ReplayRosterPokemon,
+} from "@/lib/replay-roster-matching";
 
 export interface FixtureOption {
   matchId: number;
@@ -367,20 +362,24 @@ async function insertKillEvents(
     pokemonNameMap.set(p.id, { name: p.name, displayName: p.displayName });
   }
 
-  // Build coach -> pokemonName -> pokemonId lookup
-  const pokemonIdsByCoach = new Map<number, Map<string, number>>();
+  // Build coach roster entries from the Pokemon that were recorded for this
+  // match. Kill events must use the same form-aware matching as replay teams:
+  // Showdown can leave a drafted Mega in its base form for the entire battle.
+  const pokemonByCoach = new Map<number, ReplayRosterPokemon[]>();
   for (const poke of pokemonDataArray) {
-    if (!pokemonIdsByCoach.has(poke.seasonCoachId)) {
-      pokemonIdsByCoach.set(poke.seasonCoachId, new Map());
+    if (!pokemonByCoach.has(poke.seasonCoachId)) {
+      pokemonByCoach.set(poke.seasonCoachId, []);
     }
     const pokemonInfo = pokemonNameMap.get(poke.pokemonId);
     if (pokemonInfo) {
-      if (pokemonInfo.displayName) {
-        pokemonIdsByCoach.get(poke.seasonCoachId)!.set(pokemonInfo.displayName.toLowerCase(), poke.pokemonId);
-      }
-      pokemonIdsByCoach.get(poke.seasonCoachId)!.set(pokemonInfo.name.toLowerCase(), poke.pokemonId);
+      pokemonByCoach.get(poke.seasonCoachId)!.push({
+        pokemonId: poke.pokemonId,
+        name: pokemonInfo.name,
+        displayName: pokemonInfo.displayName,
+      });
     }
   }
+  const aliasMaps = await getPokemonAliasMaps();
 
   // Map p1/p2 to seasonCoachId using the win event and winnerId
   let p1SeasonCoachId = coach1SeasonId;
@@ -426,8 +425,12 @@ async function insertKillEvents(
     if (!event.pokemon) continue;
 
     const victimSeasonCoachId = event.player === "p1" ? p1SeasonCoachId : p2SeasonCoachId;
-    const victimLookup = pokemonIdsByCoach.get(victimSeasonCoachId);
-    const victimPokemonId = victimLookup?.get(event.pokemon.toLowerCase());
+    const victimRoster = pokemonByCoach.get(victimSeasonCoachId) || [];
+    const victimPokemonId = findMatchingRosterPokemon(
+      victimRoster,
+      event.pokemon,
+      aliasMaps
+    )?.pokemonId;
 
     if (!victimPokemonId) continue;
 
@@ -436,8 +439,12 @@ async function insertKillEvents(
 
     if (event.killer && event.killerPlayer) {
       killerSeasonCoachId = event.killerPlayer === "p1" ? p1SeasonCoachId : p2SeasonCoachId;
-      const killerLookup = pokemonIdsByCoach.get(killerSeasonCoachId);
-      killerPokemonId = killerLookup?.get(event.killer.toLowerCase()) || null;
+      const killerRoster = pokemonByCoach.get(killerSeasonCoachId) || [];
+      killerPokemonId = findMatchingRosterPokemon(
+        killerRoster,
+        event.killer,
+        aliasMaps
+      )?.pokemonId || null;
     }
 
     let moveId: number | null = null;
@@ -1017,71 +1024,4 @@ export async function buildPokemonDataFromReplay(
   }
 
   return pokemonData;
-}
-
-function setsIntersect<T>(left: Set<T>, right: Set<T>): boolean {
-  for (const value of left) {
-    if (right.has(value)) return true;
-  }
-  return false;
-}
-
-function pokemonNamesMatch(
-  left: string | null | undefined,
-  right: string | null | undefined,
-  aliasMaps?: PokemonAliasMaps
-): boolean {
-  const leftExactKeys = aliasMaps
-    ? pokemonExactLookupKeysWithAliases(left, aliasMaps)
-    : pokemonExactLookupKeys(left);
-  const rightExactKeys = aliasMaps
-    ? pokemonExactLookupKeysWithAliases(right, aliasMaps)
-    : pokemonExactLookupKeys(right);
-  if (setsIntersect(leftExactKeys, rightExactKeys)) return true;
-
-  const leftNormalizedKeys = aliasMaps
-    ? pokemonNormalizedLookupKeysWithAliases(left, aliasMaps)
-    : pokemonNormalizedLookupKeys(left);
-  const rightNormalizedKeys = aliasMaps
-    ? pokemonNormalizedLookupKeysWithAliases(right, aliasMaps)
-    : pokemonNormalizedLookupKeys(right);
-  return setsIntersect(leftNormalizedKeys, rightNormalizedKeys);
-}
-
-function findMatchingRosterPokemon(
-  roster: Awaited<ReturnType<typeof getCoachRoster>>,
-  replayPokemonName: string,
-  aliasMaps?: PokemonAliasMaps
-) {
-  // Match equivalent database/Showdown spellings even when the optional
-  // admin alias tables are unavailable or have not been populated yet.
-  const compactReplayKey = pokemonNameKey(replayPokemonName);
-  const compactMatch = roster.find((row) => (
-    pokemonNameKey(row.name) === compactReplayKey
-    || pokemonNameKey(row.displayName) === compactReplayKey
-  ));
-  if (compactMatch) return compactMatch;
-
-  if (!aliasMaps) {
-    return roster.find((row) => pokemonNamesMatch(replayPokemonName, row.displayName || row.name));
-  }
-
-  const exactKeys = pokemonExactLookupKeysWithAliases(replayPokemonName, aliasMaps);
-  const exactMatch = roster.find((row) => (
-    setsIntersect(exactKeys, pokemonLookupKeysForRowWithAliases(row, aliasMaps))
-  ));
-  if (exactMatch) return exactMatch;
-
-  const normalizedKeys = pokemonNormalizedLookupKeysWithAliases(replayPokemonName, aliasMaps);
-  const normalizedMatch = roster.find((row) => (
-    setsIntersect(normalizedKeys, pokemonLookupKeysForRowWithAliases(row, aliasMaps, {}, true))
-  ));
-  if (normalizedMatch) return normalizedMatch;
-
-  // Last, use the built-in alias catalogue independently of database-backed
-  // aliases so known forms such as Single Strike Urshifu still resolve.
-  return roster.find((row) => (
-    pokemonNamesMatch(replayPokemonName, row.name)
-    || pokemonNamesMatch(replayPokemonName, row.displayName)
-  ));
 }
