@@ -280,7 +280,7 @@ export function ComprehensiveLeaderboardTable({
 
   return (
     <div className="poke-card overflow-hidden">
-      <div className="border-b-2 border-[var(--background-tertiary)] bg-[var(--success)]/10 p-5">
+      <div className="border-b-2 border-sky-300/30 bg-sky-300/10 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-black text-white">
@@ -306,8 +306,8 @@ export function ComprehensiveLeaderboardTable({
                 aria-pressed={phase === option.key}
                 className={`rounded-lg border-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors ${
                   phase === option.key
-                    ? "border-[var(--success)] bg-[var(--success)] text-white"
-                    : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)] hover:text-white"
+                    ? "border-sky-300 bg-sky-300 text-slate-950"
+                    : "border-sky-300/25 bg-sky-300/5 text-[var(--foreground-muted)] hover:border-sky-300/60 hover:bg-sky-300/10 hover:text-[var(--foreground)]"
                 }`}
               >
                 {option.label}
