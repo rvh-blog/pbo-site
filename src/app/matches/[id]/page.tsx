@@ -343,6 +343,7 @@ function BattleSummaryTeam({
 
 function BattleSummaryPanel({
   canEditDecidingTurns,
+  canManageDecidingTurnsEditorVisibility,
   coach1Name,
   coach2Name,
   coach1LogoUrl,
@@ -354,6 +355,7 @@ function BattleSummaryPanel({
   matchId,
 }: {
   canEditDecidingTurns: boolean;
+  canManageDecidingTurnsEditorVisibility: boolean;
   coach1Name: string;
   coach2Name: string;
   coach1LogoUrl?: string | null;
@@ -365,29 +367,36 @@ function BattleSummaryPanel({
   matchId: number;
 }) {
   return (
-    <div className="poke-card p-3 sm:p-5 overflow-hidden">
+    <div className="poke-card overflow-visible p-3 sm:p-5 md:overflow-hidden">
       <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-3 sm:p-5">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px_minmax(0,1fr)]">
-          <BattleSummaryTeam
-            teamName={coach1Name}
-            logoUrl={coach1LogoUrl}
-            pokemonRows={coach1Pokemon}
-            align="left"
-          />
+          <div className="order-1 xl:order-none">
+            <BattleSummaryTeam
+              teamName={coach1Name}
+              logoUrl={coach1LogoUrl}
+              pokemonRows={coach1Pokemon}
+              align="left"
+            />
+          </div>
 
-          <DecidingTurnsPanel
-            canEdit={canEditDecidingTurns}
-            initialText={decidingTurnsText}
-            initialEditorHidden={decidingTurnsEditorHidden}
-            matchId={matchId}
-          />
+          <div className="order-3 xl:order-none">
+            <DecidingTurnsPanel
+              canEdit={canEditDecidingTurns}
+              canManageEditorVisibility={canManageDecidingTurnsEditorVisibility}
+              initialText={decidingTurnsText}
+              initialEditorHidden={decidingTurnsEditorHidden}
+              matchId={matchId}
+            />
+          </div>
 
-          <BattleSummaryTeam
-            teamName={coach2Name}
-            logoUrl={coach2LogoUrl}
-            pokemonRows={coach2Pokemon}
-            align="right"
-          />
+          <div className="order-2 xl:order-none">
+            <BattleSummaryTeam
+              teamName={coach2Name}
+              logoUrl={coach2LogoUrl}
+              pokemonRows={coach2Pokemon}
+              align="right"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -834,7 +843,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 coach2Pokemon={coach2MatchPokemon}
                 decidingTurnsText={match.decidingTurnsText}
                 decidingTurnsEditorHidden={decidingTurnsEditorHidden}
-                canEditDecidingTurns={Boolean(session?.isMod)}
+                canEditDecidingTurns={Boolean(session?.isMod || session?.isEditor)}
+                canManageDecidingTurnsEditorVisibility={Boolean(session?.isMod)}
                 matchId={match.id}
               />
             );

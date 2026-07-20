@@ -17,6 +17,7 @@ export async function GET() {
         name: true,
         passwordHash: true,
         isMod: true,
+        isEditor: true,
         claimedAt: true,
         eloRating: true,
       },
@@ -29,6 +30,7 @@ export async function GET() {
         id: true,
         username: true,
         isMod: true,
+        isEditor: true,
         createdAt: true,
       },
       orderBy: (u, { asc }) => [asc(u.username)],
@@ -42,6 +44,7 @@ export async function GET() {
         type: "coach" as const,
         isClaimed: !!c.passwordHash,
         isMod: c.isMod ?? false,
+        isEditor: c.isEditor ?? false,
         claimedAt: c.claimedAt,
         eloRating: c.eloRating,
       })),
@@ -51,6 +54,7 @@ export async function GET() {
         type: "spectator" as const,
         isClaimed: true, // spectators are always claimed
         isMod: u.isMod ?? false,
+        isEditor: u.isEditor ?? false,
         claimedAt: u.createdAt,
         eloRating: null,
       })),
@@ -61,6 +65,7 @@ export async function GET() {
       id: u.id,
       name: u.username,
       isMod: u.isMod ?? false,
+      isEditor: u.isEditor ?? false,
       createdAt: u.createdAt,
     }));
 

@@ -58,6 +58,7 @@ export async function POST(
       .set({
         passwordHash: spectator.passwordHash,
         isMod: spectator.isMod,
+        isEditor: spectator.isEditor,
         claimedAt: spectator.createdAt || new Date().toISOString(),
         pboCoin: coach.pboCoin + spectator.pboCoin, // Transfer spectator's coins
       })

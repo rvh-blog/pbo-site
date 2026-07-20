@@ -229,7 +229,7 @@ export function Navigation() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 border-b-4 border-[var(--background-tertiary)] bg-[var(--background-secondary)]/90 shadow-xl backdrop-blur-md">
+    <nav className="site-navigation sticky top-0 z-50 border-b-4 border-[var(--background-tertiary)] bg-[var(--background-secondary)]/90 shadow-xl backdrop-blur-md">
       <div className="container relative mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="group flex min-w-0 items-center gap-2 sm:gap-3" onClick={() => setMobileMenuOpen(false)}>
@@ -251,7 +251,7 @@ export function Navigation() {
         </Link>
 
         {/* Desktop Nav */}
-        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-5 lg:flex xl:gap-6">
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-5 xl:flex xl:gap-6">
           {visibleNavItems.map((item) => {
             const isActive = item.href === "/matchup-prep"
               ? matchPrepActive
@@ -354,7 +354,7 @@ export function Navigation() {
           })}
         </div>
 
-        <div className="hidden items-center gap-3 lg:flex">
+        <div className="hidden items-center gap-3 xl:flex">
           <Search />
 
           {themeToggle}
@@ -498,7 +498,7 @@ export function Navigation() {
         </div>
 
         {/* Mobile: Search + Menu Button */}
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 lg:hidden">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 xl:hidden">
           <Search />
           {themeToggle}
           {authUser && (
@@ -508,7 +508,7 @@ export function Navigation() {
           )}
           <button
             type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
+            className="flex h-11 items-center justify-center gap-2 rounded-lg px-3 text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             aria-controls="mobile-navigation"
@@ -523,7 +523,36 @@ export function Navigation() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           )}
+          <span className="text-xs font-bold uppercase tracking-wide">Menu</span>
         </button>
+        </div>
+      </div>
+
+      {/* Tablet navigation keeps primary destinations visible without crowding the header. */}
+      <div className="hidden border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)]/95 md:flex xl:hidden">
+        <div className="container mx-auto flex gap-1 overflow-x-auto px-4 py-1.5 sm:px-6" aria-label="Primary navigation">
+          {visibleNavItems.map((item) => {
+            const isActive = item.href === "/matchup-prep"
+              ? matchPrepActive
+              : item.href === "/leaderboards"
+                ? pboStatsActive
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+                  isActive
+                    ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
+                    : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </div>
       </div>
 
@@ -532,13 +561,13 @@ export function Navigation() {
         <>
           <button
             type="button"
-            className="fixed inset-x-0 bottom-0 top-16 bg-black/40 backdrop-blur-[1px] lg:hidden"
+            className="fixed inset-x-0 bottom-0 top-[calc(4rem+env(safe-area-inset-top))] bg-black/40 backdrop-blur-[1px] md:top-[calc(7rem+env(safe-area-inset-top))] xl:hidden"
             onClick={() => setMobileMenuOpen(false)}
             aria-label="Close menu"
           />
           <div
             id="mobile-navigation"
-            className="absolute left-0 right-0 top-full z-10 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-xl lg:hidden"
+            className="absolute left-0 right-0 top-full z-10 max-h-[calc(100dvh-4rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-xl md:max-h-[calc(100dvh-7rem-env(safe-area-inset-top))] xl:hidden"
           >
           <div className="container mx-auto space-y-1 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
             {/* Persona Section */}

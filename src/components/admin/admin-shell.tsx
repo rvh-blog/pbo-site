@@ -102,7 +102,7 @@ const NAV_GROUPS: AdminNavGroup[] = [
       { href: "/admin/pick-ems", label: "Pick'Ems", description: "Picks, GOTW, trivia, and badges", keywords: ["gotw", "trivia", "twitch", "picks"], icon: BookOpenCheck },
       { href: "/admin/engagement", label: "Engagement", description: "Polls and community activity", keywords: ["poll", "activity", "rewards"], icon: Activity },
       { href: "/admin/discord", label: "Discord", description: "Discord integration controls", keywords: ["bot", "roles", "server"], icon: MessageCircle },
-      { href: "/admin/users", label: "Users", description: "Claims, roles, and permissions", keywords: ["spectator", "moderator", "password", "claims"], icon: UserCog },
+      { href: "/admin/users", label: "Users", description: "Claims, roles, and permissions", keywords: ["spectator", "editor", "moderator", "password", "claims"], icon: UserCog },
     ],
   },
   {
@@ -351,7 +351,7 @@ export function AdminShell({
       {mobileOpen && (
         <div className="fixed inset-0 z-[100] lg:hidden" role="dialog" aria-modal="true" aria-label="Admin navigation">
           <button type="button" className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileOpen(false)} aria-label="Close admin menu" />
-          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col border-r border-[var(--card-border)] bg-[var(--background)] shadow-2xl">
+          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col border-r border-[var(--card-border)] bg-[var(--background)] pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl">
             <div className="flex h-16 items-center justify-between border-b border-[var(--card-border)] px-4">
               <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-[var(--primary)]" /><span className="font-bold">PBO Admin</span></div>
               <button type="button" onClick={() => setMobileOpen(false)} className="rounded-lg p-2 text-[var(--foreground-muted)] hover:bg-[var(--card-hover)]" aria-label="Close admin menu"><X className="h-5 w-5" /></button>

@@ -12,6 +12,7 @@ export interface SessionUser {
   id: number; // coach.id or user.id
   name: string;
   isMod: boolean;
+  isEditor: boolean;
 }
 
 /**
@@ -83,6 +84,7 @@ export async function getSession(): Promise<SessionUser | null> {
       id: session.coach.id,
       name: session.coach.name,
       isMod: session.coach.isMod ?? false,
+      isEditor: session.coach.isEditor ?? false,
     };
   }
 
@@ -92,6 +94,7 @@ export async function getSession(): Promise<SessionUser | null> {
       id: session.user.id,
       name: session.user.username,
       isMod: session.user.isMod ?? false,
+      isEditor: session.user.isEditor ?? false,
     };
   }
 

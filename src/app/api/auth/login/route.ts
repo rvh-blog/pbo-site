@@ -65,6 +65,7 @@ export async function POST(request: Request) {
           id: coachId,
           name: coach.name,
           isMod: coach.isMod ?? false,
+          isEditor: coach.isEditor ?? false,
         },
       });
     } else {
@@ -107,6 +108,7 @@ export async function POST(request: Request) {
           id: user.id,
           name: user.username,
           isMod: user.isMod ?? false,
+          isEditor: user.isEditor ?? false,
         },
       });
     }

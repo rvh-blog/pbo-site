@@ -950,7 +950,7 @@ export default function AdminTransactionsPage() {
                   No transactions recorded yet.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="mobile-card-table overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-[var(--card-hover)]">
@@ -965,10 +965,10 @@ export default function AdminTransactionsPage() {
                     <tbody>
                       {filteredTransactions.map((tx) => (
                         <tr key={tx.id} className="border-b border-[var(--card-hover)]/50 hover:bg-[var(--card-hover)]/30">
-                          <td className="p-2">
+                          <td className="p-2" data-label="Week">
                             <span className="font-mono">{tx.week}</span>
                           </td>
-                          <td className="p-2">
+                          <td className="p-2" data-label="Type">
                             <span className={`font-medium ${getTypeColor(tx.type)}`}>
                               {getTypeLabel(tx.type)}
                             </span>
@@ -976,7 +976,7 @@ export default function AdminTransactionsPage() {
                               <span className="ml-1 text-xs text-[var(--foreground-muted)]">(free)</span>
                             )}
                           </td>
-                          <td className="p-2">
+                          <td className="p-2" data-label="Teams">
                             <div className="text-sm">
                               <span className="font-medium">{tx.teamAbbreviation || tx.seasonCoach?.teamName}</span>
                               {tx.tradingPartnerAbbreviation && (
@@ -987,7 +987,7 @@ export default function AdminTransactionsPage() {
                               )}
                             </div>
                           </td>
-                          <td className="p-2">
+                          <td className="p-2" data-label="Pokemon">
                             <div className="flex flex-wrap gap-1">
                               {tx.pokemonInDetails?.map((p) => (
                                 <span
@@ -1022,7 +1022,7 @@ export default function AdminTransactionsPage() {
                               )}
                             </div>
                           </td>
-                          <td className="p-2">
+                          <td className="p-2" data-label="Points">
                             <span
                               className={`font-mono ${
                                 tx.budgetChange > 0
@@ -1036,7 +1036,7 @@ export default function AdminTransactionsPage() {
                               {tx.budgetChange}
                             </span>
                           </td>
-                          <td className="p-2">
+                          <td className="p-2" data-label="Actions">
                             <Button
                               size="sm"
                               variant="destructive"

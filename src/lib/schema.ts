@@ -10,6 +10,7 @@ export const coaches = sqliteTable("coaches", {
   // Auth fields
   passwordHash: text("password_hash"), // null = unclaimed account
   isMod: integer("is_mod", { mode: "boolean" }).default(false),
+  isEditor: integer("is_editor", { mode: "boolean" }).default(false),
   canPostBlog: integer("can_post_blog", { mode: "boolean" }).default(false),
   claimedAt: text("claimed_at"), // when the account was claimed
   projectMewConfirmed: integer("project_mew_confirmed", { mode: "boolean" }).default(false),
@@ -982,6 +983,7 @@ export const users = sqliteTable("users", {
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   isMod: integer("is_mod", { mode: "boolean" }).default(false),
+  isEditor: integer("is_editor", { mode: "boolean" }).default(false),
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
   // Currency (same as coaches)
   pboCoin: integer("pbo_coin").notNull().default(0),
