@@ -5,6 +5,7 @@ import { rosterPokemonMatchesName } from "../src/lib/broadcast-pokemon-matching"
 import { pokemonExactLookupKeys } from "../src/lib/pokemon-name-utils";
 import { getSeasonBattleRules } from "../src/lib/season-battle-rules";
 import { extractShowdownFormatId, extractShowdownRoomId } from "../src/lib/showdown-room";
+import { extractShiny, parseLine } from "../src/lib/battle-event-parser";
 import {
   NEW_MEGA_BATTLEFIELD_SPRITES,
   getBattlefieldSpriteOverride,
@@ -12,6 +13,7 @@ import {
 } from "../src/lib/battlefield-sprite-overrides";
 import {
   getChampionsMegaSpriteUrl,
+  getGen5StaticSpriteUrl,
   getShowdownSpriteUrl,
 } from "../src/lib/showdown-sprites";
 
@@ -53,6 +55,23 @@ assert.equal(
 assert.equal(getSeasonBattleRules(11).usesStatPoints, true);
 assert.equal(getSeasonBattleRules(11).friendlyMegaNames, true);
 assert(getSeasonBattleRules(11).showdownFormats.includes("gen9championsnatdexdraft"));
+
+const shinyPreview = parseLine("|poke|p1|Zeraora, L50, shiny|");
+const shinySwitch = parseLine("|switch|p1a: Zeraora|Zeraora, L50, shiny|100/100");
+const normalSwitch = parseLine("|switch|p2a: Zeraora|Zeraora, L50|100/100");
+assert.equal(extractShiny("Zeraora, L50, shiny"), true);
+assert.equal(shinyPreview?.isShiny, true, "Team preview must preserve shiny status");
+assert.equal(shinySwitch?.isShiny, true, "Switch events must preserve shiny status");
+assert.equal(normalSwitch?.isShiny, false, "Non-shiny Pokemon must remain non-shiny");
+assert.equal(
+  getShowdownSpriteUrl("Zeraora", true),
+  "https://play.pokemonshowdown.com/sprites/ani-shiny/zeraora.gif",
+);
+assert.equal(
+  getGen5StaticSpriteUrl("Ogerpon-Hearthflame", true),
+  "https://play.pokemonshowdown.com/sprites/gen5-shiny/ogerpon-hearthflame.png",
+  "Shiny forms must use the shared shiny sprite directory",
+);
 
 assert.equal(NEW_MEGA_BATTLEFIELD_SPRITES.length, 48, "All 48 new Mega battlefield sprites must be registered");
 for (const { forme, spriteId, localUrl } of NEW_MEGA_BATTLEFIELD_SPRITES) {

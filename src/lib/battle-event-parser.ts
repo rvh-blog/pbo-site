@@ -69,6 +69,8 @@ export interface BattleEvent {
   unixTimestamp?: number;
   // Pokemon level (from details string, e.g. "Pikachu, L50, M")
   level?: number;
+  // Whether the Pokemon was announced as shiny in its Showdown details string
+  isShiny?: boolean;
 }
 
 function extractPlayerAndNickname(ref: string): { player: "p1" | "p2"; nickname: string } | null {
@@ -114,6 +116,11 @@ export function extractLevel(details: string): number {
   return 100;
 }
 
+/** Extract Showdown's standalone shiny marker from a Pokemon details string. */
+export function extractShiny(details: string): boolean {
+  return details.split(",").some((part) => part.trim().toLowerCase() === "shiny");
+}
+
 export { normalizePokemonName };
 
 /**
@@ -139,7 +146,8 @@ export function parseLine(line: string): BattleEvent | null {
       const battleForm = extractBattleForm(pokeDetails);
       const species = normalizePokemonName(pokeDetails);
       const level = extractLevel(pokeDetails);
-      return { type: "poke", raw: trimmed, player, species, battleForm, level };
+      const isShiny = extractShiny(pokeDetails);
+      return { type: "poke", raw: trimmed, player, species, battleForm, level, isShiny };
     }
 
     case "switch":
@@ -150,6 +158,7 @@ export function parseLine(line: string): BattleEvent | null {
       const battleForm = extractBattleForm(detailStr);
       const species = normalizePokemonName(detailStr);
       const level = extractLevel(detailStr);
+      const isShiny = extractShiny(detailStr);
       const hp = parseHp(parts[4] || "100/100");
       return {
         type: command === "switch" ? "switch" : "drag",
@@ -159,6 +168,7 @@ export function parseLine(line: string): BattleEvent | null {
         species,
         battleForm,
         level,
+        isShiny,
         hp: hp.current,
         maxHp: hp.max,
       };
@@ -167,9 +177,11 @@ export function parseLine(line: string): BattleEvent | null {
     case "replace": {
       const ref = extractPlayerAndNickname(parts[2] || "");
       if (!ref) return null;
-      const battleForm = extractBattleForm(parts[3] || "");
-      const species = normalizePokemonName(parts[3] || "");
-      return { type: "replace", raw: trimmed, player: ref.player, nickname: ref.nickname, species, battleForm };
+      const details = parts[3] || "";
+      const battleForm = extractBattleForm(details);
+      const species = normalizePokemonName(details);
+      const isShiny = extractShiny(details);
+      return { type: "replace", raw: trimmed, player: ref.player, nickname: ref.nickname, species, battleForm, isShiny };
     }
 
     case "move": {
@@ -379,8 +391,9 @@ export function parseLine(line: string): BattleEvent | null {
     case "detailschange": {
       const ref = extractPlayerAndNickname(parts[2] || "");
       if (!ref) return null;
-      const battleForm = extractBattleForm(parts[3] || "");
-      const species = normalizePokemonName(parts[3] || "");
+      const details = parts[3] || "";
+      const battleForm = extractBattleForm(details);
+      const species = normalizePokemonName(details);
       return {
         type: command === "-formechange" ? "formechange" : "detailschange",
         raw: trimmed,
@@ -388,6 +401,9 @@ export function parseLine(line: string): BattleEvent | null {
         nickname: ref.nickname,
         species,
         battleForm,
+        // -formechange does not carry the full details list, so preserve the
+        // existing shiny state for that event. detailschange does carry it.
+        isShiny: command === "detailschange" ? extractShiny(details) : undefined,
       };
     }
 

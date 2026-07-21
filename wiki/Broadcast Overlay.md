@@ -73,6 +73,20 @@ Competitive forms that are separately draftable must remain distinct. Follow
 the Pokemon normalization guidance in [[Change Guide]] before broadening form
 collapses.
 
+## Shiny Sidebar Sprites
+
+Both overlay variants preserve Showdown's `shiny` details marker in the shared
+battle state. The marker is read during team preview, switches, forced switches,
+Illusion reveals, and details changes, and it remains attached during form
+changes that do not repeat the full details list.
+
+V1 uses Showdown's animated shiny sidebar art with shiny dex and Gen 5
+fallbacks. V2 uses the corresponding shiny Gen 5-style static art. Sprite URL
+selection is centralized in `src/lib/showdown-sprites.ts`; do not add
+species-specific shiny checks to either visual client. If Showdown has no shiny
+art for a custom form, the existing non-shiny/local fallback remains the final
+emergency image.
+
 ## Season 11 Format
 
 getSeasonBattleRules(11) currently defines:

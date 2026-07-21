@@ -28,6 +28,8 @@ export interface PokemonBattleState {
   nickname: string;
   /** Raw battle form name from Showdown (e.g. "Palafin-Hero", "Aegislash-Blade") */
   battleForm: string;
+  /** Whether Showdown announced this Pokemon as shiny */
+  isShiny: boolean;
   /** Pokemon level (defaults to 100 if not specified) */
   level: number;
   /** Current HP (0-100 scale from Showdown) */
@@ -187,11 +189,12 @@ function createInitialState(): BattleState {
   };
 }
 
-function createPokemonState(species: string, nickname: string, battleForm?: string, level?: number): PokemonBattleState {
+function createPokemonState(species: string, nickname: string, battleForm?: string, level?: number, isShiny = false): PokemonBattleState {
   return {
     species,
     nickname,
     battleForm: battleForm || species,
+    isShiny,
     level: level ?? 100,
     hp: 100,
     maxHp: 100,
@@ -227,6 +230,7 @@ function promoteStateToBattleForm(
   battleForm?: string,
   hp?: number,
   maxHp?: number,
+  isShiny?: boolean,
 ): PokemonBattleState | null {
   const existingFormState = pokeMap.get(species);
   const baseSpecies = getMegaBaseSpecies(species);
@@ -257,6 +261,7 @@ function promoteStateToBattleForm(
 
   state.nickname = nickname;
   state.battleForm = battleForm || species;
+  if (isShiny !== undefined) state.isShiny = isShiny;
   if (hp !== undefined) state.hp = hp;
   if (maxHp !== undefined) state.maxHp = maxHp;
   state.active = true;
@@ -520,12 +525,13 @@ export function useShowdownBattle(
                 else teamPreviewRef.current.p2.push(species);
                 // Create state entry, mark as brought
                 if (!pokeMap.has(species)) {
-                  pokeMap.set(species, createPokemonState(species, species, event.battleForm, event.level));
+                  pokeMap.set(species, createPokemonState(species, species, event.battleForm, event.level, event.isShiny));
                 }
                 const pokePs = pokeMap.get(species)!;
                 pokePs.brought = true;
                 if (event.level) pokePs.level = event.level;
                 if (event.battleForm) pokePs.battleForm = event.battleForm;
+                if (event.isShiny !== undefined) pokePs.isShiny = event.isShiny;
                 const mapping = resolveTeamMapping();
                 if (mapping !== null) next.p1IsTeam1 = mapping;
               }
@@ -582,10 +588,11 @@ export function useShowdownBattle(
                 event.battleForm,
                 event.hp,
                 event.maxHp,
+                event.isShiny,
               );
 
               if (!promotedState && !pokeMap.has(species)) {
-                pokeMap.set(species, createPokemonState(species, event.nickname, event.battleForm, event.level));
+                pokeMap.set(species, createPokemonState(species, event.nickname, event.battleForm, event.level, event.isShiny));
               }
               const ps = pokeMap.get(species)!;
               ps.nickname = event.nickname;
@@ -595,6 +602,7 @@ export function useShowdownBattle(
               ps.brought = true;
               if (event.level) ps.level = event.level;
               if (event.battleForm) ps.battleForm = event.battleForm;
+              if (event.isShiny !== undefined) ps.isShiny = event.isShiny;
               // Boosts reset on switch
               ps.boosts = {};
               // Kill tracking: update active nickname and mark as just switched in
@@ -613,7 +621,7 @@ export function useShowdownBattle(
               if (oldSpecies && oldSpecies !== event.species) {
                 const oldState = pokeMap.get(oldSpecies);
                 const revealedState = pokeMap.get(event.species)
-                  ?? createPokemonState(event.species, event.nickname, event.battleForm);
+                  ?? createPokemonState(event.species, event.nickname, event.battleForm, undefined, event.isShiny);
                 if (oldState) {
                   pokeMap.set(event.species, {
                     ...revealedState,
@@ -621,6 +629,7 @@ export function useShowdownBattle(
                     species: event.species,
                     nickname: event.nickname,
                     battleForm: event.battleForm || revealedState.battleForm,
+                    isShiny: event.isShiny ?? revealedState.isShiny,
                     active: true,
                     brought: true,
                     boosts: { ...oldState.boosts },
@@ -637,13 +646,14 @@ export function useShowdownBattle(
                   snapshotMap.delete(event.nickname);
                 }
               } else if (!pokeMap.has(event.species)) {
-                pokeMap.set(event.species, createPokemonState(event.species, event.nickname, event.battleForm));
+                pokeMap.set(event.species, createPokemonState(event.species, event.nickname, event.battleForm, undefined, event.isShiny));
               }
               const rps = pokeMap.get(event.species)!;
               rps.active = true;
               rps.brought = true;
               rps.nickname = event.nickname;
               if (event.battleForm) rps.battleForm = event.battleForm;
+              if (event.isShiny !== undefined) rps.isShiny = event.isShiny;
               // Kill tracking: update active nickname
               if (event.player === "p1") kt.p1ActiveNickname = event.nickname;
               else kt.p2ActiveNickname = event.nickname;
@@ -1196,11 +1206,15 @@ export function useShowdownBattle(
                 formSpecies,
                 event.nickname,
                 event.battleForm,
+                undefined,
+                undefined,
+                event.isShiny,
               );
               if (promotedState) nickMap.set(event.nickname, formSpecies);
               const fcPs = promotedState || getByNickname(pokeMap, nickMap, event.nickname);
               if (fcPs) {
                 fcPs.battleForm = event.battleForm;
+                if (event.isShiny !== undefined) fcPs.isShiny = event.isShiny;
               }
               break;
             }
