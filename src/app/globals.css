@@ -244,6 +244,37 @@ summary {
 }
 
 /* Mobile readability and device-safe spacing. Desktop utilities remain unchanged. */
+.desktop-primary-navigation,
+.desktop-navigation-actions,
+.tablet-primary-navigation {
+  display: none;
+}
+
+.compact-navigation-actions {
+  display: flex;
+}
+
+/* Use traditional pixel media queries as a compatibility layer for browsers
+   that do not apply Tailwind's generated range-query breakpoint syntax. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .tablet-primary-navigation {
+    display: flex;
+  }
+}
+
+@media (min-width: 1280px) {
+  .desktop-primary-navigation,
+  .desktop-navigation-actions {
+    display: flex;
+  }
+
+  .compact-navigation-actions,
+  .compact-navigation-only,
+  .tablet-primary-navigation {
+    display: none;
+  }
+}
+
 @media (max-width: 767px) {
   .site-navigation {
     padding-top: env(safe-area-inset-top);

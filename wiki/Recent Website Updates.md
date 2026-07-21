@@ -4,6 +4,38 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 21, 2026
+
+Matchup Prep:
+
+- Greninja cards include the event ability Battle Bond alongside Torrent and
+  Protean.
+- The event ability is available on both active-roster and dropped-Pokemon
+  cards without changing the stored base Greninja row.
+
+Broadcast overlay:
+
+- Shiny custom Champions Mega forms use their registered local PNG when
+  Showdown has no distinct shiny asset, preventing broken images such as shiny
+  Greninja-Mega.
+- The shared sprite resolver applies this behavior to all 48 registered custom
+  Mega forms across animated and static overlay paths. Ordinary shiny Pokemon
+  keep their normal Showdown shiny sprites.
+
+Navigation:
+
+- The global header uses explicit desktop, tablet, and compact visibility rules
+  with traditional media queries, preventing a logo-only header in browsers
+  that do not apply the generated responsive range-query syntax.
+- Compact search, theme, and Menu controls remain the fallback below 1280px;
+  the full navigation and account controls display at desktop widths.
+
+Verification:
+
+- Overlay synchronization checks cover shiny custom Mega sidebar and fallback
+  paths.
+- `npx tsc --noEmit` and targeted ESLint pass.
+
 ## July 19, 2026
 
 Comprehensive Leaderboard:

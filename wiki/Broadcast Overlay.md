@@ -84,8 +84,9 @@ V1 uses Showdown's animated shiny sidebar art with shiny dex and Gen 5
 fallbacks. V2 uses the corresponding shiny Gen 5-style static art. Sprite URL
 selection is centralized in `src/lib/showdown-sprites.ts`; do not add
 species-specific shiny checks to either visual client. If Showdown has no shiny
-art for a custom form, the existing non-shiny/local fallback remains the final
-emergency image.
+art for one of the 48 registered Champions Mega forms, every animated and
+static sprite path uses that form's local non-shiny PNG. Ordinary Pokemon with
+available shiny art continue to use Showdown's shiny sprite directories.
 
 ## Season 11 Format
 
@@ -124,7 +125,9 @@ All 48 newly supported Champions Mega forms use their existing local static
 sprites when Showdown has no battlefield art. The registry accepts both
 species-first and `Mega ...` form names, including X/Y/Z and alternate-form
 suffixes, and recovers failed Showdown sprite URLs. Regular forms remain on
-Showdown's normal sprites.
+Showdown's normal sprites. The same registry also supplies sidebar art when one
+of these custom Megas is marked shiny, because Showdown does not provide
+separate shiny assets for them.
 Mega Falinks follows the same behavior for `Falinks-Mega`, `Falinks Mega`,
 `Mega Falinks`, and `Mega-Falinks`, with regular Falinks left unchanged.
 

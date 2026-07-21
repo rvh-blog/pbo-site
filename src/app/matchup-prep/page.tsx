@@ -15,8 +15,33 @@ import { eq, desc, and, or, inArray } from "drizzle-orm";
 import { MatchupPrepClient } from "./matchup-prep-client";
 import { getTimeSyncedRoster } from "@/lib/roster-utils";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
+import { pokemonNameKey } from "@/lib/pokemon-name-utils";
 
 export const dynamic = "force-dynamic";
+
+type PokemonAbility = { name: string; isHidden: boolean };
+
+// PokeAPI stores event-only abilities on separate form records even when PBO
+// drafts the base species. Include those legal options on matchup-prep cards.
+const EVENT_ABILITIES_BY_POKEMON: Record<string, PokemonAbility[]> = {
+  greninja: [{ name: "battle-bond", isHidden: false }],
+};
+
+function abilitiesForMatchupPrep(
+  pokemonName: string,
+  abilities: PokemonAbility[] | null | undefined
+): PokemonAbility[] {
+  const combined = [...(abilities || [])];
+  const knownAbilityNames = new Set(combined.map((ability) => ability.name.toLowerCase()));
+
+  for (const eventAbility of EVENT_ABILITIES_BY_POKEMON[pokemonNameKey(pokemonName)] || []) {
+    if (!knownAbilityNames.has(eventAbility.name.toLowerCase())) {
+      combined.push(eventAbility);
+    }
+  }
+
+  return combined;
+}
 
 interface PageProps {
   searchParams: Promise<{
@@ -252,7 +277,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
               displayName: r.pokemon.displayName,
               spriteUrl: r.pokemon.spriteUrl,
               types: r.pokemon.types || [],
-              abilities: r.pokemon.abilities || [],
+              abilities: abilitiesForMatchupPrep(r.pokemon.name, r.pokemon.abilities),
               hp: r.pokemon.hp || 0,
               attack: r.pokemon.attack || 0,
               defense: r.pokemon.defense || 0,
@@ -275,7 +300,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
         displayName: p.displayName,
         spriteUrl: p.spriteUrl,
         types: p.types || [],
-        abilities: p.abilities || [],
+        abilities: abilitiesForMatchupPrep(p.name, p.abilities),
         hp: p.hp || 0,
         attack: p.attack || 0,
         defense: p.defense || 0,

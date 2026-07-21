@@ -55,7 +55,9 @@ export function getChampionsMegaSpriteUrl(name: string) {
 }
 
 export function getShowdownSpriteUrl(name: string, isShiny = false) {
-  const championsMegaSprite = !isShiny ? getChampionsMegaSpriteUrl(name) : null;
+  // Champions Mega forms do not have separate shiny assets in Showdown's
+  // sprite sets. Keep their local art when Showdown marks one as shiny.
+  const championsMegaSprite = getChampionsMegaSpriteUrl(name);
   return championsMegaSprite ?? `${SHOWDOWN_SPRITES}/${isShiny ? "ani-shiny" : "ani"}/${spriteId(name)}.gif`;
 }
 
@@ -67,12 +69,12 @@ export function getDexSpriteUrl(name: string, isShiny = false) {
 }
 
 export function getGen5SpriteUrl(name: string, isShiny = false) {
-  const championsMegaSprite = !isShiny ? getChampionsMegaSpriteUrl(name) : null;
+  const championsMegaSprite = getChampionsMegaSpriteUrl(name);
   return championsMegaSprite ?? `${SHOWDOWN_SPRITES}/${isShiny ? "gen5ani-shiny" : "gen5ani"}/${spriteId(name)}.gif`;
 }
 
 export function getGen5StaticSpriteUrl(name: string, isShiny = false) {
-  const championsMegaSprite = !isShiny ? getChampionsMegaSpriteUrl(name) : null;
+  const championsMegaSprite = getChampionsMegaSpriteUrl(name);
   const compactId = spriteId(name).replace(/-/g, "");
   const staticId = DEX_SPRITE_OVERRIDES[compactId] ?? compactId;
   return championsMegaSprite ?? `${SHOWDOWN_SPRITES}/${isShiny ? "gen5-shiny" : "gen5"}/${staticId}.png`;

@@ -13,6 +13,7 @@ import {
 } from "../src/lib/battlefield-sprite-overrides";
 import {
   getChampionsMegaSpriteUrl,
+  getGen5SpriteUrl,
   getGen5StaticSpriteUrl,
   getShowdownSpriteUrl,
 } from "../src/lib/showdown-sprites";
@@ -84,6 +85,9 @@ for (const { forme, spriteId, localUrl } of NEW_MEGA_BATTLEFIELD_SPRITES) {
   assert.equal(getBattlefieldSpriteOverride(prefixAlias)?.url, expectedUrl, `${prefixAlias} must use its local battlefield sprite`);
   assert.equal(getChampionsMegaSpriteUrl(forme), expectedUrl, `${forme} must use its local sidebar sprite`);
   assert.equal(getShowdownSpriteUrl(forme), expectedUrl, `${forme} must bypass missing Showdown sidebar art`);
+  assert.equal(getShowdownSpriteUrl(forme, true), expectedUrl, `${forme} shiny must use its local sidebar sprite`);
+  assert.equal(getGen5SpriteUrl(forme, true), expectedUrl, `${forme} shiny must use its local animated fallback`);
+  assert.equal(getGen5StaticSpriteUrl(forme, true), expectedUrl, `${forme} shiny must use its local static fallback`);
   assert.equal(
     getBattlefieldSpriteOverrideForFailedUrl(`https://play.pokemonshowdown.com/sprites/gen5/${forme.replaceAll("-", "")}.png`)?.url,
     expectedUrl,
