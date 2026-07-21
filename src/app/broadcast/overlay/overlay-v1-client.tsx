@@ -78,6 +78,7 @@ function getTrainerSpriteUrl(avatar: string): string {
 interface MergedMon {
   name: string;
   sprite: string;
+  isShiny: boolean;
   hp: number;
   maxHp: number;
   status: string;
@@ -106,8 +107,9 @@ function mergeMon(
   return {
     name: s?.battleForm || rp.displayName || rp.name,
     sprite: s?.battleForm
-      ? getShowdownSpriteUrl(s.battleForm)
+      ? getShowdownSpriteUrl(s.battleForm, s.isShiny)
       : getStaticSpriteUrl(rp.name),
+    isShiny: s?.isShiny ?? false,
     hp: s?.hp ?? 100,
     maxHp: s?.maxHp ?? 100,
     status: s?.status || "",
@@ -1247,7 +1249,7 @@ function PokemonCard({
 }: {
   pokemon: MergedMon; divisionColor: string; side: "left" | "right"; teamTeraUsed: boolean; isReviewing: boolean;
 }) {
-  const { name, hp, fainted, kills, isCaptain, sprite, active, status, terastallized, teraType } = pokemon;
+  const { name, hp, fainted, kills, isCaptain, sprite, isShiny, active, status, terastallized, teraType } = pokemon;
   const isLeft = side === "left";
 
   const [hovered, setHovered] = useState(false);
@@ -1346,19 +1348,19 @@ function PokemonCard({
               onError={(e) => {
                 const img = e.currentTarget;
                 const src = img.src;
-                if (!src.includes("/sprites/dex/") && !src.includes("/sprites/gen5ani/") && !src.includes("/sprites/gen5/")) {
+                if (!/\/sprites\/(?:dex|gen5ani|gen5)(?:-shiny)?\//.test(src)) {
                   // First fallback: static dex sprites
-                  img.src = getDexSpriteUrl(name);
+                  img.src = getDexSpriteUrl(name, isShiny);
                   img.classList.remove("scale-x-[-1]");
                   img.style.transform = isLeft ? "scale(-1.3, 1.3)" : "scale(1.3)";
-                } else if (src.includes("/sprites/dex/")) {
+                } else if (/\/sprites\/dex(?:-shiny)?\//.test(src)) {
                   // Second fallback: gen5 animated sprites (same direction as regular ani)
-                  img.src = getGen5SpriteUrl(name);
+                  img.src = getGen5SpriteUrl(name, isShiny);
                   if (isLeft) img.classList.add("scale-x-[-1]");
                   img.style.transform = "";
-                } else if (src.includes("/sprites/gen5ani/")) {
+                } else if (/\/sprites\/gen5ani(?:-shiny)?\//.test(src)) {
                   // Final fallback: gen5 static sprites (Iron Boulder, etc.)
-                  img.src = getGen5StaticSpriteUrl(name);
+                  img.src = getGen5StaticSpriteUrl(name, isShiny);
                   img.classList.remove("scale-x-[-1]");
                   img.style.transform = isLeft ? "scale(-1.3, 1.3)" : "scale(1.3)";
                 }

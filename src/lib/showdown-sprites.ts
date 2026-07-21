@@ -54,21 +54,26 @@ export function getChampionsMegaSpriteUrl(name: string) {
   return getBattlefieldSpriteOverride(name)?.url ?? null;
 }
 
-export function getShowdownSpriteUrl(name: string) {
-  return getChampionsMegaSpriteUrl(name) ?? `${SHOWDOWN_SPRITES}/ani/${spriteId(name)}.gif`;
+export function getShowdownSpriteUrl(name: string, isShiny = false) {
+  const championsMegaSprite = !isShiny ? getChampionsMegaSpriteUrl(name) : null;
+  return championsMegaSprite ?? `${SHOWDOWN_SPRITES}/${isShiny ? "ani-shiny" : "ani"}/${spriteId(name)}.gif`;
 }
 
 export const getStaticSpriteUrl = getShowdownSpriteUrl;
 
-export function getDexSpriteUrl(name: string) {
+export function getDexSpriteUrl(name: string, isShiny = false) {
   const compactId = spriteId(name).replace(/-/g, "");
-  return `${SHOWDOWN_SPRITES}/dex/${DEX_SPRITE_OVERRIDES[compactId] ?? compactId}.png`;
+  return `${SHOWDOWN_SPRITES}/${isShiny ? "dex-shiny" : "dex"}/${DEX_SPRITE_OVERRIDES[compactId] ?? compactId}.png`;
 }
 
-export function getGen5SpriteUrl(name: string) {
-  return `${SHOWDOWN_SPRITES}/gen5ani/${spriteId(name)}.gif`;
+export function getGen5SpriteUrl(name: string, isShiny = false) {
+  const championsMegaSprite = !isShiny ? getChampionsMegaSpriteUrl(name) : null;
+  return championsMegaSprite ?? `${SHOWDOWN_SPRITES}/${isShiny ? "gen5ani-shiny" : "gen5ani"}/${spriteId(name)}.gif`;
 }
 
-export function getGen5StaticSpriteUrl(name: string) {
-  return `${SHOWDOWN_SPRITES}/gen5/${spriteId(name).replace(/-/g, "")}.png`;
+export function getGen5StaticSpriteUrl(name: string, isShiny = false) {
+  const championsMegaSprite = !isShiny ? getChampionsMegaSpriteUrl(name) : null;
+  const compactId = spriteId(name).replace(/-/g, "");
+  const staticId = DEX_SPRITE_OVERRIDES[compactId] ?? compactId;
+  return championsMegaSprite ?? `${SHOWDOWN_SPRITES}/${isShiny ? "gen5-shiny" : "gen5"}/${staticId}.png`;
 }

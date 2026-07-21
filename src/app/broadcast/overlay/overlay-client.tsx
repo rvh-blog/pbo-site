@@ -5,7 +5,7 @@ import { useShowdownBattle, type RosterPokemon, type PokemonBattleState } from "
 import type { BattleSceneHandle } from "./battle-scene";
 import { getRosterBattleState, rosterPokemonMatchesName } from "@/lib/broadcast-pokemon-matching";
 import { extractShowdownRoomId } from "@/lib/showdown-room";
-import { getChampionsMegaSpriteUrl } from "@/lib/showdown-sprites";
+import { getGen5StaticSpriteUrl } from "@/lib/showdown-sprites";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { BattleScene } from "./battle-scene";
 import Image from "next/image";
@@ -147,30 +147,6 @@ const AVATAR_NUMBERS: Record<string, string> = {
   "281":"brawly","282":"wattson","283":"flannery","284":"norman","285":"winona","286":"tate","287":"liza","288":"juan","289":"guitarist","290":"steven",
   "291":"wallace","292":"bellelba","293":"benga",
 };
-
-/* ═══════════════════════════════════════════════
-   Sprite Helpers
-   ═══════════════════════════════════════════════ */
-
-/** Sprite ID overrides for forms where toID() doesn't match the filename. */
-const SPRITE_OVERRIDES: Record<string, string> = {
-  "ogerponcornerstone": "ogerpon-cornerstone",
-  "ogerponcornerstonetera": "ogerpon-cornerstonetera",
-  "ogerponwellspring": "ogerpon-wellspring",
-  "ogerponwellspringtera": "ogerpon-wellspringtera",
-  "ogerponhearthflame": "ogerpon-hearthflame",
-  "ogerponhearthflametera": "ogerpon-hearthflametera",
-};
-
-/** Convert a Showdown battle form name to a sprite URL. */
-function getShowdownSpriteUrl(battleForm: string): string {
-  const championsMegaSprite = getChampionsMegaSpriteUrl(battleForm);
-  if (championsMegaSprite) return championsMegaSprite;
-
-  const id = battleForm.toLowerCase().replace(/[^a-z0-9-]/g, "");
-  const spriteId = SPRITE_OVERRIDES[id] ?? id;
-  return `https://play.pokemonshowdown.com/sprites/gen5/${spriteId}.png`;
-}
 
 function getTrainerSpriteUrl(avatar: string): string {
   if (avatar.startsWith("#")) {
@@ -533,7 +509,7 @@ function SlideStyleCard({ poke, stateMap, teraUsed, color, flipSprite, shadowLef
   const isActive = state?.active;
 
   // Sprite: prefer Showdown sprite (correct form) with roster fallback
-  const showdownUrl = state?.battleForm ? getShowdownSpriteUrl(state.battleForm) : null;
+  const showdownUrl = state?.battleForm ? getGen5StaticSpriteUrl(state.battleForm, state.isShiny) : null;
   const fallbackUrl = poke.spriteUrl;
   const spriteUrl = showdownUrl || fallbackUrl;
 
