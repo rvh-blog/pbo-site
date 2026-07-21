@@ -251,7 +251,7 @@ export function Navigation() {
         </Link>
 
         {/* Desktop Nav */}
-        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-5 xl:flex xl:gap-6">
+        <div className="desktop-primary-navigation absolute left-1/2 -translate-x-1/2 items-center gap-5 xl:gap-6">
           {visibleNavItems.map((item) => {
             const isActive = item.href === "/matchup-prep"
               ? matchPrepActive
@@ -354,7 +354,7 @@ export function Navigation() {
           })}
         </div>
 
-        <div className="hidden items-center gap-3 xl:flex">
+        <div className="desktop-navigation-actions items-center gap-3">
           <Search />
 
           {themeToggle}
@@ -498,7 +498,7 @@ export function Navigation() {
         </div>
 
         {/* Mobile: Search + Menu Button */}
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 xl:hidden">
+        <div className="compact-navigation-actions shrink-0 items-center gap-0.5 sm:gap-1">
           <Search />
           {themeToggle}
           {authUser && (
@@ -529,7 +529,7 @@ export function Navigation() {
       </div>
 
       {/* Tablet navigation keeps primary destinations visible without crowding the header. */}
-      <div className="hidden border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)]/95 md:flex xl:hidden">
+      <div className="tablet-primary-navigation border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)]/95">
         <div className="container mx-auto flex gap-1 overflow-x-auto px-4 py-1.5 sm:px-6" aria-label="Primary navigation">
           {visibleNavItems.map((item) => {
             const isActive = item.href === "/matchup-prep"
@@ -561,13 +561,13 @@ export function Navigation() {
         <>
           <button
             type="button"
-            className="fixed inset-x-0 bottom-0 top-[calc(4rem+env(safe-area-inset-top))] bg-black/40 backdrop-blur-[1px] md:top-[calc(7rem+env(safe-area-inset-top))] xl:hidden"
+            className="compact-navigation-only fixed inset-x-0 bottom-0 top-[calc(4rem+env(safe-area-inset-top))] bg-black/40 backdrop-blur-[1px] md:top-[calc(7rem+env(safe-area-inset-top))]"
             onClick={() => setMobileMenuOpen(false)}
             aria-label="Close menu"
           />
           <div
             id="mobile-navigation"
-            className="absolute left-0 right-0 top-full z-10 max-h-[calc(100dvh-4rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-xl md:max-h-[calc(100dvh-7rem-env(safe-area-inset-top))] xl:hidden"
+            className="compact-navigation-only absolute left-0 right-0 top-full z-10 max-h-[calc(100dvh-4rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)] shadow-xl md:max-h-[calc(100dvh-7rem-env(safe-area-inset-top))]"
           >
           <div className="container mx-auto space-y-1 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
             {/* Persona Section */}

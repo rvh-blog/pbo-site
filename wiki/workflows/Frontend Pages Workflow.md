@@ -59,6 +59,26 @@ Check mobile width for:
 - Fun facts pages, especially Season 10 Pokemon and coach fun facts with larger
   text.
 
+The global header uses explicit compatibility classes and traditional pixel
+media queries in addition to Tailwind layout utilities. Below 1280px, compact
+search/theme/menu controls remain available; widths from 768px through 1279px
+also show the tablet destination row; at 1280px and above, the full desktop
+navigation and account actions display. Preserve this fallback when editing the
+header so browsers that do not apply generated range-query breakpoint syntax
+cannot collapse to a logo-only state.
+
+## Matchup Prep Abilities
+
+Matchup Prep normally reads abilities from the drafted Pokemon row. Some legal
+event abilities are stored by PokeAPI on a separate form even though PBO drafts
+the base species. The server-side matchup-prep formatter merges those explicit
+event options into the card data and deduplicates them by ability name.
+
+Greninja therefore displays Battle Bond alongside Torrent and Protean on both
+active-roster and dropped-Pokemon cards. Keep event-form additions explicit so
+separately draftable competitive forms do not have their abilities combined by
+accident.
+
 ## Recent Feature Pages
 
 Feature-specific notes:
