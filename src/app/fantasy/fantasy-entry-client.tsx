@@ -1242,7 +1242,7 @@ export function FantasyEntryClient({
                         )}
                       </div>
                       <div className="mt-1 text-[10px] text-[var(--foreground-subtle)]">
-                        {entry.weeksEntered} week{entry.weeksEntered === 1 ? "" : "s"} · {formatScore(entry.averageScore)} avg · {formatScore(entry.weeklyScore)} this week
+                        {entry.weeksEntered} week{entry.weeksEntered === 1 ? "" : "s"} · {formatScore(entry.averageScore)} avg · {formatScore(entry.seasonTotal)} season total
                       </div>
                       <div className="mt-1.5 flex -space-x-1">
                         {entry.picks.slice(0, 6).map((pick) => (
@@ -1260,7 +1260,7 @@ export function FantasyEntryClient({
                     </div>
                     <div className="text-right">
                       <div className="font-mono font-bold text-[var(--accent)]">
-                        {formatScore(entry.seasonTotal)}
+                        {formatScore(entry.weeklyScore)}
                       </div>
                       <button
                         type="button"

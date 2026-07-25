@@ -34,6 +34,7 @@ See also:
 - Fantasy: `src/app/fantasy`
 - Power rankings: `src/app/power-rankings`
 - Broadcast overlay: `src/app/broadcast`
+- Multi-Cast overlay: `src/app/broadcast/multi-cast`
 - Replay Analyzer: `src/app/analyzer`
 - Blog: `src/app/blog`
 - Elo tracker: `src/app/elo-tracker`
