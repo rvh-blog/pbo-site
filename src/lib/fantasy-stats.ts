@@ -157,9 +157,14 @@ export async function getFantasyWeeklyStatsForWeek(seasonId: number, week: numbe
 
 export async function getFantasyWeeklyStatsForWeeks(seasonId: number, weeks: number[]) {
   const uniqueWeeks = [...new Set(weeks)];
-  const groups = await Promise.all(
-    uniqueWeeks.map(async (week) => [week, await getFantasyWeeklyStatsForWeek(seasonId, week)] as const)
-  );
+  const groups: [number, FantasyWeeklyStat[]][] = [];
+  // A cold cache can require a persisted refresh for more than one week.
+  // Keep those refresh transactions sequential because SQLite only permits one
+  // writer at a time; normal reads still return immediately from the short
+  // in-process cache.
+  for (const week of uniqueWeeks) {
+    groups.push([week, await getFantasyWeeklyStatsForWeek(seasonId, week)]);
+  }
   return new Map(groups);
 }
 
