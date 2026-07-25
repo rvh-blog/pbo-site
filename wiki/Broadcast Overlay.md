@@ -7,11 +7,31 @@ and battle behavior:
 
 - /broadcast/overlay: V1 fullscreen battle layout.
 - /broadcast/overlay2: V2 contained battle layout.
+- /broadcast/multi-cast: adaptive 1–4 game broadcast layout.
 
 The route wrappers call the shared server component in
 src/app/broadcast/overlay-page.tsx. It loads the match, time-synced rosters,
 transaction history, Tera Captain assignments, Pokemon aliases, standings, and
 match context once for either visual client.
+
+## Multi-Cast
+
+Select `Multi-Cast` on `/broadcast`, then add between one and four match/Battle
+URL pairs. Each game runs the standard fullscreen overlay in its own same-origin
+frame, keeping its Showdown connection, renderer state, and playback isolated
+from the other live games.
+
+The layout adapts to the number of games:
+
+- One game uses the full frame.
+- Two games are centered side by side.
+- Three games feature the first game at double width with two games stacked
+  beside it.
+- Four games use a 2x2 grid.
+
+The first game in the setup list is the featured game in the three-game layout.
+Remove and re-add games to change that order. The Multi-Cast frame owns the
+fullscreen control; child-overlay fullscreen buttons are suppressed.
 
 ## Shared Battle Behavior
 

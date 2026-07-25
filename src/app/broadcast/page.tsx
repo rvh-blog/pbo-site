@@ -19,6 +19,12 @@ interface MatchOption {
   isPlayed: boolean;
 }
 
+interface MultiCastGame {
+  matchId: number;
+  battleUrl: string;
+  label: string;
+}
+
 function getWeekLabel(week: number): string {
   if (week === 101) return "QF";
   if (week === 102) return "SF";
@@ -34,7 +40,8 @@ export default function BroadcastSetupPage() {
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
   const [matches, setMatches] = useState<MatchOption[]>([]);
   const [battleUrl, setBattleUrl] = useState("");
-  const [selectedOverlay, setSelectedOverlay] = useState<"overlay" | "overlay2">("overlay");
+  const [selectedOverlay, setSelectedOverlay] = useState<"overlay" | "overlay2" | "multi-cast">("overlay");
+  const [multiCastGames, setMultiCastGames] = useState<MultiCastGame[]>([]);
   const [loadingSeasons, setLoadingSeasons] = useState(true);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [prefilledMatchId, setPrefilledMatchId] = useState<number | null>(null);
@@ -147,10 +154,43 @@ export default function BroadcastSetupPage() {
     battleUrl.startsWith("https://play.pokemonshowdown.com/battle-") ||
     battleUrl.startsWith("http://play.pokemonshowdown.com/battle-");
 
-  const canLaunch = !!(selectedMatchId && isValidBattleUrl);
+  const selectedMatch = matches.find((match) => match.id === selectedMatchId);
+  const isDuplicateMultiCastMatch = multiCastGames.some((game) => game.matchId === selectedMatchId);
+  const canAddMultiCastGame = Boolean(
+    selectedMatchId &&
+    selectedMatch &&
+    isValidBattleUrl &&
+    multiCastGames.length < 4 &&
+    !isDuplicateMultiCastMatch
+  );
+  const canLaunch = selectedOverlay === "multi-cast"
+    ? multiCastGames.length > 0
+    : Boolean(selectedMatchId && isValidBattleUrl);
+
+  function addMultiCastGame() {
+    if (!canAddMultiCastGame || !selectedMatchId || !selectedMatch) return;
+
+    setMultiCastGames((games) => [
+      ...games,
+      {
+        matchId: selectedMatchId,
+        battleUrl,
+        label: `${getWeekLabel(selectedMatch.week)}: ${selectedMatch.coach1TeamName} vs ${selectedMatch.coach2TeamName}`,
+      },
+    ]);
+    setSelectedMatchId(null);
+    setBattleUrl("");
+  }
 
   function handleLaunch() {
     if (!canLaunch) return;
+
+    if (selectedOverlay === "multi-cast") {
+      const games = encodeURIComponent(JSON.stringify(multiCastGames));
+      window.open(`/broadcast/multi-cast?games=${games}`, "_blank");
+      return;
+    }
+
     const url = `/broadcast/${selectedOverlay}?matchId=${selectedMatchId}&battleUrl=${encodeURIComponent(battleUrl)}`;
     window.open(url, "_blank");
   }
@@ -292,8 +332,78 @@ export default function BroadcastSetupPage() {
           >
             v1
           </button>
+          <button
+            onClick={() => setSelectedOverlay("multi-cast")}
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-colors ${
+              selectedOverlay === "multi-cast"
+                ? "bg-[var(--primary)] text-white"
+                : "bg-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:text-white"
+            }`}
+          >
+            Multi-Cast
+          </button>
         </div>
       </div>
+
+      {selectedOverlay === "multi-cast" && (
+        <div className="poke-card p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-white text-sm uppercase tracking-wider">Multi-Cast Games</h2>
+              <p className="mt-1 text-xs text-[var(--foreground-subtle)]">
+                Add 1–4 matches. The first game is featured when three games are live.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full border border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-1 font-mono text-xs font-bold text-white">
+              {multiCastGames.length}/4
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={addMultiCastGame}
+            disabled={!canAddMultiCastGame}
+            className={`w-full rounded-lg px-4 py-2.5 text-sm font-bold transition-colors ${
+              canAddMultiCastGame
+                ? "bg-[#9146ff] text-white hover:bg-[#7c3aed]"
+                : "cursor-not-allowed bg-[var(--background-tertiary)] text-[var(--foreground-subtle)]"
+            }`}
+          >
+            {multiCastGames.length >= 4
+              ? "Four games added"
+              : isDuplicateMultiCastMatch
+                ? "Match already added"
+                : "Add selected game"}
+          </button>
+
+          {multiCastGames.length > 0 && (
+            <div className="space-y-2">
+              {multiCastGames.map((game, index) => (
+                <div
+                  key={game.matchId}
+                  className="flex items-center gap-3 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-3"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#9146ff]/20 font-mono text-xs font-bold text-[#b794ff]">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-white">{game.label}</p>
+                    <p className="truncate text-[10px] text-[var(--foreground-subtle)]">{game.battleUrl}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMultiCastGames((games) => games.filter((item) => item.matchId !== game.matchId))}
+                    className="shrink-0 rounded-md px-2 py-1 text-xs font-bold text-[var(--error)] transition-colors hover:bg-[var(--error)]/10"
+                    aria-label={`Remove ${game.label}`}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Launch Button */}
       <div className="poke-card p-6 space-y-4">
@@ -306,11 +416,13 @@ export default function BroadcastSetupPage() {
               : "bg-[var(--background-tertiary)] text-[var(--foreground-subtle)] cursor-not-allowed"
           }`}
         >
-          Launch Broadcast
+          {selectedOverlay === "multi-cast" ? "Launch Multi-Cast" : "Launch Broadcast"}
         </button>
         {!canLaunch && (
           <p className="text-xs text-[var(--foreground-subtle)] text-center">
-            Select a match and enter a valid battle URL to launch.
+            {selectedOverlay === "multi-cast"
+              ? "Add at least one match and battle URL to launch Multi-Cast."
+              : "Select a match and enter a valid battle URL to launch."}
           </p>
         )}
       </div>

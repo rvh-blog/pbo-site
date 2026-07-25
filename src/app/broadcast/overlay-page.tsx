@@ -30,7 +30,7 @@ const DIVISION_TIERS: Record<string, number> = {
 export const dynamic = "force-dynamic";
 
 export interface BroadcastOverlayPageProps {
-  searchParams: Promise<{ matchId?: string; battleUrl?: string }>;
+  searchParams: Promise<{ matchId?: string; battleUrl?: string; multiCast?: string }>;
   variant: "v1" | "v2";
 }
 
@@ -38,6 +38,7 @@ export async function BroadcastOverlayPage({ searchParams, variant }: BroadcastO
   const params = await searchParams;
   const matchId = parseInt(params.matchId || "0");
   const battleUrl = params.battleUrl || "";
+  const multiCast = params.multiCast === "1";
 
   if (!matchId || !battleUrl) {
     return (
@@ -403,6 +404,6 @@ export async function BroadcastOverlayPage({ searchParams, variant }: BroadcastO
   };
 
   return variant === "v1"
-    ? <OverlayV1Client data={data} battleUrl={battleUrl} context={context} />
-    : <OverlayV2Client data={data} battleUrl={battleUrl} context={context} />;
+    ? <OverlayV1Client data={data} battleUrl={battleUrl} context={context} multiCast={multiCast} />
+    : <OverlayV2Client data={data} battleUrl={battleUrl} context={context} multiCast={multiCast} />;
 }

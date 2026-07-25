@@ -8,6 +8,7 @@ import { PollCard } from "@/components/poll-card";
 import { SyncedHeightGrid } from "@/components/synced-height-grid";
 import { HomeLiveDraftRefresh } from "@/components/home-live-draft-refresh";
 import { LocalTime } from "@/components/local-time";
+import { TwitchLiveStream } from "@/components/twitch-live-stream";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
 import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
 import { compareDivisionNames, DIVISION_HIERARCHY } from "@/lib/division-order";
@@ -1267,6 +1268,7 @@ export default async function Home() {
 
   return (
     <div className="space-y-10 sm:space-y-12 lg:space-y-16">
+      <TwitchLiveStream />
       <section className="relative">
         <div className="flex flex-col items-center justify-center space-y-6 sm:space-y-8">
           <div className="text-center space-y-4 max-w-3xl">

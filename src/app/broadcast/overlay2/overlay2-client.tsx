@@ -168,9 +168,10 @@ interface Props {
   data: OverlayData;
   battleUrl: string;
   context?: MatchContext;
+  multiCast?: boolean;
 }
 
-export function Overlay2Client({ data, battleUrl, context }: Props) {
+export function Overlay2Client({ data, battleUrl, context, multiCast = false }: Props) {
   const battleSceneRef = useRef<BattleSceneHandle>(null);
   const battle = useShowdownBattle(
     battleUrl,
@@ -476,12 +477,12 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
         if (e.key === "Escape") (e.target as HTMLElement).blur();
         return;
       }
-      if (e.key === "f" || e.key === "F") { e.preventDefault(); toggleFullscreen(); }
+      if ((e.key === "f" || e.key === "F") && !multiCast) { e.preventDefault(); toggleFullscreen(); }
       else if (e.key === "h" || e.key === "H") { e.preventDefault(); setHideUI((p) => !p); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [toggleFullscreen]);
+  }, [multiCast, toggleFullscreen]);
 
   // Portal mount + hide layout chrome
   useEffect(() => {
@@ -849,7 +850,7 @@ export function Overlay2Client({ data, battleUrl, context }: Props) {
       </div>
 
       {/* Fullscreen button — outside the scaled container so it's always accessible */}
-      {!hideUI && (
+      {!hideUI && !multiCast && (
         <button
           onClick={toggleFullscreen}
           className="absolute top-4 right-4 w-9 h-9 rounded-lg bg-black/50 flex items-center justify-center text-white/50 hover:text-white hover:bg-black/70 transition-all z-[10000]"
