@@ -4,6 +4,49 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 24, 2026
+
+Fantasy:
+
+- Weekly recaps now show placement, rewards, best and worst picks, rank
+  movement, percentile, points left on the board, the highest-scoring legal
+  roster, and the next available player pool.
+- Leaderboards show weekly and season scoring, weeks entered, average score,
+  rank movement, prize positions, and the signed-in participant's position.
+- Participants and their weekly lineups are publicly viewable through
+  expandable leaderboard rows and season Fantasy profiles.
+- Expanded picks show the KO, death, and team-result scoring breakdown.
+- Ties split the combined rewards for the occupied positions instead of
+  favoring the roster saved first.
+- Match-result creation, correction, removal, and deletion refresh Fantasy
+  scoring and safely recalculate or reverse weekly rewards.
+- Projected scores, win probabilities, and confidence indicators are not shown.
+  The roster uses live/final weekly points, while the player pool retains
+  historical scouting performance.
+
+Fantasy performance:
+
+- Live score polling uses a lightweight response, pauses in hidden tabs,
+  prevents overlapping requests, preserves unsaved edits, and updates ranking
+  order.
+- Schedule state uses a narrow shared query and short cache. Weekly score rows
+  load in batches through the invalidated Fantasy stats cache.
+- Reuse history, participant profiles, and overall lineup histories use
+  dedicated or deferred responses instead of loading the full Fantasy payload.
+- Leaderboards render progressively in groups of 25.
+- Added compound indexes for Fantasy participant/week lookup, ordered picks,
+  and weekly reward recap lookup.
+
+Matchup tools:
+
+- Mega Eelektross correctly receives its Ground immunity from Eelevate in
+  Matchup Prep and Draft Planner type coverage.
+
+Verification:
+
+- `npx tsc --noEmit`, targeted ESLint, the production build, whitespace checks,
+  and the Fantasy performance-index migration test pass.
+
 ## July 21, 2026
 
 Matchup Prep:

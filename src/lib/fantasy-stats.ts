@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, rawClient } from "@/lib/db";
 import { fantasyWeeklyStats, matchPokemon, matches } from "@/lib/schema";
+import { scoreFantasyPokemonGame } from "@/lib/fantasy-scoring";
 
 export type FantasyWeeklyStat = typeof fantasyWeeklyStats.$inferSelect;
 
@@ -49,15 +50,6 @@ async function ensureFantasyWeeklyStatsTable() {
 
 function statsCacheKey(seasonId: number, week: number) {
   return `${seasonId}:${week}`;
-}
-
-function scorePokemonGame(row: {
-  kills: number | null;
-  deaths: number | null;
-  seasonCoachId: number;
-  winnerId: number | null;
-}) {
-  return (row.kills ?? 0) * 5 - (row.deaths ?? 0) + (row.winnerId === row.seasonCoachId ? 2 : -2);
 }
 
 export async function refreshFantasyWeeklyStatsForWeek(seasonId: number, week: number) {
@@ -110,7 +102,7 @@ export async function refreshFantasyWeeklyStatsForWeek(seasonId: number, week: n
         indirectDamage: 0,
       };
 
-      current.score += scorePokemonGame({
+      current.score += scoreFantasyPokemonGame({
         kills: row.kills,
         deaths: row.deaths,
         seasonCoachId: row.seasonCoachId,

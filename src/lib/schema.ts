@@ -700,6 +700,8 @@ export const fantasyEntries = sqliteTable("fantasy_entries", {
   index("idx_fantasy_entries_coach_id").on(table.coachId),
   index("idx_fantasy_entries_user_id").on(table.userId),
   index("idx_fantasy_entries_season_week").on(table.seasonId, table.week),
+  index("idx_fantasy_entries_season_coach_week").on(table.seasonId, table.coachId, table.week),
+  index("idx_fantasy_entries_season_user_week").on(table.seasonId, table.userId, table.week),
 ]);
 
 // Fantasy Entry Picks - Pokemon selected for a fantasy roster
@@ -718,6 +720,7 @@ export const fantasyEntryPicks = sqliteTable("fantasy_entry_picks", {
   index("idx_fantasy_entry_picks_entry_id").on(table.entryId),
   index("idx_fantasy_entry_picks_pokemon_id").on(table.pokemonId),
   index("idx_fantasy_entry_picks_season_coach_id").on(table.seasonCoachId),
+  index("idx_fantasy_entry_picks_entry_slot").on(table.entryId, table.slot),
 ]);
 
 // Fantasy Rewards - tracks weekly best fantasy roster coin awards
@@ -738,6 +741,7 @@ export const fantasyRewards = sqliteTable("fantasy_rewards", {
 }, (table) => [
   index("idx_fantasy_rewards_entry_id").on(table.entryId),
   index("idx_fantasy_rewards_season_week").on(table.seasonId, table.week),
+  index("idx_fantasy_rewards_season_week_entry").on(table.seasonId, table.week, table.entryId),
   index("idx_fantasy_rewards_coach_id").on(table.coachId),
   index("idx_fantasy_rewards_user_id").on(table.userId),
 ]);

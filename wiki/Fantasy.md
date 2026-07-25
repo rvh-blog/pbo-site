@@ -85,7 +85,14 @@ Reward tiers:
 - 2nd: 125 PBO Coin
 - 3rd: 75 PBO Coin
 
+Ties split the combined prize pool for every prize place occupied by the tied
+group. Shares are equal whole-coin amounts; an indivisible remainder is left
+unawarded rather than using entry update time as a tiebreaker.
+
 Reward resolution reverses existing rewards for the week before recalculating when needed. The reward code applies to Season 10 and later.
+Removing a recorded result or deleting a scored match also reverses or
+recalculates the affected week's Fantasy rewards, so stale PBO Coin awards do
+not remain after result corrections.
 
 Relevant files:
 
@@ -126,6 +133,45 @@ Relevant files:
   refreshes after recorded match results update the fantasy weekly statistics.
 - Available picker cards also show Pokemon name, then team name, then performance
   line based on pre-week scouting performance.
+- The weekly game plan shows live/final points from entered match results. The
+  picker uses prior-week scouting performance rather than displaying projected
+  scores or win probabilities.
+- Signed-in players receive a completed-week recap with placement, reward, best
+  and worst picks, percentile beaten, rank movement, points left on the board,
+  the highest-scoring legal roster under that player's reuse history, and a
+  preview of the next available player pool.
+- Fantasy leaderboard rows include weekly and season scoring, weeks entered,
+  average score, rank movement, and expandable per-week roster history.
+- Leaderboard week tabs come from the season schedule rather than a hardcoded
+  Week 1-8 list.
+- The signed-in player's leaderboard position is highlighted with the gap to
+  the next rank, while prize positions receive a distinct border.
+- Live scores and standings refresh every 30 seconds through a lightweight
+  response. Polling pauses in background tabs, prevents overlapping requests,
+  and preserves unsaved roster edits.
+- Disabled roster saves list each blocking condition, and mobile roster editing
+  includes a sticky slots/budget/save control.
+- Week selectors and leaderboard tabs identify upcoming, in-progress, complete,
+  and signed-in no-entry states. Selecting a completed week opens that week's
+  recap.
+- Expanded lineup picks explain their score from KOs, deaths, and team result.
+- Participant names link to public season Fantasy profiles with weekly lineups,
+  best and lowest weeks, average score, rewards, and top Pokemon.
+
+## Performance
+
+- Schedule weeks and statuses share one narrow query and a short server cache.
+- Weekly score rows are loaded in batches through the invalidated Fantasy stats
+  cache.
+- Background score polling excludes recap optimization, authentication, reuse
+  history, and full score breakdowns.
+- The scouting board uses a dedicated reuse-history response.
+- Overall lineup history is fetched only when a leaderboard entry is expanded;
+  profiles request only the selected participant.
+- Leaderboards render in batches of 25 entries, while Pokemon tables retain
+  their existing incremental rendering.
+- Fantasy-specific compound indexes are defined in
+  `migrations/add-fantasy-performance-indexes.sql`.
 
 ## Files
 
@@ -143,6 +189,7 @@ Schema and migration:
 
 - `src/lib/schema.ts`
 - `migrations/add-fantasy-entries.sql`
+- `migrations/add-fantasy-performance-indexes.sql`
 
 Navigation:
 

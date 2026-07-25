@@ -6,31 +6,18 @@ import {
   fantasyRewards,
   matchPokemon,
   matches,
+  seasons,
   users,
 } from "@/lib/schema";
+import {
+  buildTiedFantasyAwards,
+  fantasyPickKey,
+  FANTASY_WEEKLY_REWARD_TIERS,
+  scoreFantasyPokemonGame,
+} from "@/lib/fantasy-scoring";
 
 const FANTASY_MIN_SEASON = 10;
-const FANTASY_WEEKLY_REWARD_TIERS = [250, 125, 75] as const;
 const FANTASY_REWARD_REASON = "Weekly fantasy placement";
-
-function fantasyPickKey(pick: { pokemonId: number; seasonCoachId: number | null }) {
-  return `${pick.pokemonId}:${pick.seasonCoachId ?? 0}`;
-}
-
-function scorePokemonGame(mp: {
-  kills: number | null;
-  deaths: number | null;
-  seasonCoachId: number;
-  match: {
-    winnerId: number | null;
-  };
-}) {
-  const kills = mp.kills ?? 0;
-  const deaths = mp.deaths ?? 0;
-  const teamResult = mp.match.winnerId === mp.seasonCoachId ? 2 : -2;
-
-  return kills * 5 - deaths + teamResult;
-}
 
 type RewardDb = Pick<typeof db, "query" | "update" | "delete" | "insert">;
 
@@ -89,7 +76,12 @@ async function getWeekScores(seasonId: number, week: number) {
     if (!match) return scoreMap;
 
     const key = fantasyPickKey(mp);
-    scoreMap.set(key, (scoreMap.get(key) ?? 0) + scorePokemonGame({ ...mp, match }));
+    scoreMap.set(key, (scoreMap.get(key) ?? 0) + scoreFantasyPokemonGame({
+      kills: mp.kills,
+      deaths: mp.deaths,
+      seasonCoachId: mp.seasonCoachId,
+      winnerId: match.winnerId,
+    }));
     return scoreMap;
   }, new Map<string, number>());
 }
@@ -119,22 +111,34 @@ async function getExistingRewards(seasonId: number, week: number) {
   });
 }
 
-export async function resolveFantasyWeeklyRewardForMatch(matchId: number) {
-  const match = await db.query.matches.findFirst({
-    where: eq(matches.id, matchId),
-    with: { season: true },
+export async function reResolveFantasyWeeklyRewardsForWeek(seasonId: number, week: number) {
+  const season = await db.query.seasons.findFirst({
+    where: eq(seasons.id, seasonId),
   });
-
-  if (!match?.season || match.season.seasonNumber < FANTASY_MIN_SEASON || !match.winnerId) {
+  if (!season || season.seasonNumber < FANTASY_MIN_SEASON) {
     return { awarded: [], reversed: [], skipped: "not-eligible" as const };
   }
 
-  if (!(await isFantasyWeekComplete(match.seasonId, match.week))) {
-    return { awarded: [], reversed: [], skipped: "week-incomplete" as const };
+  const existingRewards = await getExistingRewards(seasonId, week);
+  if (!(await isFantasyWeekComplete(seasonId, week))) {
+    if (existingRewards.length === 0) {
+      return { awarded: [], reversed: [], skipped: "week-incomplete" as const };
+    }
+    await db.transaction(async (tx) => {
+      await reverseExistingRewards(tx, existingRewards);
+    });
+    return {
+      awarded: [],
+      reversed: existingRewards.map((reward) => ({
+        entryId: reward.entryId,
+        amount: -reward.amount,
+      })),
+      skipped: "week-incomplete" as const,
+    };
   }
 
   const entries = await db.query.fantasyEntries.findMany({
-    where: and(eq(fantasyEntries.seasonId, match.seasonId), eq(fantasyEntries.week, match.week)),
+    where: and(eq(fantasyEntries.seasonId, seasonId), eq(fantasyEntries.week, week)),
     with: { picks: true },
   });
 
@@ -142,7 +146,7 @@ export async function resolveFantasyWeeklyRewardForMatch(matchId: number) {
     return { awarded: [], reversed: [], skipped: "no-entries" as const };
   }
 
-  const scoreMap = await getWeekScores(match.seasonId, match.week);
+  const scoreMap = await getWeekScores(seasonId, week);
   const leaderboard = entries
     .map((entry) => ({
       entry,
@@ -151,22 +155,18 @@ export async function resolveFantasyWeeklyRewardForMatch(matchId: number) {
         0
       ),
     }))
-    .sort((a, b) => {
-      if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-      return a.entry.updatedAt.localeCompare(b.entry.updatedAt);
-    });
+    .sort((a, b) => b.totalScore - a.totalScore);
 
   if (leaderboard.length === 0) {
     return { awarded: [], reversed: [], skipped: "no-scores" as const };
   }
 
-  const placementRows = leaderboard.slice(0, FANTASY_WEEKLY_REWARD_TIERS.length);
-  const existingRewards = await getExistingRewards(match.seasonId, match.week);
+  const placementRows = buildTiedFantasyAwards(leaderboard, FANTASY_WEEKLY_REWARD_TIERS);
   const existingRewardMap = new Map(existingRewards.map((reward) => [reward.entryId, reward.amount]));
   const unchanged =
     existingRewards.length === placementRows.length &&
-    placementRows.every((row, index) => (
-      existingRewardMap.get(row.entry.id) === FANTASY_WEEKLY_REWARD_TIERS[index]
+    placementRows.every(({ row, amount }) => (
+      existingRewardMap.get(row.entry.id) === amount
     ));
 
   if (unchanged) {
@@ -177,20 +177,20 @@ export async function resolveFantasyWeeklyRewardForMatch(matchId: number) {
     await reverseExistingRewards(tx, existingRewards);
 
     const rows = [];
-    for (const [index, row] of placementRows.entries()) {
+    for (const placement of placementRows) {
+      const { row, amount, rank, tied } = placement;
       const entry = row.entry;
-      const amount = FANTASY_WEEKLY_REWARD_TIERS[index];
       await addCoins(tx, { coachId: entry.coachId, userId: entry.userId }, amount);
       const [reward] = await tx
         .insert(fantasyRewards)
         .values({
           entryId: entry.id,
-          seasonId: match.seasonId,
-          week: match.week,
+          seasonId,
+          week,
           coachId: entry.coachId,
           userId: entry.userId,
           amount,
-          reason: `${FANTASY_REWARD_REASON} #${index + 1} - Week ${match.week}`,
+          reason: `${FANTASY_REWARD_REASON} ${tied ? "tied " : ""}#${rank} - Week ${week}`,
           createdAt: new Date().toISOString(),
         })
         .returning();
@@ -199,7 +199,7 @@ export async function resolveFantasyWeeklyRewardForMatch(matchId: number) {
         entryId: entry.id,
         displayName: entry.displayName,
         amount,
-        rank: index + 1,
+        rank,
         totalScore: row.totalScore,
         rewardId: reward.id,
       });
@@ -215,4 +215,17 @@ export async function resolveFantasyWeeklyRewardForMatch(matchId: number) {
     })),
     skipped: null,
   };
+}
+
+export async function resolveFantasyWeeklyRewardForMatch(matchId: number) {
+  const match = await db.query.matches.findFirst({
+    where: eq(matches.id, matchId),
+    with: { season: true },
+  });
+
+  if (!match?.season) {
+    return { awarded: [], reversed: [], skipped: "not-eligible" as const };
+  }
+
+  return reResolveFantasyWeeklyRewardsForWeek(match.seasonId, match.week);
 }
