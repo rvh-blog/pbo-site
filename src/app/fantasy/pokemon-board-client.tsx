@@ -134,7 +134,9 @@ export function PokemonBoardClient({
 
     async function loadUsedInstances() {
       try {
-        const response = await fetch(`/api/fantasy-entry?seasonId=${seasonId}&week=${targetWeek}`);
+        const response = await fetch(
+          `/api/fantasy-entry?seasonId=${seasonId}&week=${targetWeek}&mode=used`
+        );
         const data = await response.json();
 
         if (!cancelled && response.ok) {

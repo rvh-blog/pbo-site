@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AuthModal } from "@/components/auth-modal";
@@ -19,6 +19,8 @@ export interface FantasyPokemonOption {
     games: number;
     kills: number;
     deaths: number;
+    bringRate: number;
+    opponentName: string | null;
   }[];
   totalScore: number;
   games: number;
@@ -62,12 +64,31 @@ interface FantasyLeaderboardEntry {
   userId: number | null;
   week: number | null;
   totalScore: number;
+  weeklyScore: number;
+  seasonTotal: number;
+  rank: number;
+  rankMovement: number | null;
+  weeksEntered: number;
+  averageScore: number;
   picks: {
     pokemonId: number;
     seasonCoachId: number | null;
     name: string;
     spriteUrl: string | null;
     score: number;
+    teamName: string;
+    divisionName: string;
+    kills: number;
+    deaths: number;
+    wins: number;
+    losses: number;
+  }[];
+  weeklyHistory: {
+    week: number;
+    score: number;
+    rank: number;
+    picks: FantasyLeaderboardEntry["picks"];
+    rewardAmount: number;
   }[];
 }
 
@@ -88,6 +109,24 @@ interface FantasyEntryResponse {
     rank: number | null;
     totalScore: number | null;
     rewardAmount: number;
+    rankMovement: number | null;
+    beatPercent: number | null;
+    bestPick: FantasyLeaderboardEntry["picks"][number] | null;
+    worstPick: FantasyLeaderboardEntry["picks"][number] | null;
+    optimalScore: number | null;
+    optimalCost: number | null;
+    optimalPicks: {
+      pokemonId: number;
+      seasonCoachId: number;
+      name: string;
+      spriteUrl: string | null;
+      divisionName: string;
+      teamName: string;
+      cost: number;
+      score: number;
+    }[];
+    pointsLeftOnBoard: number | null;
+    isComplete: boolean;
   } | null;
   leaderboard: FantasyLeaderboardEntry[];
   settings: {
@@ -96,6 +135,8 @@ interface FantasyEntryResponse {
     scoringWeek?: number;
     leaderboardWeek?: number | "overall";
     leaderboardWeeks?: number[];
+    weekStatuses?: Record<number, "upcoming" | "in-progress" | "complete">;
+    myEntryWeeks?: number[];
   };
   error?: string;
 }
@@ -135,12 +176,30 @@ function instanceKey(pick: FantasySlotPick | { pokemonId: number; seasonCoachId:
   return `${pick.pokemonId}:${pick.seasonCoachId ?? 0}`;
 }
 
+function leaderboardParticipantKey(entry: {
+  id: number;
+  coachId: number | null;
+  userId: number | null;
+}) {
+  if (entry.coachId !== null) return `coach:${entry.coachId}`;
+  if (entry.userId !== null) return `user:${entry.userId}`;
+  return `entry:${entry.id}`;
+}
+
 function getPickedStats(pokemon: FantasyPokemonOption, seasonCoachId: number) {
   return pokemon.divisionStats.find((stats) => stats.seasonCoachId === seasonCoachId) ?? null;
 }
 
 function formatTeamLabel(teamName: string) {
   return teamName || "No start-week team";
+}
+
+function scoreBreakdown(pick: FantasyLeaderboardEntry["picks"][number]) {
+  if (pick.kills === 0 && pick.deaths === 0 && pick.wins === 0 && pick.losses === 0) {
+    return "Not brought · 0 points";
+  }
+  const resultPoints = pick.wins > 0 ? 2 : pick.losses > 0 ? -2 : 0;
+  return `${pick.kills} KO${pick.kills === 1 ? "" : "s"} × 5 − ${pick.deaths} death${pick.deaths === 1 ? "" : "s"} ${resultPoints >= 0 ? "+" : "−"} ${Math.abs(resultPoints)} result = ${formatScore(pick.score)}`;
 }
 
 export function FantasyEntryClient({
@@ -158,9 +217,15 @@ export function FantasyEntryClient({
   const [lockedSeasonCoachIds, setLockedSeasonCoachIds] = useState<number[]>([]);
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
   const [leaderboardTab, setLeaderboardTab] = useState<number | "overall">(
-    targetWeek >= 1 && targetWeek <= 8 ? targetWeek : "overall"
+    targetWeek > 0 ? targetWeek : "overall"
   );
   const [leaderboard, setLeaderboard] = useState<FantasyLeaderboardEntry[]>([]);
+  const [leaderboardWeeks, setLeaderboardWeeks] = useState<number[]>([]);
+  const [weekStatuses, setWeekStatuses] = useState<Record<number, "upcoming" | "in-progress" | "complete">>({});
+  const [myEntryWeeks, setMyEntryWeeks] = useState<number[]>([]);
+  const [visibleLeaderboardCount, setVisibleLeaderboardCount] = useState(25);
+  const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
+  const [detailLoadingParticipant, setDetailLoadingParticipant] = useState<string | null>(null);
   const [rosterSize, setRosterSize] = useState(6);
   const [budget, setBudget] = useState(90);
   const [query, setQuery] = useState("");
@@ -173,6 +238,8 @@ export function FantasyEntryClient({
     FantasyEntryResponse["previousWeekSummary"]
   >(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const draftDirtyRef = useRef(false);
+  const liveRequestRef = useRef<AbortController | null>(null);
 
   const pokemonById = useMemo(
     () => new Map(pokemon.map((row) => [row.id, row])),
@@ -222,7 +289,7 @@ export function FantasyEntryClient({
     slot === null ? null : pokemonById.get(slot.pokemonId) ?? null
   ));
   const totalCost = selectedPokemon.reduce((sum, row) => sum + (row?.cost ?? 0), 0);
-  const projectedScore = selectedPokemon.reduce((sum, row, index) => {
+  const liveScore = selectedPokemon.reduce((sum, row, index) => {
     if (!row) return sum;
     const slot = normalizedSlots[index];
     if (!slot) return sum;
@@ -246,6 +313,22 @@ export function FantasyEntryClient({
     uniqueSelectedCount === rosterSize &&
     uniqueSelectedInstanceCount === rosterSize;
   const canSave = authUser && rosterComplete && !overBudget && slotsValid && !saving;
+  const saveBlockers = [
+    ...(!authUser ? ["Sign in to save your roster."] : []),
+    ...(selectedIds.length < rosterSize
+      ? [`Fill ${rosterSize - selectedIds.length} remaining roster slot${rosterSize - selectedIds.length === 1 ? "" : "s"}.`]
+      : []),
+    ...(uniqueSelectedCount < selectedIds.length ? ["Each roster slot must use a unique Pokemon species."] : []),
+    ...(uniqueSelectedInstanceCount < selectedInstanceKeys.length ? ["The same Pokemon and team instance cannot be selected twice."] : []),
+    ...(overBudget ? [`Remove ${Math.abs(budget - totalCost)} points to reach the ${budget}-point budget.`] : []),
+    ...(!slotsValid
+      ? normalizedSlots.flatMap((slot, index) => (
+          slotValidation[index] || slot === null
+            ? []
+            : [`Slot ${index + 1} must use ${slotRules[index]?.displayDivisionName ?? "an eligible division"}.`]
+        ))
+      : []),
+  ];
   const rosterStatus = loading
     ? "Loading"
     : !authUser
@@ -270,7 +353,23 @@ export function FantasyEntryClient({
         ? `${minutesUntilLock}m`
         : minutesUntilLock < 1_440
           ? `${Math.floor(minutesUntilLock / 60)}h ${minutesUntilLock % 60}m`
-          : `${Math.floor(minutesUntilLock / 1_440)}d ${Math.floor((minutesUntilLock % 1_440) / 60)}h`;
+      : `${Math.floor(minutesUntilLock / 1_440)}d ${Math.floor((minutesUntilLock % 1_440) / 60)}h`;
+  const myLeaderboardEntry = authUser
+    ? leaderboard.find((entry) => (
+        authUser.type === "coach"
+          ? entry.coachId === authUser.id
+          : entry.userId === authUser.id
+      )) ?? null
+    : null;
+  const entryAhead = myLeaderboardEntry
+    ? [...leaderboard]
+        .filter((entry) => entry.rank < myLeaderboardEntry.rank)
+        .sort((a, b) => b.rank - a.rank)[0] ?? null
+    : null;
+  const pointsToNextRank = myLeaderboardEntry && entryAhead
+    ? Math.max(0, entryAhead.totalScore - myLeaderboardEntry.totalScore)
+    : null;
+  const recapIsSelectedWeek = previousWeekSummary?.week === targetWeek;
 
   const selectedInstanceKeySet = useMemo(
     () => new Set(selectedInstanceKeys),
@@ -305,10 +404,25 @@ export function FantasyEntryClient({
       return a.stats.teamName.localeCompare(b.stats.teamName);
     })
     .slice(0, 80);
+  const nextWeekAvailablePool = pokemon
+    .flatMap((row) =>
+      row.cost === null
+        ? []
+        : row.divisionStats.map((stats) => ({
+            pokemon: row,
+            stats,
+            key: instanceKey({ pokemonId: row.id, seasonCoachId: stats.seasonCoachId }),
+          }))
+    )
+    .filter((option) => !usedInstanceKeys.has(option.key))
+    .filter((option) => !lockedSeasonCoachIdSet.has(option.stats.seasonCoachId))
+    .sort((a, b) => b.stats.score - a.stats.score);
 
-  const loadEntry = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadEntry = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const res = await fetch(
         `/api/fantasy-entry?seasonId=${seasonId}&week=${targetWeek}&leaderboardWeek=${leaderboardTab}`
@@ -322,6 +436,9 @@ export function FantasyEntryClient({
 
       setAuthUser(data.user);
       setLeaderboard(data.leaderboard || []);
+      setLeaderboardWeeks(data.settings?.leaderboardWeeks || []);
+      setWeekStatuses(data.settings?.weekStatuses || {});
+      setMyEntryWeeks(data.settings?.myEntryWeeks || []);
       setUsedInstances(data.usedInstances || []);
       setLockedSeasonCoachIds(data.lockedSeasonCoachIds || []);
       setPreviousWeekSummary(data.previousWeekSummary ?? null);
@@ -341,23 +458,145 @@ export function FantasyEntryClient({
             ])
           )
         );
-        setSelectedSlots(entryPicks.slice(0, data.settings?.rosterSize || 6));
-        setSavedAt(data.myEntry.updatedAt);
-      } else {
+        if (!draftDirtyRef.current) {
+          setSelectedSlots(entryPicks.slice(0, data.settings?.rosterSize || 6));
+          setSavedAt(data.myEntry.updatedAt);
+        }
+      } else if (!draftDirtyRef.current) {
         setWeeklyScores(new Map());
         setSelectedSlots([]);
         setSavedAt(null);
       }
     } catch {
-      setError("Failed to load fantasy entry");
+      if (!silent) setError("Failed to load fantasy entry");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [leaderboardTab, seasonId, targetWeek]);
 
+  const loadLiveScores = useCallback(async () => {
+    if (document.visibilityState !== "visible" || liveRequestRef.current) return;
+    const controller = new AbortController();
+    liveRequestRef.current = controller;
+    try {
+      const response = await fetch(
+        `/api/fantasy-entry?seasonId=${seasonId}&week=${targetWeek}&leaderboardWeek=${leaderboardTab}&mode=live`,
+        { signal: controller.signal, cache: "no-store" }
+      );
+      if (!response.ok) return;
+      const data = await response.json() as {
+        leaderboard?: Array<{
+          id: number;
+          coachId: number | null;
+          userId: number | null;
+          rank: number;
+          totalScore: number;
+          weeklyScore: number;
+          seasonTotal: number;
+          rankMovement: number | null;
+          weeksEntered: number;
+          averageScore: number;
+          picks: (FantasySlotPick & { score: number })[];
+        }>;
+        weekStatuses?: Record<number, "upcoming" | "in-progress" | "complete">;
+      };
+      if (data.weekStatuses) setWeekStatuses(data.weekStatuses);
+      if (!data.leaderboard) return;
+
+      const liveRows = new Map(
+        data.leaderboard.map((entry) => [leaderboardParticipantKey(entry), entry])
+      );
+      if (leaderboard.length !== liveRows.size) {
+        await loadEntry(true);
+        return;
+      }
+      setLeaderboard((current) => {
+        return current.map((entry) => {
+          const live = liveRows.get(leaderboardParticipantKey(entry));
+          if (!live) return entry;
+          const livePickScores = new Map(live.picks.map((pick) => [instanceKey(pick), pick.score]));
+          return {
+            ...entry,
+            rank: live.rank,
+            totalScore: live.totalScore,
+            weeklyScore: live.weeklyScore,
+            seasonTotal: live.seasonTotal,
+            rankMovement: live.rankMovement,
+            weeksEntered: live.weeksEntered,
+            averageScore: live.averageScore,
+            picks: entry.picks.map((pick) => ({
+              ...pick,
+              score: livePickScores.get(instanceKey(pick)) ?? pick.score,
+            })),
+          };
+        }).sort((a, b) => a.rank - b.rank);
+      });
+      setWeeklyScores((current) => {
+        if (!authUser) return current;
+        const mine = data.leaderboard?.find((entry) => (
+          authUser.type === "coach"
+            ? entry.coachId === authUser.id
+            : entry.userId === authUser.id
+        ));
+        return mine
+          ? new Map(mine.picks.map((pick) => [instanceKey(pick), pick.score]))
+          : current;
+      });
+    } catch (requestError) {
+      if (!(requestError instanceof DOMException && requestError.name === "AbortError")) {
+        // A live refresh is best-effort; the last successful scores stay visible.
+      }
+    } finally {
+      if (liveRequestRef.current === controller) liveRequestRef.current = null;
+    }
+  }, [authUser, leaderboard.length, leaderboardTab, loadEntry, seasonId, targetWeek]);
+
+  const loadParticipantDetails = useCallback(async (participantKey: string) => {
+    const existing = leaderboard.find(
+      (entry) => leaderboardParticipantKey(entry) === participantKey
+    );
+    if (existing?.weeklyHistory.length) return;
+
+    setDetailLoadingParticipant(participantKey);
+    try {
+      const response = await fetch(
+        `/api/fantasy-entry?seasonId=${seasonId}&week=${targetWeek}&leaderboardWeek=${leaderboardTab}&mode=details&participant=${encodeURIComponent(participantKey)}`
+      );
+      if (!response.ok) return;
+      const data = await response.json() as { detail?: FantasyLeaderboardEntry | null };
+      if (!data.detail) return;
+      setLeaderboard((current) => current.map((entry) => (
+        leaderboardParticipantKey(entry) === participantKey ? data.detail! : entry
+      )));
+    } finally {
+      setDetailLoadingParticipant((current) => current === participantKey ? null : current);
+    }
+  }, [leaderboard, leaderboardTab, seasonId, targetWeek]);
+
   useEffect(() => {
-    loadEntry();
+    loadEntry(false);
   }, [loadEntry]);
+
+  useEffect(() => {
+    setVisibleLeaderboardCount(25);
+    setExpandedParticipant(null);
+  }, [leaderboardTab]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadLiveScores();
+    }, 30_000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") loadLiveScores();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      liveRequestRef.current?.abort();
+      liveRequestRef.current = null;
+    };
+  }, [loadLiveScores]);
 
   useEffect(() => {
     if (!nextLockAt) return;
@@ -367,6 +606,7 @@ export function FantasyEntryClient({
   }, [nextLockAt]);
 
   function removeSlot(index: number) {
+    draftDirtyRef.current = true;
     setSavedAt(null);
     setSelectedSlots((prev) => {
       const next = Array.from({ length: rosterSize }, (_, slotIndex) => prev[slotIndex] ?? null);
@@ -377,6 +617,7 @@ export function FantasyEntryClient({
   }
 
   function choosePokemon(pokemonId: number, seasonCoachId: number) {
+    draftDirtyRef.current = true;
     setSavedAt(null);
     setSelectedSlots((prev) => {
       const next = Array.from({ length: rosterSize }, (_, slotIndex) => prev[slotIndex] ?? null);
@@ -415,8 +656,9 @@ export function FantasyEntryClient({
         return;
       }
 
+      draftDirtyRef.current = false;
       setSavedAt(data.entry?.updatedAt || new Date().toISOString());
-      await loadEntry();
+      await loadEntry(true);
     } catch {
       setError("Failed to save fantasy roster");
     } finally {
@@ -427,7 +669,8 @@ export function FantasyEntryClient({
   function handleAuthSuccess(user: AuthUser) {
     setAuthUser(user);
     setShowAuthModal(false);
-    loadEntry();
+    draftDirtyRef.current = false;
+    loadEntry(false);
   }
 
   return (
@@ -480,7 +723,9 @@ export function FantasyEntryClient({
             </div>
           </div>
           <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
-            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Last week</div>
+            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">
+              {recapIsSelectedWeek ? "Selected result" : "Last week"}
+            </div>
             <div className="mt-1 text-sm font-bold text-white">
               {!authUser
                 ? "Sign in to view"
@@ -493,15 +738,124 @@ export function FantasyEntryClient({
             <div className="mt-1 text-[10px] text-[var(--foreground-subtle)]">
               {previousWeekSummary
                 ? `Week ${previousWeekSummary.week}${previousWeekSummary.rewardAmount > 0 ? ` · +${previousWeekSummary.rewardAmount} PBO Coin` : ""}`
-                : "Previous result and reward"}
+                : recapIsSelectedWeek ? "Selected result and reward" : "Previous result and reward"}
             </div>
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--background-tertiary)] pt-3">
-          <span className="text-xs text-[var(--foreground-muted)]">Projected roster score</span>
-          <span className="font-mono text-lg font-bold text-[var(--accent)]">{formatScore(projectedScore)}</span>
+          <span className="text-xs text-[var(--foreground-muted)]">Live roster score</span>
+          <span className="font-mono text-lg font-bold text-[var(--accent)]">{formatScore(liveScore)}</span>
         </div>
       </section>
+
+      {previousWeekSummary?.isComplete && previousWeekSummary.totalScore !== null && (
+        <section className="poke-card overflow-hidden p-4 sm:p-5">
+          <div className="section-title">
+            <div className="section-title-icon bg-emerald-600">
+              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a8 8 0 11-16 0 8 8 0 0116 0z" />
+              </svg>
+            </div>
+            <h3>Week {previousWeekSummary.week} Recap</h3>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
+              <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Finish</div>
+              <div className="mt-1 font-mono text-lg font-bold text-white">
+                {previousWeekSummary.rank ? `#${previousWeekSummary.rank}` : "--"}
+              </div>
+              <div className="text-[10px] text-[var(--foreground-subtle)]">
+                {previousWeekSummary.rankMovement === null
+                  ? "First result"
+                  : previousWeekSummary.rankMovement === 0
+                    ? "No rank change"
+                    : `${previousWeekSummary.rankMovement > 0 ? "↑" : "↓"} ${Math.abs(previousWeekSummary.rankMovement)} from prior week`}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
+              <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Score</div>
+              <div className="mt-1 font-mono text-lg font-bold text-[var(--accent)]">
+                {formatScore(previousWeekSummary.totalScore)}
+              </div>
+              <div className="text-[10px] text-[var(--foreground-subtle)]">
+                Beat {previousWeekSummary.beatPercent ?? 0}% of entries
+              </div>
+            </div>
+            <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
+              <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Reward</div>
+              <div className="mt-1 font-mono text-lg font-bold text-amber-300">
+                +{previousWeekSummary.rewardAmount}
+              </div>
+              <div className="text-[10px] text-[var(--foreground-subtle)]">PBO Coin</div>
+            </div>
+            <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
+              <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Left on board</div>
+              <div className="mt-1 font-mono text-lg font-bold text-white">
+                {previousWeekSummary.pointsLeftOnBoard === null
+                  ? "--"
+                  : formatScore(previousWeekSummary.pointsLeftOnBoard)}
+              </div>
+              <div className="text-[10px] text-[var(--foreground-subtle)]">
+                Best legal: {previousWeekSummary.optimalScore === null ? "--" : formatScore(previousWeekSummary.optimalScore)}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            {[["Best pick", previousWeekSummary.bestPick], ["Worst pick", previousWeekSummary.worstPick]].map(([label, pick]) => {
+              const typedPick = pick as FantasyLeaderboardEntry["picks"][number] | null;
+              return (
+                <div key={label as string} className="trainer-card">
+                  {typedPick?.spriteUrl && (
+                    <Image src={typedPick.spriteUrl} alt="" width={34} height={34} className="object-contain" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">{label as string}</div>
+                    <div className="truncate text-sm font-bold text-white">{typedPick?.name ?? "--"}</div>
+                    <div className="truncate text-[10px] text-[var(--foreground-subtle)]">{typedPick?.teamName ?? ""}</div>
+                  </div>
+                  <div className="font-mono font-bold text-[var(--accent)]">
+                    {typedPick ? formatScore(typedPick.score) : "--"}
+                  </div>
+                </div>
+              );
+            })}
+            <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 p-3">
+              <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Week {targetWeek} pool</div>
+              <div className="mt-1 text-sm font-bold text-white">{nextWeekAvailablePool.length} available team instances</div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {nextWeekAvailablePool.slice(0, 5).map(({ pokemon: row, stats, key }) => (
+                  <span key={key} title={`${row.name} · ${stats.teamName}`}>
+                    <PokemonThumb pokemon={row} />
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {previousWeekSummary.optimalPicks.length > 0 && (
+            <details className="mt-4 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+              <summary className="cursor-pointer text-xs font-bold uppercase text-white">
+                Highest-scoring legal roster · {previousWeekSummary.optimalCost}/{budget} points
+              </summary>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {previousWeekSummary.optimalPicks.map((pick, index) => (
+                  <div key={`${pick.pokemonId}:${pick.seasonCoachId}`} className="trainer-card">
+                    <span className="rank-badge bg-[var(--background-tertiary)] text-[var(--foreground-muted)]">{index + 1}</span>
+                    {pick.spriteUrl && <Image src={pick.spriteUrl} alt="" width={30} height={30} className="object-contain" />}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-bold text-white">{pick.name}</div>
+                      <div className="truncate text-[10px] text-[var(--foreground-subtle)]">{pick.teamName}</div>
+                    </div>
+                    <div className="font-mono text-xs font-bold text-[var(--accent)]">{formatScore(pick.score)}</div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </section>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
       <div id="fantasy-roster-builder" className="poke-card scroll-mt-24 p-4 sm:p-5">
@@ -542,8 +896,8 @@ export function FantasyEntryClient({
             <div className="font-mono text-sm font-bold text-white">{selectedIds.length}/{rosterSize}</div>
           </div>
           <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/60 px-3 py-2">
-            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Score</div>
-            <div className="font-mono text-sm font-bold text-[var(--accent)]">{formatScore(projectedScore)}</div>
+            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Live score</div>
+            <div className="font-mono text-sm font-bold text-[var(--accent)]">{formatScore(liveScore)}</div>
           </div>
         </div>
 
@@ -587,7 +941,7 @@ export function FantasyEntryClient({
                         {formatTeamLabel(slotStats?.teamName ?? "")}
                       </div>
                       <div className="text-[10px] text-[var(--foreground-subtle)]">
-                        {row.cost} pts - {formatScore(
+                        {row.cost} pts · {formatScore(
                           slotPick ? (weeklyScores.get(instanceKey(slotPick)) ?? 0) : 0
                         )} score
                       </div>
@@ -640,6 +994,34 @@ export function FantasyEntryClient({
           </button>
         </div>
 
+        {!canSave && !saving && saveBlockers.length > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-400/25 bg-amber-400/10 p-3">
+            <div className="text-[9px] font-bold uppercase text-amber-300">Before you can save</div>
+            <ul className="mt-2 space-y-1 text-xs text-[var(--foreground-muted)]">
+              {saveBlockers.map((blocker) => (
+                <li key={blocker}>• {blocker}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="sticky bottom-2 z-20 mb-4 flex items-center gap-3 rounded-lg border border-[var(--primary)]/40 bg-[var(--background-secondary)]/95 p-3 shadow-xl backdrop-blur sm:hidden">
+          <div className="min-w-0 flex-1">
+            <div className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Fantasy roster</div>
+            <div className="mt-0.5 text-xs font-bold text-white">
+              {selectedIds.length}/{rosterSize} picks · {budgetRemaining} budget left
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={saveRoster}
+            disabled={!canSave}
+            className="btn-retro-secondary shrink-0 px-3 py-2 text-[9px] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+
         <div className="mb-3 text-xs text-[var(--foreground-subtle)]">
           Adding for {activeSlotRule?.label}: {activeSlotRule?.displayDivisionName || "Any Division"} -
           {" "}using performance through Week {scoringThroughWeek} and Week {targetWeek} roster labels
@@ -681,11 +1063,14 @@ export function FantasyEntryClient({
                       {formatTeamLabel(stats.teamName)}
                     </div>
                     <div className="text-[10px] text-[var(--foreground-subtle)]">
-                      {row.cost} pts - {stats.divisionName} - {stats.games} games - {stats.kills}/{stats.deaths}
+                      {row.cost} pts · {stats.divisionName} · vs {stats.opponentName ?? "TBD"} · {stats.bringRate}% brought
                     </div>
                   </div>
-                  <div className="font-mono text-sm font-bold text-[var(--accent)]">
-                    {formatScore(stats.score)}
+                  <div className="text-right">
+                    <div className="font-mono text-sm font-bold text-[var(--accent)]">
+                      {formatScore(stats.score)}
+                    </div>
+                    <div className="text-[9px] uppercase text-[var(--foreground-subtle)]">scouting</div>
                   </div>
                 </button>
               );
@@ -710,20 +1095,48 @@ export function FantasyEntryClient({
             <h3>Fantasy Leaderboard</h3>
           </div>
           <div className="flex flex-wrap gap-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-1">
-            {(["overall", 1, 2, 3, 4, 5, 6, 7, 8] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setLeaderboardTab(tab)}
-                className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${
-                  leaderboardTab === tab
-                    ? "bg-[var(--primary)] text-white"
-                    : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
-                }`}
-              >
-                {tab === "overall" ? "Overall" : `W${tab}`}
-              </button>
-            ))}
+            {(["overall", ...leaderboardWeeks] as (number | "overall")[]).map((tab) => {
+              const status = tab === "overall" ? null : weekStatuses[tab];
+              const hasEntry = tab === "overall" || myEntryWeeks.includes(tab);
+              const statusLabel = tab === "overall"
+                ? "Season standings"
+                : authUser && !hasEntry
+                  ? "No entry"
+                  : status === "complete"
+                    ? "Complete"
+                    : status === "in-progress"
+                      ? "In progress"
+                      : "Upcoming";
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  title={statusLabel}
+                  onClick={() => setLeaderboardTab(tab)}
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${
+                    leaderboardTab === tab
+                      ? "bg-[var(--primary)] text-white"
+                      : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                  }`}
+                >
+                  {tab === "overall" ? "Overall" : `W${tab}`}
+                  {tab !== "overall" && (
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        authUser && !hasEntry
+                          ? "bg-slate-500"
+                          : status === "complete"
+                            ? "bg-emerald-400"
+                            : status === "in-progress"
+                              ? "bg-amber-400"
+                              : "bg-sky-400"
+                      }`}
+                      aria-label={statusLabel}
+                    />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -732,45 +1145,203 @@ export function FantasyEntryClient({
             No fantasy rosters saved yet.
           </p>
         ) : (
+          <>
+          {myLeaderboardEntry && (
+            <div className="mb-3 rounded-lg border border-[var(--primary)]/45 bg-[var(--primary)]/10 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[9px] font-bold uppercase text-[var(--primary)]">Your position</div>
+                  <div className="mt-1 text-sm font-bold text-white">
+                    #{myLeaderboardEntry.rank} · {formatScore(myLeaderboardEntry.totalScore)} points
+                  </div>
+                </div>
+                <div className="text-right text-[10px] text-[var(--foreground-muted)]">
+                  {pointsToNextRank === null
+                    ? myLeaderboardEntry.rank === 1 ? "You are leading" : "No higher entry"
+                    : `${formatScore(pointsToNextRank)} points to next rank`}
+                </div>
+              </div>
+            </div>
+          )}
           <div
             className="max-h-[720px] space-y-2 overflow-y-auto pr-2"
             aria-label="Fantasy leaderboard rankings"
+            aria-live="polite"
           >
-            {leaderboard.map((entry, index) => (
-              <div key={entry.id} className="trainer-card">
-                <div className={`rank-badge ${index === 0 ? "rank-1" : index === 1 ? "rank-2" : index === 2 ? "rank-3" : "bg-[var(--background)] text-[var(--foreground-subtle)]"}`}>
-                  {index + 1}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-bold text-white">
-                    {entry.coachId ? (
-                      <Link href={`/coaches/${entry.coachId}`} className="hover:text-[var(--primary)]">
-                        {entry.displayName}
-                      </Link>
-                    ) : (
-                      entry.displayName
-                    )}
-                  </div>
-                  <div className="mt-1 flex -space-x-1">
-                    {entry.picks.slice(0, 6).map((pick) => (
-                      <div
-                        key={pick.pokemonId}
-                        className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--background-secondary)] bg-[var(--background-tertiary)]"
-                        title={pick.name}
-                      >
-                        {pick.spriteUrl && (
-                          <Image src={pick.spriteUrl} alt="" width={24} height={24} className="object-contain" />
+            {leaderboard.slice(0, visibleLeaderboardCount).map((entry) => {
+              const participantKey = leaderboardParticipantKey(entry);
+              const isExpanded = expandedParticipant === participantKey;
+              const isMine = Boolean(authUser) && (
+                authUser?.type === "coach"
+                  ? entry.coachId === authUser.id
+                  : entry.userId === authUser?.id
+              );
+              const profileHref = `/fantasy/profile/${
+                entry.coachId ? `coach-${entry.coachId}` : `user-${entry.userId}`
+              }?seasonId=${seasonId}`;
+              const toggleExpanded = () => {
+                if (isExpanded) {
+                  setExpandedParticipant(null);
+                  return;
+                }
+                setExpandedParticipant(participantKey);
+                if (leaderboardTab === "overall") {
+                  void loadParticipantDetails(participantKey);
+                }
+              };
+              const lineupsToShow = leaderboardTab === "overall"
+                ? entry.weeklyHistory
+                : [{
+                    week: leaderboardTab,
+                    score: entry.weeklyScore,
+                    rank: entry.rank,
+                    picks: entry.picks,
+                  }];
+              return (
+                <div
+                  key={participantKey}
+                  className={`overflow-hidden rounded-lg border bg-[var(--background)]/40 ${
+                    isMine
+                      ? "border-[var(--primary)] ring-1 ring-[var(--primary)]/30"
+                      : entry.rank <= 3
+                        ? "border-amber-400/35"
+                        : "border-[var(--background-tertiary)]"
+                  }`}
+                >
+                  <div
+                    className="trainer-card cursor-pointer border-0 bg-transparent transition-colors hover:bg-[var(--background-tertiary)]/40"
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    onClick={toggleExpanded}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        toggleExpanded();
+                      }
+                    }}
+                  >
+                    <div className={`rank-badge ${entry.rank === 1 ? "rank-1" : entry.rank === 2 ? "rank-2" : entry.rank === 3 ? "rank-3" : "bg-[var(--background)] text-[var(--foreground-subtle)]"}`}>
+                      {entry.rank}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="truncate text-sm font-bold text-white">
+                          <Link
+                            href={profileHref}
+                            onClick={(event) => event.stopPropagation()}
+                            className="hover:text-[var(--primary)]"
+                          >
+                            {entry.displayName}{isMine ? " (You)" : ""}
+                          </Link>
+                        </div>
+                        {entry.rankMovement !== null && entry.rankMovement !== 0 && (
+                          <span className={`text-[10px] font-bold ${entry.rankMovement > 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                            {entry.rankMovement > 0 ? "↑" : "↓"}{Math.abs(entry.rankMovement)}
+                          </span>
                         )}
                       </div>
-                    ))}
+                      <div className="mt-1 text-[10px] text-[var(--foreground-subtle)]">
+                        {entry.weeksEntered} week{entry.weeksEntered === 1 ? "" : "s"} · {formatScore(entry.averageScore)} avg · {formatScore(entry.weeklyScore)} this week
+                      </div>
+                      <div className="mt-1.5 flex -space-x-1">
+                        {entry.picks.slice(0, 6).map((pick) => (
+                          <div
+                            key={`${pick.pokemonId}:${pick.seasonCoachId}`}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--background-secondary)] bg-[var(--background-tertiary)]"
+                            title={`${pick.name} · ${formatScore(pick.score)} points`}
+                          >
+                            {pick.spriteUrl && (
+                              <Image src={pick.spriteUrl} alt="" width={26} height={26} className="object-contain" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-bold text-[var(--accent)]">
+                        {formatScore(entry.seasonTotal)}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleExpanded();
+                        }}
+                        className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold uppercase text-[var(--foreground-muted)] hover:text-white"
+                      >
+                        {isExpanded ? "Hide lineup" : "View lineup"}
+                        <svg
+                          className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
+                  {isExpanded && (
+                    <div className="border-t border-[var(--background-tertiary)] p-3">
+                      {leaderboardTab === "overall" &&
+                      detailLoadingParticipant === participantKey &&
+                      entry.weeklyHistory.length === 0 ? (
+                        <div className="space-y-2" aria-label="Loading lineup">
+                          <div className="h-4 w-32 animate-pulse rounded bg-[var(--background-tertiary)]" />
+                          <div className="h-16 animate-pulse rounded bg-[var(--background-secondary)]" />
+                        </div>
+                      ) : (
+                      <div className="space-y-3">
+                        {lineupsToShow.map((week) => (
+                          <div key={week.week} className="rounded-lg bg-[var(--background-secondary)] p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-bold uppercase text-white">
+                                Week {week.week} lineup · #{week.rank}
+                              </span>
+                              <span className="font-mono text-xs font-bold text-[var(--accent)]">{formatScore(week.score)}</span>
+                            </div>
+                            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                              {week.picks.map((pick, pickIndex) => (
+                                <div key={`${pick.pokemonId}:${pick.seasonCoachId}`} className="flex min-w-0 items-center gap-2 rounded bg-[var(--background)]/60 px-2 py-1.5">
+                                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[var(--background-tertiary)] text-[9px] font-bold text-[var(--foreground-muted)]">
+                                    {pickIndex + 1}
+                                  </span>
+                                  {pick.spriteUrl && <Image src={pick.spriteUrl} alt="" width={28} height={28} className="shrink-0 object-contain" />}
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[10px] font-bold text-white">{pick.name}</span>
+                                    <span className="block truncate text-[9px] text-[var(--foreground-subtle)]">
+                                      {pick.teamName || "Unknown team"}{pick.divisionName ? ` · ${pick.divisionName}` : ""}
+                                    </span>
+                                    <span className="block truncate text-[9px] text-[var(--foreground-subtle)]">
+                                      {scoreBreakdown(pick)}
+                                    </span>
+                                  </span>
+                                  <span className="shrink-0 font-mono text-[10px] font-bold text-[var(--accent)]">{formatScore(pick.score)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="font-mono font-bold text-[var(--accent)]">
-                  {formatScore(entry.totalScore)}
-                </div>
-              </div>
-            ))}
+              );
+            })}
+            {visibleLeaderboardCount < leaderboard.length && (
+              <button
+                type="button"
+                onClick={() => setVisibleLeaderboardCount((count) => count + 25)}
+                className="w-full rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 px-3 py-2 text-[10px] font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:border-[var(--primary)] hover:text-white"
+              >
+                Show 25 more
+              </button>
+            )}
           </div>
+          </>
         )}
       </div>
 

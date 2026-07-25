@@ -85,6 +85,7 @@ const IMMUNITY_ABILITIES: Record<string, string> = {
   // Ground immunities
   levitate: "ground",
   "earth-eater": "ground",
+  eelevate: "ground",
   // Electric immunities
   "volt-absorb": "electric",
   "lightning-rod": "electric",

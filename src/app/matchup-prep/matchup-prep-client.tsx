@@ -39,7 +39,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 // Abilities that grant immunities
 const IMMUNITY_ABILITIES: Record<string, string> = {
-  levitate: "ground", "earth-eater": "ground",
+  levitate: "ground", "earth-eater": "ground", eelevate: "ground",
   "volt-absorb": "electric", "lightning-rod": "electric", "motor-drive": "electric",
   "water-absorb": "water", "storm-drain": "water", "dry-skin": "water",
   "flash-fire": "fire", "well-baked-body": "fire",

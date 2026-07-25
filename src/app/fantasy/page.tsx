@@ -85,6 +85,8 @@ type PokemonDivisionFantasyStats = {
   losses: number;
   damage: number;
   indirectDamage: number;
+  bringRate: number;
+  opponentName: string | null;
 };
 
 type TeamFantasyRow = {
@@ -173,6 +175,8 @@ function getDivisionStats(
     losses: 0,
     damage: 0,
     indirectDamage: 0,
+    bringRate: 0,
+    opponentName: null,
   };
   row.divisionStats.set(key, created);
   return created;
@@ -310,6 +314,20 @@ async function getFantasyData(
     availableWeeks.push(targetWeek);
     availableWeeks.sort((a, b) => a - b);
   }
+  const weekStatuses = Object.fromEntries(
+    availableWeeks.map((week) => {
+      const weekMatches = regularSeasonMatches.filter((match) => match.week === week);
+      const complete = weekMatches.length > 0 &&
+        weekMatches.every((match) => match.winnerId !== null || match.isForfeit);
+      const inProgress = !complete && weekMatches.some((match) =>
+        Boolean(match.startedAt) ||
+        Boolean(match.winnerId) ||
+        Boolean(match.isForfeit) ||
+        (Boolean(match.scheduledAt) && new Date(match.scheduledAt!).getTime() <= Date.now())
+      );
+      return [week, complete ? "Complete" : inProgress ? "In progress" : "Upcoming"];
+    })
+  ) as Record<number, "Upcoming" | "In progress" | "Complete">;
   const nextLockAt = regularSeasonMatches
     .filter(
       (match) =>
@@ -488,6 +506,30 @@ async function getFantasyData(
     }
   }
 
+  const priorTeamGames = new Map<number, number>();
+  for (const match of completedMatches.filter((row) => row.week < targetWeek)) {
+    for (const seasonCoachId of [match.coach1SeasonId, match.coach2SeasonId]) {
+      priorTeamGames.set(seasonCoachId, (priorTeamGames.get(seasonCoachId) ?? 0) + 1);
+    }
+  }
+
+  const targetOpponents = new Map<number, number>();
+  for (const match of regularSeasonMatches.filter((row) => row.week === targetWeek)) {
+    targetOpponents.set(match.coach1SeasonId, match.coach2SeasonId);
+    targetOpponents.set(match.coach2SeasonId, match.coach1SeasonId);
+  }
+
+  for (const row of pokemonMap.values()) {
+    for (const stats of row.divisionStats.values()) {
+      const opponentId = targetOpponents.get(stats.seasonCoachId);
+      const teamGames = priorTeamGames.get(stats.seasonCoachId) ?? 0;
+      stats.bringRate = teamGames > 0
+        ? Math.round(Math.min(stats.games / teamGames, 1) * 1_000) / 10
+        : 0;
+      stats.opponentName = opponentId ? teamMap.get(opponentId)?.teamName ?? null : null;
+    }
+  }
+
   const pokemonRows = [...pokemonMap.values()].sort((a, b) => b.totalScore - a.totalScore);
   const teamRows = [...teamMap.values()].sort((a, b) => b.totalScore - a.totalScore);
   const valueRows = pokemonRows
@@ -554,6 +596,7 @@ async function getFantasyData(
     defaultScheduleDivisionName: null,
     targetWeek,
     availableWeeks,
+    weekStatuses,
     nextLockAt,
     scoringThroughWeek,
     latestCompletedWeek,
@@ -786,6 +829,8 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
         games: stats.games,
         kills: stats.kills,
         deaths: stats.deaths,
+        bringRate: stats.bringRate,
+        opponentName: stats.opponentName,
       })),
       totalScore: row.totalScore,
       games: row.games,
@@ -844,7 +889,12 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
           <div className="text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
             Scouting week
           </div>
-          <div className="mt-1 font-pixel text-base text-white">Week {data.targetWeek}</div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="font-pixel text-base text-white">Week {data.targetWeek}</span>
+            <span className="rounded bg-[var(--background-tertiary)] px-2 py-1 text-[9px] font-bold uppercase text-[var(--foreground-muted)]">
+              {data.weekStatuses[data.targetWeek]}
+            </span>
+          </div>
         </div>
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:flex">
           {previousWeek === null ? (
@@ -869,7 +919,9 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
               className="min-w-0 flex-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold text-white outline-none focus:border-[var(--primary)]"
             >
               {data.availableWeeks.map((week) => (
-                <option key={week} value={week}>Week {week}</option>
+                <option key={week} value={week}>
+                  Week {week} · {data.weekStatuses[week]}
+                </option>
               ))}
             </select>
             <button type="submit" className="btn-retro-secondary px-3 py-2 text-[9px]">Go</button>

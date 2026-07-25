@@ -7,18 +7,33 @@ import {
   fantasyEntryPicks,
   fantasyRewards,
   matches,
+  rosters,
   seasonCoaches,
   seasonPokemonPrices,
   seasons,
+  transactions,
 } from "@/lib/schema";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
-import { getFantasyWeeklyStatsForWeek } from "@/lib/fantasy-stats";
+import {
+  getFantasyWeeklyStatsForWeek,
+  getFantasyWeeklyStatsForWeeks,
+} from "@/lib/fantasy-stats";
+import { getTimeSyncedRoster, type TimeSyncTransaction } from "@/lib/roster-utils";
+import {
+  fantasyPickKey,
+  FANTASY_BUDGET,
+  FANTASY_ROSTER_SIZE,
+  FANTASY_SLOT_RULES,
+  optimizeFantasyLineup,
+  type FantasyLineupCandidate,
+} from "@/lib/fantasy-scoring";
 
 const FANTASY_MIN_SEASON = 10;
-const FANTASY_ROSTER_SIZE = 6;
-const FANTASY_BUDGET = 90;
-const FANTASY_LEADERBOARD_WEEKS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
-const FANTASY_SLOT_RULES = ["Infinity", "Stargazer", "Sunset", "Crystal", "Neon", null] as const;
+const scheduleCache = new Map<number, {
+  expiresAt: number;
+  weeks: number[];
+  statuses: Record<number, "upcoming" | "in-progress" | "complete">;
+}>();
 
 function normalizeDivisionName(name: string | null | undefined) {
   return name?.trim().toLowerCase() || "";
@@ -36,32 +51,104 @@ async function getFantasySeason(seasonId: number) {
   return season;
 }
 
-function fantasyPickKey(pick: { pokemonId: number; seasonCoachId: number | null }) {
-  return `${pick.pokemonId}:${pick.seasonCoachId ?? 0}`;
-}
-
 function fantasyParticipantKey(entry: { coachId: number | null; userId: number | null; displayName: string }) {
   if (entry.coachId !== null) return `coach:${entry.coachId}`;
   if (entry.userId !== null) return `user:${entry.userId}`;
   return `name:${entry.displayName}`;
 }
 
+type FantasyScoreDetail = {
+  kills: number;
+  deaths: number;
+  wins: number;
+  losses: number;
+};
+
+async function getPokemonWeekData(
+  seasonId: number,
+  seasonNumber: number,
+  scoringWeek: number
+) {
+  if (seasonNumber === 10 && scoringWeek === 8) {
+    return {
+      scores: new Map<string, number>(),
+      details: new Map<string, FantasyScoreDetail>(),
+    };
+  }
+  const stats = await getFantasyWeeklyStatsForWeek(seasonId, scoringWeek);
+  return {
+    scores: new Map(
+      stats.map((stat) => [
+        fantasyPickKey({ pokemonId: stat.pokemonId, seasonCoachId: stat.seasonCoachId }),
+        stat.score,
+      ])
+    ),
+    details: new Map(
+    stats.map((stat) => [
+      fantasyPickKey({ pokemonId: stat.pokemonId, seasonCoachId: stat.seasonCoachId }),
+      {
+        kills: stat.kills,
+        deaths: stat.deaths,
+        wins: stat.wins,
+        losses: stat.losses,
+      },
+    ])
+    ),
+  };
+}
+
 async function getPokemonScores(
   seasonId: number,
   seasonNumber: number,
   scoringWeek: number
-): Promise<Map<string, number>> {
-  if (seasonNumber === 10 && scoringWeek === 8) {
-    return new Map<string, number>();
+) {
+  return (await getPokemonWeekData(seasonId, seasonNumber, scoringWeek)).scores;
+}
+
+async function getFantasyScheduleState(seasonId: number) {
+  const cached = scheduleCache.get(seasonId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { weeks: cached.weeks, statuses: cached.statuses };
+  }
+  const seasonMatches = await db.query.matches.findMany({
+    where: eq(matches.seasonId, seasonId),
+    columns: {
+      week: true,
+      winnerId: true,
+      isForfeit: true,
+      startedAt: true,
+      scheduledAt: true,
+    },
+  });
+  const now = Date.now();
+  const matchesByWeek = new Map<number, typeof seasonMatches>();
+  for (const match of seasonMatches) {
+    if (match.week <= 0 || match.week >= 100) continue;
+    const rows = matchesByWeek.get(match.week) ?? [];
+    rows.push(match);
+    matchesByWeek.set(match.week, rows);
   }
 
-  const stats = await getFantasyWeeklyStatsForWeek(seasonId, scoringWeek);
-  return new Map(
-    stats.map((stat) => [
-      fantasyPickKey({ pokemonId: stat.pokemonId, seasonCoachId: stat.seasonCoachId }),
-      stat.score,
-    ])
-  );
+  const statuses = Object.fromEntries(
+    [...matchesByWeek.entries()].map(([week, weekMatches]) => {
+      const complete = weekMatches.length > 0 &&
+        weekMatches.every((match) => match.winnerId !== null || match.isForfeit);
+      const inProgress = !complete && weekMatches.some((match) =>
+        Boolean(match.startedAt) ||
+        Boolean(match.winnerId) ||
+        Boolean(match.isForfeit) ||
+        (Boolean(match.scheduledAt) && new Date(match.scheduledAt!).getTime() <= now)
+      );
+      return [week, complete ? "complete" : inProgress ? "in-progress" : "upcoming"];
+    })
+  ) as Record<number, "upcoming" | "in-progress" | "complete">;
+  const weeks = [...matchesByWeek.keys()].sort((a, b) => a - b);
+  scheduleCache.set(seasonId, {
+    expiresAt: now + 30_000,
+    weeks,
+    statuses,
+  });
+  return { weeks, statuses };
 }
 
 async function getPriceMap(seasonId: number) {
@@ -102,14 +189,20 @@ async function getSeasonCoachDivisionMap(seasonId: number, seasonCoachIds: numbe
 
 async function getStartedFantasyWeekSeasonCoachIds(seasonId: number, week: number) {
   const weekMatches = await db.query.matches.findMany({
-    where: eq(matches.seasonId, seasonId),
+    where: and(eq(matches.seasonId, seasonId), eq(matches.week, week)),
+    columns: {
+      coach1SeasonId: true,
+      coach2SeasonId: true,
+      winnerId: true,
+      isForfeit: true,
+      startedAt: true,
+      scheduledAt: true,
+    },
   });
   const now = Date.now();
   const startedSeasonCoachIds = new Set<number>();
 
   for (const match of weekMatches) {
-    if (match.week !== week) continue;
-
     const hasBegun =
       Boolean(match.startedAt) ||
       Boolean(match.winnerId) ||
@@ -160,21 +253,32 @@ type FantasyEntryWithPicks = Awaited<ReturnType<typeof getSeasonFantasyEntries>>
 function buildWeekLeaderboard(
   entries: FantasyEntryWithPicks[],
   scoreMap: Map<string, number>,
-  week: number
+  week: number,
+  scoreDetails: Map<string, FantasyScoreDetail> = new Map()
 ) {
-  return entries
+  const rows = entries
     .filter((entry) => entry.week === week)
     .map((entry) => {
       const picks = entry.picks
         .slice()
         .sort((a, b) => a.slot - b.slot)
-        .map((pick) => ({
-          pokemonId: pick.pokemonId,
-          seasonCoachId: pick.seasonCoachId,
-          name: pick.pokemon?.displayName || pick.pokemon?.name || "Unknown",
-          spriteUrl: pick.pokemon?.spriteUrl || null,
-          score: scoreMap.get(fantasyPickKey(pick)) ?? 0,
-        }));
+        .map((pick) => {
+          const key = fantasyPickKey(pick);
+          const detail = scoreDetails.get(key);
+          return {
+            pokemonId: pick.pokemonId,
+            seasonCoachId: pick.seasonCoachId,
+            name: pick.pokemon?.displayName || pick.pokemon?.name || "Unknown",
+            spriteUrl: pick.pokemon?.spriteUrl || null,
+            score: scoreMap.get(key) ?? 0,
+            teamName: pick.seasonCoach?.teamName ?? "",
+            divisionName: pick.seasonCoach?.division?.name ?? "",
+            kills: detail?.kills ?? 0,
+            deaths: detail?.deaths ?? 0,
+            wins: detail?.wins ?? 0,
+            losses: detail?.losses ?? 0,
+          };
+        });
 
       return {
         id: entry.id,
@@ -185,90 +289,296 @@ function buildWeekLeaderboard(
         totalScore: picks.reduce((sum, pick) => sum + pick.score, 0),
         picks,
         updatedAt: entry.updatedAt,
+        rank: 0,
       };
     })
     .sort((a, b) => b.totalScore - a.totalScore);
+
+  let previousScore: number | null = null;
+  let previousRank = 0;
+  rows.forEach((row, index) => {
+    if (previousScore === null || row.totalScore !== previousScore) {
+      previousRank = index + 1;
+      previousScore = row.totalScore;
+    }
+    row.rank = previousRank;
+  });
+  return rows;
 }
 
-async function buildOverallLeaderboard(
+async function buildFantasyLeaderboard(
   entries: FantasyEntryWithPicks[],
   seasonId: number,
-  seasonNumber: number
+  seasonNumber: number,
+  leaderboardWeeks: number[],
+  scoringWeek: number,
+  leaderboardWeek: number | "overall"
 ) {
   const scoreMapsByWeek = new Map<number, Map<string, number>>();
-  await Promise.all(
-    FANTASY_LEADERBOARD_WEEKS.map(async (week) => {
-      scoreMapsByWeek.set(week, await getPokemonScores(seasonId, seasonNumber, week));
-    })
+  const scoreDetailsByWeek = new Map<number, Map<string, FantasyScoreDetail>>();
+  const statsWeeks = leaderboardWeeks.filter(
+    (week) => !(seasonNumber === 10 && week === 8)
+  );
+  const statsByWeek = await getFantasyWeeklyStatsForWeeks(seasonId, statsWeeks);
+  for (const week of leaderboardWeeks) {
+    const stats = seasonNumber === 10 && week === 8
+      ? []
+      : statsByWeek.get(week) ?? [];
+    scoreMapsByWeek.set(
+      week,
+      new Map(stats.map((stat) => [
+        fantasyPickKey({ pokemonId: stat.pokemonId, seasonCoachId: stat.seasonCoachId }),
+        stat.score,
+      ]))
+    );
+    scoreDetailsByWeek.set(
+      week,
+      new Map(stats.map((stat) => [
+        fantasyPickKey({ pokemonId: stat.pokemonId, seasonCoachId: stat.seasonCoachId }),
+        {
+          kills: stat.kills,
+          deaths: stat.deaths,
+          wins: stat.wins,
+          losses: stat.losses,
+        },
+      ]))
+    );
+  }
+  const rewardRows = await db.query.fantasyRewards.findMany({
+    where: eq(fantasyRewards.seasonId, seasonId),
+  });
+  const rewardByEntryId = new Map(
+    rewardRows.map((reward) => [reward.entryId, reward.amount])
   );
 
-  const leaderboardByParticipant = new Map<
-    string,
-    {
-      id: number;
+  const weeklyBoards = new Map(
+    leaderboardWeeks.map((week) => [
+      week,
+      buildWeekLeaderboard(
+        entries,
+        scoreMapsByWeek.get(week) ?? new Map(),
+        week,
+        scoreDetailsByWeek.get(week) ?? new Map()
+      ),
+    ])
+  );
+  const participantProfiles = new Map<string, {
+    weeks: {
+      week: number;
+      score: number;
+      rank: number;
+      picks: ReturnType<typeof buildWeekLeaderboard>[number]["picks"];
+      entryId: number;
+      updatedAt: string;
       displayName: string;
       coachId: number | null;
       userId: number | null;
-      week: null;
-      totalScore: number;
-      picks: {
-        pokemonId: number;
-        seasonCoachId: number | null;
-        name: string;
-        spriteUrl: string | null;
-        score: number;
-      }[];
-      displayWeek: number;
-      updatedAt: string;
-    }
-  >();
+      rewardAmount: number;
+    }[];
+  }>();
 
-  const weeklyEntries = entries
-    .filter((entry) => FANTASY_LEADERBOARD_WEEKS.includes(entry.week as typeof FANTASY_LEADERBOARD_WEEKS[number]))
-    .sort((a, b) => {
-      if (a.week !== b.week) return a.week - b.week;
-      return a.updatedAt.localeCompare(b.updatedAt);
-    });
-
-  for (const entry of weeklyEntries) {
-    const participantKey = fantasyParticipantKey(entry);
-    const scoreMap = scoreMapsByWeek.get(entry.week) ?? new Map<string, number>();
-    const entryPicks = entry.picks
-      .slice()
-      .sort((a, b) => a.slot - b.slot)
-      .map((pick) => ({
-        pokemonId: pick.pokemonId,
-        seasonCoachId: pick.seasonCoachId,
-        name: pick.pokemon?.displayName || pick.pokemon?.name || "Unknown",
-        spriteUrl: pick.pokemon?.spriteUrl || null,
-        score: scoreMap.get(fantasyPickKey(pick)) ?? 0,
-      }));
-    const entryScore = entryPicks.reduce((sum, pick) => sum + pick.score, 0);
-    const existing = leaderboardByParticipant.get(participantKey);
-
-    if (existing) {
-      existing.totalScore += entryScore;
-      if (entry.week > existing.displayWeek || (entry.week === existing.displayWeek && entry.updatedAt > existing.updatedAt)) {
-        existing.picks = entryPicks;
-        existing.displayWeek = entry.week;
-        existing.updatedAt = entry.updatedAt;
-      }
-    } else {
-      leaderboardByParticipant.set(participantKey, {
-        id: entry.id,
-        displayName: entry.displayName,
-        coachId: entry.coachId,
-        userId: entry.userId,
-        week: null,
-        totalScore: entryScore,
-        picks: entryPicks,
-        displayWeek: entry.week,
-        updatedAt: entry.updatedAt,
+  for (const [week, board] of weeklyBoards) {
+    for (const row of board) {
+      const key = fantasyParticipantKey(row);
+      const profile = participantProfiles.get(key) ?? { weeks: [] };
+      profile.weeks.push({
+        week,
+        score: row.totalScore,
+        rank: row.rank,
+        picks: row.picks,
+        entryId: row.id,
+        updatedAt: row.updatedAt,
+        displayName: row.displayName,
+        coachId: row.coachId,
+        userId: row.userId,
+        rewardAmount: rewardByEntryId.get(row.id) ?? 0,
       });
+      participantProfiles.set(key, profile);
     }
   }
 
-  return [...leaderboardByParticipant.values()].sort((a, b) => b.totalScore - a.totalScore);
+  const comparisonWeek = leaderboardWeek === "overall" ? scoringWeek : leaderboardWeek;
+  const previousWeek = [...leaderboardWeeks].filter((week) => week < comparisonWeek).at(-1);
+  const previousRankByParticipant = new Map(
+    (previousWeek ? weeklyBoards.get(previousWeek) ?? [] : []).map((row) => [
+      fantasyParticipantKey(row),
+      row.rank,
+    ])
+  );
+
+  if (leaderboardWeek !== "overall") {
+    return (weeklyBoards.get(leaderboardWeek) ?? []).map((row) => {
+      const key = fantasyParticipantKey(row);
+      const profile = participantProfiles.get(key)?.weeks ?? [];
+      const seasonTotal = profile.reduce((sum, week) => sum + week.score, 0);
+      const previousRank = previousRankByParticipant.get(key) ?? null;
+      return {
+        ...row,
+        weeklyScore: row.totalScore,
+        seasonTotal,
+        weeksEntered: profile.length,
+        averageScore: profile.length ? seasonTotal / profile.length : 0,
+        rankMovement: previousRank === null ? null : previousRank - row.rank,
+        weeklyHistory: profile,
+      };
+    });
+  }
+
+  const overallRows = [...participantProfiles.entries()].map(([key, profile]) => {
+    const sortedWeeks = profile.weeks.sort((a, b) => a.week - b.week);
+    const latest = sortedWeeks.at(-1)!;
+    const seasonTotal = sortedWeeks.reduce((sum, week) => sum + week.score, 0);
+    const scoringWeekRow = sortedWeeks.find((week) => week.week === scoringWeek);
+    return {
+      id: latest.entryId,
+      displayName: latest.displayName,
+      coachId: latest.coachId,
+      userId: latest.userId,
+      week: null,
+      totalScore: seasonTotal,
+      weeklyScore: scoringWeekRow?.score ?? 0,
+      seasonTotal,
+      picks: scoringWeekRow?.picks ?? latest.picks,
+      updatedAt: latest.updatedAt,
+      rank: 0,
+      weeksEntered: sortedWeeks.length,
+      averageScore: seasonTotal / sortedWeeks.length,
+      rankMovement: previousRankByParticipant.has(key) ? 0 : null,
+      weeklyHistory: sortedWeeks,
+    };
+  }).sort((a, b) => b.totalScore - a.totalScore);
+
+  let previousScore: number | null = null;
+  let previousRank = 0;
+  overallRows.forEach((row, index) => {
+    if (previousScore === null || row.totalScore !== previousScore) {
+      previousScore = row.totalScore;
+      previousRank = index + 1;
+    }
+    row.rank = previousRank;
+  });
+  const previousOverallRows = [...participantProfiles.entries()]
+    .map(([key, profile]) => ({
+      key,
+      score: profile.weeks
+        .filter((week) => week.week < scoringWeek)
+        .reduce((sum, week) => sum + week.score, 0),
+    }))
+    .filter((row) => row.score !== 0)
+    .sort((a, b) => b.score - a.score);
+  const previousOverallRanks = new Map<string, number>();
+  previousScore = null;
+  previousRank = 0;
+  previousOverallRows.forEach((row, index) => {
+    if (previousScore === null || row.score !== previousScore) {
+      previousScore = row.score;
+      previousRank = index + 1;
+    }
+    previousOverallRanks.set(row.key, previousRank);
+  });
+  for (const row of overallRows) {
+    const key = fantasyParticipantKey(row);
+    const oldRank = previousOverallRanks.get(key);
+    row.rankMovement = oldRank === undefined ? null : oldRank - row.rank;
+  }
+  return overallRows;
+}
+
+async function getHighestScoringLegalRoster(
+  seasonId: number,
+  week: number,
+  scoreMap: Map<string, number>,
+  excludedInstanceKeys: Set<string>
+) {
+  const [teams, priceRows, seasonTransactions] = await Promise.all([
+    db.query.seasonCoaches.findMany({
+      where: eq(seasonCoaches.isActive, true),
+      with: { division: true },
+    }),
+    db.query.seasonPokemonPrices.findMany({
+      where: eq(seasonPokemonPrices.seasonId, seasonId),
+      with: { pokemon: true },
+    }),
+    db.query.transactions.findMany({
+      where: eq(transactions.seasonId, seasonId),
+    }),
+  ]);
+  const seasonTeams = teams.filter((team) => team.division?.seasonId === seasonId);
+  const teamIds = seasonTeams.map((team) => team.id);
+  const currentRosters = teamIds.length
+    ? await db.query.rosters.findMany({
+        where: inArray(rosters.seasonCoachId, teamIds),
+        with: { pokemon: true },
+      })
+    : [];
+  const priceMap = new Map(
+    priceRows
+      .filter((row) => row.price >= 0)
+      .map((row) => [row.pokemonId, row.price])
+  );
+  const candidates = new Map<string, FantasyLineupCandidate>();
+
+  await Promise.all(seasonTeams.map(async (team) => {
+    const teamRosters = currentRosters.filter((roster) => roster.seasonCoachId === team.id);
+    const teamTransactions = seasonTransactions.filter((transaction) =>
+      transaction.seasonCoachId === team.id ||
+      (
+        transaction.type === "P2P_TRADE" &&
+        transaction.tradingPartnerSeasonCoachId === team.id
+      )
+    );
+    const { filteredRosters, droppedPokemonDetails } = await getTimeSyncedRoster(
+      team.id,
+      week,
+      teamRosters,
+      teamTransactions as TimeSyncTransaction[]
+    );
+
+    for (const roster of filteredRosters) {
+      if (!roster.pokemon) continue;
+      const cost = priceMap.get(roster.pokemonId);
+      if (cost === undefined || cost < 0) continue;
+      const candidate: FantasyLineupCandidate = {
+        pokemonId: roster.pokemonId,
+        seasonCoachId: team.id,
+        name: roster.pokemon.displayName || roster.pokemon.name,
+        spriteUrl: roster.pokemon.spriteUrl,
+        divisionName: team.division?.name ?? "",
+        teamName: team.teamName,
+        cost,
+        score: scoreMap.get(fantasyPickKey({
+          pokemonId: roster.pokemonId,
+          seasonCoachId: team.id,
+        })) ?? 0,
+      };
+      candidates.set(fantasyPickKey(candidate), candidate);
+    }
+
+    for (const pokemon of droppedPokemonDetails) {
+      const cost = priceMap.get(pokemon.id);
+      if (cost === undefined || cost < 0) continue;
+      const candidate: FantasyLineupCandidate = {
+        pokemonId: pokemon.id,
+        seasonCoachId: team.id,
+        name: pokemon.displayName || pokemon.name,
+        spriteUrl: pokemon.spriteUrl,
+        divisionName: team.division?.name ?? "",
+        teamName: team.teamName,
+        cost,
+        score: scoreMap.get(fantasyPickKey({
+          pokemonId: pokemon.id,
+          seasonCoachId: team.id,
+        })) ?? 0,
+      };
+      candidates.set(fantasyPickKey(candidate), candidate);
+    }
+  }));
+
+  return optimizeFantasyLineup(
+    [...candidates.values()],
+    [...new Set(seasonTeams.map((team) => team.division?.name ?? "").filter(Boolean))],
+    excludedInstanceKeys
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -282,6 +592,7 @@ export async function GET(request: NextRequest) {
     const seasonId = Number(searchParams.get("seasonId"));
     const requestedWeek = Number(searchParams.get("week"));
     const leaderboardWeekParam = searchParams.get("leaderboardWeek");
+    const mode = searchParams.get("mode") || "full";
 
     if (!Number.isInteger(seasonId)) {
       return NextResponse.json({ error: "seasonId is required" }, { status: 400 });
@@ -296,56 +607,152 @@ export async function GET(request: NextRequest) {
       : season.seasonNumber === 10
         ? 8
         : 1;
+    const scheduleState = await getFantasyScheduleState(seasonId);
+    const leaderboardWeeks = scheduleState.weeks;
+    const weekStatuses = scheduleState.statuses;
     const requestedLeaderboardWeek = Number(leaderboardWeekParam);
     const leaderboardWeek: number | "overall" =
       leaderboardWeekParam === "overall"
         ? "overall"
         : Number.isInteger(requestedLeaderboardWeek) &&
-            FANTASY_LEADERBOARD_WEEKS.includes(requestedLeaderboardWeek as typeof FANTASY_LEADERBOARD_WEEKS[number])
+            leaderboardWeeks.includes(requestedLeaderboardWeek)
           ? requestedLeaderboardWeek
           : scoringWeek;
 
-    const session = await getSession();
-    const lockedSeasonCoachIds = [
-      ...(await getStartedFantasyWeekSeasonCoachIds(seasonId, scoringWeek)),
-    ];
-
+    const session = mode === "live" ? null : await getSession();
     const allEntries = await getSeasonFantasyEntries(seasonId);
     const entries = allEntries.filter((entry) => entry.week === scoringWeek);
+
+    if (mode === "used") {
+      const usedInstances = session
+        ? allEntries
+            .filter((entry) => entry.week !== scoringWeek && entryBelongsToSession(entry, session))
+            .flatMap((entry) => entry.picks.map((pick) => ({ entry, pick })))
+            .sort((a, b) => (
+              a.entry.week === b.entry.week
+                ? a.pick.slot - b.pick.slot
+                : a.entry.week - b.entry.week
+            ))
+            .filter(({ pick }) => pick.seasonCoachId !== null)
+            .map(({ entry, pick }) => ({
+              entryWeek: entry.week,
+              pokemonId: pick.pokemonId,
+              seasonCoachId: pick.seasonCoachId!,
+              name: pick.pokemon?.displayName || pick.pokemon?.name || "Unknown",
+              spriteUrl: pick.pokemon?.spriteUrl || null,
+              teamName: pick.seasonCoach?.teamName || "",
+              divisionName: pick.seasonCoach?.division?.name || "",
+            }))
+        : [];
+      return NextResponse.json(
+        { usedInstances },
+        { headers: { "Cache-Control": "private, max-age=10" } }
+      );
+    }
+
     const scoringWeekScoreMap = await getPokemonScores(
       seasonId,
       season.seasonNumber,
       scoringWeek
     );
-    const leaderboard = leaderboardWeek === "overall"
-      ? await buildOverallLeaderboard(allEntries, seasonId, season.seasonNumber)
-      : buildWeekLeaderboard(
-          allEntries,
-          leaderboardWeek === scoringWeek
-            ? scoringWeekScoreMap
-            : await getPokemonScores(seasonId, season.seasonNumber, leaderboardWeek),
-          leaderboardWeek
-        );
+    const leaderboard = await buildFantasyLeaderboard(
+      allEntries,
+      seasonId,
+      season.seasonNumber,
+      leaderboardWeeks,
+      scoringWeek,
+      leaderboardWeek
+    );
+
+    if (mode === "live") {
+      return NextResponse.json({
+        leaderboard: leaderboard.map((entry) => ({
+          id: entry.id,
+          coachId: entry.coachId,
+          userId: entry.userId,
+          displayName: entry.displayName,
+          rank: entry.rank,
+          totalScore: entry.totalScore,
+          weeklyScore: entry.weeklyScore,
+          seasonTotal: entry.seasonTotal,
+          rankMovement: entry.rankMovement,
+          weeksEntered: entry.weeksEntered,
+          averageScore: entry.averageScore,
+          picks: entry.picks.map((pick) => ({
+            pokemonId: pick.pokemonId,
+            seasonCoachId: pick.seasonCoachId,
+            score: pick.score,
+          })),
+        })),
+        weekStatuses,
+      }, {
+        headers: { "Cache-Control": "public, max-age=5, stale-while-revalidate=10" },
+      });
+    }
+
+    if (mode === "details") {
+      const participant = searchParams.get("participant");
+      const detail = leaderboard.find((entry) => (
+        participant === `coach:${entry.coachId}` ||
+        participant === `user:${entry.userId}` ||
+        participant === `entry:${entry.id}`
+      )) ?? null;
+      return NextResponse.json(
+        { detail },
+        { headers: { "Cache-Control": "private, max-age=30" } }
+      );
+    }
+
+    const lockedSeasonCoachIds = [
+      ...(await getStartedFantasyWeekSeasonCoachIds(seasonId, scoringWeek)),
+    ];
 
     const myEntry = session ? entries.find((entry) => entryBelongsToSession(entry, session)) : null;
-    const previousWeek = scoringWeek > 1 ? scoringWeek - 1 : null;
+    const previousWeek = weekStatuses[scoringWeek] === "complete"
+      ? scoringWeek
+      : leaderboardWeeks.filter((week) => week < scoringWeek).at(-1) ?? null;
     let previousWeekSummary: {
       week: number;
       rank: number | null;
       totalScore: number | null;
       rewardAmount: number;
+      rankMovement: number | null;
+      beatPercent: number | null;
+      bestPick: ReturnType<typeof buildWeekLeaderboard>[number]["picks"][number] | null;
+      worstPick: ReturnType<typeof buildWeekLeaderboard>[number]["picks"][number] | null;
+      optimalScore: number | null;
+      optimalCost: number | null;
+      optimalPicks: FantasyLineupCandidate[];
+      pointsLeftOnBoard: number | null;
+      isComplete: boolean;
     } | null = null;
 
     if (session && previousWeek !== null) {
-      const previousLeaderboard = buildWeekLeaderboard(
-        allEntries,
-        await getPokemonScores(seasonId, season.seasonNumber, previousWeek),
+      const previousWeekData = await getPokemonWeekData(
+        seasonId,
+        season.seasonNumber,
         previousWeek
       );
-      const previousRankIndex = previousLeaderboard.findIndex((entry) =>
+      const previousScoreMap = previousWeekData.scores;
+      const previousScoreDetails = previousWeekData.details;
+      const previousLeaderboard = buildWeekLeaderboard(
+        allEntries,
+        previousScoreMap,
+        previousWeek,
+        previousScoreDetails
+      );
+      const previousEntry = previousLeaderboard.find((entry) =>
         entryBelongsToSession(entry, session)
       );
-      const previousEntry = previousRankIndex >= 0 ? previousLeaderboard[previousRankIndex] : null;
+      const earlierWeek = leaderboardWeeks.filter((week) => week < previousWeek).at(-1) ?? null;
+      const earlierLeaderboard = earlierWeek === null
+        ? []
+        : buildWeekLeaderboard(
+            allEntries,
+            await getPokemonScores(seasonId, season.seasonNumber, earlierWeek),
+            earlierWeek
+          );
+      const earlierEntry = earlierLeaderboard.find((entry) => entryBelongsToSession(entry, session));
       const previousReward = previousEntry
         ? await db.query.fantasyRewards.findFirst({
             where: and(
@@ -355,12 +762,55 @@ export async function GET(request: NextRequest) {
             ),
           })
         : null;
+      const weekMatches = await db.query.matches.findMany({
+        where: and(eq(matches.seasonId, seasonId), eq(matches.week, previousWeek)),
+        columns: { winnerId: true, isForfeit: true },
+      });
+      const isComplete = weekMatches.length > 0 &&
+        weekMatches.every((match) => match.winnerId !== null || match.isForfeit);
+      const excludedInstanceKeys = new Set(
+        allEntries
+          .filter((entry) => entry.week < previousWeek && entryBelongsToSession(entry, session))
+          .flatMap((entry) => entry.picks.map(fantasyPickKey))
+      );
+      const optimalRoster = isComplete
+        ? await getHighestScoringLegalRoster(
+            seasonId,
+            previousWeek,
+            previousScoreMap,
+            excludedInstanceKeys
+          )
+        : null;
+      const sortedPicks = previousEntry
+        ? [...previousEntry.picks].sort((a, b) => b.score - a.score)
+        : [];
+      const lowerScores = previousEntry
+        ? previousLeaderboard.filter((entry) => entry.totalScore < previousEntry.totalScore).length
+        : 0;
+      const beatPercent = previousEntry && previousLeaderboard.length > 1
+        ? Math.round((lowerScores / (previousLeaderboard.length - 1)) * 100)
+        : previousEntry
+          ? 100
+          : null;
 
       previousWeekSummary = {
         week: previousWeek,
-        rank: previousEntry ? previousRankIndex + 1 : null,
+        rank: previousEntry?.rank ?? null,
         totalScore: previousEntry?.totalScore ?? null,
         rewardAmount: previousReward?.amount ?? 0,
+        rankMovement: previousEntry && earlierEntry
+          ? earlierEntry.rank - previousEntry.rank
+          : null,
+        beatPercent,
+        bestPick: sortedPicks[0] ?? null,
+        worstPick: sortedPicks.at(-1) ?? null,
+        optimalScore: optimalRoster?.score ?? null,
+        optimalCost: optimalRoster?.cost ?? null,
+        optimalPicks: optimalRoster?.picks ?? [],
+        pointsLeftOnBoard: previousEntry && optimalRoster
+          ? Math.max(0, optimalRoster.score - previousEntry.totalScore)
+          : null,
+        isComplete,
       };
     }
     const usedInstances = session
@@ -421,13 +871,21 @@ export async function GET(request: NextRequest) {
       usedInstances,
       lockedSeasonCoachIds,
       previousWeekSummary,
-      leaderboard,
+      leaderboard: searchParams.get("history") === "1"
+        ? leaderboard
+        : leaderboard.map((entry) => ({ ...entry, weeklyHistory: [] })),
       settings: {
         rosterSize: FANTASY_ROSTER_SIZE,
         budget: FANTASY_BUDGET,
         scoringWeek,
         leaderboardWeek,
-        leaderboardWeeks: FANTASY_LEADERBOARD_WEEKS,
+        leaderboardWeeks,
+        weekStatuses,
+        myEntryWeeks: session
+          ? allEntries
+              .filter((entry) => entryBelongsToSession(entry, session))
+              .map((entry) => entry.week)
+          : [],
       },
     });
   } catch (error) {
@@ -649,7 +1107,6 @@ export async function POST(request: NextRequest) {
     const savedPicks = await db.query.fantasyEntryPicks.findMany({
       where: eq(fantasyEntryPicks.entryId, entryId),
     });
-
     return NextResponse.json({
       success: true,
       entry: {

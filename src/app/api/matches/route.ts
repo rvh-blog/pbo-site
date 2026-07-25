@@ -9,7 +9,10 @@ import { resolveKillBetsForMatch, refundKillBetsForMatch } from "@/lib/kill-bett
 import { resolveDeathBetsForMatch, refundDeathBetsForMatch } from "@/lib/death-betting";
 import { reResolveBetsForMatch } from "@/lib/bet-resolution";
 import { checkAndAwardPickEmRewards, reResolvePickEmRewards, awardGotwBonus, reverseGotwBonus } from "@/lib/pick-em-rewards";
-import { resolveFantasyWeeklyRewardForMatch } from "@/lib/fantasy-rewards";
+import {
+  reResolveFantasyWeeklyRewardsForWeek,
+  resolveFantasyWeeklyRewardForMatch,
+} from "@/lib/fantasy-rewards";
 import { refreshFantasyWeeklyStatsForWeek } from "@/lib/fantasy-stats";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
@@ -361,8 +364,9 @@ export async function POST(request: NextRequest) {
   if (winnerId) {
     try {
       await refreshFantasyStatsForResult(match.seasonId, match.week);
+      await resolveFantasyWeeklyRewardForMatch(match.id);
     } catch (fantasyStatsError) {
-      console.error("[Matches API] Error refreshing fantasy weekly stats:", fantasyStatsError);
+      console.error("[Matches API] Error refreshing fantasy weekly stats or rewards:", fantasyStatsError);
     }
   }
 
@@ -615,8 +619,9 @@ export async function PUT(request: NextRequest) {
   if (winnerId === null && hadPreviousWinner && previousMatch) {
     try {
       await refreshFantasyStatsForResult(previousMatch.seasonId, previousMatch.week);
+      await reResolveFantasyWeeklyRewardsForWeek(previousMatch.seasonId, previousMatch.week);
     } catch (fantasyStatsError) {
-      console.error("[Matches API] Error refreshing fantasy weekly stats after result removal:", fantasyStatsError);
+      console.error("[Matches API] Error refreshing fantasy after result removal:", fantasyStatsError);
     }
   }
 
@@ -692,8 +697,9 @@ export async function DELETE(request: NextRequest) {
     if (hadEloImpact && match) {
       try {
         await refreshFantasyStatsForResult(match.seasonId, match.week);
+        await reResolveFantasyWeeklyRewardsForWeek(match.seasonId, match.week);
       } catch (fantasyStatsError) {
-        console.error("[Matches API] Error refreshing fantasy weekly stats after deletion:", fantasyStatsError);
+        console.error("[Matches API] Error refreshing fantasy after deletion:", fantasyStatsError);
       }
     }
 

@@ -83,11 +83,11 @@ export function FantasyAbout() {
         </div>
         <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
           <h4 className="mb-2 font-bold uppercase text-white">Leaderboards</h4>
-          <p>Weekly standings total that week&apos;s six picks. Overall standings add every weekly score. Ties currently favor the roster updated earlier.</p>
+          <p>Weekly standings total that week&apos;s six picks. Overall standings add every weekly score. Tied prize places split the combined prize pool equally.</p>
         </div>
         <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
           <h4 className="mb-2 font-bold uppercase text-white">Weekly PBO Coin</h4>
-          <p>Each completed fantasy week awards 250 PBO Coin to the top roster, 125 to second place, and 75 to third place.</p>
+          <p>Each completed fantasy week awards 250 PBO Coin to the top roster, 125 to second place, and 75 to third place. When a tie spans prize places, tied players receive equal whole-coin shares of those places.</p>
         </div>
       </div>
     </div>
