@@ -4,6 +4,29 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 26, 2026
+
+Match pages:
+
+- Aggregate hazard damage taken is rounded to the nearest whole percentage,
+  preventing floating-point artifacts such as `98.00000000000001%`.
+
+Broadcast overlay:
+
+- Static shiny sprites preserve Showdown's hyphenated regional-form IDs, so
+  shiny Hisuian Zoroark and other regional forms use their correct sprite.
+- When Zoroark or Hisuian Zoroark's Illusion ends, accumulated HP, status,
+  boosts, and other field state remain with Zoroark while the disguised
+  Pokemon's saved state is restored. A poisoned disguised Zoroark therefore
+  no longer makes the real Pokemon appear poisoned when it later switches in.
+- Overlay regression checks cover regional-form shiny sprite paths and
+  Illusion reveals whose real and disguised Pokemon use different nicknames.
+
+Verification:
+
+- Overlay synchronization checks, `npx tsc --noEmit`, targeted ESLint, the
+  production build, and whitespace checks pass.
+
 ## July 24, 2026
 
 Fantasy:

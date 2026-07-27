@@ -211,7 +211,7 @@ function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
 
   return {
     hazardDamageTaken: hasHazardDamage
-      ? `${teamPokemon.reduce((sum, mp) => sum + (mp.hazardDamageTaken || 0), 0)}%`
+      ? `${Math.round(teamPokemon.reduce((sum, mp) => sum + (mp.hazardDamageTaken || 0), 0))}%`
       : "x",
     setupMoves: hasSetupMoves
       ? teamPokemon.reduce((sum, mp) => sum + (mp.setupMovesUsed || 0), 0)
