@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { rosterPokemonMatchesName } from "../src/lib/broadcast-pokemon-matching";
+import {
+  resolveIllusionDisguiseIdentity,
+  rosterPokemonMatchesName,
+} from "../src/lib/broadcast-pokemon-matching";
 import { pokemonExactLookupKeys } from "../src/lib/pokemon-name-utils";
 import { getSeasonBattleRules } from "../src/lib/season-battle-rules";
 import { extractShowdownFormatId, extractShowdownRoomId } from "../src/lib/showdown-room";
@@ -64,6 +67,18 @@ assert.equal(extractShiny("Zeraora, L50, shiny"), true);
 assert.equal(shinyPreview?.isShiny, true, "Team preview must preserve shiny status");
 assert.equal(shinySwitch?.isShiny, true, "Switch events must preserve shiny status");
 assert.equal(normalSwitch?.isShiny, false, "Non-shiny Pokemon must remain non-shiny");
+assert.deepEqual(
+  resolveIllusionDisguiseIdentity(
+    new Map([
+      ["Cinderace", { nickname: "Encara Messi", active: true }],
+      ["Zoroark-Hisui", { nickname: "Zoroark-Hisui", active: false }],
+    ]),
+    new Map([["Encara Messi", "Cinderace"]]),
+    "Little Purp",
+  ),
+  { species: "Cinderace", nickname: "Encara Messi" },
+  "Illusion reveals with a different nickname must resolve the active disguise snapshot",
+);
 assert.equal(
   getShowdownSpriteUrl("Zeraora", true),
   "https://play.pokemonshowdown.com/sprites/ani-shiny/zeraora.gif",
@@ -72,6 +87,11 @@ assert.equal(
   getGen5StaticSpriteUrl("Ogerpon-Hearthflame", true),
   "https://play.pokemonshowdown.com/sprites/gen5-shiny/ogerpon-hearthflame.png",
   "Shiny forms must use the shared shiny sprite directory",
+);
+assert.equal(
+  getGen5StaticSpriteUrl("Zoroark-Hisui", true),
+  "https://play.pokemonshowdown.com/sprites/gen5-shiny/zoroark-hisui.png",
+  "Shiny regional forms must preserve their hyphenated static sprite ID",
 );
 
 assert.equal(NEW_MEGA_BATTLEFIELD_SPRITES.length, 48, "All 48 new Mega battlefield sprites must be registered");

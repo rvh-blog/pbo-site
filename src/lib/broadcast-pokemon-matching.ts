@@ -11,6 +11,26 @@ const URSHIFU_SINGLE_STRIKE_KEYS = new Set([
   "urshifusinglestrikegmax",
 ]);
 
+export function resolveIllusionDisguiseIdentity(
+  stateMap: ReadonlyMap<string, { nickname: string; active: boolean }>,
+  nicknameMap: ReadonlyMap<string, string>,
+  revealedNickname: string
+) {
+  const mappedSpecies = nicknameMap.get(revealedNickname);
+  if (mappedSpecies) {
+    return {
+      species: mappedSpecies,
+      nickname: stateMap.get(mappedSpecies)?.nickname ?? revealedNickname,
+    };
+  }
+
+  for (const [species, state] of stateMap) {
+    if (state.active) return { species, nickname: state.nickname };
+  }
+
+  return null;
+}
+
 function withFormFamilyKeys(keys: Iterable<string>) {
   const expandedKeys = new Set(keys);
   for (const key of expandedKeys) {

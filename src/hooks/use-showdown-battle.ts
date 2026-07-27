@@ -4,7 +4,10 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { parseMessages, type BattleEvent } from "@/lib/battle-event-parser";
 import type { BattleSceneHandle } from "@/app/broadcast/overlay/battle-scene";
 import { serializedPokemonAliasLookupKeys } from "@/lib/pokemon-name-client";
-import { rosterPokemonMatchesKeys } from "@/lib/broadcast-pokemon-matching";
+import {
+  resolveIllusionDisguiseIdentity,
+  rosterPokemonMatchesKeys,
+} from "@/lib/broadcast-pokemon-matching";
 import { normalizePokemonName } from "@/lib/pokemon-name-utils";
 import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
@@ -614,7 +617,12 @@ export function useShowdownBattle(
 
             case "replace": {
               if (!event.player || !event.nickname || !event.species) break;
-              const oldSpecies = nickMap.get(event.nickname);
+              const disguiseIdentity = resolveIllusionDisguiseIdentity(
+                pokeMap,
+                nickMap,
+                event.nickname,
+              );
+              const oldSpecies = disguiseIdentity?.species;
               nickMap.set(event.nickname, event.species);
               // Transfer all on-field state accumulated while the Pokemon was
               // disguised, then restore the disguised species' prior card.
@@ -637,13 +645,14 @@ export function useShowdownBattle(
                   });
 
                   const snapshotMap = switchStateSnapshotRef.current[event.player];
-                  const priorDisguiseState = snapshotMap.get(event.nickname);
+                  const snapshotNickname = disguiseIdentity?.nickname ?? event.nickname;
+                  const priorDisguiseState = snapshotMap.get(snapshotNickname);
                   if (priorDisguiseState) {
                     pokeMap.set(oldSpecies, { ...priorDisguiseState, active: false });
                   } else {
                     oldState.active = false;
                   }
-                  snapshotMap.delete(event.nickname);
+                  snapshotMap.delete(snapshotNickname);
                 }
               } else if (!pokeMap.has(event.species)) {
                 pokeMap.set(event.species, createPokemonState(event.species, event.nickname, event.battleForm, undefined, event.isShiny));

@@ -75,7 +75,8 @@ export function getGen5SpriteUrl(name: string, isShiny = false) {
 
 export function getGen5StaticSpriteUrl(name: string, isShiny = false) {
   const championsMegaSprite = getChampionsMegaSpriteUrl(name);
-  const compactId = spriteId(name).replace(/-/g, "");
-  const staticId = DEX_SPRITE_OVERRIDES[compactId] ?? compactId;
+  const id = spriteId(name);
+  const compactId = id.replace(/-/g, "");
+  const staticId = DEX_SPRITE_OVERRIDES[compactId] ?? id;
   return championsMegaSprite ?? `${SHOWDOWN_SPRITES}/${isShiny ? "gen5-shiny" : "gen5"}/${staticId}.png`;
 }
