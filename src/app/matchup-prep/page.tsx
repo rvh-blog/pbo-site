@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Metadata } from "next";
 /* eslint-disable @typescript-eslint/no-explicit-any -- Existing matchup prep data shaping uses broad Drizzle result objects. */
 import {
   seasons,
@@ -16,6 +17,12 @@ import { MatchupPrepClient } from "./matchup-prep-client";
 import { getTimeSyncedRoster } from "@/lib/roster-utils";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
 import { pokemonNameKey } from "@/lib/pokemon-name-utils";
+
+export const metadata: Metadata = {
+  title: "Match Prep",
+  description: "Compare PBO rosters, speeds, moves, abilities, and matchup notes for an upcoming battle.",
+  alternates: { canonical: "/matchup-prep" },
+};
 
 export const dynamic = "force-dynamic";
 

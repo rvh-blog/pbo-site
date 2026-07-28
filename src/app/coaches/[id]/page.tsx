@@ -15,6 +15,7 @@ import { CoachStoreButton } from "@/components/coach-store-button";
 import { LogoFrame } from "@/components/logo-frame";
 import { ProjectMewConfirmation } from "@/components/project-mew-confirmation";
 import { PollCard } from "@/components/poll-card";
+import { ShareButton } from "@/components/share-button";
 import { getSession } from "@/lib/session";
 import { getActivePoll } from "@/lib/polls";
 import { isProjectMewReleased } from "@/lib/project-mew";
@@ -1381,6 +1382,15 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
           </div>
         </div>
       )}
+
+      <div className="flex justify-end">
+        <ShareButton
+          title={`${mostRecentSeasonEntry?.teamName ?? coach.name} — PBO`}
+          text={`View ${coach.name}'s PBO teams, record, Elo, and season history.`}
+          path={`/coaches/${coachId}`}
+          compact
+        />
+      </div>
 
       {/* Profile Header */}
       <div className="poke-card p-4 sm:p-6" style={{ overflow: 'visible' }}>

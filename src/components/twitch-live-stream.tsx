@@ -97,8 +97,8 @@ export function TwitchLiveStream() {
       aria-hidden={!isLive}
       className={
         isLive
-          ? "poke-card mx-auto w-full overflow-hidden border-[#9146ff]/50 p-0 shadow-[0_0_35px_rgba(145,70,255,0.16)] lg:w-1/2"
-          : "fixed left-[-10000px] top-0 h-[300px] w-[400px] overflow-hidden"
+          ? "order-first poke-card mx-auto w-full overflow-hidden border-[#9146ff]/50 p-0 shadow-[0_0_35px_rgba(145,70,255,0.16)] lg:w-1/2"
+          : "order-last fixed left-[-10000px] top-0 h-[300px] w-[400px] overflow-hidden"
       }
     >
       {isLive && (

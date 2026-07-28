@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Metadata } from "next";
 import { playoffMatches } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { LeaderboardsClient } from "./leaderboards-client";
@@ -6,6 +7,11 @@ import { getAllCoachCosmetics } from "@/lib/glow-utils";
 import { getPokemonLeaderboardStats } from "@/lib/pokemon-leaderboard";
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+  title: "PBO Stats",
+  description: "Explore PBO coach rankings, Pokémon leaders, Elo, records, and all-time statistics.",
+  alternates: { canonical: "/leaderboards" },
+};
 
 type CoachSummary = { id: number; name: string; eloRating: number };
 type SeasonCoachSummary = { id: number; coachId: number; teamName: string; teamLogoUrl: string | null };

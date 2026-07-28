@@ -4,6 +4,34 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 27, 2026
+
+Discovery and sharing:
+
+- Added global and page-specific metadata, a branded social-sharing image,
+  `robots.txt`, and an XML sitemap.
+- Centralized the public site URL used by metadata and discovery endpoints.
+- Match, division, and coach pages include a native share action with a
+  clipboard fallback.
+
+Homepage:
+
+- Added visitor paths for spectators, active coaches, and PBO Stats.
+- The Twitch stream moves to the top of the page while live and below the main
+  homepage content while offline.
+
+Performance and scheduling:
+
+- Division schedule queries select only the match, team, and Pokemon fields
+  required by the page, substantially reducing the rendered response.
+- Scheduled times have a deterministic league-time fallback before browser
+  localization and display `Time TBD` for missing or invalid values.
+
+Verification:
+
+- `npm run build`, `npx tsc --noEmit`, targeted ESLint, whitespace checks, and
+  local route checks pass.
+
 ## July 26, 2026
 
 Match pages:

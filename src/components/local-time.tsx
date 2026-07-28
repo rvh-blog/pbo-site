@@ -12,42 +12,69 @@ export function LocalTime({ dateString, format = "datetime", className }: LocalT
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    const timer = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const date = new Date(dateString);
+  const validDate = !Number.isNaN(date.getTime());
 
-  // Before hydration, show a placeholder or the raw time
+  if (!validDate) {
+    return <span className={className}>Time TBD</span>;
+  }
+
+  // Give server HTML, crawlers, and no-JavaScript visitors a useful PBO-time fallback.
   if (!mounted) {
-    return <span className={className}>--:--</span>;
+    const fallback =
+      format === "date"
+        ? date.toLocaleDateString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            timeZone: "America/Los_Angeles",
+          })
+        : date.toLocaleString("en-US", {
+            ...(format === "datetime"
+              ? { weekday: "short", month: "short", day: "numeric" }
+              : {}),
+            hour: "numeric",
+            minute: "2-digit",
+            timeZone: "America/Los_Angeles",
+            timeZoneName: "short",
+          });
+    return (
+      <time dateTime={date.toISOString()} className={className}>
+        {fallback}
+      </time>
+    );
   }
 
   if (format === "time") {
     return (
-      <span className={className}>
+      <time dateTime={date.toISOString()} className={className}>
         {date.toLocaleString(undefined, {
           hour: "numeric",
           minute: "2-digit",
         })}
-      </span>
+      </time>
     );
   }
 
   if (format === "date") {
     return (
-      <span className={className}>
+      <time dateTime={date.toISOString()} className={className}>
         {date.toLocaleString(undefined, {
           weekday: "short",
           month: "short",
           day: "numeric",
         })}
-      </span>
+      </time>
     );
   }
 
   // datetime (default)
   return (
-    <span className={className}>
+    <time dateTime={date.toISOString()} className={className}>
       {date.toLocaleString(undefined, {
         weekday: "short",
         month: "short",
@@ -55,6 +82,6 @@ export function LocalTime({ dateString, format = "datetime", className }: LocalT
         hour: "numeric",
         minute: "2-digit",
       })}
-    </span>
+    </time>
   );
 }

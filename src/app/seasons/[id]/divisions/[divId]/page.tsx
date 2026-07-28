@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { divisions, seasonCoaches, matches, playoffMatches } from "@/lib/schema";
 import { eq, asc } from "drizzle-orm";
@@ -17,6 +18,7 @@ import { KillLeaderboard } from "@/components/kill-leaderboard";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { DivisionMobileSubnav } from "@/components/division-mobile-subnav";
+import { ShareButton } from "@/components/share-button";
 
 type MovementRule = {
   relegationCount: number;
@@ -40,6 +42,24 @@ function getDivisionMovementRule(divisionName: string): MovementRule {
 
 interface PageProps {
   params: Promise<{ id: string; divId: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id, divId } = await params;
+  const division = await getDivision(Number(divId));
+  if (!division) return { title: "Division" };
+  const title = `${division.name} Division — ${division.season?.name ?? "PBO"}`;
+  const description = `Standings, schedule, rosters, match results, and Pokémon leaders for the ${division.name} Division.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/seasons/${id}/divisions/${divId}` },
+    openGraph: {
+      title,
+      description,
+      url: `/seasons/${id}/divisions/${divId}`,
+    },
+  };
 }
 
 async function getDivision(divisionId: number) {
@@ -183,12 +203,58 @@ async function getSchedule(divisionId: number) {
   const [allMatches, playoffs] = await Promise.all([
     db.query.matches.findMany({
       where: eq(matches.divisionId, divisionId),
+      columns: {
+        id: true,
+        seasonId: true,
+        divisionId: true,
+        week: true,
+        coach1SeasonId: true,
+        coach2SeasonId: true,
+        winnerId: true,
+        coach1Differential: true,
+        coach2Differential: true,
+        isForfeit: true,
+        replayUrl: true,
+        scheduledAt: true,
+      },
       with: {
-        coach1: { with: { coach: true } },
-        coach2: { with: { coach: true } },
+        coach1: {
+          columns: {
+            id: true,
+            coachId: true,
+            teamName: true,
+            teamAbbreviation: true,
+            teamLogoUrl: true,
+          },
+          with: { coach: { columns: { name: true } } },
+        },
+        coach2: {
+          columns: {
+            id: true,
+            coachId: true,
+            teamName: true,
+            teamAbbreviation: true,
+            teamLogoUrl: true,
+          },
+          with: { coach: { columns: { name: true } } },
+        },
         matchPokemon: {
+          columns: {
+            id: true,
+            seasonCoachId: true,
+            pokemonId: true,
+            kills: true,
+            deaths: true,
+          },
           with: {
-            pokemon: true,
+            pokemon: {
+              columns: {
+                id: true,
+                name: true,
+                displayName: true,
+                spriteUrl: true,
+              },
+            },
           },
         },
       },
@@ -448,6 +514,12 @@ export default async function DivisionPage({ params }: PageProps) {
                 Rosters
               </button>
             </Link>
+            <ShareButton
+              title={`${division.name} Division — ${division.season?.name ?? "PBO"}`}
+              text={`Follow ${division.name} Division standings, schedules, and match results.`}
+              path={`/seasons/${seasonId}/divisions/${divisionId}`}
+              compact
+            />
           </div>
         </div>
       </div>
