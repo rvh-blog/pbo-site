@@ -5,6 +5,7 @@ import Script from "next/script";
 import "./globals.css";
 import { Navigation } from "@/components/navigation";
 import { PerformanceMonitor } from "@/components/performance-monitor";
+import { SITE_URL } from "@/lib/site-url";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,9 +18,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "PBO - Pokemon Battle Organization",
     template: "%s | PBO",
+  },
+  description:
+    "Follow the Pokémon Battle Organization draft league with live standings, schedules, rosters, match tools, fantasy, and the complete PBO archive.",
+  applicationName: "PBO Draft League",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "PBO Draft League",
+    title: "PBO - Pokémon Battle Organization",
+    description:
+      "Live standings, schedules, rosters, match tools, fantasy, and the complete PBO draft league archive.",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PBO - Pokémon Battle Organization",
+    description:
+      "Live standings, schedules, rosters, match tools, fantasy, and the complete PBO draft league archive.",
   },
   icons: {
     icon: [

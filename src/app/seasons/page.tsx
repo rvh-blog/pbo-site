@@ -1,9 +1,15 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { compareDivisions } from "@/lib/division-order";
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+  title: "Seasons and Divisions",
+  description: "Browse current PBO standings, schedules, rosters, drafts, playoffs, and past seasons.",
+  alternates: { canonical: "/seasons" },
+};
 
 // Legacy seasons (S1-S4) - different league structure
 // S3-4 have data in DB, S1-2 are external only

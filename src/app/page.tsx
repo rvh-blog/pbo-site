@@ -1267,7 +1267,7 @@ export default async function Home() {
       : "/seasons";
 
   return (
-    <div className="space-y-10 sm:space-y-12 lg:space-y-16">
+    <div className="flex flex-col gap-10 sm:gap-12 lg:gap-16">
       <TwitchLiveStream />
       <section className="relative">
         <div className="flex flex-col items-center justify-center space-y-6 sm:space-y-8">
@@ -1380,6 +1380,54 @@ export default async function Home() {
             </div>
           )}
 
+        </div>
+      </section>
+
+      <section aria-labelledby="choose-path-title">
+        <div className="mb-5 text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--foreground-subtle)]">
+            Start where you are
+          </p>
+          <h2 id="choose-path-title" className="mt-2 text-2xl font-bold text-white">
+            Your quickest route into PBO
+          </h2>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Link
+            href={currentSeasonPrimaryHref}
+            className="group flex min-h-28 flex-col justify-center rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 transition-colors hover:border-[var(--primary)] hover:bg-[var(--background-tertiary)]"
+          >
+            <strong className="text-lg text-white">Spectator</strong>
+            <span className="mt-1 text-sm leading-6 text-[var(--foreground-muted)]">
+              Open the live standings, schedule, teams, and weekly results.
+            </span>
+          </Link>
+          <Link
+            href={
+              personalizedHome?.activeTeam
+                ? `/seasons/${personalizedHome.activeTeam.division!.season!.id}/divisions/${personalizedHome.activeTeam.divisionId}`
+                : "/matchup-prep"
+            }
+            className="group flex min-h-28 flex-col justify-center rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 transition-colors hover:border-[var(--primary)] hover:bg-[var(--background-tertiary)]"
+          >
+            <strong className="text-lg text-white">
+              {personalizedHome?.activeTeam ? "My team" : "Active coach"}
+            </strong>
+            <span className="mt-1 text-sm leading-6 text-[var(--foreground-muted)]">
+              {personalizedHome?.activeTeam
+                ? "Jump directly to your division and next competitive task."
+                : "Prepare a matchup, compare rosters, and plan free-agency moves."}
+            </span>
+          </Link>
+          <Link
+            href="/leaderboards"
+            className="group flex min-h-28 flex-col justify-center rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 transition-colors hover:border-[var(--primary)] hover:bg-[var(--background-tertiary)]"
+          >
+            <strong className="text-lg text-white">PBO Stats</strong>
+            <span className="mt-1 text-sm leading-6 text-[var(--foreground-muted)]">
+              Search coaches, Pokémon, records, replays, and league history.
+            </span>
+          </Link>
         </div>
       </section>
 

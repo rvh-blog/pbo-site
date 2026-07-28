@@ -10,6 +10,7 @@ import { ScheduleEditor } from "@/components/schedule-editor";
 import { ExpandablePokemonCard } from "@/components/expandable-pokemon-card";
 import { HpChart } from "@/components/hp-chart";
 import { DecidingTurnsPanel } from "@/components/deciding-turns-panel";
+import { ShareButton } from "@/components/share-button";
 import { getSession } from "@/lib/session";
 import { getMatchDecidingTurnsEditorHiddenKey, getSiteSetting } from "@/lib/site-settings";
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
@@ -556,6 +557,15 @@ export default async function MatchDetailPage({ params }: PageProps) {
       {showVictoryAnimation && (
         <VictoryAnimation winnerSide={coach1Won ? "left" : "right"} />
       )}
+
+      <div className="flex justify-end">
+        <ShareButton
+          title={`${coach1?.teamName ?? "PBO"} vs ${coach2?.teamName ?? "PBO"}`}
+          text={`${match.season?.name ?? "PBO"} · ${match.division?.name ?? "Division"} · ${getWeekLabel(match.week)}`}
+          path={`/matches/${match.id}`}
+          compact
+        />
+      </div>
 
       {/* The Season 11+ report uses the compact broadcast-style composition;
           older and upcoming matches retain the standard page heading. */}

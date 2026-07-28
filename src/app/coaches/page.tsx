@@ -1,10 +1,16 @@
 import { db } from "@/lib/db";
+import type { Metadata } from "next";
 import { seasons } from "@/lib/schema";
 import { desc } from "drizzle-orm";
 import { CoachesClient } from "./coaches-client";
 import { getAllCoachCosmetics } from "@/lib/glow-utils";
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+  title: "Coaches and Teams",
+  description: "Browse PBO coaches, current teams, records, Elo ratings, and season history.",
+  alternates: { canonical: "/coaches" },
+};
 
 async function getCoachesData() {
   // Run all queries in parallel for much better performance on network-attached storage

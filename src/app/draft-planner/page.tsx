@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Metadata } from "next";
 import { coaches, seasonCoaches, pokemon, seasonPokemonPrices, seasons } from "@/lib/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { DraftPlanner } from "./draft-planner";
@@ -6,6 +7,12 @@ import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-po
 import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { isHiddenPublicPokemonForm } from "@/lib/pokemon-name-utils";
 import { compareDivisions } from "@/lib/division-order";
+
+export const metadata: Metadata = {
+  title: "Free Agency",
+  description: "Search, compare, watch, and plan available Pokémon for a PBO roster.",
+  alternates: { canonical: "/draft-planner" },
+};
 
 interface PageProps {
   searchParams: Promise<{ coach?: string; season?: string }>;

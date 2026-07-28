@@ -1,9 +1,15 @@
 import { db } from "@/lib/db";
+import type { Metadata } from "next";
 import { seasons, seasonCoaches } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { PickEmsClient } from "./pick-ems-client";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Pick-Ems",
+  description: "Make weekly PBO match predictions and follow the community pick-em standings.",
+  alternates: { canonical: "/pick-ems" },
+};
 
 export interface CoachOption {
   id: number;
