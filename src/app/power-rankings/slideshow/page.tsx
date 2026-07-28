@@ -13,6 +13,8 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { SlideshowClient } from "./slideshow-client";
 import { computeAndSortStandings } from "@/lib/standings-sort";
+import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
+import { getPokemonMoveData, type PokemonMoveData } from "@/lib/pokemon-move-data";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +69,7 @@ export interface RosterPokemon {
   kills: number;
   deaths: number;
   gamesPlayed: number;
+  moveData: PokemonMoveData;
 }
 
 export interface MatchPokemonStat {
@@ -137,7 +140,7 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
   if (orderIds.length === 0) notFound();
 
   // Fetch all data in parallel
-  const [season, division, allCoaches, allDivisionMatches, allRosters, allTransactions, allPokemon] =
+  const [season, division, allCoaches, allDivisionMatches, allRosters, allTransactions, allPokemon, seasonMoves] =
     await Promise.all([
       db.query.seasons.findFirst({ where: eq(seasons.id, seasonId) }),
       db.query.divisions.findFirst({ where: eq(divisions.id, divisionId) }),
@@ -163,6 +166,7 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
         where: eq(transactions.seasonId, seasonId),
       }),
       db.query.pokemon.findMany(),
+      getSeasonPokemonMovesMap(seasonId),
     ]);
 
   if (!season || !division) notFound();
@@ -291,6 +295,9 @@ export default async function SlideshowPage({ searchParams }: PageProps) {
         kills: stats.kills,
         deaths: stats.deaths,
         gamesPlayed: stats.gamesPlayed,
+        moveData: getPokemonMoveData(
+          movesForSeasonPokemon(r.pokemonId, r.pokemon?.moves, seasonMoves)
+        ),
         _draftOrder: r.draftOrder,
         _id: r.id,
       };

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import type { SlideData, TransactionPokemon, RosterPokemon, MatchPokemonStat, ScheduleMatch } from "./page";
+import type { MoveDataEntry, PokemonMoveData } from "@/lib/pokemon-move-data";
 
 interface Props {
   data: SlideData;
@@ -419,6 +420,8 @@ function RosterCard({ pk, divisionColor }: { pk: RosterPokemon; divisionColor: s
         <span className="font-pixel text-[8px] text-slate-400 bg-slate-900/80 px-1 py-0.5 border border-slate-700">{pk.price}P</span>
       </div>
 
+      <MoveDataIcons moveData={pk.moveData} />
+
       {/* Pokemon Image */}
       <div className="absolute inset-0 z-10 flex items-center justify-center transform group-hover:-translate-y-2 transition-transform duration-200">
         {(pk.artworkUrl || pk.spriteUrl) ? (
@@ -449,6 +452,132 @@ function RosterCard({ pk, divisionColor }: { pk: RosterPokemon; divisionColor: s
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none w-max">
         <div className="bg-[#22c55e] text-black border-2 border-black px-2.5 py-1" style={{ boxShadow: "2px 2px 0 rgba(0,0,0,1)" }}>
           <span className="font-pixel text-[9px]">{pk.kills}K / {pk.deaths}D</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MOVE_ICON_CATEGORIES: {
+  key: keyof PokemonMoveData;
+  label: string;
+  color: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    key: "removal",
+    label: "Hazard Removal",
+    color: "#0891b2",
+    icon: (
+      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 4C8 4 4 6 4 10c0 2 1 3 3 3 3 0 5-2 5-4 0-1-.5-2-2-2s-2 1-2 2h2c0-.5.5-1 1-1s1 .5 1 1c0 1-1 2-3 2-1 0-2-.5-2-2 0-3 3-4 5-4s4 1 4 4c0 4-4 6-6 6-1 0-2 0-3-1l-1 1c1 1 3 2 4 2 3 0 8-3 8-8 0-4-3-6-7-6z" />
+      </svg>
+    ),
+  },
+  {
+    key: "setters",
+    label: "Hazard Setter",
+    color: "#a8a29e",
+    icon: (
+      <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="12" r="6" />
+        <path d="M12 2v4M12 18v4M2 12h4M18 12h4M5.64 5.64l1.77 1.77M16.59 16.59l1.77 1.77M5.64 18.36l1.77-1.77M16.59 7.41l1.77-1.77" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+      </svg>
+    ),
+  },
+  {
+    key: "pivots",
+    label: "Pivot",
+    color: "#9d8fba",
+    icon: (
+      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 8L2 12L6 16M18 8L22 12L18 16M2 12H22" />
+      </svg>
+    ),
+  },
+  {
+    key: "utility",
+    label: "Utility",
+    color: "#b08a8a",
+    icon: (
+      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C9.5 2 7.5 4 7.5 6.5c0 1.5.5 2.5 1 3.5H7v2h2v2H7v2h3v4h4v-4h3v-2h-2v-2h2v-2h-1.5c.5-1 1-2 1-3.5C16.5 4 14.5 2 12 2zm-1.5 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm3 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" />
+      </svg>
+    ),
+  },
+  {
+    key: "support",
+    label: "Support",
+    color: "#8aab9a",
+    icon: (
+      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z" />
+      </svg>
+    ),
+  },
+  {
+    key: "priority",
+    label: "Priority",
+    color: "#b8a878",
+    icon: (
+      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    ),
+  },
+];
+
+function MoveDataIcons({ moveData }: { moveData: PokemonMoveData }) {
+  const categories = MOVE_ICON_CATEGORIES.filter(({ key }) => moveData[key].length > 0);
+  if (categories.length === 0) return null;
+
+  return (
+    <div className="absolute left-1.5 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-1">
+      {categories.map((category) => (
+        <MoveDataIcon
+          key={category.key}
+          label={category.label}
+          color={category.color}
+          moves={moveData[category.key]}
+          icon={category.icon}
+        />
+      ))}
+    </div>
+  );
+}
+
+function MoveDataIcon({
+  label,
+  color,
+  moves,
+  icon,
+}: {
+  label: string;
+  color: string;
+  moves: MoveDataEntry[];
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="group/moveicon relative">
+      <div
+        className="flex h-5 w-5 items-center justify-center rounded border"
+        style={{ color, backgroundColor: `${color}20`, borderColor: `${color}60` }}
+      >
+        {icon}
+      </div>
+      <div className="pointer-events-none absolute left-full top-0 z-50 ml-2 hidden group-hover/moveicon:block">
+        <div
+          className="min-w-[150px] whitespace-nowrap rounded border-2 bg-[#0f172a] px-2.5 py-2 text-left shadow-lg"
+          style={{ borderColor: `${color}60` }}
+        >
+          <p className="mb-1 font-pixel text-[9px] uppercase tracking-wide" style={{ color }}>
+            {label}
+          </p>
+          {moves.map((move) => (
+            <p key={move.id} className="text-[11px] text-slate-200">
+              {move.name}
+            </p>
+          ))}
         </div>
       </div>
     </div>
