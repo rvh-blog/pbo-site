@@ -21,6 +21,30 @@ import { isProjectMewReleased } from "@/lib/project-mew";
 import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
 import { MATCH_COMPLETION_COINS, STARTING_COACH_COINS } from "@/lib/coin-config";
 
+const COACH_YOUTUBE_URLS: Record<number, string> = {
+  254: "https://www.youtube.com/user/AlmightyArceus",
+};
+
+function CoachYouTubeLink({ coachId }: { coachId: number }) {
+  const youtubeUrl = COACH_YOUTUBE_URLS[coachId];
+  if (!youtubeUrl) return null;
+
+  return (
+    <a
+      href={youtubeUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="AlmightyArceus on YouTube"
+      title="AlmightyArceus on YouTube"
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#FF0000] transition-colors hover:bg-[#FF0000]/15 hover:text-red-400"
+    >
+      <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0C.488 3.45.029 5.804 0 12c.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0C23.512 20.55 23.971 18.196 24 12c-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 3.993L9 16z" />
+      </svg>
+    </a>
+  );
+}
+
 // Hazard move categories
 const HAZARD_REMOVAL_MOVES = [
   { id: "rapid-spin", name: "Rapid Spin" },
@@ -1418,6 +1442,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                     <p className="text-xs sm:text-sm text-[var(--foreground-muted)]">
                       {coach.name}
                     </p>
+                    <CoachYouTubeLink coachId={coachId} />
                     {topTypes.length > 0 && topTypes.map((type) => (
                       <span
                         key={type}
@@ -1433,6 +1458,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                   <h1 className="text-base sm:text-lg font-bold text-white">
                     {coach.name}
                   </h1>
+                  <CoachYouTubeLink coachId={coachId} />
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                     {topTypes.length > 0 && topTypes.map((type) => (
                       <span
@@ -1506,6 +1532,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                   <p className="text-base text-[var(--foreground-muted)]">
                     {coach.name}
                   </p>
+                  <CoachYouTubeLink coachId={coachId} />
                   {topTypes.length > 0 && (
                     <div className="flex gap-1">
                       {topTypes.map((type) => (
@@ -1525,6 +1552,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                 <h1 className="text-xl md:text-2xl font-bold text-white">
                   {coach.name}
                 </h1>
+                <CoachYouTubeLink coachId={coachId} />
                 {topTypes.length > 0 && (
                   <div className="flex gap-1 mt-1">
                     {topTypes.map((type) => (
