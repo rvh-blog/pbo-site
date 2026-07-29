@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { discordGuilds, discordChannels, divisions, seasons } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { compareDivisionNames } from "@/lib/division-order";
+import { ensureMilestoneChannelColumn } from "@/lib/milestones";
 
 // GET - Fetch Discord configuration
 export async function GET(request: NextRequest) {
+  await ensureMilestoneChannelColumn();
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
 
@@ -79,6 +81,7 @@ export async function GET(request: NextRequest) {
 // POST - Create or update Discord configuration
 export async function POST(request: NextRequest) {
   try {
+    await ensureMilestoneChannelColumn();
     const body = await request.json();
     const { action, ...data } = body;
 
@@ -148,12 +151,25 @@ export async function POST(request: NextRequest) {
       }
 
       case "addChannel": {
-        const { guildId, channelId, channelName, divisionId, isDraftEnabled, isMatchReportEnabled } = data;
+        const {
+          guildId, channelId, channelName, divisionId, isDraftEnabled,
+          isMatchReportEnabled, isScheduleEnabled, isMilestoneEnabled,
+        } = data;
         if (!guildId || !channelId || !divisionId) {
           return NextResponse.json(
             { error: "Missing required fields" },
             { status: 400 }
           );
+        }
+
+        if (isMilestoneEnabled === true) {
+          await db
+            .update(discordChannels)
+            .set({ isMilestoneEnabled: false })
+            .where(and(
+              eq(discordChannels.guildId, guildId),
+              eq(discordChannels.divisionId, divisionId),
+            ));
         }
 
         const [channel] = await db
@@ -165,6 +181,8 @@ export async function POST(request: NextRequest) {
             divisionId,
             isDraftEnabled: isDraftEnabled ?? false,
             isMatchReportEnabled: isMatchReportEnabled ?? true,
+            isScheduleEnabled: isScheduleEnabled ?? true,
+            isMilestoneEnabled: isMilestoneEnabled ?? false,
           })
           .returning();
 
@@ -172,7 +190,10 @@ export async function POST(request: NextRequest) {
       }
 
       case "updateChannel": {
-        const { id, channelId, channelName, divisionId, isDraftEnabled, isMatchReportEnabled } = data;
+        const {
+          id, channelId, channelName, divisionId, isDraftEnabled,
+          isMatchReportEnabled, isMilestoneEnabled,
+        } = data;
         if (!id) {
           return NextResponse.json(
             { error: "Missing channel id" },
@@ -181,6 +202,20 @@ export async function POST(request: NextRequest) {
         }
 
         const { isScheduleEnabled } = data;
+        const existing = await db.query.discordChannels.findFirst({
+          where: eq(discordChannels.id, id),
+        });
+        const willBeMilestoneEnabled =
+          isMilestoneEnabled ?? existing?.isMilestoneEnabled ?? false;
+        if (existing && willBeMilestoneEnabled) {
+          await db
+            .update(discordChannels)
+            .set({ isMilestoneEnabled: false })
+            .where(and(
+              eq(discordChannels.guildId, existing.guildId),
+              eq(discordChannels.divisionId, divisionId ?? existing.divisionId),
+            ));
+        }
         const [updated] = await db
           .update(discordChannels)
           .set({
@@ -190,6 +225,7 @@ export async function POST(request: NextRequest) {
             ...(isDraftEnabled !== undefined && { isDraftEnabled }),
             ...(isMatchReportEnabled !== undefined && { isMatchReportEnabled }),
             ...(isScheduleEnabled !== undefined && { isScheduleEnabled }),
+            ...(isMilestoneEnabled !== undefined && { isMilestoneEnabled }),
           })
           .where(eq(discordChannels.id, id))
           .returning();

@@ -3,6 +3,7 @@ import { createClient, loginClient } from "./client";
 import { validateConfig } from "./config";
 import { handleMessage } from "./handlers";
 import { commands } from "./commands";
+import { startMilestoneDelivery } from "./services/milestone-delivery";
 
 async function main() {
   console.log("[Bot] Starting PBO Discord Bot...");
@@ -60,6 +61,7 @@ async function main() {
   // Login
   try {
     await loginClient(client);
+    startMilestoneDelivery(client);
     console.log("[Bot] Bot is ready and listening for commands!");
   } catch (error) {
     console.error("[Bot] Failed to login:", error);

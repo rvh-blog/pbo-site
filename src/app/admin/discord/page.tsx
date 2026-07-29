@@ -21,6 +21,7 @@ interface Channel {
   isDraftEnabled: boolean;
   isMatchReportEnabled: boolean;
   isScheduleEnabled: boolean;
+  isMilestoneEnabled: boolean;
   division?: {
     id: number;
     name: string;
@@ -64,7 +65,7 @@ export default function AdminDiscordPage() {
   const [newChannelId, setNewChannelId] = useState("");
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDivision, setNewChannelDivision] = useState<number | null>(null);
-  const [newChannelPurpose, setNewChannelPurpose] = useState<"both" | "draft" | "match">("both");
+  const [newChannelPurpose, setNewChannelPurpose] = useState<"both" | "draft" | "match" | "milestone">("both");
 
   // Edit channel form
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -215,6 +216,8 @@ export default function AdminDiscordPage() {
           divisionId: newChannelDivision,
           isDraftEnabled: newChannelPurpose === "draft" || newChannelPurpose === "both",
           isMatchReportEnabled: newChannelPurpose === "match" || newChannelPurpose === "both",
+          isScheduleEnabled: newChannelPurpose !== "milestone",
+          isMilestoneEnabled: newChannelPurpose === "milestone",
         }),
       });
 
@@ -248,6 +251,26 @@ export default function AdminDiscordPage() {
       }
     } catch (error) {
       console.error("Error toggling match:", error);
+    }
+  }
+
+  async function toggleMilestone(channelId: number, currentValue: boolean) {
+    try {
+      const res = await fetch("/api/discord", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateChannel",
+          id: channelId,
+          isMilestoneEnabled: !currentValue,
+        }),
+      });
+
+      if (res.ok) {
+        refetchData();
+      }
+    } catch (error) {
+      console.error("Error toggling milestone announcements:", error);
     }
   }
 
@@ -556,12 +579,13 @@ export default function AdminDiscordPage() {
                         id="purpose"
                         value={newChannelPurpose}
                         onChange={(e) =>
-                          setNewChannelPurpose(e.target.value as "both" | "draft" | "match")
+                          setNewChannelPurpose(e.target.value as "both" | "draft" | "match" | "milestone")
                         }
                       >
                         <option value="both">Draft & Match</option>
                         <option value="draft">Draft Only</option>
                         <option value="match">Match Only</option>
+                        <option value="milestone">Milestones Only</option>
                       </Select>
                     </div>
                     <div className="flex gap-2">
@@ -646,7 +670,7 @@ export default function AdminDiscordPage() {
                         ) : (
                           /* View Mode */
                           <div className="flex items-center justify-between py-3">
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-wrap items-center justify-end gap-2">
                               <div>
                                 <div className="font-medium">
                                   {channel.channelName || `#${channel.channelId}`}
@@ -690,6 +714,17 @@ export default function AdminDiscordPage() {
                                 }`}
                               >
                                 Schedule {channel.isScheduleEnabled ? "Active" : "Inactive"}
+                              </button>
+                              {/* Milestone Toggle */}
+                              <button
+                                onClick={() => toggleMilestone(channel.id, channel.isMilestoneEnabled)}
+                                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                  channel.isMilestoneEnabled
+                                    ? "bg-amber-500 text-slate-950"
+                                    : "bg-gray-600 text-gray-300"
+                                }`}
+                              >
+                                Milestone {channel.isMilestoneEnabled ? "Active" : "Inactive"}
                               </button>
                               <Button
                                 variant="outline"

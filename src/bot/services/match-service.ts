@@ -17,6 +17,7 @@ import { resolveDeathBetsForMatch, refundDeathBetsForMatch } from "@/lib/death-b
 import { getTimeSyncedRoster, type TimeSyncTransaction } from "@/lib/roster-utils";
 import { checkAndAwardPickEmRewards, awardGotwBonus } from "@/lib/pick-em-rewards";
 import { syncDivision } from "@/lib/sheets-sync-all";
+import { queueMilestoneEvaluation } from "@/lib/milestones";
 import {
   getPokemonAliasMaps,
 } from "@/lib/pokemon-name-aliases";
@@ -651,6 +652,12 @@ export async function recordMatchResult(
       } catch (playoffError) {
         console.error("[Match Service] Error syncing playoff result:", playoffError);
       }
+    }
+
+    try {
+      await queueMilestoneEvaluation(matchId);
+    } catch (milestoneError) {
+      console.error("[Match Service] Error queueing milestones:", milestoneError);
     }
 
     return { success: true, needsFullRecalc: eloResult.needsFullRecalc };
