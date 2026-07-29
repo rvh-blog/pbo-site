@@ -1043,3 +1043,40 @@ export async function buildPokemonDataFromReplay(
 
   return pokemonData;
 }
+
+/**
+ * Validate every replay Pokemon against the time-synced roster it was mapped
+ * to. This is read-only and is intended for confirmation UIs before a result
+ * write occurs.
+ */
+export async function validateReplayRosterMatches(
+  coach1SeasonId: number,
+  coach2SeasonId: number,
+  replayData: ParsedReplay,
+  p1IsCoach1: boolean,
+  matchWeek?: number
+): Promise<{
+  coach1Unmatched: string[];
+  coach2Unmatched: string[];
+}> {
+  const [coach1Roster, coach2Roster, aliasMaps] = await Promise.all([
+    getCoachRoster(coach1SeasonId, matchWeek),
+    getCoachRoster(coach2SeasonId, matchWeek),
+    getPokemonAliasMaps(),
+  ]);
+  const coach1ReplayTeam = p1IsCoach1 ? replayData.p1Team : replayData.p2Team;
+  const coach2ReplayTeam = p1IsCoach1 ? replayData.p2Team : replayData.p1Team;
+
+  return {
+    coach1Unmatched: coach1ReplayTeam
+      .filter((pokemon) =>
+        !findMatchingRosterPokemon(coach1Roster, pokemon.name, aliasMaps)
+      )
+      .map((pokemon) => pokemon.name),
+    coach2Unmatched: coach2ReplayTeam
+      .filter((pokemon) =>
+        !findMatchingRosterPokemon(coach2Roster, pokemon.name, aliasMaps)
+      )
+      .map((pokemon) => pokemon.name),
+  };
+}

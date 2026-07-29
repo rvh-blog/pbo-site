@@ -178,6 +178,16 @@ npm run bot:build
 npm run bot:deploy-commands
 ```
 
+Current interaction safeguards and diagnostics:
+
+- `/match` validates replay players and Week rosters, shows a Pokémon review,
+  and requires confirmation before recording the result.
+- `/standings` can switch between configured guild divisions and browse
+  schedule weeks with Discord-local timestamps.
+- `/status` checks bot, website, and database health. `/status details:true`
+  adds command-registration and recent audit diagnostics for members with
+  **Manage Server** permission.
+
 In production, `scripts/start.sh` supervises the Discord bot separately from
 the Next.js server. Moderators can use **Admin → Discord → Restart Bot** to
 terminate the current bot process; the supervisor starts a fresh process and
@@ -185,7 +195,12 @@ the website remains online. The action is recorded in the Admin Audit Log.
 Local `npm run bot` processes are not supervised by the website and must still
 be restarted from their terminal.
 
-Global Discord command updates can take up to an hour. If `DISCORD_DEV_GUILD_ID` is set, commands deploy to that guild immediately.
+Global Discord command updates can take up to an hour. If
+`DISCORD_DEV_GUILD_ID` is set, commands deploy to that guild immediately and
+the deploy script clears the global command set so Discord does not show both a
+global and guild copy of every command. Without that variable, the script
+deploys globally and clears stale guild-scoped copies from every server the bot
+has joined.
 
 Wake command registration:
 

@@ -32,6 +32,14 @@ async function deployCommands() {
         { body: commands }
       );
       console.log(`[Deploy] Successfully deployed ${(data as object[]).length} commands to guild ${guildId}.`);
+
+      // Discord displays global and guild commands together. Clear the global
+      // copies so each command appears only once in the development guild.
+      await rest.put(
+        Routes.applicationCommands(config.clientId),
+        { body: [] }
+      );
+      console.log("[Deploy] Removed global command copies to prevent duplicates in the development guild.");
     } else {
       // Deploy globally (production)
       const data = await rest.put(
@@ -39,6 +47,22 @@ async function deployCommands() {
         { body: commands }
       );
       console.log(`[Deploy] Successfully deployed ${(data as object[]).length} commands globally.`);
+
+      // Remove stale guild-scoped copies. Discord displays guild and global
+      // commands together, so keeping both scopes populated creates duplicates.
+      const guilds = await rest.get(Routes.userGuilds()) as Array<{
+        id: string;
+        name?: string;
+      }>;
+      for (const guild of guilds) {
+        await rest.put(
+          Routes.applicationGuildCommands(config.clientId, guild.id),
+          { body: [] }
+        );
+        console.log(
+          `[Deploy] Removed guild command copies from ${guild.name || guild.id}.`
+        );
+      }
     }
   } catch (error) {
     console.error("[Deploy] Error deploying commands:", error);

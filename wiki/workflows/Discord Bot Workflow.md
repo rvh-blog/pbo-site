@@ -12,6 +12,7 @@ The Discord bot lives in `src/bot` and is built into production by the Dockerfil
 - Read service: `src/bot/services/read-service.ts`
 - Discord audit: `src/bot/services/discord-audit.ts`
 - Discord timezone preferences: `src/bot/services/discord-user-preferences.ts`
+- Status diagnostics: `src/bot/services/status-service.ts`
 - Build script: `scripts/build-bot.js`
 
 ## Local Commands
@@ -41,18 +42,35 @@ is written to the Admin Audit Log.
 
 ## Slash Commands
 
-With `DISCORD_DEV_GUILD_ID`, commands deploy to that guild immediately.
+With `DISCORD_DEV_GUILD_ID`, commands deploy to that guild immediately and
+clear global copies.
 
-Without it, commands deploy globally and can take up to an hour.
+Without it, commands deploy globally, can take up to an hour, and clear stale
+guild-scoped copies so Discord does not show duplicate commands.
 
 Registered commands:
 
 - Writes: `/draft`, `/match`, `/schedule`
-- Reads: `/team`, `/player`, `/items`, `/matchup`, `/standings`, `/help`
+- Reads: `/team`, `/player`, `/items`, `/matchup`, `/standings`, `/status`,
+  `/help`
 
-`/schedule` stores a named timezone by Discord user ID and converts local match
-times with IANA daylight-saving rules. Existing schedules require a
-current/proposed confirmation before replacement.
+`/schedule` offers every IANA timezone supported by the bot runtime through
+region and paginated selectors. It stores the timezone by Discord user ID and
+converts local match times with the correct daylight-saving rule for the match
+date. Existing schedules require a current/proposed confirmation before
+replacement.
+
+`/match` validates replay users and every replay Pokemon against the selected
+fixture's time-synced Week roster. It shows warnings and a Pokemon review, then
+requires confirmation before any result write. Public result posts retain
+spoiler-wrapped winners, differentials, and K/D details.
+
+`/standings` can switch between divisions configured for the guild and browse
+schedule weeks with Discord-local timestamps.
+
+`/status` reports bot, website, database, latency, uptime, and command health.
+`/status details:true` requires **Manage Server** and adds registration,
+duplicate-command, memory, and recent audit diagnostics.
 
 Write attempts from `/draft`, `/match`, and `/schedule` append a permanent
 Discord audit record. Audit logging is best-effort so audit failure cannot turn
