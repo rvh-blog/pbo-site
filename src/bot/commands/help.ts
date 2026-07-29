@@ -24,10 +24,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const writeCommands = config ? [
     `\`/draft\` — ${config.isDraftEnabled ? "available" : "disabled in this channel"}`,
     `\`/match\` — ${config.isMatchReportEnabled ? "available" : "disabled in this channel"}`,
-    "`/schedule` — choose any Schedule Active division",
+    `\`/schedule\` — ${config.isScheduleEnabled ? `available for ${config.division.name}` : "disabled in this channel"}`,
   ] : [
-    "`/draft` and `/match` require a configured division channel.",
-    "`/schedule` works here after selecting a Schedule Active division.",
+    "`/draft`, `/match`, and `/schedule` require a configured division channel.",
   ];
 
   await interaction.editReply({

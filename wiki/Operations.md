@@ -187,10 +187,10 @@ Current interaction safeguards and diagnostics:
   select **All Coaches** for division-wide results or one coach for a narrower
   result. `/team` uses the coach selection to open that season's team.
 - `/standings` can also browse schedule weeks with Discord-local timestamps.
-- `/schedule` can start in any server channel and lets the user select a
-  current division, but the selected division must have **Schedule Active** on
-  at least one configured channel. `/draft` and `/match` remain restricted to
-  their configured, enabled channels.
+- `/schedule` is locked to the invoking channel's mapped division and requires
+  **Schedule Active** on that channel. It does not offer a division selector.
+  `/draft` and `/match` are likewise restricted to their configured, enabled
+  channels.
 - `/help` and `/status` work in any server channel without a division mapping.
 - `/status` checks bot, website, and database health. `/status details:true`
   adds command-registration and recent audit diagnostics for members with
