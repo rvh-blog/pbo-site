@@ -9,6 +9,10 @@ import {
 import { getDivisionTeams, getTeamProfile } from "../services/read-service";
 import { selectPublicDivision } from "../utils/division-selection";
 import { createErrorEmbed } from "../utils/embeds";
+import {
+  handleResultVisibility,
+  resultVisibilityRow,
+} from "../utils/result-visibility";
 
 export const data = new SlashCommandBuilder()
   .setName("team")
@@ -76,33 +80,40 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           : "\nTime not scheduled")
       : "No remaining fixture.";
 
-    await interaction.editReply({
-      embeds: [new EmbedBuilder()
-        .setTitle(profile.teamName)
-        .setDescription(`Coach: **${profile.coachName}**`)
-        .addFields(
-          {
-            name: "Record",
-            value: `${profile.wins}-${profile.losses} (${profile.differential >= 0 ? "+" : ""}${profile.differential})`,
-            inline: true,
-          },
-          {
-            name: "Budget",
-            value: `${profile.remainingBudget} pts`,
-            inline: true,
-          },
-          {
-            name: `Roster (${profile.roster.length})`,
-            value: roster,
-          },
-          {
-            name: "Next Match",
-            value: nextMatch,
-          }
-        )
-        .setColor(0x6366f1)],
-      components: [],
+    const embed = new EmbedBuilder()
+      .setTitle(profile.teamName)
+      .setDescription(`Coach: **${profile.coachName}**`)
+      .addFields(
+        {
+          name: "Record",
+          value: `${profile.wins}-${profile.losses} (${profile.differential >= 0 ? "+" : ""}${profile.differential})`,
+          inline: true,
+        },
+        {
+          name: "Budget",
+          value: `${profile.remainingBudget} pts`,
+          inline: true,
+        },
+        {
+          name: `Roster (${profile.roster.length})`,
+          value: roster,
+        },
+        {
+          name: "Next Match",
+          value: nextMatch,
+        }
+      )
+      .setColor(0x6366f1);
+    const finalResponse = await interaction.editReply({
+      embeds: [embed],
+      components: [resultVisibilityRow("team_visibility")],
     });
+    await handleResultVisibility(
+      interaction,
+      finalResponse,
+      "team_visibility",
+      { embeds: [embed] }
+    );
   } catch {
     await interaction.editReply({
       embeds: [createErrorEmbed("Selection timed out. Run /team to try again.")],

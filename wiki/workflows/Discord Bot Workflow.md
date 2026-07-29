@@ -73,6 +73,15 @@ to narrow the result. `/standings` can also browse schedule weeks with
 Discord-local timestamps. `/help` and `/status` work without a channel
 mapping.
 
+Season and division selectors include a green **Confirm Selection** button so
+users can accept an already-highlighted default, plus a red **Back** button to
+return to the previous selector or cancel the first step.
+
+Finished `/standings`, `/items`, `/team`, `/player`, and `/matchup` results
+offer red **Keep Private** and green **Share Publicly** buttons. Their selector
+steps remain private so other users cannot interfere. Completed `/schedule`
+confirmations are always posted publicly and do not offer a privacy choice.
+
 `/schedule` can start in any server channel and prompts for a current division,
 but only proceeds when that division has **Schedule Active** on at least one
 configured channel. `/draft` and `/match` remain restricted to their

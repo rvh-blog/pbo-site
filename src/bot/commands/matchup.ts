@@ -10,6 +10,10 @@ import { getTeamProfile, getUpcomingDivisionMatches } from "../services/read-ser
 import { selectCoachScope } from "../utils/coach-selection";
 import { selectPublicDivision } from "../utils/division-selection";
 import { createErrorEmbed } from "../utils/embeds";
+import {
+  handleResultVisibility,
+  resultVisibilityRow,
+} from "../utils/result-visibility";
 
 export const data = new SlashCommandBuilder()
   .setName("matchup")
@@ -102,35 +106,42 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const scheduled = fixture.scheduledAt
       ? `<t:${Math.floor(new Date(fixture.scheduledAt).getTime() / 1000)}:F>`
       : "Time not scheduled";
-    await interaction.editReply({
-      embeds: [new EmbedBuilder()
-        .setTitle(`${team1.teamName} vs ${team2.teamName}`)
-        .setDescription(`Week ${fixture.week}\n${scheduled}`)
-        .addFields(
-          {
-            name: team1.teamName,
-            value: `Coach: **${team1.coachName}**\nRecord: **${team1.wins}-${team1.losses}**\nBudget: **${team1.remainingBudget}**`,
-            inline: true,
-          },
-          {
-            name: team2.teamName,
-            value: `Coach: **${team2.coachName}**\nRecord: **${team2.wins}-${team2.losses}**\nBudget: **${team2.remainingBudget}**`,
-            inline: true,
-          },
-          {
-            name: `${team1.teamName} Roster`,
-            value: rosterText(team1),
-            inline: true,
-          },
-          {
-            name: `${team2.teamName} Roster`,
-            value: rosterText(team2),
-            inline: true,
-          }
-        )
-        .setColor(0x6366f1)],
-      components: [],
+    const embed = new EmbedBuilder()
+      .setTitle(`${team1.teamName} vs ${team2.teamName}`)
+      .setDescription(`Week ${fixture.week}\n${scheduled}`)
+      .addFields(
+        {
+          name: team1.teamName,
+          value: `Coach: **${team1.coachName}**\nRecord: **${team1.wins}-${team1.losses}**\nBudget: **${team1.remainingBudget}**`,
+          inline: true,
+        },
+        {
+          name: team2.teamName,
+          value: `Coach: **${team2.coachName}**\nRecord: **${team2.wins}-${team2.losses}**\nBudget: **${team2.remainingBudget}**`,
+          inline: true,
+        },
+        {
+          name: `${team1.teamName} Roster`,
+          value: rosterText(team1),
+          inline: true,
+        },
+        {
+          name: `${team2.teamName} Roster`,
+          value: rosterText(team2),
+          inline: true,
+        }
+      )
+      .setColor(0x6366f1);
+    const finalResponse = await interaction.editReply({
+      embeds: [embed],
+      components: [resultVisibilityRow("matchup_visibility")],
     });
+    await handleResultVisibility(
+      interaction,
+      finalResponse,
+      "matchup_visibility",
+      { embeds: [embed] }
+    );
   } catch {
     await interaction.editReply({
       embeds: [createErrorEmbed("Selection timed out. Run /matchup to try again.")],

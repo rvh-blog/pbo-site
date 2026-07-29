@@ -1,7 +1,8 @@
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ChatInputCommandInteraction,
-  ComponentType,
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
@@ -26,6 +27,8 @@ interface SeasonOption {
   isCurrent: boolean;
 }
 
+const BACK_SELECTION = "__back__";
+
 async function awaitSelection(
   interaction: ChatInputCommandInteraction,
   customId: string,
@@ -36,32 +39,53 @@ async function awaitSelection(
     description?: string;
     value: string;
     default?: boolean;
-  }>
+  }>,
+  defaultValue?: string
 ): Promise<string | null> {
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(customId)
       .setPlaceholder(description)
       .addOptions(options.slice(0, 25))
   );
+  const confirmId = `${customId}_confirm`;
+  const backId = `${customId}_back`;
+  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(confirmId)
+      .setLabel("Confirm Selection")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(defaultValue === undefined),
+    new ButtonBuilder()
+      .setCustomId(backId)
+      .setLabel("Back")
+      .setStyle(ButtonStyle.Danger)
+  );
   const response = await interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle(title)
-      .setDescription(description)
+      .setDescription(
+        `${description}\n\nUse **Confirm Selection** to accept the highlighted option.`
+      )
       .setColor(0x6366f1)],
-    components: [row],
+    components: [selectRow, buttonRow],
   });
 
   try {
     const selected = await response.awaitMessageComponent({
-      componentType: ComponentType.StringSelect,
       filter: (component) =>
         component.user.id === interaction.user.id &&
-        component.customId === customId,
+        (
+          component.customId === customId ||
+          component.customId === confirmId ||
+          component.customId === backId
+        ),
       time: 120_000,
     });
     await selected.deferUpdate();
-    return selected.values[0];
+    if (selected.customId === backId) return BACK_SELECTION;
+    if (selected.customId === confirmId) return defaultValue ?? null;
+    return selected.isStringSelectMenu() ? selected.values[0] : null;
   } catch {
     await interaction.editReply({
       embeds: [createErrorEmbed("Selection timed out. Run the command again.")],
@@ -87,6 +111,7 @@ async function selectDivisionFromList(
 
   const channelConfig = await getChannelConfig(interaction.channelId);
   let availableDivisions = divisions;
+  let canReturnToSeason = false;
   if (includeSeasonStep) {
     const seasonMap = new Map<number, SeasonOption>();
     for (const division of divisions) {
@@ -104,6 +129,7 @@ async function selectDivisionFromList(
     if (seasonOptions.length === 1) {
       selectedSeasonId = seasonOptions[0].id;
     } else {
+      canReturnToSeason = true;
       const mappedSeasonId = divisions.find(
         (division) => division.id === channelConfig?.divisionId
       )?.seasonId;
@@ -120,9 +146,18 @@ async function selectDivisionFromList(
           description: `${season.name}${season.isCurrent ? " • Current" : ""}`.slice(0, 100),
           value: String(season.id),
           default: season.id === defaultSeasonId,
-        }))
+        })),
+        defaultSeasonId === undefined ? undefined : String(defaultSeasonId)
       );
       if (!selectedSeason) return null;
+      if (selectedSeason === BACK_SELECTION) {
+        await interaction.editReply({
+          content: "Selection cancelled.",
+          embeds: [],
+          components: [],
+        });
+        return null;
+      }
       selectedSeasonId = Number(selectedSeason);
     }
     availableDivisions = divisions.filter(
@@ -147,9 +182,26 @@ async function selectDivisionFromList(
       description: `Season ${division.seasonNumber} • ${division.seasonName}`.slice(0, 100),
       value: String(division.id),
       default: division.id === defaultDivisionId,
-    }))
+    })),
+    defaultDivisionId === undefined ? undefined : String(defaultDivisionId)
   );
   if (!selectedDivision) return null;
+  if (selectedDivision === BACK_SELECTION) {
+    if (canReturnToSeason) {
+      return selectDivisionFromList(
+        interaction,
+        divisions,
+        options,
+        includeSeasonStep
+      );
+    }
+    await interaction.editReply({
+      content: "Selection cancelled.",
+      embeds: [],
+      components: [],
+    });
+    return null;
+  }
   return availableDivisions.find(
     (division) => division.id === Number(selectedDivision)
   ) ?? null;
