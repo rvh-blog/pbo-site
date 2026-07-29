@@ -346,6 +346,18 @@ by Discord user ID. The stored value is a supported IANA timezone such as
 
 `division_sheet_sync` config is unique per division.
 
+Discord milestone announcements use:
+
+- `milestone_evaluation_queue`: asynchronous, retryable match evaluation that
+  keeps milestone queries outside the match-result write cascade.
+- `milestone_events`: one idempotent achievement detected from a completed
+  match result.
+- `milestone_deliveries`: per-guild delivery state, retry count, and error
+  details for each milestone event.
+
+Milestone coach identity uses persistent `coaches.id`; the triggering team uses
+`season_coaches.id`. Pokemon milestones use `pokemon.id`.
+
 Wiglett audit/idempotency lives in `wiglett_events`.
 
 Pokemon name aliases live in `pokemon_name_aliases`.

@@ -17,6 +17,7 @@ import { refreshFantasyWeeklyStatsForWeek } from "@/lib/fantasy-stats";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { logAdminAudit } from "@/lib/admin-audit";
+import { queueMilestoneEvaluation } from "@/lib/milestones";
 
 async function refreshFantasyStatsForResult(seasonId: number, week: number) {
   await refreshFantasyWeeklyStatsForWeek(seasonId, week);
@@ -371,6 +372,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (winnerId) {
+    try {
+      await queueMilestoneEvaluation(match.id);
+    } catch (milestoneError) {
+      console.error("[Matches API] Error queueing milestones:", milestoneError);
+    }
+  }
+
   await logAdminAudit({
     session,
     action: winnerId ? "match_result_create" : "match_schedule_create",
@@ -624,6 +633,14 @@ export async function PUT(request: NextRequest) {
       await reResolveFantasyWeeklyRewardsForWeek(previousMatch.seasonId, previousMatch.week);
     } catch (fantasyStatsError) {
       console.error("[Matches API] Error refreshing fantasy after result removal:", fantasyStatsError);
+    }
+  }
+
+  if (updated.winnerId && !hadPreviousWinner) {
+    try {
+      await queueMilestoneEvaluation(id);
+    } catch (milestoneError) {
+      console.error("[Matches API] Error queueing milestones:", milestoneError);
     }
   }
 

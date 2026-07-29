@@ -100,6 +100,22 @@ Write attempts from `/draft`, `/match`, and `/schedule` append a permanent
 Discord audit record. Audit logging is best-effort so audit failure cannot turn
 a successful league write into a reported failure.
 
+## Milestone Announcements
+
+Completed match results are queued in `milestone_evaluation_queue` for coach,
+Pokemon, and regular-season milestone evaluation. Events are written
+idempotently to `milestone_events`; the bot polls the queue and posts each event
+once per Discord server to a configured **Match Report Active** channel.
+Evaluation and delivery attempts retry up to three times, with delivery state
+stored in `milestone_deliveries`.
+
+Milestone evaluation runs after the normal match-result cascade and cannot make
+an otherwise successful result fail. Existing historical results establish the
+starting totals but are not announced or backfilled. Each new result announces
+only a milestone newly reached by that result; lower milestones already present
+in the starting total stay silent. Regular-season awards are evaluated only
+after every regular-season fixture in the season is complete.
+
 ## Wake Worker
 
 Cloudflare worker:

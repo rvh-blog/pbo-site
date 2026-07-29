@@ -1002,6 +1002,49 @@ export const discordAuditLogs = sqliteTable("discord_audit_logs", {
   index("idx_discord_audit_logs_command").on(table.command, table.status),
 ]);
 
+export const milestoneEvents = sqliteTable("milestone_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  eventKey: text("event_key").notNull().unique(),
+  category: text("category").notNull(),
+  milestoneType: text("milestone_type").notNull(),
+  seasonId: integer("season_id").notNull().references(() => seasons.id),
+  divisionId: integer("division_id").notNull().references(() => divisions.id),
+  matchId: integer("match_id").notNull().references(() => matches.id),
+  coachId: integer("coach_id").references(() => coaches.id),
+  seasonCoachId: integer("season_coach_id").references(() => seasonCoaches.id),
+  pokemonId: integer("pokemon_id").references(() => pokemon.id),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_milestone_events_match").on(table.matchId),
+]);
+
+export const milestoneDeliveries = sqliteTable("milestone_deliveries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  eventId: integer("event_id").notNull().references(() => milestoneEvents.id),
+  guildId: text("guild_id").notNull(),
+  channelId: text("channel_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  sentAt: text("sent_at"),
+}, (table) => [
+  uniqueIndex("idx_milestone_deliveries_event_guild").on(table.eventId, table.guildId),
+  index("idx_milestone_deliveries_status").on(table.status, table.attempts),
+]);
+
+export const milestoneEvaluationQueue = sqliteTable("milestone_evaluation_queue", {
+  matchId: integer("match_id").primaryKey().references(() => matches.id),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  queuedAt: text("queued_at").notNull(),
+  processedAt: text("processed_at"),
+}, (table) => [
+  index("idx_milestone_queue_status").on(table.status, table.attempts),
+]);
+
 export const discordGuildsRelations = relations(discordGuilds, ({ many }) => ({
   channels: many(discordChannels),
 }));
