@@ -15,7 +15,7 @@ import {
   type ButtonInteraction,
 } from "discord.js";
 import { randomUUID } from "node:crypto";
-import { getGuildChannels } from "../services/discord-config";
+import { getChannelConfig } from "../services/discord-config";
 import { logDiscordAudit } from "../services/discord-audit";
 import {
   DISCORD_TIMEZONES,
@@ -30,7 +30,6 @@ import {
   updateMatchSchedule,
 } from "../services/match-service";
 import { createErrorEmbed } from "../utils/embeds";
-import { selectCurrentDivision } from "../utils/division-selection";
 import {
   addCalendarDays,
   formatCalendarDate,
@@ -135,34 +134,25 @@ export async function execute(
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const division = await selectCurrentDivision(interaction, {
-      customId: "schedule_division_select",
-      title: "Schedule Match",
-      description: "Select the division containing the match you want to schedule.",
-    });
-    if (!division) return;
-
-    const guildChannels = interaction.guildId
-      ? await getGuildChannels(interaction.guildId)
-      : [];
-    const isScheduleEnabled = guildChannels.some(
-      (channel) =>
-        channel.divisionId === division.id &&
-        (channel.isScheduleEnabled ?? true)
-    );
-    if (!isScheduleEnabled) {
+    const config = await getChannelConfig(interaction.channelId);
+    if (!config) {
       await interaction.editReply({
         embeds: [createErrorEmbed(
-          `Match scheduling is not enabled for ${division.name}. An admin can enable it in Discord configuration.`
+          "This channel is not mapped to a division. Ask an admin to configure it under Admin → Discord → Channel Mappings."
         )],
         components: [],
       });
       return;
     }
-    const config = {
-      divisionId: division.id,
-      division,
-    };
+    if (!config.isScheduleEnabled) {
+      await interaction.editReply({
+        embeds: [createErrorEmbed(
+          `Match scheduling is not enabled for ${config.division.name} in this channel.`
+        )],
+        components: [],
+      });
+      return;
+    }
 
     const weeks = await getWeeksInDivision(config.divisionId);
     if (weeks.length === 0) {
@@ -278,6 +268,12 @@ export async function execute(
           default: region.value === defaultRegion,
         })))
     );
+    const regionConfirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId("schedule_timezone_region_confirm")
+        .setLabel("Confirm Region")
+        .setStyle(ButtonStyle.Success)
+    );
     await interaction.editReply({
       embeds: [new EmbedBuilder()
         .setTitle(`Schedule Match - ${config.division.name}`)
@@ -287,16 +283,18 @@ export async function execute(
           "All IANA timezones are available. The final time will use the correct offset for the match date."
         )
         .setColor(0x6366f1)],
-      components: [regionRow],
+      components: [regionRow, regionConfirmRow],
     });
 
-    let regionInteraction: StringSelectMenuInteraction;
+    let regionInteraction;
     try {
       regionInteraction = await response.awaitMessageComponent({
-        componentType: ComponentType.StringSelect,
         filter: (component) =>
           component.user.id === interaction.user.id &&
-          component.customId === "schedule_timezone_region_select",
+          (
+            component.customId === "schedule_timezone_region_select" ||
+            component.customId === "schedule_timezone_region_confirm"
+          ),
         time: 120_000,
       });
     } catch {
@@ -308,7 +306,9 @@ export async function execute(
     }
     await regionInteraction.deferUpdate();
 
-    const selectedRegion = regionInteraction.values[0];
+    const selectedRegion = regionInteraction.isStringSelectMenu()
+      ? regionInteraction.values[0]
+      : defaultRegion;
     const regionTimezones = timezonesForRegion(selectedRegion);
     if (regionTimezones.length === 0) {
       await interaction.editReply({
@@ -347,6 +347,11 @@ export async function execute(
       );
       const pageRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
+          .setCustomId("schedule_timezone_confirm")
+          .setLabel("Confirm Timezone")
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(!pageTimezones.some((timezone) => timezone.value === defaultTimezone)),
+        new ButtonBuilder()
           .setCustomId("schedule_timezone_previous")
           .setLabel("Previous")
           .setStyle(ButtonStyle.Secondary)
@@ -367,7 +372,7 @@ export async function execute(
             "The displayed offset is current. The match date will use the correct DST offset."
           )
           .setColor(0x6366f1)],
-        components: timezonePageCount > 1 ? [timezoneRow, pageRow] : [timezoneRow],
+        components: [timezoneRow, pageRow],
       });
 
       let timezoneComponent;
@@ -387,6 +392,11 @@ export async function execute(
       }
 
       if (timezoneComponent.isButton()) {
+        if (timezoneComponent.customId === "schedule_timezone_confirm") {
+          selectedTimezone = defaultTimezone;
+          await timezoneComponent.deferUpdate();
+          continue;
+        }
         timezonePage += timezoneComponent.customId === "schedule_timezone_next" ? 1 : -1;
         timezonePage = Math.max(0, Math.min(timezonePage, timezonePageCount - 1));
         await timezoneComponent.deferUpdate();

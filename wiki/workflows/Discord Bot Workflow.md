@@ -58,7 +58,9 @@ Registered commands:
 region and paginated selectors. It stores the timezone by Discord user ID and
 converts local match times with the correct daylight-saving rule for the match
 date. Existing schedules require a current/proposed confirmation before
-replacement.
+replacement. Preselected timezone regions and timezones include green
+confirmation buttons so the saved defaults can be accepted without changing
+the dropdown.
 
 `/match` validates replay users and every replay Pokemon against the selected
 fixture's time-synced Week roster. It shows warnings and a Pokemon review, then
@@ -82,9 +84,9 @@ offer red **Keep Private** and green **Share Publicly** buttons. Their selector
 steps remain private so other users cannot interfere. Completed `/schedule`
 confirmations are always posted publicly and do not offer a privacy choice.
 
-`/schedule` can start in any server channel and prompts for a current division,
-but only proceeds when that division has **Schedule Active** on at least one
-configured channel. `/draft` and `/match` remain restricted to their
+`/schedule` is locked to the invoking channel's mapped division and only
+proceeds when **Schedule Active** is enabled on that channel. It does not offer
+a division selector. `/draft` and `/match` remain restricted to their
 specifically mapped, enabled channels.
 
 `/status` reports bot, website, database, latency, uptime, and command health.
