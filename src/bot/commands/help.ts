@@ -18,6 +18,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     "`/items` — division-wide revealed-item usage",
     "`/matchup` — compare an upcoming fixture",
     "`/standings` — current division standings",
+    "`/status` — bot, website, and database health",
     "`/help` — this command list",
   ];
   const writeCommands = config ? [

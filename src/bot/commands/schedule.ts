@@ -55,6 +55,65 @@ function timezoneDisplay(timezone: SupportedTimezone, date: Date): string {
   return `${timezoneName(timezone)} (${getTimeZoneOffsetLabel(date, timezone)})`;
 }
 
+const COMMON_TIMEZONES = [
+  "America/Los_Angeles",
+  "America/Denver",
+  "America/Chicago",
+  "America/New_York",
+  "America/Phoenix",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "America/Toronto",
+  "America/Vancouver",
+  "America/Mexico_City",
+  "America/Sao_Paulo",
+  "UTC",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Moscow",
+  "Africa/Johannesburg",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Australia/Perth",
+  "Australia/Adelaide",
+  "Australia/Sydney",
+] as const;
+
+const TIMEZONE_REGIONS = [
+  { value: "common", label: "Common Timezones", description: "Frequently used zones worldwide" },
+  { value: "Africa", label: "Africa", description: "African timezones" },
+  { value: "America", label: "Americas", description: "North, Central, and South America" },
+  { value: "Antarctica", label: "Antarctica", description: "Antarctic research stations" },
+  { value: "Arctic", label: "Arctic", description: "Arctic timezones" },
+  { value: "Asia", label: "Asia", description: "Asian timezones" },
+  { value: "Atlantic", label: "Atlantic", description: "Atlantic islands" },
+  { value: "Australia", label: "Australia", description: "Australian timezones" },
+  { value: "Europe", label: "Europe", description: "European timezones" },
+  { value: "Indian", label: "Indian Ocean", description: "Indian Ocean islands" },
+  { value: "Pacific", label: "Pacific", description: "Pacific islands and New Zealand" },
+] as const;
+
+function timezoneRegion(timezone: SupportedTimezone): string {
+  return timezone === "UTC" ? "common" : timezone.split("/")[0];
+}
+
+function timezonesForRegion(region: string): typeof DISCORD_TIMEZONES {
+  if (region === "common") {
+    const commonOrder = new Map(COMMON_TIMEZONES.map((timezone, index) => [timezone, index]));
+    return DISCORD_TIMEZONES
+      .filter((timezone) => commonOrder.has(timezone.value as (typeof COMMON_TIMEZONES)[number]))
+      .sort((a, b) =>
+        (commonOrder.get(a.value as (typeof COMMON_TIMEZONES)[number]) ?? 0) -
+        (commonOrder.get(b.value as (typeof COMMON_TIMEZONES)[number]) ?? 0)
+      );
+  }
+  return DISCORD_TIMEZONES.filter((timezone) => timezone.value.startsWith(`${region}/`));
+}
+
 function parseDate(value: string): Pick<CalendarDateTime, "year" | "month" | "day"> | null {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
@@ -191,34 +250,37 @@ export async function execute(
     const savedTimezone = await getDiscordTimezone(interaction.user.id);
     const defaultTimezone: SupportedTimezone = savedTimezone ?? "America/New_York";
     const now = new Date();
-    const timezoneRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    const defaultRegion = timezoneRegion(defaultTimezone);
+    const regionRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId("schedule_timezone_select")
-        .setPlaceholder("Select your timezone")
-        .addOptions(DISCORD_TIMEZONES.map((timezone) => ({
-          label: timezoneDisplay(timezone.value, now),
-          description: `${timezone.value} • offset updates automatically for daylight saving`,
-          value: timezone.value,
-          default: timezone.value === defaultTimezone,
+        .setCustomId("schedule_timezone_region_select")
+        .setPlaceholder("Select a timezone region")
+        .addOptions(TIMEZONE_REGIONS.map((region) => ({
+          label: region.label,
+          description: region.description,
+          value: region.value,
+          default: region.value === defaultRegion,
         })))
     );
     await interaction.editReply({
       embeds: [new EmbedBuilder()
         .setTitle(`Schedule Match - ${config.division.name}`)
         .setDescription(
-          `**Step 3/4:** Select your timezone\n\n` +
+          `**Step 3/4:** Select your timezone region\n\n` +
           `**${selectedFixture.team1Name}** vs **${selectedFixture.team2Name}**\n\n` +
-          "The displayed offset is current. The final time will use the correct offset for the match date."
+          "All IANA timezones are available. The final time will use the correct offset for the match date."
         )
         .setColor(0x6366f1)],
-      components: [timezoneRow],
+      components: [regionRow],
     });
 
-    let timezoneInteraction: StringSelectMenuInteraction;
+    let regionInteraction: StringSelectMenuInteraction;
     try {
-      timezoneInteraction = await response.awaitMessageComponent({
+      regionInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.StringSelect,
-        filter: (component) => component.user.id === interaction.user.id,
+        filter: (component) =>
+          component.user.id === interaction.user.id &&
+          component.customId === "schedule_timezone_region_select",
         time: 120_000,
       });
     } catch {
@@ -228,17 +290,106 @@ export async function execute(
       });
       return;
     }
+    await regionInteraction.deferUpdate();
 
-    const timezoneValue = timezoneInteraction.values[0];
-    if (!isSupportedTimezone(timezoneValue)) {
-      await timezoneInteraction.update({
-        embeds: [createErrorEmbed("That timezone is not supported.")],
+    const selectedRegion = regionInteraction.values[0];
+    const regionTimezones = timezonesForRegion(selectedRegion);
+    if (regionTimezones.length === 0) {
+      await interaction.editReply({
+        embeds: [createErrorEmbed("No supported timezones were found for that region.")],
         components: [],
       });
       return;
     }
-    const selectedTimezone = timezoneValue;
-    await timezoneInteraction.deferUpdate();
+
+    const timezonePageSize = 25;
+    const timezonePageCount = Math.ceil(regionTimezones.length / timezonePageSize);
+    let timezonePage = Math.max(
+      0,
+      Math.floor(
+        Math.max(0, regionTimezones.findIndex((timezone) => timezone.value === defaultTimezone)) /
+        timezonePageSize
+      )
+    );
+    let selectedTimezone: SupportedTimezone | null = null;
+
+    while (!selectedTimezone) {
+      const pageTimezones = regionTimezones.slice(
+        timezonePage * timezonePageSize,
+        (timezonePage + 1) * timezonePageSize
+      );
+      const timezoneRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId("schedule_timezone_select")
+          .setPlaceholder("Select your timezone")
+          .addOptions(pageTimezones.map((timezone) => ({
+            label: timezoneDisplay(timezone.value, now).slice(0, 100),
+            description: `${timezone.value} • DST-aware`.slice(0, 100),
+            value: timezone.value,
+            default: timezone.value === defaultTimezone,
+          })))
+      );
+      const pageRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId("schedule_timezone_previous")
+          .setLabel("Previous")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(timezonePage === 0),
+        new ButtonBuilder()
+          .setCustomId("schedule_timezone_next")
+          .setLabel("Next")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(timezonePage === timezonePageCount - 1)
+      );
+      await interaction.editReply({
+        embeds: [new EmbedBuilder()
+          .setTitle(`Schedule Match - ${config.division.name}`)
+          .setDescription(
+            `**Step 3/4:** Select your timezone\n\n` +
+            `Region: **${TIMEZONE_REGIONS.find((region) => region.value === selectedRegion)?.label ?? selectedRegion}**\n` +
+            `Page ${timezonePage + 1} of ${timezonePageCount}\n\n` +
+            "The displayed offset is current. The match date will use the correct DST offset."
+          )
+          .setColor(0x6366f1)],
+        components: timezonePageCount > 1 ? [timezoneRow, pageRow] : [timezoneRow],
+      });
+
+      let timezoneComponent;
+      try {
+        timezoneComponent = await response.awaitMessageComponent({
+          filter: (component) =>
+            component.user.id === interaction.user.id &&
+            component.customId.startsWith("schedule_timezone_"),
+          time: 120_000,
+        });
+      } catch {
+        await interaction.editReply({
+          embeds: [createErrorEmbed("Selection timed out. Please try again.")],
+          components: [],
+        });
+        return;
+      }
+
+      if (timezoneComponent.isButton()) {
+        timezonePage += timezoneComponent.customId === "schedule_timezone_next" ? 1 : -1;
+        timezonePage = Math.max(0, Math.min(timezonePage, timezonePageCount - 1));
+        await timezoneComponent.deferUpdate();
+        continue;
+      }
+      if (!timezoneComponent.isStringSelectMenu()) continue;
+
+      const timezoneValue = timezoneComponent.values[0];
+      if (!isSupportedTimezone(timezoneValue)) {
+        await timezoneComponent.update({
+          embeds: [createErrorEmbed("That timezone is not supported.")],
+          components: [],
+        });
+        return;
+      }
+      selectedTimezone = timezoneValue;
+      await timezoneComponent.deferUpdate();
+    }
+
     await setDiscordTimezone(interaction.user.id, selectedTimezone);
 
     const today = getZonedDateTime(now, selectedTimezone);

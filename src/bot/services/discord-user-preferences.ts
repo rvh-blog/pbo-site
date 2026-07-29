@@ -2,15 +2,45 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { discordUserPreferences } from "@/lib/schema";
 
-export const DISCORD_TIMEZONES = [
-  { value: "America/Los_Angeles", name: "Pacific Time" },
-  { value: "America/Denver", name: "Mountain Time" },
-  { value: "America/Chicago", name: "Central Time" },
-  { value: "America/New_York", name: "Eastern Time" },
-  { value: "Europe/London", name: "United Kingdom Time" },
-] as const;
+const TIMEZONE_NAME_OVERRIDES: Record<string, string> = {
+  UTC: "Coordinated Universal Time",
+  "America/Los_Angeles": "Pacific Time",
+  "America/Denver": "Mountain Time",
+  "America/Chicago": "Central Time",
+  "America/New_York": "Eastern Time",
+  "America/Anchorage": "Alaska Time",
+  "Pacific/Honolulu": "Hawaii Time",
+  "America/Phoenix": "Arizona Time",
+  "Europe/London": "United Kingdom Time",
+};
 
-export type SupportedTimezone = (typeof DISCORD_TIMEZONES)[number]["value"];
+function getSupportedTimezoneValues(): string[] {
+  const supportedValuesOf = (
+    Intl as typeof Intl & {
+      supportedValuesOf?: (key: "timeZone") => string[];
+    }
+  ).supportedValuesOf;
+  const values = supportedValuesOf?.("timeZone") ?? Object.keys(TIMEZONE_NAME_OVERRIDES);
+  return Array.from(new Set(["UTC", ...values])).sort((a, b) => a.localeCompare(b));
+}
+
+function getTimezoneName(value: string): string {
+  const overridden = TIMEZONE_NAME_OVERRIDES[value];
+  if (overridden) return overridden;
+
+  const parts = value.split("/");
+  const location = parts.slice(1).map((part) => part.replaceAll("_", " "));
+  if (location.length === 0) return value.replaceAll("_", " ");
+  if (location.length === 1) return location[0];
+  return `${location.at(-1)}, ${location.slice(0, -1).join(", ")}`;
+}
+
+export const DISCORD_TIMEZONES = getSupportedTimezoneValues().map((value) => ({
+  value,
+  name: getTimezoneName(value),
+}));
+
+export type SupportedTimezone = string;
 
 export function isSupportedTimezone(value: string): value is SupportedTimezone {
   return DISCORD_TIMEZONES.some((timezone) => timezone.value === value);

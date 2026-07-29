@@ -8,8 +8,11 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  ButtonBuilder,
+  ButtonStyle,
   type StringSelectMenuInteraction,
   type ModalSubmitInteraction,
+  type ButtonInteraction,
 } from "discord.js";
 import { randomUUID } from "node:crypto";
 import { getChannelConfig } from "../services/discord-config";
@@ -34,6 +37,7 @@ import {
   matchUsernamesToCoaches,
   recordMatchResult,
   buildPokemonDataFromReplay,
+  validateReplayRosterMatches,
 } from "../services/match-service";
 import { createErrorEmbed } from "../utils/embeds";
 
@@ -318,12 +322,216 @@ export async function execute(
       mapping.p1IsCoach1,
       selectedWeek
     );
+    const rosterValidation = await validateReplayRosterMatches(
+      matchDetails.coach1SeasonId,
+      matchDetails.coach2SeasonId,
+      replayData,
+      mapping.p1IsCoach1,
+      selectedWeek
+    );
 
     // Double-check match hasn't been reported while we were processing (race condition)
     const freshMatchDetails = await getMatchDetails(selectedMatchId);
     if (freshMatchDetails?.winnerId) {
       await interaction.editReply({
         embeds: [createErrorEmbed("This match was already reported by another user.")],
+        components: [],
+      });
+      return;
+    }
+
+    const validationWarnings: string[] = [];
+    if (!mapping.matched) {
+      validationWarnings.push(
+        "Replay players could not be confidently mapped to the selected fixture."
+      );
+    }
+    if (rosterValidation.coach1Unmatched.length > 0) {
+      validationWarnings.push(
+        `${matchDetails.team1Name} unmatched: ${rosterValidation.coach1Unmatched.join(", ")}`
+      );
+    }
+    if (rosterValidation.coach2Unmatched.length > 0) {
+      validationWarnings.push(
+        `${matchDetails.team2Name} unmatched: ${rosterValidation.coach2Unmatched.join(", ")}`
+      );
+    }
+    if (replayData.zoroarkInvolved) {
+      validationWarnings.push(
+        "Zoroark was detected; K/D attribution may require manual review."
+      );
+    }
+
+    const replayChecks = [
+      mapping.matched
+        ? "✅ Replay players match the selected fixture"
+        : "⚠️ Replay player mapping needs review",
+      rosterValidation.coach1Unmatched.length === 0 &&
+      rosterValidation.coach2Unmatched.length === 0
+        ? `✅ All ${pokemonData.length} replay Pokémon matched the Week ${selectedWeek} rosters`
+        : "⚠️ One or more replay Pokémon did not match the Week roster",
+      "✅ This fixture has not already been recorded",
+      replayData.zoroarkInvolved
+        ? "⚠️ Zoroark detected; review K/D attribution"
+        : "✅ No Illusion-related stat warning",
+    ];
+    const confirmId = `match_confirm_${selectedMatchId}`;
+    const reviewId = `match_review_${selectedMatchId}`;
+    const cancelId = `match_cancel_${selectedMatchId}`;
+    const confirmationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(confirmId)
+        .setLabel(
+          validationWarnings.length > 0 ? "Confirm with Warnings" : "Confirm Result"
+        )
+        .setStyle(
+          validationWarnings.length > 0 ? ButtonStyle.Danger : ButtonStyle.Success
+        ),
+      new ButtonBuilder()
+        .setCustomId(reviewId)
+        .setLabel("Review Pokémon")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(cancelId)
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Secondary)
+    );
+    const confirmationEmbed = new EmbedBuilder()
+      .setTitle("🏆 Confirm Match Result")
+      .setDescription(
+        `**${winnerName}** defeated ${
+          winnerId === matchDetails.coach1SeasonId
+            ? matchDetails.team2Name
+            : matchDetails.team1Name
+        }\n${weekLabel} — ${config.division.name}`
+      )
+      .addFields(
+        {
+          name: "Score",
+          value: `${winnerName}: ${winnerRemaining}\nLoser: ${loserRemaining}`,
+          inline: true,
+        },
+        {
+          name: "Differential",
+          value:
+            `${matchDetails.team1Name}: ${coach1Diff >= 0 ? "+" : ""}${coach1Diff}\n` +
+            `${matchDetails.team2Name}: ${coach2Diff >= 0 ? "+" : ""}${coach2Diff}`,
+          inline: true,
+        },
+        {
+          name: "Replay checks",
+          value: replayChecks.join("\n").slice(0, 1024),
+          inline: false,
+        }
+      )
+      .setColor(validationWarnings.length > 0 ? 0xeab308 : 0x22c55e);
+
+    await interaction.editReply({
+      embeds: [confirmationEmbed],
+      components: [confirmationRow],
+    });
+
+    let confirmed = false;
+    while (!confirmed) {
+      let confirmationInteraction: ButtonInteraction;
+      try {
+        confirmationInteraction = await response.awaitMessageComponent({
+          componentType: ComponentType.Button,
+          filter: (component) =>
+            component.user.id === interaction.user.id &&
+            [confirmId, reviewId, cancelId].includes(component.customId),
+          time: 120_000,
+        });
+      } catch {
+        await interaction.editReply({
+          embeds: [createErrorEmbed(
+            "Confirmation timed out. The match result was not saved."
+          )],
+          components: [],
+        });
+        return;
+      }
+
+      if (confirmationInteraction.customId === cancelId) {
+        await confirmationInteraction.update({
+          content: "Match reporting cancelled. No result was saved.",
+          embeds: [],
+          components: [],
+        });
+        return;
+      }
+      if (confirmationInteraction.customId === reviewId) {
+        const formatReviewTeam = (
+          username: string,
+          team: typeof replayData.p1Team,
+          unmatched: string[]
+        ) => {
+          const unmatchedSet = new Set(unmatched);
+          return [
+            `Replay user: **${username}**`,
+            ...team.map((pokemon) =>
+              `${unmatchedSet.has(pokemon.name) ? "⚠️" : "✅"} ${pokemon.name} — ` +
+              `${pokemon.kills}K/${pokemon.deaths}D`
+            ),
+          ].join("\n").slice(0, 1024);
+        };
+        const coach1Username = mapping.p1IsCoach1
+          ? replayData.p1Username
+          : replayData.p2Username;
+        const coach2Username = mapping.p1IsCoach1
+          ? replayData.p2Username
+          : replayData.p1Username;
+        await confirmationInteraction.update({
+          embeds: [new EmbedBuilder()
+            .setTitle("🔎 Replay Pokémon Review")
+            .setDescription(
+              validationWarnings.length > 0
+                ? validationWarnings.map((warning) => `⚠️ ${warning}`).join("\n")
+                : "Every replay Pokémon matched the selected fixture's Week roster."
+            )
+            .addFields(
+              {
+                name: matchDetails.team1Name,
+                value: formatReviewTeam(
+                  coach1Username,
+                  coach1Team,
+                  rosterValidation.coach1Unmatched
+                ),
+                inline: true,
+              },
+              {
+                name: matchDetails.team2Name,
+                value: formatReviewTeam(
+                  coach2Username,
+                  coach2Team,
+                  rosterValidation.coach2Unmatched
+                ),
+                inline: true,
+              },
+              {
+                name: "Replay",
+                value: `[Open Pokémon Showdown replay](${replayUrl})`,
+                inline: false,
+              }
+            )
+            .setColor(validationWarnings.length > 0 ? 0xeab308 : 0x6366f1)],
+          components: [confirmationRow],
+        });
+        continue;
+      }
+
+      await confirmationInteraction.deferUpdate();
+      confirmed = true;
+    }
+
+    // Check again after confirmation in case another reporter saved it while
+    // this user was reviewing the replay.
+    const matchBeforeWrite = await getMatchDetails(selectedMatchId);
+    if (matchBeforeWrite?.winnerId) {
+      await interaction.editReply({
+        embeds: [createErrorEmbed(
+          "This match was already reported by another user. No duplicate result was saved."
+        )],
         components: [],
       });
       return;

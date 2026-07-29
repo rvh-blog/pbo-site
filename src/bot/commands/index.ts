@@ -6,6 +6,7 @@ import * as matchup from "./matchup";
 import * as player from "./player";
 import * as schedule from "./schedule";
 import * as standings from "./standings";
+import * as status from "./status";
 import * as team from "./team";
 
 export const commands = [
@@ -17,5 +18,6 @@ export const commands = [
   items,
   matchup,
   standings,
+  status,
   help,
 ];
