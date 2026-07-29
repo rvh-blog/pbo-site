@@ -159,6 +159,12 @@ interface Props {
   abilityDescriptions: Record<string, string>;
   moveTypes: Record<string, string>;
   teamSidePurchases: TeamSidePurchases;
+  revealedItemScouting: Record<"coach1" | "coach2", Array<{
+    pokemonId: number;
+    pokemonName: string;
+    spriteUrl: string | null;
+    items: Array<{ item: string; reveals: number }>;
+  }>>;
 }
 
 function getWeekLabel(week: number): string {
@@ -232,6 +238,7 @@ export function MatchupPrepClient({
   abilityDescriptions,
   moveTypes,
   teamSidePurchases,
+  revealedItemScouting,
 }: Props) {
   const router = useRouter();
 
@@ -965,6 +972,53 @@ export function MatchupPrepClient({
               onClick={() => setExpandedAbility(null)}
             />
           )}
+
+          <div className="poke-card p-4 sm:p-6">
+            <div className="mb-4">
+              <h3 className="font-pixel text-sm text-white">Revealed Item Scouting</h3>
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                Items explicitly shown in earlier replays this season. Missing items are unknown, not itemless.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {(["coach1", "coach2"] as const).map((side) => {
+                const team = initialMatch?.[side];
+                const entries = revealedItemScouting[side];
+                return (
+                  <div key={side} className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-3">
+                    <h4 className={`mb-3 text-sm font-bold ${side === "coach1" ? "text-[#3b82f6]" : "text-[#ef4444]"}`}>
+                      {team?.teamName || team?.coachName || "Team"}
+                    </h4>
+                    {entries.length ? (
+                      <div className="space-y-2">
+                        {entries.map((entry) => (
+                          <div key={entry.pokemonId} className="flex items-center gap-3 rounded-md bg-[var(--background)] p-2">
+                            {entry.spriteUrl ? (
+                              <img src={entry.spriteUrl} alt="" className="h-9 w-9 shrink-0 object-contain" />
+                            ) : null}
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-xs font-bold text-white">{entry.pokemonName}</div>
+                              <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1">
+                                {entry.items.map((item) => (
+                                  <span key={item.item} className="text-[11px] text-[var(--foreground-muted)]">
+                                    {item.item} <span className="font-mono text-[var(--primary)]">{item.reveals}×</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="py-3 text-center text-xs text-[var(--foreground-muted)]">
+                        No revealed item history yet
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Team Rosters - Horizontal Overview */}
           <div className="poke-card p-4 space-y-4 rounded-lg">

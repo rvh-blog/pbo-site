@@ -4,6 +4,46 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 28, 2026
+
+Changes #1-#8:
+
+1. Combined the current-season hub, account context, and compact league actions
+   into one homepage experience.
+2. Centered and reduced the homepage action buttons, removed the redundant
+   Browse Current Season action and Seasons total card, and added shared focus,
+   loading, empty-state, mobile-scroll, and reduced-motion treatments.
+3. Added replay-held-item parsing for items explicitly revealed through
+   activation, consumption, Knock Off, Frisk, Trick, Switcheroo, Fling, or item
+   loss/acquisition. Unrevealed items remain unknown.
+4. Added `match_pokemon.revealed_items` persistence to admin match recording,
+   the normal match API, and bot match recording. Repeated activation of the
+   same item on the same Pokemon in one match counts once, while distinct items
+   observed after a swap can each be retained.
+5. Added revealed-item details to match summaries, Replay Analyzer, admin match
+   review, Pokemon Stats, coach profiles, and Matchup Prep.
+6. Added `/leaderboards/items` to PBO Stats with most-used items, top Pokemon,
+   top persistent coaches, and season/division filters that update immediately
+   without an Apply button.
+7. Added Season 5+ Revealed Item Tendencies to coach profiles, aggregating each
+   Pokemon/item pair once per match across all of that person's
+   `season_coaches` entries. Items received through Trick or Switcheroo are
+   observations and do not necessarily represent starting items.
+8. Added `migrations/add-revealed-held-items.sql` and the repeatable
+   `scripts/backfill-revealed-items.mjs` backfill/audit tool. Historical
+   tracking begins with Season 5 because Seasons 1-4 do not have saved replay
+   links; Season 11 and later are populated by normal replay saves. The audited
+   local backfill parsed 328 replay matches, mapped 3,935 Pokemon rows, and
+   found 1,640 item records with zero unmatched Pokemon, ambiguous coach
+   mappings, duplicate items, or stored/parser differences. Season 6 match
+   2448 remains excluded because it has no `match_pokemon` rows.
+
+Verification:
+
+- `npx tsc --noEmit`, targeted ESLint, whitespace checks, route smoke tests,
+  fresh replay parsing, coach attribution checks, and independent SQL aggregate
+  reconciliation pass.
+
 ## July 27, 2026
 
 Discovery and sharing:

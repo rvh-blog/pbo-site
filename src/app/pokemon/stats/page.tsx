@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { matchPokemon, killEvents } from "@/lib/schema";
@@ -117,6 +118,57 @@ const getPokemonBattleStats = unstable_cache(
 const getSeasonsAndDivisions = unstable_cache(
   getSeasonsAndDivisionsUncached,
   ["pokemon-stats-seasons-divisions"],
+  { revalidate: 300 }
+);
+
+async function getRevealedItemTrendsUncached() {
+  const rows = await db.query.matchPokemon.findMany({
+    columns: { revealedItems: true },
+    with: {
+      pokemon: {
+        columns: { id: true, name: true, displayName: true, spriteUrl: true },
+      },
+    },
+  });
+
+  const trends = new Map<
+    string,
+    {
+      pokemonId: number;
+      pokemonName: string;
+      spriteUrl: string | null;
+      item: string;
+      reveals: number;
+    }
+  >();
+
+  for (const row of rows) {
+    if (!row.pokemon || !row.revealedItems?.length) continue;
+    for (const item of new Set(row.revealedItems.map((reveal) => reveal.item))) {
+      const key = `${row.pokemon.id}:${item.toLowerCase()}`;
+      const existing = trends.get(key);
+      if (existing) {
+        existing.reveals += 1;
+      } else {
+        trends.set(key, {
+          pokemonId: row.pokemon.id,
+          pokemonName: row.pokemon.displayName || row.pokemon.name,
+          spriteUrl: row.pokemon.spriteUrl,
+          item,
+          reveals: 1,
+        });
+      }
+    }
+  }
+
+  return Array.from(trends.values())
+    .sort((a, b) => b.reveals - a.reveals || a.pokemonName.localeCompare(b.pokemonName))
+    .slice(0, 12);
+}
+
+const getRevealedItemTrends = unstable_cache(
+  getRevealedItemTrendsUncached,
+  ["pokemon-stats-revealed-items"],
   { revalidate: 300 }
 );
 
@@ -729,9 +781,10 @@ export const getPokemonFunFacts = unstable_cache(
 );
 
 export default async function PokemonStatsPage() {
-  const [stats, filterOptions] = await Promise.all([
+  const [stats, filterOptions, revealedItemTrends] = await Promise.all([
     getPokemonBattleStats(),
     getSeasonsAndDivisions(),
+    getRevealedItemTrends(),
   ]);
 
   return (
@@ -767,6 +820,44 @@ export default async function PokemonStatsPage() {
         seasons={filterOptions.seasons}
         divisions={filterOptions.divisions}
       />
+
+      <section className="poke-card p-5 md:p-6">
+        <div className="mb-4">
+          <h2 className="font-pixel text-sm text-white">Revealed Held Item Trends</h2>
+          <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+            Counts only items explicitly revealed in saved replays. Unrevealed items remain unknown.
+          </p>
+        </div>
+        {revealedItemTrends.length ? (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {revealedItemTrends.map((trend) => (
+              <div
+                key={`${trend.pokemonId}-${trend.item}`}
+                className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3"
+              >
+                {trend.spriteUrl ? (
+                  <Image
+                    src={trend.spriteUrl}
+                    alt=""
+                    width={44}
+                    height={44}
+                    className="h-11 w-11 object-contain"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-white">{trend.pokemonName}</div>
+                  <div className="truncate text-xs text-[var(--foreground-muted)]">{trend.item}</div>
+                </div>
+                <span className="font-mono text-sm text-[var(--primary)]">{trend.reveals}×</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--foreground-muted)]">
+            No held items have been revealed in recorded replays yet.
+          </p>
+        )}
+      </section>
     </div>
   );
 }

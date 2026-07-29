@@ -489,6 +489,14 @@ async function getCoachMatchPokemon(seasonCoachIds: number[]) {
     where: inArray(matchPokemon.seasonCoachId, seasonCoachIds),
     with: {
       pokemon: true,
+      match: {
+        columns: {},
+        with: {
+          season: {
+            columns: { seasonNumber: true },
+          },
+        },
+      },
     },
   });
 }
@@ -1167,6 +1175,41 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
 
   const allTimeKillLeaders = Array.from(pokemonStatsMap.values())
     .sort((a, b) => b.kills - a.kills)
+    .slice(0, 9);
+
+  const revealedItemMap = new Map<string, {
+    pokemonId: number;
+    pokemonDisplayName: string;
+    spriteUrl: string | null;
+    item: string;
+    reveals: number;
+  }>();
+
+  for (const mp of coachMatchPokemon) {
+    if (
+      !mp.revealedItems?.length ||
+      !mp.match?.season ||
+      mp.match.season.seasonNumber < 5
+    ) continue;
+    for (const item of new Set(mp.revealedItems.map((reveal) => reveal.item))) {
+      const key = `${mp.pokemonId}:${item.toLowerCase()}`;
+      const existing = revealedItemMap.get(key);
+      if (existing) {
+        existing.reveals += 1;
+      } else {
+        revealedItemMap.set(key, {
+          pokemonId: mp.pokemonId,
+          pokemonDisplayName: mp.pokemon?.displayName || mp.pokemon?.name || "Unknown",
+          spriteUrl: mp.pokemon?.spriteUrl || null,
+          item,
+          reveals: 1,
+        });
+      }
+    }
+  }
+
+  const revealedItemTendencies = Array.from(revealedItemMap.values())
+    .sort((a, b) => b.reveals - a.reveals || a.pokemonDisplayName.localeCompare(b.pokemonDisplayName))
     .slice(0, 9);
 
   // Aggregate nemesis Pokemon stats (opponent Pokemon that killed the most of this coach's team)
@@ -2648,6 +2691,50 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {revealedItemTendencies.length > 0 && (
+        <div className="poke-card p-0 overflow-hidden">
+          <div className="p-4 sm:p-6 border-b-2 border-[var(--background-tertiary)]">
+            <div className="section-title !mb-0">
+              <div className="section-title-icon">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+              <div>
+                <h3>Revealed Item Tendencies</h3>
+                <p className="mt-1 text-xs font-normal text-[var(--foreground-muted)]">
+                  Only items explicitly shown in recorded replays
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-2 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
+            {revealedItemTendencies.map((trend) => (
+              <Link
+                key={`${trend.pokemonId}-${trend.item}`}
+                href={`/pokemon/${trend.pokemonId}`}
+                className="trainer-card gap-3 group"
+              >
+                {trend.spriteUrl ? (
+                  <img
+                    src={trend.spriteUrl}
+                    alt={trend.pokemonDisplayName}
+                    className="h-9 w-9 shrink-0 object-contain"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold group-hover:text-[var(--primary)]">
+                    {trend.pokemonDisplayName}
+                  </p>
+                  <p className="truncate text-xs text-[var(--foreground-muted)]">{trend.item}</p>
+                </div>
+                <span className="font-mono text-sm text-[var(--primary)]">{trend.reveals}×</span>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

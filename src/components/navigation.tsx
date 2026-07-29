@@ -41,6 +41,7 @@ const matchPrepLinks = [
 const pboStatsLinks = [
   { href: "/leaderboards/comprehensive", label: "Comprehensive Leaderboard" },
   { href: "/battle-record", label: "Battle Record" },
+  { href: "/leaderboards/items", label: "Item Usage" },
 ];
 
 export function Navigation() {

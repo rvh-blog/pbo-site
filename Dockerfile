@@ -45,6 +45,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/dist/bot ./dist/bot
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/scripts/backfill-replay-move-usage.mjs ./scripts/backfill-replay-move-usage.mjs
+COPY --from=builder /app/scripts/backfill-revealed-items.mjs ./scripts/backfill-revealed-items.mjs
 
 # Copy startup script and ensure it's executable
 COPY --from=builder --chmod=755 /app/scripts/start.sh ./start.sh

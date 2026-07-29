@@ -9,6 +9,7 @@ import { SyncedHeightGrid } from "@/components/synced-height-grid";
 import { HomeLiveDraftRefresh } from "@/components/home-live-draft-refresh";
 import { LocalTime } from "@/components/local-time";
 import { TwitchLiveStream } from "@/components/twitch-live-stream";
+import { EmptyState } from "@/components/ui/empty-state";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems } from "@/lib/schema";
 import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
 import { compareDivisionNames, DIVISION_HIERARCHY } from "@/lib/division-order";
@@ -749,20 +750,13 @@ function StatsStrip({
   className?: string;
 }) {
   return (
-    <div className={`grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 ${className}`}>
+    <div className={`grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 ${className}`}>
       <div className="stat-card flex flex-col items-center justify-center text-center">
         <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
         <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.coaches}</div>
         <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Coaches</div>
-      </div>
-      <div className="stat-card flex flex-col items-center justify-center text-center">
-        <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        <div className="font-mono font-bold text-xl sm:text-2xl text-white mb-0.5 sm:mb-1">{stats.seasons}</div>
-        <div className="text-[9px] sm:text-[10px] text-[var(--foreground-subtle)] font-bold uppercase">Seasons</div>
       </div>
       <div className="stat-card flex flex-col items-center justify-center text-center">
         <svg className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -856,7 +850,13 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-6">
         {battles.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[var(--foreground-muted)]">No upcoming battles</p>
+          <EmptyState
+            compact
+            title="No upcoming battles"
+            description="The next scheduled matchup will appear here as soon as a match time is published."
+            actionHref="/seasons"
+            actionLabel="Browse schedules"
+          />
         ) : battles.map((battle) => {
           const divisionColorKey = normalizeDivisionName(battle.divisionName || "") === "infinity"
             ? "Infinity"
@@ -1038,7 +1038,7 @@ function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPi
   if (divisions.length === 0) return null;
 
   return (
-    <section className="poke-card p-4 sm:p-6">
+    <section className="poke-card deferred-section p-4 sm:p-6">
       <HomeLiveDraftRefresh />
       <div className="section-title">
         <div className="section-title-icon">
@@ -1265,6 +1265,28 @@ export default async function Home() {
     : currentSeason
       ? `/seasons/${currentSeason.id}`
       : "/seasons";
+  const currentSeasonTransactionsHref = currentSeason?.divisions[0]
+    ? `/seasons/${currentSeason.id}/divisions/${currentSeason.divisions[0].id}/transactions`
+    : "/seasons";
+  const leagueHubLinks = [
+    { href: "/pick-ems", label: "Make Pick-Ems", iconPath: "M9 12l2 2 4-4m5 2a8 8 0 11-16 0 8 8 0 0116 0z" },
+    { href: "/fantasy", label: "Open Fantasy", iconPath: "M12 3l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9L12 3z" },
+    { href: "/draft-planner", label: "Free Agency", iconPath: "M9 5H7a2 2 0 00-2 2v12h14V7a2 2 0 00-2-2h-2m-6 0a3 3 0 006 0m-6 0a3 3 0 016 0" },
+    { href: currentSeasonTransactionsHref, label: "Transactions", iconPath: "M7 7h11m0 0l-3-3m3 3l-3 3M17 17H6m0 0l3 3m-3-3l3-3" },
+    ...(personalizedHome?.user.type === "coach"
+      ? [{
+          href: `/coaches/${personalizedHome.user.id}`,
+          label: "My Coach Page",
+          iconPath: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM5 21a7 7 0 0114 0",
+        }]
+      : []),
+    {
+      href: RULEBOOK_URL,
+      label: "Rulebook",
+      iconPath: "M4 5a2 2 0 012-2h5v16H6a2 2 0 00-2 2V5zm16 0a2 2 0 00-2-2h-5v16h5a2 2 0 012 2V5z",
+      external: true,
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-10 sm:gap-12 lg:gap-16">
@@ -1435,12 +1457,38 @@ export default async function Home() {
         <RecentDraftPicksPanel divisions={recentDraftPicksByDivision} />
       )}
 
-      {personalizedHome && (
-        <section className="poke-card p-5 sm:p-6">
+      <section aria-labelledby="league-hub-title" className="poke-card flex flex-col p-5 sm:p-6">
+        <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="section-kicker">{currentSeason ? currentSeason.name : "League tools"}</p>
+            <h2 id="league-hub-title" className="section-heading">League Hub</h2>
+          </div>
+          <p className="section-description">Your team context and fastest actions for the current week.</p>
+        </div>
+        <div className="order-3 grid grid-cols-3 gap-1 sm:grid-cols-6">
+          {leagueHubLinks.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              title={item.label}
+              target={item.external ? "_blank" : undefined}
+              rel={item.external ? "noopener noreferrer" : undefined}
+              className="btn-retro !inline-flex min-h-8 min-w-0 cursor-pointer items-center justify-center gap-1 overflow-hidden !px-1.5 !py-1 !text-[8px] sm:!text-[9px]"
+            >
+              <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={item.iconPath} />
+              </svg>
+              <span className="truncate">{item.label}</span>
+            </Link>
+          ))}
+        </div>
+
+        {personalizedHome && (
+          <div className="order-2 mb-6 border-b border-[var(--background-tertiary)] pb-6">
           <div className={personalizedHome.activeTeam ? "your-league-layout" : "mx-auto max-w-3xl text-center"}>
             <div className="min-w-0">
               <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-1.5">
-                {personalizedHome.activeTeam ? "Your League" : "League Hub"}
+                {personalizedHome.activeTeam ? "Your League" : "Your Account"}
               </p>
               <h2 className="text-lg font-bold leading-tight text-white">
                 Welcome, {personalizedHome.user.name}
@@ -1568,47 +1616,17 @@ export default async function Home() {
               </div>
             ) : (
               <div className="mt-5">
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Link
-                    href={currentSeason ? `/seasons/${currentSeason.id}` : "/seasons"}
-                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[var(--primary)] px-4 py-2.5 text-xs font-bold uppercase text-white transition-colors hover:bg-[#b91c1c]"
-                  >
-                    {currentSeason ? "Browse Current Season" : "Browse Seasons"}
-                  </Link>
-                  {personalizedHome.user.type === "coach" && (
-                    <Link
-                      href={`/coaches/${personalizedHome.user.id}`}
-                      className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2.5 text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:text-white"
-                    >
-                      My Coach Page
-                    </Link>
-                  )}
-                  <Link
-                    href="/pick-ems"
-                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2.5 text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:text-white"
-                  >
-                    Pick-Ems
-                  </Link>
-                  <a
-                    href={RULEBOOK_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-[var(--background-tertiary)] px-3 py-2.5 text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:text-white"
-                  >
-                    Rulebook
-                  </a>
-                </div>
-
                 {personalizedHome.poll && (
-                  <div className="mx-auto mt-5 max-w-xl border-t border-[var(--background-tertiary)] pt-5 text-left">
+                  <div className="mx-auto max-w-xl text-left">
                     <PollCard initialPoll={personalizedHome.poll} compact />
                   </div>
                 )}
               </div>
             )}
           </div>
-        </section>
-      )}
+          </div>
+        )}
+      </section>
 
       {!currentSeason && (
         <PreviousChampionsPanel champions={previousSeasonChampions} />
@@ -1738,7 +1756,13 @@ export default async function Home() {
                 })}
               </div>
             ) : (
-              <p className="text-[var(--foreground-muted)] text-center py-8">No battles recorded yet</p>
+              <EmptyState
+                compact
+                title="No results yet"
+                description="Completed battles and replay links will appear here once the season gets underway."
+                actionHref={currentSeason ? `/seasons/${currentSeason.id}` : "/seasons"}
+                actionLabel="View season"
+              />
             )}
 
             {/* View All Link */}
@@ -1848,7 +1872,13 @@ export default async function Home() {
                 })}
               </div>
             ) : (
-              <p className="text-[var(--foreground-muted)] text-center py-8">No trainers yet</p>
+              <EmptyState
+                compact
+                title="Trainer rankings are not ready"
+                description="Rankings will populate after recorded matches produce Elo results."
+                actionHref="/coaches"
+                actionLabel="Browse coaches"
+              />
             )}
 
             {/* View All Link */}

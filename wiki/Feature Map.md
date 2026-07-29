@@ -28,6 +28,8 @@ See also:
 - Coaches: `src/app/coaches`
 - Battle Record: `src/app/battle-record` (available from the PBO Stats menu)
 - PBO Stats: `src/app/leaderboards`
+- Item Usage: `src/app/leaderboards/items` (Season 5+ replay-revealed item,
+  Pokemon, and persistent-coach aggregates)
 - Free Agency: `src/app/draft-planner`
 - Matchup prep: `src/app/matchup-prep`
 - Pick-ems: `src/app/pick-ems`
@@ -45,7 +47,11 @@ See also:
 
 - Division selectors use season-grouped options (`<optgroup>`): season headings contain their divisions across public, admin, broadcast, matchup, coach, and Free Agency flows.
 - Match Prep navigation contains Free Agency and Replay Analyzer.
-- PBO Stats navigation contains the Leaderboards page and Battle Record.
+- PBO Stats navigation contains the Leaderboards page, Battle Record, and Item
+  Usage.
+- Item Usage has immediate season and season-grouped division filters. Counts
+  represent distinct replay-observed Pokemon/item appearances, not repeated
+  activations or unrevealed starting items.
 - Fantasy About visibility is persisted by the Fantasy page client and can be hidden per browser.
 - Image delivery uses AVIF/WebP where supported, with high-traffic sprites migrated to `next/image`.
 - Browser performance samples are collected by `src/components/performance-monitor.tsx` and exposed through `src/app/api/performance/route.ts` and the health endpoint.

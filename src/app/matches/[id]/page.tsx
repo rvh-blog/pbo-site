@@ -148,6 +148,7 @@ type BattleSummaryPokemon = {
   favorableFreezes: number | null;
   favorableBurns: number | null;
   favorableSleep: number | null;
+  revealedItems: Array<{ item: string; turn: number; source: string }> | null;
 };
 
 type TimeSyncedPokemon = {
@@ -328,7 +329,15 @@ function BattleSummaryTeam({
                   ) : (
                     <div className="w-8 h-8 rounded bg-white/10 shrink-0" />
                   )}
-                  <span className="truncate text-xs sm:text-sm font-black text-white">{getPokemonLabel(mp)}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs sm:text-sm font-black text-white">{getPokemonLabel(mp)}</span>
+                    <span
+                      className="block truncate text-[9px] font-bold text-[var(--accent)]"
+                      title={mp.revealedItems?.map((entry) => `${entry.item}, turn ${entry.turn}, ${entry.source}`).join(" → ") || "Unknown item"}
+                    >
+                      {mp.revealedItems?.map((entry) => entry.item).join(" → ") || "Unknown item"}
+                    </span>
+                  </span>
                 </div>
                 <span className="text-center font-mono text-sm font-black text-white">{kills}</span>
                 <span className="text-center font-mono text-sm font-black text-white">{totalDamage}%</span>

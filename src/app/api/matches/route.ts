@@ -326,6 +326,7 @@ export async function POST(request: NextRequest) {
         favorableSleep: poke.favorableSleep ?? null,
         hpRestored: poke.hpRestored ?? null,
         movesUsed: poke.movesUsed ?? null,
+        revealedItems: poke.revealedItems ?? null,
       });
     }
 
@@ -470,6 +471,7 @@ export async function PUT(request: NextRequest) {
           favorableSleep: poke.favorableSleep ?? null,
           hpRestored: poke.hpRestored ?? null,
           movesUsed: poke.movesUsed ?? null,
+          revealedItems: poke.revealedItems ?? null,
         });
       }
     }
