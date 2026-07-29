@@ -72,6 +72,9 @@ Discord scheduling and commands:
   concurrent schedule change or completed match prevents a stale overwrite.
 - Added read-only `/team`, `/player`, `/items`, `/matchup`, `/standings`, and
   `/help` commands. Existing `/draft`, `/match`, and `/schedule` commands remain.
+- New `/match` result embeds retain the two-column team layout while hiding the
+  winner, differential, and each Pokemon K/D line behind individually clickable
+  Discord spoilers. The matchup, replay link, warnings, and reporter stay visible.
 
 Discord safety and operations:
 

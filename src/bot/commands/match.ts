@@ -21,6 +21,11 @@ function getWeekLabel(week: number): string {
   if (week === 103) return "Finals";
   return `Week ${week}`;
 }
+
+function spoiler(text: string): string {
+  return `||${text.replaceAll("||", "\\|\\|")}||`;
+}
+
 import {
   getWeeksInDivision,
   getFixturesForWeek,
@@ -396,7 +401,7 @@ export async function execute(
     // Build K/D summary for each team
     const formatKD = (team: { name: string; kills: number; deaths: number }[]) => {
       return team
-        .map((p) => `${p.name}: ${p.kills}K/${p.deaths}D`)
+        .map((p) => spoiler(`${p.name}: ${p.kills}K/${p.deaths}D`))
         .join("\n");
     };
 
@@ -405,17 +410,23 @@ export async function execute(
       .setTitle("Match Result")
       .setDescription(
         `**${matchDetails.team1Name}** vs **${matchDetails.team2Name}**\n\n` +
-        `**Winner: ${winnerName}** (${winnerRemaining}-${loserRemaining})`
+        `**Winner:** ${spoiler(`${winnerName} (${winnerRemaining}-${loserRemaining})`)}`
       )
       .addFields(
         {
-          name: `${matchDetails.team1Name} (${coach1Diff > 0 ? "+" : ""}${coach1Diff})`,
-          value: formatKD(coach1Team) || "No data",
+          name: "\u200b",
+          value: [
+            spoiler(`**${matchDetails.team1Name} (${coach1Diff > 0 ? "+" : ""}${coach1Diff})**`),
+            formatKD(coach1Team) || spoiler("No data"),
+          ].join("\n"),
           inline: true,
         },
         {
-          name: `${matchDetails.team2Name} (${coach2Diff > 0 ? "+" : ""}${coach2Diff})`,
-          value: formatKD(coach2Team) || "No data",
+          name: "\u200b",
+          value: [
+            spoiler(`**${matchDetails.team2Name} (${coach2Diff > 0 ? "+" : ""}${coach2Diff})**`),
+            formatKD(coach2Team) || spoiler("No data"),
+          ].join("\n"),
           inline: true,
         }
       )
