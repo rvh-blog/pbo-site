@@ -7,17 +7,15 @@ import {
   SlashCommandBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
-import {
-  getChannelConfig,
-  getGuildChannels,
-} from "../services/discord-config";
+import { getPublicDivisions } from "../services/discord-config";
 import { getDivisionStandings } from "../services/read-service";
 import {
   getFixturesForWeek,
   getWeeksInDivision,
   type FixtureOption,
 } from "../services/match-service";
-import { createErrorEmbed } from "../utils/embeds";
+import { selectCoachScope } from "../utils/coach-selection";
+import { selectPublicDivision } from "../utils/division-selection";
 
 export const data = new SlashCommandBuilder()
   .setName("standings")
@@ -64,34 +62,34 @@ function formatFixture(fixture: FixtureOption): string {
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
-  const config = await getChannelConfig(interaction.channelId);
-  if (!config) {
-    await interaction.editReply({
-      embeds: [createErrorEmbed("This channel is not configured for a division.")],
-    });
-    return;
-  }
-
-  const guildChannels = interaction.guildId
-    ? await getGuildChannels(interaction.guildId)
-    : [];
-  const divisionMap = new Map<number, DivisionOption>();
-  divisionMap.set(config.division.id, {
-    id: config.division.id,
-    name: config.division.name,
+  const initialDivision = await selectPublicDivision(interaction, {
+    customId: "standings_scope",
+    title: "Standings",
   });
-  for (const channel of guildChannels) {
-    if (channel.division) {
-      divisionMap.set(channel.division.id, {
-        id: channel.division.id,
-        name: channel.division.name,
-      });
-    }
-  }
+  if (!initialDivision) return;
+  const coachScope = await selectCoachScope(interaction, {
+    customId: "standings_coach_select",
+    divisionId: initialDivision.id,
+    divisionName: initialDivision.name,
+    title: "Standings",
+    allowAll: true,
+  });
+  if (!coachScope) return;
+
+  const divisionMap = new Map<number, DivisionOption>(
+    (await getPublicDivisions())
+      .filter((division) => division.seasonId === initialDivision.seasonId)
+      .map((division) => [
+        division.id,
+        { id: division.id, name: division.name },
+      ])
+  );
   const divisions = [...divisionMap.values()].sort((a, b) =>
     a.name.localeCompare(b.name)
   );
-  let selectedDivision = divisionMap.get(config.division.id)!;
+  let selectedDivision = divisionMap.get(initialDivision.id) ?? divisions[0];
+  let selectedCoachId = coachScope.team?.id ?? null;
+  let selectedCoachName = coachScope.team?.coachName ?? null;
   let view: "standings" | "schedule" = "standings";
   let weeks: number[] = [];
   let weekIndex = 0;
@@ -114,13 +112,20 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       )
     );
 
-    const lines = standings.slice(0, 25).map((team, index) =>
-      `**${index + 1}. ${team.teamName}** — ${team.wins}-${team.losses} ` +
-      `(${team.differential >= 0 ? "+" : ""}${team.differential})`
-    );
+    const visibleStandings = selectedCoachId === null
+      ? standings
+      : standings.filter((team) => team.teamId === selectedCoachId);
+    const lines = visibleStandings.slice(0, 25).map((team) => {
+      const rank = standings.findIndex((entry) => entry.teamId === team.teamId) + 1;
+      return `**${rank}. ${team.teamName}** — ${team.wins}-${team.losses} ` +
+        `(${team.differential >= 0 ? "+" : ""}${team.differential})`;
+    });
     await interaction.editReply({
       embeds: [new EmbedBuilder()
-        .setTitle(`📊 ${selectedDivision.name} Standings`)
+        .setTitle(
+          `📊 ${selectedDivision.name} Standings` +
+          (selectedCoachName ? ` — ${selectedCoachName}` : "")
+        )
         .setDescription(
           lines.length > 0
             ? lines.join("\n").slice(0, 4096)
@@ -221,6 +226,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       const division = divisionMap.get(Number(component.values[0]));
       if (division) {
         selectedDivision = division;
+        selectedCoachId = null;
+        selectedCoachName = null;
         view = "standings";
         weeks = [];
         weekIndex = 0;

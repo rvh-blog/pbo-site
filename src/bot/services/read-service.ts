@@ -194,7 +194,8 @@ export async function getUpcomingDivisionMatches(divisionId: number): Promise<Ar
 
 export async function getPokemonPerformance(
   divisionId: number,
-  search: string
+  search: string,
+  seasonCoachId?: number
 ): Promise<{
   name: string;
   spriteUrl: string | null;
@@ -227,6 +228,13 @@ export async function getPokemonPerformance(
   })[0];
   if (!found) return null;
 
+  const performanceConditions = [
+    eq(matches.divisionId, divisionId),
+    eq(matchPokemon.pokemonId, found.id),
+  ];
+  if (seasonCoachId !== undefined) {
+    performanceConditions.push(eq(matchPokemon.seasonCoachId, seasonCoachId));
+  }
   const rows = await db
     .select({
       kills: matchPokemon.kills,
@@ -237,10 +245,7 @@ export async function getPokemonPerformance(
     })
     .from(matchPokemon)
     .innerJoin(matches, eq(matchPokemon.matchId, matches.id))
-    .where(and(
-      eq(matches.divisionId, divisionId),
-      eq(matchPokemon.pokemonId, found.id)
-    ));
+    .where(and(...performanceConditions));
   const itemMap = new Map<string, { item: string; count: number }>();
   for (const row of rows) {
     const uniqueItems = new Set((row.revealedItems ?? []).map((item) => item.item));
@@ -264,11 +269,18 @@ export async function getPokemonPerformance(
   };
 }
 
-export async function getDivisionItemUsage(divisionId: number): Promise<Array<{
+export async function getDivisionItemUsage(
+  divisionId: number,
+  seasonCoachId?: number
+): Promise<Array<{
   item: string;
   reveals: number;
   pokemon: string[];
 }>> {
+  const itemConditions = [eq(matches.divisionId, divisionId)];
+  if (seasonCoachId !== undefined) {
+    itemConditions.push(eq(matchPokemon.seasonCoachId, seasonCoachId));
+  }
   const rows = await db
     .select({
       pokemonName: sql<string>`coalesce(${pokemon.displayName}, ${pokemon.name})`,
@@ -277,7 +289,7 @@ export async function getDivisionItemUsage(divisionId: number): Promise<Array<{
     .from(matchPokemon)
     .innerJoin(matches, eq(matchPokemon.matchId, matches.id))
     .innerJoin(pokemon, eq(matchPokemon.pokemonId, pokemon.id))
-    .where(eq(matches.divisionId, divisionId));
+    .where(and(...itemConditions));
   const itemMap = new Map<string, { item: string; reveals: number; pokemon: Set<string> }>();
   for (const row of rows) {
     const uniqueItems = new Set((row.revealedItems ?? []).map((item) => item.item));

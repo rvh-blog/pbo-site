@@ -3,9 +3,9 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
 } from "discord.js";
-import { getChannelConfig } from "../services/discord-config";
 import { getDivisionItemUsage } from "../services/read-service";
-import { createErrorEmbed } from "../utils/embeds";
+import { selectCoachScope } from "../utils/coach-selection";
+import { selectPublicDivision } from "../utils/division-selection";
 
 export const data = new SlashCommandBuilder()
   .setName("items")
@@ -13,19 +13,28 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
-  const config = await getChannelConfig(interaction.channelId);
-  if (!config) {
-    await interaction.editReply({
-      embeds: [createErrorEmbed("This channel is not configured for a division.")],
-    });
-    return;
-  }
+  const division = await selectPublicDivision(interaction, {
+    customId: "items_division_select",
+    title: "Revealed Items",
+  });
+  if (!division) return;
+  const coachScope = await selectCoachScope(interaction, {
+    customId: "items_coach_select",
+    divisionId: division.id,
+    divisionName: division.name,
+    title: "Revealed Items",
+    allowAll: true,
+  });
+  if (!coachScope) return;
 
-  const items = await getDivisionItemUsage(config.divisionId);
+  const items = await getDivisionItemUsage(division.id, coachScope.team?.id);
+  const scopeLabel = coachScope.team
+    ? `${coachScope.team.coachName} • ${coachScope.team.teamName}`
+    : division.name;
   if (items.length === 0) {
     await interaction.editReply({
       embeds: [new EmbedBuilder()
-        .setTitle(`Revealed Items — ${config.division.name}`)
+        .setTitle(`Revealed Items — ${scopeLabel}`)
         .setDescription("No held-item reveals have been recorded yet.")
         .setColor(0x6366f1)],
     });
@@ -38,7 +47,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   });
   await interaction.editReply({
     embeds: [new EmbedBuilder()
-      .setTitle(`Revealed Items — ${config.division.name}`)
+      .setTitle(`Revealed Items — ${scopeLabel}`)
       .setDescription(lines.join("\n\n").slice(0, 4096))
       .setFooter({ text: "Only items explicitly revealed in recorded replays are counted." })
       .setColor(0x6366f1)],

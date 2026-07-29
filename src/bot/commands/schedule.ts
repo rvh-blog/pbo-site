@@ -15,7 +15,7 @@ import {
   type ButtonInteraction,
 } from "discord.js";
 import { randomUUID } from "node:crypto";
-import { getChannelConfig } from "../services/discord-config";
+import { getGuildChannels } from "../services/discord-config";
 import { logDiscordAudit } from "../services/discord-audit";
 import {
   DISCORD_TIMEZONES,
@@ -30,6 +30,7 @@ import {
   updateMatchSchedule,
 } from "../services/match-service";
 import { createErrorEmbed } from "../utils/embeds";
+import { selectCurrentDivision } from "../utils/division-selection";
 import {
   addCalendarDays,
   formatCalendarDate,
@@ -134,19 +135,34 @@ export async function execute(
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const config = await getChannelConfig(interaction.channelId);
-    if (!config) {
+    const division = await selectCurrentDivision(interaction, {
+      customId: "schedule_division_select",
+      title: "Schedule Match",
+      description: "Select the division containing the match you want to schedule.",
+    });
+    if (!division) return;
+
+    const guildChannels = interaction.guildId
+      ? await getGuildChannels(interaction.guildId)
+      : [];
+    const isScheduleEnabled = guildChannels.some(
+      (channel) =>
+        channel.divisionId === division.id &&
+        (channel.isScheduleEnabled ?? true)
+    );
+    if (!isScheduleEnabled) {
       await interaction.editReply({
-        embeds: [createErrorEmbed("This channel is not configured for a division. Ask an admin to set it up in the Discord config.")],
+        embeds: [createErrorEmbed(
+          `Match scheduling is not enabled for ${division.name}. An admin can enable it in Discord configuration.`
+        )],
+        components: [],
       });
       return;
     }
-    if (!config.isScheduleEnabled) {
-      await interaction.editReply({
-        embeds: [createErrorEmbed(`Match scheduling is not enabled for ${config.division.name}.`)],
-      });
-      return;
-    }
+    const config = {
+      divisionId: division.id,
+      division,
+    };
 
     const weeks = await getWeeksInDivision(config.divisionId);
     if (weeks.length === 0) {

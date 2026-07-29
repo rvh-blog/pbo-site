@@ -6,8 +6,9 @@ import {
   SlashCommandBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
-import { getChannelConfig } from "../services/discord-config";
 import { getTeamProfile, getUpcomingDivisionMatches } from "../services/read-service";
+import { selectCoachScope } from "../utils/coach-selection";
+import { selectPublicDivision } from "../utils/division-selection";
 import { createErrorEmbed } from "../utils/embeds";
 
 export const data = new SlashCommandBuilder()
@@ -24,15 +25,27 @@ function rosterText(profile: NonNullable<Awaited<ReturnType<typeof getTeamProfil
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
-  const config = await getChannelConfig(interaction.channelId);
-  if (!config) {
-    await interaction.editReply({
-      embeds: [createErrorEmbed("This channel is not configured for a division.")],
-    });
-    return;
-  }
+  const division = await selectPublicDivision(interaction, {
+    customId: "matchup_division_select",
+    title: "Upcoming Matchups",
+  });
+  if (!division) return;
+  const coachScope = await selectCoachScope(interaction, {
+    customId: "matchup_coach_select",
+    divisionId: division.id,
+    divisionName: division.name,
+    title: "Upcoming Matchups",
+    allowAll: true,
+  });
+  if (!coachScope) return;
 
-  const fixtures = await getUpcomingDivisionMatches(config.divisionId);
+  const allFixtures = await getUpcomingDivisionMatches(division.id);
+  const fixtures = coachScope.team
+    ? allFixtures.filter((fixture) =>
+      fixture.team1Id === coachScope.team?.id ||
+      fixture.team2Id === coachScope.team?.id
+    )
+    : allFixtures;
   if (fixtures.length === 0) {
     await interaction.editReply({
       embeds: [createErrorEmbed("No unplayed matchups remain in this division.")],
@@ -52,7 +65,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   );
   const response = await interaction.editReply({
     embeds: [new EmbedBuilder()
-      .setTitle(`Upcoming Matchups — ${config.division.name}`)
+      .setTitle(`Upcoming Matchups — ${division.name}`)
       .setDescription("Select a fixture to compare both teams.")
       .setColor(0x6366f1)],
     components: [row],
@@ -75,8 +88,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
 
     const [team1, team2] = await Promise.all([
-      getTeamProfile(config.divisionId, fixture.team1Id),
-      getTeamProfile(config.divisionId, fixture.team2Id),
+      getTeamProfile(division.id, fixture.team1Id),
+      getTeamProfile(division.id, fixture.team2Id),
     ]);
     if (!team1 || !team2) {
       await interaction.editReply({

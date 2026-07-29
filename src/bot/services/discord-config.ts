@@ -1,6 +1,11 @@
 import { db } from "@/lib/db";
-import { discordChannels, discordGuilds } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import {
+  discordChannels,
+  discordGuilds,
+  divisions,
+  seasons,
+} from "@/lib/schema";
+import { asc, desc, eq } from "drizzle-orm";
 
 export interface ChannelConfig {
   id: number;
@@ -20,6 +25,15 @@ export interface ChannelConfig {
     name: string;
     seasonId: number;
   };
+}
+
+export interface SelectableDivision {
+  id: number;
+  name: string;
+  seasonId: number;
+  seasonName: string;
+  seasonNumber: number;
+  isCurrent: boolean;
 }
 
 /**
@@ -77,4 +91,40 @@ export async function getGuildChannels(guildId: string) {
   });
 
   return guild?.channels || [];
+}
+
+/**
+ * Get every public division in the current season(s). Commands that make live
+ * changes use this list so historical divisions cannot be selected.
+ */
+export async function getCurrentDivisions(): Promise<SelectableDivision[]> {
+  const publicDivisions = await getPublicDivisions();
+  return publicDivisions.filter((division) => division.isCurrent);
+}
+
+/**
+ * Get every division in a public season for historical information commands.
+ */
+export async function getPublicDivisions(): Promise<SelectableDivision[]> {
+  return db
+    .select({
+      id: divisions.id,
+      name: divisions.name,
+      seasonId: divisions.seasonId,
+      seasonName: seasons.name,
+      seasonNumber: seasons.seasonNumber,
+      isCurrent: seasons.isCurrent,
+    })
+    .from(divisions)
+    .innerJoin(seasons, eq(divisions.seasonId, seasons.id))
+    .where(eq(seasons.isPublic, true))
+    .orderBy(
+      desc(seasons.seasonNumber),
+      asc(divisions.displayOrder),
+      asc(divisions.name)
+    )
+    .then((rows) => rows.map((row) => ({
+      ...row,
+      isCurrent: row.isCurrent ?? false,
+    })));
 }

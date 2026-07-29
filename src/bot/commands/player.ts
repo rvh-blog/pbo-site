@@ -3,8 +3,9 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
 } from "discord.js";
-import { getChannelConfig } from "../services/discord-config";
 import { getPokemonPerformance } from "../services/read-service";
+import { selectCoachScope } from "../utils/coach-selection";
+import { selectPublicDivision } from "../utils/division-selection";
 import { createErrorEmbed } from "../utils/embeds";
 
 export const data = new SlashCommandBuilder()
@@ -17,16 +18,26 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
-  const config = await getChannelConfig(interaction.channelId);
-  if (!config) {
-    await interaction.editReply({
-      embeds: [createErrorEmbed("This channel is not configured for a division.")],
-    });
-    return;
-  }
+  const division = await selectPublicDivision(interaction, {
+    customId: "player_division_select",
+    title: "Pokémon Performance",
+  });
+  if (!division) return;
+  const coachScope = await selectCoachScope(interaction, {
+    customId: "player_coach_select",
+    divisionId: division.id,
+    divisionName: division.name,
+    title: "Pokémon Performance",
+    allowAll: true,
+  });
+  if (!coachScope) return;
 
   const search = interaction.options.getString("pokemon", true).trim();
-  const stats = await getPokemonPerformance(config.divisionId, search);
+  const stats = await getPokemonPerformance(
+    division.id,
+    search,
+    coachScope.team?.id
+  );
   if (!stats) {
     await interaction.editReply({
       embeds: [createErrorEmbed(`No Pokémon found matching "${search}".`)],
@@ -43,7 +54,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     : "No held items have been revealed.";
   const embed = new EmbedBuilder()
     .setTitle(stats.name)
-    .setDescription(`${config.division.name}${stats.types.length ? ` • ${stats.types.join(" / ")}` : ""}`)
+    .setDescription(
+      `${division.name}` +
+      `${coachScope.team ? ` • ${coachScope.team.coachName}` : " • All Coaches"}` +
+      `${stats.types.length ? ` • ${stats.types.join(" / ")}` : ""}`
+    )
     .addFields(
       {
         name: "Performance",
