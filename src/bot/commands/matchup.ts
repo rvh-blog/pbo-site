@@ -112,22 +112,20 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .addFields(
         {
           name: team1.teamName,
-          value: `Coach: **${team1.coachName}**\nRecord: **${team1.wins}-${team1.losses}**\nBudget: **${team1.remainingBudget}**`,
+          value:
+            `Coach: **${team1.coachName}**\n` +
+            `Record: **${team1.wins}-${team1.losses}**\n` +
+            `Budget: **${team1.remainingBudget}**\n\n` +
+            `**Roster**\n${rosterText(team1)}`,
           inline: true,
         },
         {
           name: team2.teamName,
-          value: `Coach: **${team2.coachName}**\nRecord: **${team2.wins}-${team2.losses}**\nBudget: **${team2.remainingBudget}**`,
-          inline: true,
-        },
-        {
-          name: `${team1.teamName} Roster`,
-          value: rosterText(team1),
-          inline: true,
-        },
-        {
-          name: `${team2.teamName} Roster`,
-          value: rosterText(team2),
+          value:
+            `Coach: **${team2.coachName}**\n` +
+            `Record: **${team2.wins}-${team2.losses}**\n` +
+            `Budget: **${team2.remainingBudget}**\n\n` +
+            `**Roster**\n${rosterText(team2)}`,
           inline: true,
         }
       )
