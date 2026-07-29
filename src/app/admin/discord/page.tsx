@@ -39,10 +39,21 @@ interface Guild {
   channels: Channel[];
 }
 
+interface BotStatus {
+  configured: boolean;
+  supervised: boolean;
+  running: boolean;
+  pid: number | null;
+}
+
 export default function AdminDiscordPage() {
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(true);
+  const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
+  const [botStatusError, setBotStatusError] = useState("");
+  const [restartingBot, setRestartingBot] = useState(false);
+  const [restartMessage, setRestartMessage] = useState("");
 
   // New guild form
   const [newGuildId, setNewGuildId] = useState("");
@@ -63,7 +74,59 @@ export default function AdminDiscordPage() {
 
   useEffect(() => {
     fetchData();
+    fetchBotStatus();
   }, []);
+
+  async function fetchBotStatus(): Promise<BotStatus | null> {
+    try {
+      const response = await fetch("/api/admin/discord-bot/restart", {
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Could not load bot status.");
+      }
+      setBotStatus(data);
+      setBotStatusError("");
+      return data;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load bot status.";
+      setBotStatusError(message);
+      return null;
+    }
+  }
+
+  async function restartBot() {
+    if (!confirm("Restart the Discord bot now? The website will stay online.")) return;
+
+    setRestartingBot(true);
+    setRestartMessage("Requesting restart…");
+    try {
+      const response = await fetch("/api/admin/discord-bot/restart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "The bot restart failed.");
+      }
+
+      setRestartMessage("Restart requested. Waiting for the bot to return…");
+      for (let attempt = 0; attempt < 16; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 750));
+        const nextStatus = await fetchBotStatus();
+        if (nextStatus?.running && nextStatus.pid !== data.previousPid) {
+          setRestartMessage("Discord bot restarted successfully.");
+          return;
+        }
+      }
+      setRestartMessage("Restart requested, but the new bot process has not appeared yet. Check again shortly.");
+    } catch (error) {
+      setRestartMessage(error instanceof Error ? error.message : "The bot restart failed.");
+    } finally {
+      setRestartingBot(false);
+    }
+  }
 
   async function fetchData(showLoading = true) {
     if (showLoading) setLoading(true);
@@ -296,6 +359,64 @@ export default function AdminDiscordPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-white">Discord Bot Configuration</h1>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Discord Bot Status</CardTitle>
+            <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+              Restart only the Discord bot process. The website and database remain online.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={restartBot}
+            disabled={restartingBot || !botStatus?.running}
+          >
+            {restartingBot ? "Restarting…" : "Restart Bot"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                botStatus?.running ? "bg-emerald-400" : "bg-red-400"
+              }`}
+              aria-hidden="true"
+            />
+            <span className="font-semibold">
+              {botStatus?.running
+                ? "Online"
+                : botStatus?.configured
+                  ? "Offline"
+                  : "Not configured"}
+            </span>
+            {botStatus?.pid && (
+              <span className="font-mono text-xs text-[var(--foreground-muted)]">
+                PID {botStatus.pid}
+              </span>
+            )}
+            <Button type="button" variant="outline" size="sm" onClick={() => fetchBotStatus()}>
+              Refresh Status
+            </Button>
+          </div>
+          {(restartMessage || botStatusError) && (
+            <p
+              className="mt-3 text-sm text-[var(--foreground-muted)]"
+              role="status"
+              aria-live="polite"
+            >
+              {restartMessage || botStatusError}
+            </p>
+          )}
+          {botStatus && !botStatus.supervised && botStatus.configured && (
+            <p className="mt-3 text-sm text-amber-300">
+              Bot supervision is unavailable until the updated startup script is deployed.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Setup Instructions */}
       <Card>

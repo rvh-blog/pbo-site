@@ -132,9 +132,15 @@ Admin notes:
 ## Discord Bot
 
 - Bot entry: `src/bot/index.ts`
+- Write commands: `/draft`, `/match`, `/schedule`
+- Read commands: `/team`, `/player`, `/items`, `/matchup`, `/standings`, `/help`
 - Commands: `src/bot/commands`
 - Handlers: `src/bot/handlers`
 - Match service: `src/bot/services/match-service.ts`
+- Read-query service: `src/bot/services/read-service.ts`
+- Discord preferences/audit: `src/bot/services/discord-user-preferences.ts`, `src/bot/services/discord-audit.ts`
+- Timezone conversion: `src/bot/utils/timezone.ts`
+- Admin restart/status endpoint: `src/app/api/admin/discord-bot/restart`
 - Stats service: `src/bot/services/stats-service.ts`
 - Build script: `scripts/build-bot.js`
 

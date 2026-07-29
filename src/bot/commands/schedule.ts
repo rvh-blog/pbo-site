@@ -8,10 +8,37 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  ButtonBuilder,
+  ButtonStyle,
   type StringSelectMenuInteraction,
   type ModalSubmitInteraction,
+  type ButtonInteraction,
 } from "discord.js";
+import { randomUUID } from "node:crypto";
 import { getChannelConfig } from "../services/discord-config";
+import { logDiscordAudit } from "../services/discord-audit";
+import {
+  DISCORD_TIMEZONES,
+  getDiscordTimezone,
+  isSupportedTimezone,
+  setDiscordTimezone,
+  type SupportedTimezone,
+} from "../services/discord-user-preferences";
+import {
+  getWeeksInDivision,
+  getFixturesForWeek,
+  updateMatchSchedule,
+} from "../services/match-service";
+import { createErrorEmbed } from "../utils/embeds";
+import {
+  addCalendarDays,
+  formatCalendarDate,
+  getTimeZoneOffsetLabel,
+  getZonedDateTime,
+  isValidCalendarDate,
+  zonedDateTimeToUtc,
+  type CalendarDateTime,
+} from "../utils/timezone";
 
 function getWeekLabel(week: number): string {
   if (week === 101) return "Quarterfinals";
@@ -19,14 +46,24 @@ function getWeekLabel(week: number): string {
   if (week === 103) return "Finals";
   return `Week ${week}`;
 }
-import {
-  getWeeksInDivision,
-  getFixturesForWeek,
-  updateMatchSchedule,
-} from "../services/match-service";
-import { createErrorEmbed } from "../utils/embeds";
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function timezoneName(timezone: SupportedTimezone): string {
+  return DISCORD_TIMEZONES.find((entry) => entry.value === timezone)?.name ?? timezone;
+}
+
+function timezoneDisplay(timezone: SupportedTimezone, date: Date): string {
+  return `${timezoneName(timezone)} (${getTimeZoneOffsetLabel(date, timezone)})`;
+}
+
+function parseDate(value: string): Pick<CalendarDateTime, "year" | "month" | "day"> | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  return isValidCalendarDate(year, month, day) ? { year, month, day } : null;
+}
 
 export const data = new SlashCommandBuilder()
   .setName("schedule")
@@ -35,38 +72,24 @@ export const data = new SlashCommandBuilder()
 export async function execute(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
-  // Defer reply immediately for cold start compatibility
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    // Get channel config
     const config = await getChannelConfig(interaction.channelId);
-
     if (!config) {
       await interaction.editReply({
-        embeds: [
-          createErrorEmbed(
-            "This channel is not configured for a division. Ask an admin to set it up in the Discord config."
-          ),
-        ],
+        embeds: [createErrorEmbed("This channel is not configured for a division. Ask an admin to set it up in the Discord config.")],
       });
       return;
     }
-
     if (!config.isScheduleEnabled) {
       await interaction.editReply({
-        embeds: [
-          createErrorEmbed(
-            `Match scheduling is not enabled for ${config.division.name}.`
-          ),
-        ],
+        embeds: [createErrorEmbed(`Match scheduling is not enabled for ${config.division.name}.`)],
       });
       return;
     }
 
-    // Get available weeks
     const weeks = await getWeeksInDivision(config.divisionId);
-
     if (weeks.length === 0) {
       await interaction.editReply({
         embeds: [createErrorEmbed("No fixtures found for this division.")],
@@ -74,35 +97,28 @@ export async function execute(
       return;
     }
 
-    // Build week select menu
-    const weekSelect = new StringSelectMenuBuilder()
-      .setCustomId("schedule_week_select")
-      .setPlaceholder("Select a week")
-      .addOptions(
-        weeks.slice(0, 25).map((w) => ({
-          label: getWeekLabel(w),
-          value: w.toString(),
-        }))
-      );
-
-    const weekRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(weekSelect);
-
-    const embed = new EmbedBuilder()
-      .setTitle(`Schedule Match - ${config.division.name}`)
-      .setDescription("**Step 1/3:** Select the week")
-      .setColor(0x6366f1);
-
+    const weekRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("schedule_week_select")
+        .setPlaceholder("Select a week")
+        .addOptions(weeks.slice(0, 25).map((week) => ({
+          label: getWeekLabel(week),
+          value: week.toString(),
+        })))
+    );
     const response = await interaction.editReply({
-      embeds: [embed],
+      embeds: [new EmbedBuilder()
+        .setTitle(`Schedule Match - ${config.division.name}`)
+        .setDescription("**Step 1/4:** Select the week")
+        .setColor(0x6366f1)],
       components: [weekRow],
     });
 
-    // Wait for week selection
     let weekInteraction: StringSelectMenuInteraction;
     try {
       weekInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.StringSelect,
-        filter: (i) => i.user.id === interaction.user.id,
+        filter: (component) => component.user.id === interaction.user.id,
         time: 120_000,
       });
     } catch {
@@ -112,15 +128,11 @@ export async function execute(
       });
       return;
     }
-
     await weekInteraction.deferUpdate();
 
-    const selectedWeek = parseInt(weekInteraction.values[0]);
-
-    // Get fixtures for selected week (only unplayed matches)
-    const allFixtures = await getFixturesForWeek(config.divisionId, selectedWeek);
-    const fixtures = allFixtures.filter((f) => !f.hasResult);
-
+    const selectedWeek = Number(weekInteraction.values[0]);
+    const fixtures = (await getFixturesForWeek(config.divisionId, selectedWeek))
+      .filter((fixture) => !fixture.hasResult);
     if (fixtures.length === 0) {
       await interaction.editReply({
         embeds: [createErrorEmbed("All matches in this week have already been played.")],
@@ -129,53 +141,32 @@ export async function execute(
       return;
     }
 
-    // Build fixture select menu - show current schedule status
-    const fixtureSelect = new StringSelectMenuBuilder()
-      .setCustomId("schedule_fixture_select")
-      .setPlaceholder("Select a match")
-      .addOptions(
-        fixtures.slice(0, 25).map((f) => {
-          let label = `${f.team1Name} vs ${f.team2Name}`;
-          let description: string | undefined;
-          if (f.scheduledAt) {
-            const date = new Date(f.scheduledAt);
-            description = `Currently: ${date.toLocaleString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-              timeZoneName: "short",
-            })}`;
-          } else {
-            description = "Not scheduled";
-          }
-          return {
-            label,
-            description,
-            value: f.matchId.toString(),
-          };
-        })
-      );
-
-    const fixtureRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(fixtureSelect);
-
+    const fixtureRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("schedule_fixture_select")
+        .setPlaceholder("Select a match")
+        .addOptions(fixtures.slice(0, 25).map((fixture) => ({
+          label: `${fixture.team1Name} vs ${fixture.team2Name}`.slice(0, 100),
+          description: fixture.scheduledAt
+            ? `Currently scheduled: ${new Date(fixture.scheduledAt).toISOString().slice(0, 16).replace("T", " ")} UTC`
+            : "Not scheduled",
+          value: fixture.matchId.toString(),
+        })))
+    );
     const weekLabel = getWeekLabel(selectedWeek);
-    const fixtureEmbed = new EmbedBuilder()
-      .setTitle(`Schedule Match - ${config.division.name}`)
-      .setDescription(`**Step 2/3:** Select the match (${weekLabel})`)
-      .setColor(0x6366f1);
-
     await interaction.editReply({
-      embeds: [fixtureEmbed],
+      embeds: [new EmbedBuilder()
+        .setTitle(`Schedule Match - ${config.division.name}`)
+        .setDescription(`**Step 2/4:** Select the match (${weekLabel})`)
+        .setColor(0x6366f1)],
       components: [fixtureRow],
     });
 
-    // Wait for fixture selection
     let fixtureInteraction: StringSelectMenuInteraction;
     try {
       fixtureInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.StringSelect,
-        filter: (i) => i.user.id === interaction.user.id,
+        filter: (component) => component.user.id === interaction.user.id,
         time: 120_000,
       });
     } catch {
@@ -186,9 +177,8 @@ export async function execute(
       return;
     }
 
-    const selectedMatchId = parseInt(fixtureInteraction.values[0]);
-    const selectedFixture = fixtures.find((f) => f.matchId === selectedMatchId);
-
+    const selectedMatchId = Number(fixtureInteraction.values[0]);
+    const selectedFixture = fixtures.find((fixture) => fixture.matchId === selectedMatchId);
     if (!selectedFixture) {
       await fixtureInteraction.update({
         embeds: [createErrorEmbed("Match not found.")],
@@ -196,55 +186,100 @@ export async function execute(
       });
       return;
     }
-
     await fixtureInteraction.deferUpdate();
 
-    // Build day select menu - next 7 days + custom
+    const savedTimezone = await getDiscordTimezone(interaction.user.id);
+    const defaultTimezone: SupportedTimezone = savedTimezone ?? "America/New_York";
     const now = new Date();
-    const dayOptions = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(now);
-      date.setDate(now.getDate() + i);
-      const dayName = DAY_NAMES[date.getDay()];
-      const monthDay = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      dayOptions.push({
-        label: dayName,
-        description: monthDay,
-        value: `day_${i}`, // days from now
+    const timezoneRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("schedule_timezone_select")
+        .setPlaceholder("Select your timezone")
+        .addOptions(DISCORD_TIMEZONES.map((timezone) => ({
+          label: timezoneDisplay(timezone.value, now),
+          description: `${timezone.value} • offset updates automatically for daylight saving`,
+          value: timezone.value,
+          default: timezone.value === defaultTimezone,
+        })))
+    );
+    await interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle(`Schedule Match - ${config.division.name}`)
+        .setDescription(
+          `**Step 3/4:** Select your timezone\n\n` +
+          `**${selectedFixture.team1Name}** vs **${selectedFixture.team2Name}**\n\n` +
+          "The displayed offset is current. The final time will use the correct offset for the match date."
+        )
+        .setColor(0x6366f1)],
+      components: [timezoneRow],
+    });
+
+    let timezoneInteraction: StringSelectMenuInteraction;
+    try {
+      timezoneInteraction = await response.awaitMessageComponent({
+        componentType: ComponentType.StringSelect,
+        filter: (component) => component.user.id === interaction.user.id,
+        time: 120_000,
       });
+    } catch {
+      await interaction.editReply({
+        embeds: [createErrorEmbed("Selection timed out. Please try again.")],
+        components: [],
+      });
+      return;
     }
+
+    const timezoneValue = timezoneInteraction.values[0];
+    if (!isSupportedTimezone(timezoneValue)) {
+      await timezoneInteraction.update({
+        embeds: [createErrorEmbed("That timezone is not supported.")],
+        components: [],
+      });
+      return;
+    }
+    const selectedTimezone = timezoneValue;
+    await timezoneInteraction.deferUpdate();
+    await setDiscordTimezone(interaction.user.id, selectedTimezone);
+
+    const today = getZonedDateTime(now, selectedTimezone);
+    const dayOptions = Array.from({ length: 7 }, (_, index) => {
+      const date = addCalendarDays(today, index);
+      const isoDate = `${date.year}-${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}`;
+      return {
+        label: formatCalendarDate(date, { weekday: "long" }),
+        description: formatCalendarDate(date, { month: "short", day: "numeric", year: "numeric" }),
+        value: `date_${isoDate}`,
+      };
+    });
     dayOptions.push({
       label: "Custom Date",
       description: "Enter a specific date",
       value: "custom",
     });
 
-    const daySelect = new StringSelectMenuBuilder()
-      .setCustomId("schedule_day_select")
-      .setPlaceholder("Select a day")
-      .addOptions(dayOptions);
-
-    const dayRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(daySelect);
-
-    const dayEmbed = new EmbedBuilder()
-      .setTitle(`Schedule Match - ${config.division.name}`)
-      .setDescription(
-        `**Step 3/3:** Select the day\n\n` +
-        `**${selectedFixture.team1Name}** vs **${selectedFixture.team2Name}**`
-      )
-      .setColor(0x6366f1);
-
+    const dayRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("schedule_day_select")
+        .setPlaceholder("Select a day")
+        .addOptions(dayOptions)
+    );
     await interaction.editReply({
-      embeds: [dayEmbed],
+      embeds: [new EmbedBuilder()
+        .setTitle(`Schedule Match - ${config.division.name}`)
+        .setDescription(
+          `**Step 4/4:** Select the day\n\n` +
+          `**${selectedFixture.team1Name}** vs **${selectedFixture.team2Name}**\n` +
+          timezoneDisplay(selectedTimezone, now)
+        )
+        .setColor(0x6366f1)],
       components: [dayRow],
     });
 
-    // Wait for day selection
     let dayInteraction: StringSelectMenuInteraction;
     try {
       dayInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.StringSelect,
-        filter: (i) => i.user.id === interaction.user.id,
+        filter: (component) => component.user.id === interaction.user.id,
         time: 120_000,
       });
     } catch {
@@ -257,75 +292,62 @@ export async function execute(
 
     const dayValue = dayInteraction.values[0];
     const isCustomDate = dayValue === "custom";
-
-    // Calculate selected date (if not custom)
-    let selectedDate: Date | null = null;
-    if (!isCustomDate) {
-      const daysFromNow = parseInt(dayValue.replace("day_", ""));
-      selectedDate = new Date(now);
-      selectedDate.setDate(now.getDate() + daysFromNow);
+    const selectedDate = isCustomDate ? null : parseDate(dayValue.replace("date_", ""));
+    if (!isCustomDate && !selectedDate) {
+      await dayInteraction.update({
+        embeds: [createErrorEmbed("The selected date is invalid.")],
+        components: [],
+      });
+      return;
     }
 
-    // Show time modal (with or without date field)
+    const existingLocal = selectedFixture.scheduledAt
+      ? getZonedDateTime(new Date(selectedFixture.scheduledAt), selectedTimezone)
+      : null;
     const modal = new ModalBuilder()
       .setCustomId("schedule_time_modal")
-      .setTitle("Set Match Time");
-
-    // Pre-fill with existing time if available
-    let defaultDate = "";
-    let defaultTime = "";
-    if (selectedFixture.scheduledAt) {
-      const d = new Date(selectedFixture.scheduledAt);
-      defaultDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      defaultTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    }
+      .setTitle(selectedFixture.scheduledAt ? "Propose New Match Time" : "Set Match Time");
 
     if (isCustomDate) {
       const dateInput = new TextInputBuilder()
         .setCustomId("schedule_date")
         .setLabel("Date (YYYY-MM-DD)")
-        .setPlaceholder("2025-01-15")
+        .setPlaceholder("2026-08-15")
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setMinLength(10)
         .setMaxLength(10);
-      if (defaultDate) dateInput.setValue(defaultDate);
+      if (existingLocal) {
+        dateInput.setValue(
+          `${existingLocal.year}-${String(existingLocal.month).padStart(2, "0")}-${String(existingLocal.day).padStart(2, "0")}`
+        );
+      }
       modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(dateInput));
     }
 
     const timeInput = new TextInputBuilder()
       .setCustomId("schedule_time")
-      .setLabel("Time in your local time (24hr, e.g., 19:00)")
+      .setLabel(`Time in ${timezoneName(selectedTimezone)} (24-hour)`.slice(0, 45))
       .setPlaceholder("19:00")
       .setStyle(TextInputStyle.Short)
       .setRequired(true)
       .setMinLength(5)
       .setMaxLength(5);
-    if (defaultTime) timeInput.setValue(defaultTime);
-
-    const timezoneInput = new TextInputBuilder()
-      .setCustomId("schedule_timezone")
-      .setLabel("Your timezone offset (e.g., -5, +0, +2)")
-      .setPlaceholder("-5")
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMinLength(1)
-      .setMaxLength(3)
-      .setValue("-5"); // Default to EST
-
-    modal.addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(timeInput),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(timezoneInput)
-    );
-
+    if (existingLocal) {
+      timeInput.setValue(
+        `${String(existingLocal.hour).padStart(2, "0")}:${String(existingLocal.minute).padStart(2, "0")}`
+      );
+    }
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(timeInput));
     await dayInteraction.showModal(modal);
 
-    // Wait for modal submission
     let modalInteraction: ModalSubmitInteraction;
     try {
       modalInteraction = await dayInteraction.awaitModalSubmit({
-        filter: (i) => i.customId === "schedule_time_modal" && i.user.id === interaction.user.id,
-        time: 300_000, // 5 minutes
+        filter: (component) =>
+          component.customId === "schedule_time_modal" &&
+          component.user.id === interaction.user.id,
+        time: 300_000,
       });
     } catch {
       await interaction.editReply({
@@ -334,38 +356,23 @@ export async function execute(
       });
       return;
     }
-
     await modalInteraction.deferUpdate();
 
-    const timeStr = modalInteraction.fields.getTextInputValue("schedule_time").trim();
-    const tzOffsetStr = modalInteraction.fields.getTextInputValue("schedule_timezone").trim();
-
-    // Parse 24-hour time format (e.g., "19:00", "09:30")
-    const timeMatch = timeStr.match(/^(\d{2}):(\d{2})$/);
-    const tzMatch = tzOffsetStr.match(/^([+-]?)(\d{1,2})$/);
-
+    const timeMatch = modalInteraction.fields
+      .getTextInputValue("schedule_time")
+      .trim()
+      .match(/^(\d{2}):(\d{2})$/);
     if (!timeMatch) {
       await interaction.editReply({
-        embeds: [createErrorEmbed("Invalid time format. Use HH:MM (e.g., 19:00).")],
+        embeds: [createErrorEmbed("Invalid time format. Use HH:MM, such as 19:00.")],
         components: [],
       });
       return;
     }
 
-    if (!tzMatch) {
-      await interaction.editReply({
-        embeds: [createErrorEmbed("Invalid timezone offset. Use format like -5, +0, +2.")],
-        components: [],
-      });
-      return;
-    }
-
-    const hour = parseInt(timeMatch[1]);
-    const minute = parseInt(timeMatch[2]);
-    const tzSign = tzMatch[1] === "-" ? -1 : 1;
-    const tzHours = parseInt(tzMatch[2]) * tzSign;
-
-    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    const hour = Number(timeMatch[1]);
+    const minute = Number(timeMatch[2]);
+    if (hour > 23 || minute > 59) {
       await interaction.editReply({
         embeds: [createErrorEmbed("Invalid time values.")],
         components: [],
@@ -373,153 +380,206 @@ export async function execute(
       return;
     }
 
-    // Get date (from dropdown selection or custom input)
-    let year: number, month: number, day: number;
-
-    if (isCustomDate) {
-      const dateStr = modalInteraction.fields.getTextInputValue("schedule_date");
-      const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-
-      if (!dateMatch) {
-        await interaction.editReply({
-          embeds: [createErrorEmbed("Invalid date format. Use YYYY-MM-DD.")],
-          components: [],
-        });
-        return;
-      }
-
-      year = parseInt(dateMatch[1]);
-      month = parseInt(dateMatch[2]) - 1; // 0-indexed
-      day = parseInt(dateMatch[3]);
-
-      if (month < 0 || month > 11 || day < 1 || day > 31) {
-        await interaction.editReply({
-          embeds: [createErrorEmbed("Invalid date values.")],
-          components: [],
-        });
-        return;
-      }
-    } else {
-      year = selectedDate!.getFullYear();
-      month = selectedDate!.getMonth();
-      day = selectedDate!.getDate();
-    }
-
-    // Create date in UTC, then adjust for user's timezone offset
-    // User's local time = UTC + tzHours, so UTC = local time - tzHours
-    // Use Date.UTC to avoid server timezone issues
-    const utcTimestamp = Date.UTC(year, month, day, hour, minute, 0);
-    const utcDate = new Date(utcTimestamp - tzHours * 60 * 60 * 1000);
-    const isoString = utcDate.toISOString();
-
-    // Update the schedule
-    const result = await updateMatchSchedule(selectedMatchId, isoString);
-
-    if (!result.success) {
+    const date = isCustomDate
+      ? parseDate(modalInteraction.fields.getTextInputValue("schedule_date").trim())
+      : selectedDate;
+    if (!date) {
       await interaction.editReply({
-        embeds: [createErrorEmbed(result.error || "Failed to update schedule.")],
+        embeds: [createErrorEmbed("Invalid date. Use a real calendar date in YYYY-MM-DD format.")],
         components: [],
       });
       return;
     }
 
-    // Build success embed with Discord timestamp and common timezones
-    const unixTimestamp = Math.floor(utcDate.getTime() / 1000);
-
-    // Format for common timezones
-    const formatTz = (tz: string): string | null => {
-      try {
-        const label = utcDate.toLocaleString("en-US", {
-          timeZone: tz,
-          timeZoneName: "short",
-        }).split(", ").pop()?.split(" ").pop() || tz;
-        const formatted = utcDate.toLocaleString("en-US", {
-          timeZone: tz,
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        });
-        return `${label}: ${formatted}`;
-      } catch (e) {
-        console.error(`[Bot] Error formatting timezone ${tz}:`, e);
-        return null;
-      }
-    };
-
-    let timezones = "Unable to calculate";
-    try {
-      const tzList = [
-        formatTz("America/Los_Angeles"),
-        formatTz("America/New_York"),
-        formatTz("Europe/London"),
-      ].filter((t): t is string => t !== null);
-      if (tzList.length > 0) {
-        timezones = tzList.join("\n");
-      }
-    } catch (e) {
-      console.error("[Bot] Error building timezone list:", e);
+    const proposedDate = zonedDateTimeToUtc(
+      { ...date, hour, minute },
+      selectedTimezone
+    );
+    if (!proposedDate) {
+      await interaction.editReply({
+        embeds: [createErrorEmbed(
+          `That local time does not exist in ${timezoneName(selectedTimezone)} because of a daylight-saving clock change. Choose another time.`
+        )],
+        components: [],
+      });
+      return;
     }
 
-    // Log the computed values for debugging
-    console.log("[Bot] Schedule saved:", {
-      matchId: selectedMatchId,
-      utcDate: utcDate.toISOString(),
-      unixTimestamp,
-      timezones,
+    const isReschedule = selectedFixture.scheduledAt !== null;
+    const proposedUnix = Math.floor(proposedDate.getTime() / 1000);
+    const currentUnix = selectedFixture.scheduledAt
+      ? Math.floor(new Date(selectedFixture.scheduledAt).getTime() / 1000)
+      : null;
+    const dateOffset = getTimeZoneOffsetLabel(proposedDate, selectedTimezone);
+    const confirmId = `schedule_confirm_${selectedMatchId}`;
+    const keepId = `schedule_keep_${selectedMatchId}`;
+    const confirmationEmbed = new EmbedBuilder()
+      .setTitle(isReschedule ? "Confirm Match Reschedule" : "Confirm Match Schedule")
+      .setDescription(
+        `**${selectedFixture.team1Name}** vs **${selectedFixture.team2Name}**\n${weekLabel}`
+      )
+      .addFields(
+        ...(currentUnix === null ? [] : [{
+          name: "Current",
+          value: `<t:${currentUnix}:F>`,
+          inline: false,
+        }]),
+        {
+          name: "Proposed",
+          value: `<t:${proposedUnix}:F>\n(<t:${proposedUnix}:R>)`,
+          inline: false,
+        },
+        {
+          name: "Timezone used",
+          value: `${timezoneName(selectedTimezone)} (${dateOffset})\n${selectedTimezone}`,
+          inline: false,
+        }
+      )
+      .setColor(isReschedule ? 0xf59e0b : 0x6366f1);
+    const confirmationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(confirmId)
+        .setLabel(isReschedule ? "Confirm Reschedule" : "Confirm Schedule")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(keepId)
+        .setLabel(isReschedule ? "Keep Existing" : "Cancel")
+        .setStyle(ButtonStyle.Secondary)
+    );
+    await interaction.editReply({
+      embeds: [confirmationEmbed],
+      components: [confirmationRow],
     });
 
-    // Build and send success message - with fallback if embed fails
+    let confirmationInteraction: ButtonInteraction;
     try {
-      const successEmbed = new EmbedBuilder()
-        .setTitle("Match Scheduled")
-        .setDescription(
-          `**${selectedFixture.team1Name}** vs **${selectedFixture.team2Name}**\n` +
-          `${weekLabel}\n\n` +
-          `<t:${unixTimestamp}:F>\n` +
-          `(<t:${unixTimestamp}:R>)`
-        )
-        .addFields({
-          name: "Common Timezones",
-          value: timezones,
-          inline: false,
-        })
-        .setColor(0x22c55e)
-        .setFooter({ text: `Scheduled by ${interaction.user.username}` })
-        .setTimestamp();
-
-      // Clear the ephemeral interaction UI
+      confirmationInteraction = await response.awaitMessageComponent({
+        componentType: ComponentType.Button,
+        filter: (component) => component.user.id === interaction.user.id &&
+          (component.customId === confirmId || component.customId === keepId),
+        time: 120_000,
+      });
+    } catch {
       await interaction.editReply({
-        content: "Match scheduled! See confirmation below.",
+        embeds: [createErrorEmbed("Confirmation timed out. No schedule changes were saved.")],
+        components: [],
+      });
+      return;
+    }
+
+    if (confirmationInteraction.customId === keepId) {
+      await confirmationInteraction.update({
+        content: isReschedule ? "Kept the existing match time." : "Scheduling cancelled.",
         embeds: [],
         components: [],
       });
+      return;
+    }
+    await confirmationInteraction.deferUpdate();
 
-      // Post public confirmation to channel using followUp
-      try {
-        await interaction.followUp({
-          embeds: [successEmbed],
-          ephemeral: false,
-        });
-      } catch (channelError) {
-        console.error("[Bot] Failed to post public confirmation:", channelError);
-        // Fallback: show in ephemeral reply
-        await interaction.editReply({
-          embeds: [successEmbed],
-          components: [],
-        });
-      }
-    } catch (embedError) {
-      // Embed failed - try simple text response
-      console.error("[Bot] Embed creation/send failed:", embedError);
+    const operationId = randomUUID();
+    const result = await updateMatchSchedule(
+      selectedMatchId,
+      proposedDate.toISOString(),
+      selectedFixture.scheduledAt
+    );
+    if (!result.success) {
+      await logDiscordAudit({
+        interaction,
+        operationId,
+        command: "schedule",
+        action: isReschedule ? "reschedule_match" : "schedule_match",
+        entityType: "match",
+        entityId: selectedMatchId,
+        status: "failure",
+        before: { scheduledAt: selectedFixture.scheduledAt },
+        after: {
+          scheduledAt: proposedDate.toISOString(),
+          timezone: selectedTimezone,
+          offset: dateOffset,
+        },
+        error: result.error || "Failed to update schedule.",
+      });
       await interaction.editReply({
-        content: `Match scheduled for <t:${unixTimestamp}:F> (<t:${unixTimestamp}:R>)`,
-        embeds: [],
+        embeds: [createErrorEmbed(
+          `${result.error || "Failed to update schedule."}\n\nReference: \`${operationId}\``
+        )],
+        components: [],
+      });
+      return;
+    }
+
+    await logDiscordAudit({
+      interaction,
+      operationId,
+      command: "schedule",
+      action: isReschedule ? "reschedule_match" : "schedule_match",
+      entityType: "match",
+      entityId: selectedMatchId,
+      status: "success",
+      before: { scheduledAt: selectedFixture.scheduledAt },
+      after: {
+        scheduledAt: proposedDate.toISOString(),
+        timezone: selectedTimezone,
+        offset: dateOffset,
+      },
+    });
+
+    const formatTz = (timezone: SupportedTimezone): string =>
+      `${timezoneName(timezone)} (${getTimeZoneOffsetLabel(proposedDate, timezone)}): ` +
+      proposedDate.toLocaleString("en-US", {
+        timeZone: timezone,
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    const commonTimezones = ([
+      "America/Los_Angeles",
+      "America/New_York",
+      "Europe/London",
+    ] as const).map(formatTz).join("\n");
+    const action = isReschedule ? "Rescheduled" : "Scheduled";
+    const successEmbed = new EmbedBuilder()
+      .setTitle(`Match ${action}`)
+      .setDescription(
+        `**${selectedFixture.team1Name}** vs **${selectedFixture.team2Name}**\n` +
+        `${weekLabel}\n\n<t:${proposedUnix}:F>\n(<t:${proposedUnix}:R>)`
+      )
+      .addFields({
+        name: "Common Timezones",
+        value: commonTimezones,
+        inline: false,
+      })
+      .setColor(0x22c55e)
+      .setFooter({ text: `${action} by ${interaction.user.username}` })
+      .setTimestamp();
+
+    console.log("[Bot] Match schedule saved:", {
+      matchId: selectedMatchId,
+      actorDiscordUserId: interaction.user.id,
+      before: selectedFixture.scheduledAt,
+      after: proposedDate.toISOString(),
+      timezone: selectedTimezone,
+      dateOffset,
+    });
+
+    await interaction.editReply({
+      content: `Match ${action.toLowerCase()}! See confirmation below.`,
+      embeds: [],
+      components: [],
+    });
+    try {
+      await interaction.followUp({ embeds: [successEmbed], ephemeral: false });
+    } catch (channelError) {
+      console.error("[Bot] Failed to post public schedule confirmation:", channelError);
+      await interaction.editReply({
+        content: "",
+        embeds: [successEmbed],
         components: [],
       });
     }
-
   } catch (error) {
     console.error("[Bot] Error in /schedule command:", error);
     await interaction.editReply({

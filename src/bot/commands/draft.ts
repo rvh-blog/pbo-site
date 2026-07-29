@@ -14,13 +14,13 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from "discord.js";
+import { randomUUID } from "node:crypto";
 import { getChannelConfig } from "../services/discord-config";
+import { logDiscordAudit } from "../services/discord-audit";
 import {
   getTeamsInDivision,
   getAvailablePokemon,
   addDraftPick,
-  getPokemonDetails,
-  getTeamDetails,
   findPokemonOwner,
 } from "../services/draft-service";
 import { createErrorEmbed, createSuccessEmbed } from "../utils/embeds";
@@ -384,6 +384,7 @@ export async function execute(
     const totalCost = baseCost + (isTeraCaptain ? tcCost : 0);
 
     // Execute the draft pick
+    const operationId = randomUUID();
     const result = await addDraftPick({
       seasonCoachId: selectedTeamId,
       pokemonId: selectedPokemon.id,
@@ -393,12 +394,57 @@ export async function execute(
     });
 
     if (!result.success) {
+      await logDiscordAudit({
+        interaction,
+        operationId,
+        command: "draft",
+        action: "add_draft_pick",
+        entityType: "roster",
+        entityId: selectedTeamId,
+        status: "failure",
+        before: {
+          teamId: selectedTeamId,
+          teamName: selectedTeam.teamName,
+          remainingBudget: selectedTeam.remainingBudget,
+        },
+        after: {
+          pokemonId: selectedPokemon.id,
+          pokemonName: selectedPokemon.displayName || selectedPokemon.name,
+          totalCost,
+          isTeraCaptain,
+        },
+        error: result.error || "Failed to add draft pick.",
+      });
       await interaction.editReply({
-        embeds: [createErrorEmbed(result.error || "Failed to add draft pick.")],
+        embeds: [createErrorEmbed(
+          `${result.error || "Failed to add draft pick."}\n\nReference: \`${operationId}\``
+        )],
         components: [],
       });
       return;
     }
+
+    await logDiscordAudit({
+      interaction,
+      operationId,
+      command: "draft",
+      action: "add_draft_pick",
+      entityType: "roster",
+      entityId: selectedTeamId,
+      status: "success",
+      before: {
+        teamId: selectedTeamId,
+        teamName: selectedTeam.teamName,
+        remainingBudget: selectedTeam.remainingBudget,
+      },
+      after: {
+        pokemonId: selectedPokemon.id,
+        pokemonName: selectedPokemon.displayName || selectedPokemon.name,
+        totalCost,
+        isTeraCaptain,
+        remainingBudget: selectedTeam.remainingBudget - totalCost,
+      },
+    });
 
     // Success!
     const successEmbed = createSuccessEmbed(

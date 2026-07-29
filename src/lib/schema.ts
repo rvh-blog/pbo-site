@@ -971,6 +971,37 @@ export const discordChannels = sqliteTable("discord_channels", {
   index("idx_discord_channels_division_id").on(table.divisionId),
 ]);
 
+// Discord-only preferences. These do not require a linked PBO account.
+export const discordUserPreferences = sqliteTable("discord_user_preferences", {
+  discordUserId: text("discord_user_id").primaryKey(),
+  timezone: text("timezone").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const discordAuditLogs = sqliteTable("discord_audit_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  operationId: text("operation_id").notNull().unique(),
+  guildId: text("guild_id"),
+  channelId: text("channel_id").notNull(),
+  discordUserId: text("discord_user_id").notNull(),
+  discordUsername: text("discord_username").notNull(),
+  command: text("command").notNull(),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id"),
+  status: text("status").notNull(),
+  beforeData: text("before_data"),
+  afterData: text("after_data"),
+  error: text("error"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_discord_audit_logs_created_at").on(table.createdAt),
+  index("idx_discord_audit_logs_user").on(table.discordUserId),
+  index("idx_discord_audit_logs_entity").on(table.entityType, table.entityId),
+  index("idx_discord_audit_logs_command").on(table.command, table.status),
+]);
+
 export const discordGuildsRelations = relations(discordGuilds, ({ many }) => ({
   channels: many(discordChannels),
 }));

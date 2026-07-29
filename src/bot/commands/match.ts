@@ -11,7 +11,9 @@ import {
   type StringSelectMenuInteraction,
   type ModalSubmitInteraction,
 } from "discord.js";
+import { randomUUID } from "node:crypto";
 import { getChannelConfig } from "../services/discord-config";
+import { logDiscordAudit } from "../services/discord-audit";
 
 function getWeekLabel(week: number): string {
   if (week === 101) return "Quarterfinals";
@@ -323,6 +325,7 @@ export async function execute(
     }
 
     // Record the result with Pokemon stats, timing, and damage tracking data
+    const operationId = randomUUID();
     const result = await recordMatchResult(
       selectedMatchId,
       winnerId,
@@ -338,12 +341,57 @@ export async function execute(
     );
 
     if (!result.success) {
+      await logDiscordAudit({
+        interaction,
+        operationId,
+        command: "match",
+        action: "record_match_result",
+        entityType: "match",
+        entityId: selectedMatchId,
+        status: "failure",
+        before: {
+          winnerId: matchDetails.winnerId,
+          replayUrl: matchDetails.replayUrl,
+        },
+        after: {
+          winnerId,
+          coach1Differential: coach1Diff,
+          coach2Differential: coach2Diff,
+          replayUrl,
+          pokemonRows: pokemonData.length,
+        },
+        error: result.error || "Failed to record match result.",
+      });
       await interaction.editReply({
-        embeds: [createErrorEmbed(result.error || "Failed to record match result.")],
+        embeds: [createErrorEmbed(
+          `${result.error || "Failed to record match result."}\n\nReference: \`${operationId}\``
+        )],
         components: [],
       });
       return;
     }
+
+    await logDiscordAudit({
+      interaction,
+      operationId,
+      command: "match",
+      action: "record_match_result",
+      entityType: "match",
+      entityId: selectedMatchId,
+      status: "success",
+      before: {
+        winnerId: matchDetails.winnerId,
+        replayUrl: matchDetails.replayUrl,
+      },
+      after: {
+        winnerId,
+        winnerName,
+        coach1Differential: coach1Diff,
+        coach2Differential: coach2Diff,
+        replayUrl,
+        pokemonRows: pokemonData.length,
+      },
+    });
 
     // Build K/D summary for each team
     const formatKD = (team: { name: string; kills: number; deaths: number }[]) => {

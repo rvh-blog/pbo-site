@@ -91,12 +91,16 @@ async function getCurrentSeason() {
 }
 
 async function getPreviousSeasonChampions(): Promise<OffseasonChampion[]> {
-  const latestPublicSeason = await db.query.seasons.findFirst({
+  const publicSeasons = await db.query.seasons.findMany({
+    columns: {
+      id: true,
+      seasonNumber: true,
+    },
     where: or(eq(seasons.isPublic, true), isNull(seasons.isPublic)),
     orderBy: [desc(seasons.seasonNumber)],
   });
 
-  if (!latestPublicSeason) {
+  if (publicSeasons.length === 0) {
     return DIVISION_ORDER.map((divisionName) => ({
       divisionId: null,
       divisionName,
@@ -110,7 +114,7 @@ async function getPreviousSeasonChampions(): Promise<OffseasonChampion[]> {
 
   const finals = await db.query.playoffMatches.findMany({
     where: and(
-      eq(playoffMatches.seasonId, latestPublicSeason.id),
+      inArray(playoffMatches.seasonId, publicSeasons.map((season) => season.id)),
       eq(playoffMatches.round, 3),
       isNotNull(playoffMatches.winnerId)
     ),
@@ -124,16 +128,35 @@ async function getPreviousSeasonChampions(): Promise<OffseasonChampion[]> {
     },
   });
 
-  const finalsByDivision = new Map(finals.map((final) => [final.division?.name, final]));
+  const championshipSeason = publicSeasons.find((season) =>
+    finals.some((final) => final.seasonId === season.id)
+  );
 
+  if (!championshipSeason) {
+    return DIVISION_ORDER.map((divisionName) => ({
+      divisionId: null,
+      divisionName,
+      seasonId: null,
+      seasonNumber: null,
+      teamName: null,
+      teamLogoUrl: null,
+      coachName: null,
+    }));
+  }
+
+  const championshipFinals = finals.filter(
+    (final) => final.seasonId === championshipSeason.id
+  );
   return DIVISION_ORDER.map((divisionName) => {
-    const final = finalsByDivision.get(divisionName);
+    const final = championshipFinals.find(
+      (candidate) => normalizeDivisionName(candidate.division?.name || "") === normalizeDivisionName(divisionName)
+    );
 
     return {
       divisionId: final?.divisionId ?? null,
       divisionName,
-      seasonId: latestPublicSeason.id,
-      seasonNumber: latestPublicSeason.seasonNumber,
+      seasonId: championshipSeason.id,
+      seasonNumber: championshipSeason.seasonNumber,
       teamName: final?.winner?.teamName ?? null,
       teamLogoUrl: final?.winner?.teamLogoUrl ?? null,
       coachName: final?.winner?.coach?.name ?? null,
@@ -945,100 +968,11 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
   );
 }
 
-function getDevelopmentUpcomingBattles(): UpcomingBattleItem[] {
-  if (process.env.NODE_ENV !== "development") return [];
-
-  const previewStart = Date.now() + 60 * 60 * 1000;
-  const matchups = [
-    {
-      team1Id: 957,
-      team1Name: "Jirachi All-Stars",
-      team1Logo: "/images/teams/jirachi-all-stars.png",
-      team2Id: 958,
-      team2Name: "Blackthorn Crashers",
-      team2Logo: "/images/teams/blackthorn-crashers.png",
-      divisionName: "Infinity",
-    },
-    {
-      team1Id: 973,
-      team1Name: "The Pokerangers",
-      team1Logo: "/images/teams/the-pokerangers.png",
-      team2Id: 983,
-      team2Name: "Gimmighoul Pump N Dumps",
-      team2Logo: "/images/teams/ghimmieghoul-pump-and-dumps.png",
-      divisionName: "Stargazer",
-    },
-    {
-      team1Id: 986,
-      team1Name: "Snowpoint City Snovers",
-      team1Logo: "/images/teams/snowpoint-city-snovers.png",
-      team2Id: 987,
-      team2Name: "Glasgow Glowbros",
-      team2Logo: "/images/teams/glasgow-glowbros.png",
-      divisionName: "Sunset",
-    },
-    {
-      team1Id: 966,
-      team1Name: "Toronto Staraptors",
-      team1Logo: "/images/teams/toronto-staraptors.png",
-      team2Id: 967,
-      team2Name: "Iberia Wattrels",
-      team2Logo: "/images/teams/iberia-wattrels.png",
-      divisionName: "Crystal",
-    },
-    {
-      team1Id: 964,
-      team1Name: "Worcester Woopers",
-      team1Logo: "/images/teams/worcester-woopers.png",
-      team2Id: 969,
-      team2Name: "New York Malamars",
-      team2Logo: "/images/teams/new-york-malamars.png",
-      divisionName: "Neon",
-    },
-    {
-      team1Id: 988,
-      team1Name: "Vancouver Valiants",
-      team1Logo: "/images/teams/vancouver-valiants.png",
-      team2Id: 989,
-      team2Name: "Tokyo Teddiursas",
-      team2Logo: "/images/teams/tokyo-teddiursas.png",
-      divisionName: "Infinity",
-    },
-    {
-      team1Id: 990,
-      team1Name: "Sydney Sylveons",
-      team1Logo: "/images/teams/sydney-sylveons.png",
-      team2Id: 991,
-      team2Name: "Ottawa Donphans",
-      team2Logo: "/images/teams/ottawa-donphans.png",
-      divisionName: "Stargazer",
-    },
-    {
-      team1Id: 992,
-      team1Name: "Richmond Ragingbolts",
-      team1Logo: "/images/teams/richmond-ragingbolts.png",
-      team2Id: 993,
-      team2Name: "Pittsburgh Scizors",
-      team2Logo: "/images/teams/pittsburgh-scizors.png",
-      divisionName: "Sunset",
-    },
-  ];
-
-  return matchups.map((matchup, index) => ({
-    id: -(index + 1),
-    matchId: -(index + 1),
-    week: 1,
-    scheduledAt: new Date(previewStart + index * 60 * 60 * 1000).toISOString(),
-    isUnderway: false,
-    ...matchup,
-  }));
-}
-
 function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPicks[] }) {
   if (divisions.length === 0) return null;
 
   return (
-    <section className="poke-card deferred-section p-4 sm:p-6">
+    <section className="order-6 poke-card deferred-section p-4 sm:p-6">
       <HomeLiveDraftRefresh />
       <div className="section-title">
         <div className="section-title-icon">
@@ -1141,7 +1075,7 @@ function RecentDraftPicksPanel({ divisions }: { divisions: DivisionRecentDraftPi
 
 function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] }) {
   return (
-    <section className="poke-card p-5 sm:p-6">
+    <section className="order-10 poke-card p-5 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-5">
         <div>
           <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-2">
@@ -1265,21 +1199,16 @@ export default async function Home() {
     : currentSeason
       ? `/seasons/${currentSeason.id}`
       : "/seasons";
-  const currentSeasonTransactionsHref = currentSeason?.divisions[0]
-    ? `/seasons/${currentSeason.id}/divisions/${currentSeason.divisions[0].id}/transactions`
+  const currentSeasonTransactionsHref = personalizedHome?.activeTeam
+    ? `/seasons/${personalizedHome.activeTeam.division!.season!.id}/divisions/${personalizedHome.activeTeam.divisionId}/transactions`
+    : currentSeason?.divisions[0]
+      ? `/seasons/${currentSeason.id}/divisions/${currentSeason.divisions[0].id}/transactions`
     : "/seasons";
   const leagueHubLinks = [
-    { href: "/pick-ems", label: "Make Pick-Ems", iconPath: "M9 12l2 2 4-4m5 2a8 8 0 11-16 0 8 8 0 0116 0z" },
     { href: "/fantasy", label: "Open Fantasy", iconPath: "M12 3l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9L12 3z" },
     { href: "/draft-planner", label: "Free Agency", iconPath: "M9 5H7a2 2 0 00-2 2v12h14V7a2 2 0 00-2-2h-2m-6 0a3 3 0 006 0m-6 0a3 3 0 016 0" },
     { href: currentSeasonTransactionsHref, label: "Transactions", iconPath: "M7 7h11m0 0l-3-3m3 3l-3 3M17 17H6m0 0l3 3m-3-3l3-3" },
-    ...(personalizedHome?.user.type === "coach"
-      ? [{
-          href: `/coaches/${personalizedHome.user.id}`,
-          label: "My Coach Page",
-          iconPath: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM5 21a7 7 0 0114 0",
-        }]
-      : []),
+    { href: "/leaderboards", label: "PBO Stats", iconPath: "M4 19V9m5 10V5m5 14v-7m5 7V3" },
     {
       href: RULEBOOK_URL,
       label: "Rulebook",
@@ -1291,173 +1220,131 @@ export default async function Home() {
   return (
     <div className="flex flex-col gap-10 sm:gap-12 lg:gap-16">
       <TwitchLiveStream />
-      <section className="relative">
-        <div className="flex flex-col items-center justify-center space-y-6 sm:space-y-8">
-          <div className="text-center space-y-4 max-w-3xl">
+      <section className="order-1 overflow-hidden rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-3xl">
             <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest">
               {currentSeason ? "Current Season" : "Offseason"}
             </p>
-            <h1 className="text-3xl font-bold uppercase tracking-tight text-white sm:text-4xl md:text-5xl">
+            <h1 className="mt-2 text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl">
               {currentSeason ? currentSeason.name : "PBO Offseason Hub"}
             </h1>
-            <p className="text-base text-[var(--foreground-muted)] sm:text-lg">
+            <p className="mt-2 text-sm leading-6 text-[var(--foreground-muted)] sm:text-base">
               {currentSeason
-                ? "Follow the active league board, recent results, and your team shortcuts from one place."
+                ? `${currentSeason.divisions.length} divisions · ${stats.currentSeasonMatches} battles recorded`
                 : "Review the latest champions, browse past seasons, and keep up with league history before the next draft."}
             </p>
-            <div className="flex w-full flex-col items-stretch justify-center gap-2 pt-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
-              <Link
-                href={currentSeason ? `/seasons/${currentSeason.id}` : "/seasons"}
-                className="btn-retro inline-flex min-h-11 items-center justify-center !bg-[#dc143c] hover:!bg-[#b01030]"
-              >
-                {currentSeason ? "View Season" : "Past Seasons"}
-              </Link>
-              <Link
-                href={currentSeason ? currentSeasonPrimaryHref : previousSeasonPlayoffHref}
-                className="inline-flex min-h-11 items-center justify-center gap-2 px-3 text-xs font-bold uppercase tracking-widest text-[var(--foreground-subtle)] transition-colors hover:text-white"
-              >
-                {currentSeason ? "Open First Division" : "Latest Playoffs"}
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </Link>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[330px]">
+            <Link
+              href={currentSeason ? currentSeasonPrimaryHref : "/seasons"}
+              className="btn-retro inline-flex min-h-11 items-center justify-center !bg-[#dc143c] hover:!bg-[#b01030]"
+            >
+              {currentSeason ? "View Standings" : "Past Seasons"}
+            </Link>
+            <Link
+              href={currentSeason ? `/seasons/${currentSeason.id}` : previousSeasonPlayoffHref}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/55 px-4 text-xs font-bold uppercase tracking-wider text-[var(--foreground-muted)] transition-colors hover:border-[var(--primary)] hover:text-white"
+            >
+              {currentSeason ? "View Schedule" : "Latest Playoffs"}
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {personalizedHome && (
+        <section aria-labelledby="your-week-title" className="order-2 poke-card p-5 sm:p-6">
+          <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="section-kicker">Personalized dashboard</p>
+              <h2 id="your-week-title" className="section-heading">Your Week</h2>
             </div>
+            <p className="section-description">
+              {personalizedHome.activeTeam
+                ? `Welcome back, ${personalizedHome.user.name}.`
+                : `Welcome, ${personalizedHome.user.name}.`}
+            </p>
           </div>
 
-          {/* League Pass Card */}
-          {currentSeason && (
-            <div className="mx-auto w-full max-w-3xl transform transition-transform duration-300 sm:hover:scale-[1.02]">
-              <div className="league-pass">
-                <div className="league-pass-inner flex flex-col justify-between">
-                  {/* Background Pattern */}
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--background-tertiary)]/30 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
-
-                  {/* Header */}
-                  <div className="flex justify-between items-start z-10">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="live-badge">LIVE</span>
-                        <span className="font-mono text-[var(--foreground-muted)] text-xs">
-                          ID: {String(currentSeason.id).padStart(4, '0')}-S{currentSeason.seasonNumber}
-                        </span>
-                      </div>
-                      <h2 className="font-pixel text-xl md:text-2xl text-white leading-relaxed">
-                        {currentSeason.name}
-                      </h2>
-                    </div>
-                    {/* Pokeball Icon Top Right */}
-                    <div className="w-12 h-12 rounded-full border-4 border-[var(--foreground-subtle)] flex items-center justify-center bg-slate-300 overflow-hidden relative shadow-inner">
-                      <div className="absolute top-1/2 w-full h-1 bg-[var(--foreground-subtle)] -translate-y-1/2" />
-                      <div className="absolute top-1/2 left-1/2 w-4 h-4 bg-slate-300 border-4 border-[var(--foreground-subtle)] rounded-full -translate-x-1/2 -translate-y-1/2 z-10" />
-                      <div className="absolute top-0 w-full h-1/2 bg-[var(--primary)]" />
-                    </div>
-                  </div>
-
-                  {/* Stats Grid */}
-                  <div className="z-10 mt-6 grid grid-cols-3 gap-2 sm:gap-4">
-                    <div className="bg-[var(--background)]/50 rounded p-2 border border-[var(--background-tertiary)]">
-                      <p className="text-[10px] text-[var(--foreground-muted)] uppercase mb-1">Budget</p>
-                      <p className="font-mono text-lg">{currentSeason.draftBudget}</p>
-                    </div>
-                    <div className="bg-[var(--background)]/50 rounded p-2 border border-[var(--background-tertiary)]">
-                      <p className="text-[10px] text-[var(--foreground-muted)] uppercase mb-1">Divisions</p>
-                      <p className="font-mono text-lg text-[var(--accent)]">{currentSeason.divisions.length}</p>
-                    </div>
-                    <div className="bg-[var(--background)]/50 rounded p-2 border border-[var(--background-tertiary)]">
-                      <p className="text-[10px] text-[var(--foreground-muted)] uppercase mb-1">Status</p>
-                      <p className="font-mono text-xs leading-6 text-[var(--success)] truncate">Active</p>
-                    </div>
-                  </div>
-
-                  {/* Bottom Bar */}
-                  <div className="mt-6 pt-4 border-t border-[var(--background-tertiary)] flex justify-between items-center z-10">
-                    <div className="flex -space-x-2">
-                      {currentSeason.divisions.slice(0, 3).map((div, i) => (
-                        <div
-                          key={div.id}
-                          className={`w-6 h-6 rounded-full border-2 border-[var(--background-secondary)] ${
-                            i === 0 ? 'bg-[var(--primary)]' : i === 1 ? 'bg-[var(--secondary)]' : 'bg-[var(--accent)]'
-                          }`}
-                          title={div.name}
-                        />
-                      ))}
-                      {currentSeason.divisions.length > 3 && (
-                        <div className="w-6 h-6 rounded-full border-2 border-[var(--background-secondary)] bg-[var(--background-tertiary)] flex items-center justify-center text-[8px]">
-                          +{currentSeason.divisions.length - 3}
-                        </div>
-                      )}
+          {personalizedHome.activeTeam ? (
+            <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_auto]">
+              <div className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
+                  Next Match
+                </div>
+                {personalizedHome.nextMatch ? (
+                  <>
+                    <div className="mt-2 text-lg font-bold text-white">
+                      Week {personalizedHome.nextMatch.week} vs {personalizedHome.opponent?.teamName ?? "TBD"}
                     </div>
                     <Link
-                      href={`/seasons/${currentSeason.id}`}
-                      className="text-[10px] font-pixel text-[var(--foreground-muted)] flex items-center gap-2 hover:text-white transition-colors"
+                      href={`/matches/${personalizedHome.nextMatch.id}`}
+                      className="mt-2 inline-flex text-xs font-bold uppercase tracking-widest text-[var(--foreground-subtle)] transition-colors hover:text-white"
                     >
-                      RESUME
-                      <svg className="w-3 h-3 animate-bounce-x" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                      Open match page →
                     </Link>
+                  </>
+                ) : (
+                  <div className="mt-2 text-lg font-bold text-white">No pending match</div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4">
+                {personalizedHome.activeTeam.teamLogoUrl ? (
+                  <Image
+                    src={personalizedHome.activeTeam.teamLogoUrl}
+                    alt=""
+                    width={48}
+                    height={48}
+                    className="h-12 w-12 shrink-0 rounded-lg object-contain"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--background-tertiary)] text-sm font-mono text-[var(--foreground-subtle)]">
+                    --
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="truncate font-bold text-white">{personalizedHome.activeTeam.teamName}</div>
+                  <div className="mt-1 truncate text-[10px] font-bold uppercase text-[var(--foreground-subtle)]">
+                    {personalizedHome.activeTeam.division?.name} Division
                   </div>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-2 lg:w-52">
+                <Link
+                  href="/matchup-prep"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--primary)] px-3 text-center text-xs font-bold uppercase text-white transition-colors hover:bg-[var(--primary-hover)]"
+                >
+                  Match Prep
+                </Link>
+                <Link
+                  href="/pick-ems"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--background-tertiary)] px-3 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] transition-colors hover:text-white"
+                >
+                  Pick-Ems
+                </Link>
+              </div>
             </div>
+          ) : (
+            <p className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-4 text-sm text-[var(--foreground-muted)]">
+              Your account is not linked to a team in the current season. You can still follow the weekly activity below.
+            </p>
           )}
 
-        </div>
-      </section>
+          {personalizedHome.poll && (
+            <div className="mt-5 border-t border-[var(--background-tertiary)] pt-5">
+              <PollCard initialPoll={personalizedHome.poll} compact />
+            </div>
+          )}
+        </section>
+      )}
 
-      <section aria-labelledby="choose-path-title">
-        <div className="mb-5 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--foreground-subtle)]">
-            Start where you are
-          </p>
-          <h2 id="choose-path-title" className="mt-2 text-2xl font-bold text-white">
-            Your quickest route into PBO
-          </h2>
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <Link
-            href={currentSeasonPrimaryHref}
-            className="group flex min-h-28 flex-col justify-center rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 transition-colors hover:border-[var(--primary)] hover:bg-[var(--background-tertiary)]"
-          >
-            <strong className="text-lg text-white">Spectator</strong>
-            <span className="mt-1 text-sm leading-6 text-[var(--foreground-muted)]">
-              Open the live standings, schedule, teams, and weekly results.
-            </span>
-          </Link>
-          <Link
-            href={
-              personalizedHome?.activeTeam
-                ? `/seasons/${personalizedHome.activeTeam.division!.season!.id}/divisions/${personalizedHome.activeTeam.divisionId}`
-                : "/matchup-prep"
-            }
-            className="group flex min-h-28 flex-col justify-center rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 transition-colors hover:border-[var(--primary)] hover:bg-[var(--background-tertiary)]"
-          >
-            <strong className="text-lg text-white">
-              {personalizedHome?.activeTeam ? "My team" : "Active coach"}
-            </strong>
-            <span className="mt-1 text-sm leading-6 text-[var(--foreground-muted)]">
-              {personalizedHome?.activeTeam
-                ? "Jump directly to your division and next competitive task."
-                : "Prepare a matchup, compare rosters, and plan free-agency moves."}
-            </span>
-          </Link>
-          <Link
-            href="/leaderboards"
-            className="group flex min-h-28 flex-col justify-center rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 transition-colors hover:border-[var(--primary)] hover:bg-[var(--background-tertiary)]"
-          >
-            <strong className="text-lg text-white">PBO Stats</strong>
-            <span className="mt-1 text-sm leading-6 text-[var(--foreground-muted)]">
-              Search coaches, Pokémon, records, replays, and league history.
-            </span>
-          </Link>
-        </div>
-      </section>
-
-      {currentSeason && (
+      {currentSeason && stats.currentSeasonMatches === 0 && (
         <RecentDraftPicksPanel divisions={recentDraftPicksByDivision} />
       )}
 
-      <section aria-labelledby="league-hub-title" className="poke-card flex flex-col p-5 sm:p-6">
+      <section aria-labelledby="league-hub-title" className="order-3 poke-card flex flex-col p-5 sm:p-6">
         <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="section-kicker">{currentSeason ? currentSeason.name : "League tools"}</p>
@@ -1465,7 +1352,7 @@ export default async function Home() {
           </div>
           <p className="section-description">Your team context and fastest actions for the current week.</p>
         </div>
-        <div className="order-3 grid grid-cols-3 gap-1 sm:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {leagueHubLinks.map((item) => (
             <Link
               key={item.label}
@@ -1473,9 +1360,9 @@ export default async function Home() {
               title={item.label}
               target={item.external ? "_blank" : undefined}
               rel={item.external ? "noopener noreferrer" : undefined}
-              className="btn-retro !inline-flex min-h-8 min-w-0 cursor-pointer items-center justify-center gap-1 overflow-hidden !px-1.5 !py-1 !text-[8px] sm:!text-[9px]"
+              className="inline-flex min-h-12 min-w-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/55 px-3 py-2 text-xs font-bold uppercase tracking-wide text-[var(--foreground-muted)] transition-colors hover:border-[var(--primary)] hover:text-white"
             >
-              <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={item.iconPath} />
               </svg>
               <span className="truncate">{item.label}</span>
@@ -1483,172 +1370,34 @@ export default async function Home() {
           ))}
         </div>
 
-        {personalizedHome && (
-          <div className="order-2 mb-6 border-b border-[var(--background-tertiary)] pb-6">
-          <div className={personalizedHome.activeTeam ? "your-league-layout" : "mx-auto max-w-3xl text-center"}>
-            <div className="min-w-0">
-              <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest mb-1.5">
-                {personalizedHome.activeTeam ? "Your League" : "Your Account"}
-              </p>
-              <h2 className="text-lg font-bold leading-tight text-white">
-                Welcome, {personalizedHome.user.name}
-              </h2>
-              <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-                {personalizedHome.activeTeam
-                  ? "Active team, next matchup, and prep links."
-                  : "You aren’t linked to a team in the current season."}
-              </p>
-            </div>
-
-            {personalizedHome.activeTeam ? (
-              <div className="min-w-0">
-                <div className="your-league-actions-grid">
-                <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-3">
-                  <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold tracking-widest">
-                    Next Match
-                  </div>
-                  {personalizedHome.nextMatch ? (
-                    <>
-                      <div className="mt-2 font-bold text-white truncate">
-                        Week {personalizedHome.nextMatch.week} vs {personalizedHome.opponent?.teamName ?? "TBD"}
-                      </div>
-                      <Link
-                        href={`/matches/${personalizedHome.nextMatch.id}`}
-                        className="mt-2 inline-flex text-xs text-[var(--foreground-subtle)] hover:text-white uppercase font-bold tracking-widest transition-colors"
-                      >
-                        Match Page
-                      </Link>
-                    </>
-                  ) : (
-                    <div className="mt-2 font-bold text-white">No pending match</div>
-                  )}
-                </div>
-
-                <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/45 p-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {personalizedHome.activeTeam.teamLogoUrl ? (
-                      <Image
-                        src={personalizedHome.activeTeam.teamLogoUrl}
-                        alt=""
-                        width={44}
-                        height={44}
-                        className="rounded-lg shrink-0"
-                      />
-                    ) : (
-                      <div className="w-11 h-11 rounded-lg bg-[var(--background-tertiary)] flex items-center justify-center shrink-0">
-                        <span className="text-sm font-mono text-[var(--foreground-subtle)]">--</span>
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <div className="font-bold text-white text-sm truncate">
-                        {personalizedHome.activeTeam.teamName}
-                      </div>
-                      <div className="text-[10px] text-[var(--foreground-subtle)] uppercase font-bold truncate mt-1">
-                        {personalizedHome.activeTeam.division?.season?.name} / {personalizedHome.activeTeam.division?.name}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="your-league-link-grid grid grid-cols-2 gap-2 min-w-0">
-                  <div className="grid gap-2">
-                    <Link
-                      href={`/seasons/${personalizedHome.activeTeam.division!.season!.id}/divisions/${personalizedHome.activeTeam.divisionId}`}
-                      className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                    >
-                      Division
-                    </Link>
-                    <Link
-                      href="/matchup-prep"
-                      className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                    >
-                      Match Prep
-                    </Link>
-                    {currentSeason && (
-                      <Link
-                        href={`/seasons/${currentSeason.id}/draft?division=${personalizedHome.activeTeam.divisionId}`}
-                        className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                      >
-                        Draft Board
-                      </Link>
-                    )}
-                  </div>
-                  <div className="grid gap-2 content-start">
-                    <Link
-                      href={`/coaches/${personalizedHome.user.id}`}
-                      className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                    >
-                      My Page
-                    </Link>
-                    <a
-                      href={RULEBOOK_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                    >
-                      Rulebook
-                    </a>
-                    {currentSeason && (
-                      <>
-                        <Link
-                          href="/pick-ems"
-                          className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                        >
-                          Pick-Ems
-                        </Link>
-                        <Link
-                          href="/fantasy"
-                          className="rounded-lg bg-[var(--background-tertiary)] px-3 py-2 text-center text-xs font-bold uppercase text-[var(--foreground-muted)] hover:text-white transition-colors"
-                        >
-                          Fantasy
-                        </Link>
-                      </>
-                    )}
-                  </div>
-                </div>
-                </div>
-
-                {personalizedHome.poll && (
-                  <div className="mt-5 border-t border-[var(--background-tertiary)] pt-5 text-left">
-                    <PollCard initialPoll={personalizedHome.poll} compact />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="mt-5">
-                {personalizedHome.poll && (
-                  <div className="mx-auto max-w-xl text-left">
-                    <PollCard initialPoll={personalizedHome.poll} compact />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          </div>
-        )}
       </section>
 
-      {!currentSeason && (
-        <PreviousChampionsPanel champions={previousSeasonChampions} />
-      )}
+      <section aria-labelledby="discovery-history-title" className="order-7">
+        <p className="section-kicker">Across the league</p>
+        <h2 id="discovery-history-title" className="section-heading">Discovery &amp; History</h2>
+        <p className="section-description mt-1">Trainer rankings, league totals, and the most recent division champions.</p>
+      </section>
+
+      <PreviousChampionsPanel champions={previousSeasonChampions} />
 
       <StatsStrip
         stats={stats}
-        className="hidden lg:grid"
+        className="order-9 grid"
       />
-      <GamesOfTheWeekPanel games={gamesOfTheWeek} className="hidden lg:block" />
+
+      <section aria-labelledby="league-activity-title" className="order-4 space-y-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="section-kicker">{currentSeason?.name ?? "PBO"}</p>
+            <h2 id="league-activity-title" className="section-heading">Current League Activity</h2>
+          </div>
+          <p className="section-description">Featured matchups, scheduled battles, and the latest results.</p>
+        </div>
+        <GamesOfTheWeekPanel games={gamesOfTheWeek} />
+      </section>
 
       {/* Main Content Grid */}
       <SyncedHeightGrid
-        mobileMiddleContent={
-          <div className="space-y-4">
-            <StatsStrip
-              stats={stats}
-              className="grid"
-            />
-            <GamesOfTheWeekPanel games={gamesOfTheWeek} />
-          </div>
-        }
         leftContent={
           <div className="poke-card p-4 sm:p-6">
             {/* Section Title */}
@@ -1782,7 +1531,7 @@ export default async function Home() {
           </div>
         }
         belowGridContent={
-          <div className="mt-6 w-full">
+          <div className="order-11 mt-6 w-full">
             <div className="poke-card flex flex-col p-4 sm:p-6">
             {/* Section Title */}
             <div className="section-title flex-shrink-0">
@@ -1898,11 +1647,7 @@ export default async function Home() {
         }
         rightContent={
           <UpcomingBattlesPanel
-            battles={
-              upcomingBattles.length > 0
-                ? upcomingBattles
-                : getDevelopmentUpcomingBattles()
-            }
+            battles={upcomingBattles}
           />
         }
       />

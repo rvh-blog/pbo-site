@@ -2,10 +2,11 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { adminAuditLogs } from "@/lib/schema";
+import { adminAuditLogs, discordAuditLogs } from "@/lib/schema";
 import { isAuthenticated } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ensureAdminAuditLogsTable } from "@/lib/admin-audit";
+import { ensureDiscordAuditTable } from "@/bot/services/discord-audit";
 
 function formatDetails(details: string | null) {
   if (!details) return null;
@@ -14,6 +15,15 @@ function formatDetails(details: string | null) {
     return JSON.stringify(parsed, null, 2);
   } catch {
     return details;
+  }
+}
+
+function parseStoredJson(value: string | null): unknown {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
   }
 }
 
@@ -28,7 +38,10 @@ export default async function AdminAuditLogPage({ searchParams }: PageProps) {
     redirect("/admin/login");
   }
 
-  await ensureAdminAuditLogsTable();
+  await Promise.all([
+    ensureAdminAuditLogsTable(),
+    ensureDiscordAuditTable(),
+  ]);
 
   const pageSize = 50;
   const page = Math.max(1, Number((await searchParams).page) || 1);
@@ -49,6 +62,26 @@ export default async function AdminAuditLogPage({ searchParams }: PageProps) {
   });
   const hasNextPage = logs.length > pageSize;
   const visibleLogs = logs.slice(0, pageSize);
+  const discordLogs = await db.query.discordAuditLogs.findMany({
+    columns: {
+      id: true,
+      operationId: true,
+      discordUsername: true,
+      discordUserId: true,
+      channelId: true,
+      command: true,
+      action: true,
+      entityType: true,
+      entityId: true,
+      status: true,
+      beforeData: true,
+      afterData: true,
+      error: true,
+      createdAt: true,
+    },
+    orderBy: [desc(discordAuditLogs.createdAt)],
+    limit: 50,
+  });
 
   return (
     <div className="space-y-6">
@@ -128,6 +161,69 @@ export default async function AdminAuditLogPage({ searchParams }: PageProps) {
                   Next
                 </Link>
               ) : <span />}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Discord Bot Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {discordLogs.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[var(--foreground-muted)]">
+              No Discord write attempts have been audited yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {discordLogs.map((log) => {
+                const details = JSON.stringify({
+                  before: parseStoredJson(log.beforeData),
+                  after: parseStoredJson(log.afterData),
+                  error: log.error,
+                }, null, 2);
+                return (
+                  <div
+                    key={log.id}
+                    className="rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] p-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded bg-[var(--background-tertiary)] px-2 py-0.5 font-mono text-[11px] uppercase text-[var(--foreground-muted)]">
+                            /{log.command}
+                          </span>
+                          <span className={log.status === "success"
+                            ? "text-sm font-semibold text-emerald-400"
+                            : "text-sm font-semibold text-red-400"}>
+                            {log.status}
+                          </span>
+                          <span className="text-sm font-semibold">{log.action}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                          {log.discordUsername} ({log.discordUserId}) · channel {log.channelId} · {log.entityType}
+                          {log.entityId ? ` #${log.entityId}` : ""}
+                        </p>
+                        <p className="mt-1 font-mono text-[11px] text-[var(--foreground-muted)]">
+                          Operation {log.operationId}
+                        </p>
+                      </div>
+                      <time className="shrink-0 text-xs text-[var(--foreground-muted)]">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </time>
+                    </div>
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-xs font-medium text-[var(--primary)]">
+                        Before, after, and error details
+                      </summary>
+                      <pre className="mt-2 max-h-64 overflow-auto rounded bg-[var(--background)] p-3 text-xs text-[var(--foreground-muted)]">
+                        {details}
+                      </pre>
+                    </details>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
