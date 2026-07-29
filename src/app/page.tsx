@@ -96,6 +96,15 @@ async function getPreviousSeasonChampions(): Promise<OffseasonChampion[]> {
       id: true,
       seasonNumber: true,
     },
+    with: {
+      divisions: {
+        columns: {
+          id: true,
+          name: true,
+          displayOrder: true,
+        },
+      },
+    },
     where: or(eq(seasons.isPublic, true), isNull(seasons.isPublic)),
     orderBy: [desc(seasons.seasonNumber)],
   });
@@ -147,14 +156,21 @@ async function getPreviousSeasonChampions(): Promise<OffseasonChampion[]> {
   const championshipFinals = finals.filter(
     (final) => final.seasonId === championshipSeason.id
   );
-  return DIVISION_ORDER.map((divisionName) => {
+  const championshipDivisions = [...championshipSeason.divisions].sort((a, b) => {
+    const displayOrderDifference = (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+    return displayOrderDifference || compareDivisionNames(a.name, b.name);
+  });
+
+  return championshipDivisions.map((division) => {
     const final = championshipFinals.find(
-      (candidate) => normalizeDivisionName(candidate.division?.name || "") === normalizeDivisionName(divisionName)
+      (candidate) =>
+        candidate.divisionId === division.id ||
+        normalizeDivisionName(candidate.division?.name || "") === normalizeDivisionName(division.name)
     );
 
     return {
-      divisionId: final?.divisionId ?? null,
-      divisionName,
+      divisionId: division.id,
+      divisionName: division.name,
       seasonId: championshipSeason.id,
       seasonNumber: championshipSeason.seasonNumber,
       teamName: final?.winner?.teamName ?? null,

@@ -56,6 +56,8 @@ Homepage follow-up:
 - League Hub now appears immediately before Games of the Week and before the
   Battle Log and Upcoming Battles columns. Recent Draft Picks only appears
   before matches have been recorded, and Top Trainers remains at the bottom.
+- Previous Season Champions now uses that historical season's actual divisions,
+  so Season 10 no longer shows a nonexistent Infinity placeholder.
 - Production uses only real session, match, and league data. Development coach
   impersonation and fabricated weekly/game preview rows are not included in
   the production release.
@@ -80,6 +82,9 @@ Discord safety and operations:
 - Admin → Discord shows supervised bot status and moderator-only **Restart Bot**
   and **Refresh Status** controls. Restarting replaces only the Discord bot
   process; the website and database stay online.
+- Restart origin validation recognizes Fly's forwarded public hostname, so the
+  live admin button remains same-origin protected without comparing the public
+  site to the container's internal hostname.
 - Added `discord_user_preferences` and `discord_audit_logs` migrations.
 
 ## July 27, 2026
