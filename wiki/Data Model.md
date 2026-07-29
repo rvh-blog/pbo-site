@@ -332,6 +332,16 @@ parent comment for replies.
 
 Admin audit entries use `admin_audit_logs`. The audit helper can create the table and indexes at runtime if they are missing.
 
+Discord bot write attempts use `discord_audit_logs`. Each row stores a unique
+operation ID, Discord user and channel identifiers, command/action, affected
+entity, success/failure status, before/after JSON, an optional error, and its
+timestamp. Discord audit writes are best-effort and do not roll back a
+successful league action.
+
+Discord scheduling preferences use `discord_user_preferences`, keyed directly
+by Discord user ID. The stored value is a supported IANA timezone such as
+`America/New_York`; no PBO coach or spectator account link is required.
+
 ## Sheets And External Integrations
 
 `division_sheet_sync` config is unique per division.

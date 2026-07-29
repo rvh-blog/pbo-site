@@ -45,8 +45,13 @@ Tables:
 
 - `discord_guilds`
 - `discord_channels`
+- `discord_user_preferences`
+- `discord_audit_logs`
 
 Discord channel rows map a Discord channel to a PBO division and feature toggles.
+User preferences store an IANA timezone by Discord user ID without requiring a
+PBO account link. Audit rows record bot write attempts with operation IDs,
+actors, entities, outcomes, and before/after values.
 
 ## See Also
 

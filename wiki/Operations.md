@@ -178,6 +178,13 @@ npm run bot:build
 npm run bot:deploy-commands
 ```
 
+In production, `scripts/start.sh` supervises the Discord bot separately from
+the Next.js server. Moderators can use **Admin → Discord → Restart Bot** to
+terminate the current bot process; the supervisor starts a fresh process and
+the website remains online. The action is recorded in the Admin Audit Log.
+Local `npm run bot` processes are not supervised by the website and must still
+be restarted from their terminal.
+
 Global Discord command updates can take up to an hour. If `DISCORD_DEV_GUILD_ID` is set, commands deploy to that guild immediately.
 
 Wake command registration:

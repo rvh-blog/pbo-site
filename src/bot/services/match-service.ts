@@ -9,7 +9,7 @@ import {
   killEvents,
   playoffMatches,
 } from "@/lib/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, isNull } from "drizzle-orm";
 import { updateEloForMatch } from "@/lib/elo-service";
 import { awardMatchCoins, resolveBetsForMatch, refundBetsForMatch } from "@/lib/betting";
 import { resolveKillBetsForMatch, refundKillBetsForMatch } from "@/lib/kill-betting";
@@ -803,13 +803,28 @@ async function syncPlayoffResult(
  */
 export async function updateMatchSchedule(
   matchId: number,
-  scheduledAt: string | null
+  scheduledAt: string | null,
+  expectedScheduledAt: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await db
+    const updated = await db
       .update(matches)
       .set({ scheduledAt })
-      .where(eq(matches.id, matchId));
+      .where(and(
+        eq(matches.id, matchId),
+        isNull(matches.winnerId),
+        expectedScheduledAt === null
+          ? isNull(matches.scheduledAt)
+          : eq(matches.scheduledAt, expectedScheduledAt)
+      ))
+      .returning({ id: matches.id });
+
+    if (updated.length === 0) {
+      return {
+        success: false,
+        error: "This match was played or its schedule changed while you were editing it. Run /schedule again to review the latest time.",
+      };
+    }
 
     return { success: true };
   } catch (error) {

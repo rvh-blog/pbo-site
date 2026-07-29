@@ -48,6 +48,40 @@ Verification:
   fresh replay parsing, coach attribution checks, and independent SQL aggregate
   reconciliation pass.
 
+Homepage follow-up:
+
+- Reorganized the homepage into a compact season header, personalized Your Week
+  card, League Hub, current league activity, battle activity, and discovery
+  sections.
+- League Hub now appears immediately before Games of the Week and before the
+  Battle Log and Upcoming Battles columns. Recent Draft Picks only appears
+  before matches have been recorded, and Top Trainers remains at the bottom.
+- Production uses only real session, match, and league data. Development coach
+  impersonation and fabricated weekly/game preview rows are not included in
+  the production release.
+
+Discord scheduling and commands:
+
+- `/schedule` now saves an IANA timezone by Discord user ID, displays named
+  zones with date-specific UTC offsets, applies daylight-saving rules, and
+  rejects nonexistent spring-forward local times.
+- Rescheduling shows the current and proposed Discord timestamps and requires
+  **Confirm Reschedule**; **Keep Existing** makes no database change. A
+  concurrent schedule change or completed match prevents a stale overwrite.
+- Added read-only `/team`, `/player`, `/items`, `/matchup`, `/standings`, and
+  `/help` commands. Existing `/draft`, `/match`, and `/schedule` commands remain.
+
+Discord safety and operations:
+
+- `/draft`, `/match`, and `/schedule` write attempts receive operation IDs and
+  append Discord actor, channel, entity, status, error, and before/after values
+  to `discord_audit_logs`. Failed writes return the operation reference.
+- Admin Audit Log now includes Discord bot activity.
+- Admin → Discord shows supervised bot status and moderator-only **Restart Bot**
+  and **Refresh Status** controls. Restarting replaces only the Discord bot
+  process; the website and database stay online.
+- Added `discord_user_preferences` and `discord_audit_logs` migrations.
+
 ## July 27, 2026
 
 Discovery and sharing:
