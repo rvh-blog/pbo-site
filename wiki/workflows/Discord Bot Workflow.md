@@ -65,8 +65,18 @@ fixture's time-synced Week roster. It shows warnings and a Pokemon review, then
 requires confirmation before any result write. Public result posts retain
 spoiler-wrapped winners, differentials, and K/D details.
 
-`/standings` can switch between divisions configured for the guild and browse
-schedule weeks with Discord-local timestamps.
+Read-only commands `/standings`, `/items`, `/team`, `/player`, and `/matchup`
+work in any server channel. They prompt for a public season and division; a
+mapped channel's season/division is shown as the default when applicable.
+Users can then choose **All Coaches** for division-wide results or one coach
+to narrow the result. `/standings` can also browse schedule weeks with
+Discord-local timestamps. `/help` and `/status` work without a channel
+mapping.
+
+`/schedule` can start in any server channel and prompts for a current division,
+but only proceeds when that division has **Schedule Active** on at least one
+configured channel. `/draft` and `/match` remain restricted to their
+specifically mapped, enabled channels.
 
 `/status` reports bot, website, database, latency, uptime, and command health.
 `/status details:true` requires **Manage Server** and adds registration,

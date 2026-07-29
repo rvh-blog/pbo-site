@@ -182,8 +182,16 @@ Current interaction safeguards and diagnostics:
 
 - `/match` validates replay players and Week rosters, shows a Pokémon review,
   and requires confirmation before recording the result.
-- `/standings` can switch between configured guild divisions and browse
-  schedule weeks with Discord-local timestamps.
+- `/standings`, `/items`, `/team`, `/player`, and `/matchup` work in any
+  server channel. They let the user select a public season and division, then
+  select **All Coaches** for division-wide results or one coach for a narrower
+  result. `/team` uses the coach selection to open that season's team.
+- `/standings` can also browse schedule weeks with Discord-local timestamps.
+- `/schedule` can start in any server channel and lets the user select a
+  current division, but the selected division must have **Schedule Active** on
+  at least one configured channel. `/draft` and `/match` remain restricted to
+  their configured, enabled channels.
+- `/help` and `/status` work in any server channel without a division mapping.
 - `/status` checks bot, website, and database health. `/status details:true`
   adds command-registration and recent audit diagnostics for members with
   **Manage Server** permission.

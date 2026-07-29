@@ -6,8 +6,8 @@ import {
   SlashCommandBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
-import { getChannelConfig } from "../services/discord-config";
 import { getDivisionTeams, getTeamProfile } from "../services/read-service";
+import { selectPublicDivision } from "../utils/division-selection";
 import { createErrorEmbed } from "../utils/embeds";
 
 export const data = new SlashCommandBuilder()
@@ -16,15 +16,13 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
-  const config = await getChannelConfig(interaction.channelId);
-  if (!config) {
-    await interaction.editReply({
-      embeds: [createErrorEmbed("This channel is not configured for a division.")],
-    });
-    return;
-  }
+  const division = await selectPublicDivision(interaction, {
+    customId: "team_division_select",
+    title: "Team Information",
+  });
+  if (!division) return;
 
-  const teams = await getDivisionTeams(config.divisionId);
+  const teams = await getDivisionTeams(division.id);
   if (teams.length === 0) {
     await interaction.editReply({
       embeds: [createErrorEmbed("No active teams were found in this division.")],
@@ -35,17 +33,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId("team_select")
-      .setPlaceholder("Select a team")
+      .setPlaceholder("Select a coach")
       .addOptions(teams.slice(0, 25).map((team) => ({
-        label: team.teamName.slice(0, 100),
-        description: `${team.coachName} • ${team.remainingBudget} points remaining`.slice(0, 100),
+        label: team.coachName.slice(0, 100),
+        description: `${team.teamName} • ${team.remainingBudget} points remaining`.slice(0, 100),
         value: team.id.toString(),
       })))
   );
   const response = await interaction.editReply({
     embeds: [new EmbedBuilder()
-      .setTitle(`Teams — ${config.division.name}`)
-      .setDescription("Select a team to view its current league information.")
+      .setTitle(`Teams — ${division.name}`)
+      .setDescription("Select a coach to view that season's team information.")
       .setColor(0x6366f1)],
     components: [row],
   });
@@ -57,7 +55,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       time: 120_000,
     });
     await selected.deferUpdate();
-    const profile = await getTeamProfile(config.divisionId, Number(selected.values[0]));
+    const profile = await getTeamProfile(division.id, Number(selected.values[0]));
     if (!profile) {
       await interaction.editReply({
         embeds: [createErrorEmbed("That team could not be found.")],
