@@ -16,6 +16,7 @@ import {
 } from "../services/match-service";
 import { selectCoachScope } from "../utils/coach-selection";
 import { selectPublicDivision } from "../utils/division-selection";
+import { resultVisibilityRow } from "../utils/result-visibility";
 
 export const data = new SlashCommandBuilder()
   .setName("standings")
@@ -93,6 +94,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   let view: "standings" | "schedule" = "standings";
   let weeks: number[] = [];
   let weekIndex = 0;
+  let visibilityChosen = false;
 
   const renderStandings = async () => {
     const standings = await getDivisionStandings(selectedDivision.id);
@@ -111,6 +113,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           .setStyle(ButtonStyle.Secondary)
       )
     );
+    if (!visibilityChosen) {
+      components.push(resultVisibilityRow("standings_visibility"));
+    }
 
     const visibleStandings = selectedCoachId === null
       ? standings
@@ -168,6 +173,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           .setStyle(ButtonStyle.Secondary)
       )
     );
+    if (!visibilityChosen) {
+      components.push(resultVisibilityRow("standings_visibility"));
+    }
 
     await interaction.editReply({
       embeds: [new EmbedBuilder()
@@ -241,6 +249,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       weekIndex = Math.max(0, weekIndex - 1);
     } else if (component.customId === "standings_next_week") {
       weekIndex = Math.min(weeks.length - 1, weekIndex + 1);
+    } else if (component.customId === "standings_visibility_private") {
+      visibilityChosen = true;
+    } else if (component.customId === "standings_visibility_public") {
+      visibilityChosen = true;
+      const currentReply = await interaction.fetchReply();
+      await interaction.followUp({
+        embeds: currentReply.embeds.map((embed) => embed.toJSON()),
+        ephemeral: false,
+      });
     }
 
     if (view === "schedule") {

@@ -741,11 +741,11 @@ export async function execute(
       await interaction.followUp({ embeds: [successEmbed], ephemeral: false });
     } catch (channelError) {
       console.error("[Bot] Failed to post public schedule confirmation:", channelError);
-      await interaction.editReply({
-        content: "",
-        embeds: [successEmbed],
-        components: [],
-      });
+      if (interaction.channel && "send" in interaction.channel) {
+        await interaction.channel.send({ embeds: [successEmbed] });
+      } else {
+        throw channelError;
+      }
     }
   } catch (error) {
     console.error("[Bot] Error in /schedule command:", error);

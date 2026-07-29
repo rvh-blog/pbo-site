@@ -7,6 +7,10 @@ import { getPokemonPerformance } from "../services/read-service";
 import { selectCoachScope } from "../utils/coach-selection";
 import { selectPublicDivision } from "../utils/division-selection";
 import { createErrorEmbed } from "../utils/embeds";
+import {
+  handleResultVisibility,
+  resultVisibilityRow,
+} from "../utils/result-visibility";
 
 export const data = new SlashCommandBuilder()
   .setName("player")
@@ -77,5 +81,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     )
     .setColor(0x6366f1);
   if (stats.spriteUrl?.startsWith("http")) embed.setThumbnail(stats.spriteUrl);
-  await interaction.editReply({ embeds: [embed] });
+  const response = await interaction.editReply({
+    embeds: [embed],
+    components: [resultVisibilityRow("player_visibility")],
+  });
+  await handleResultVisibility(interaction, response, "player_visibility", {
+    embeds: [embed],
+  });
 }
