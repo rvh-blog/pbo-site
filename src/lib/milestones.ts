@@ -212,6 +212,7 @@ async function evaluatePokemonMilestones(match: MatchContext) {
           key: `pokemon:${pokemon.pokemon_id}:career-kills:${threshold}`,
           category: "pokemon", type: "career_kills", seasonId: match.season_id,
           divisionId: match.division_id, matchId: match.id, pokemonId: pokemon.pokemon_id,
+          coachId: pokemon.coach_id, seasonCoachId: pokemon.season_coach_id,
           title: threshold === 1 ? "⚔️ First Recorded Kill" : `⚔️ ${threshold} Career Kills`,
           description: `**${pokemon.pokemon_name}** reached ${threshold === 1 ? "its first recorded kill" : `**${threshold}** career kills`}!`,
         });
@@ -223,6 +224,7 @@ async function evaluatePokemonMilestones(match: MatchContext) {
           key: `pokemon:${pokemon.pokemon_id}:appearances:${threshold}`,
           category: "pokemon", type: "appearances", seasonId: match.season_id,
           divisionId: match.division_id, matchId: match.id, pokemonId: pokemon.pokemon_id,
+          coachId: pokemon.coach_id, seasonCoachId: pokemon.season_coach_id,
           title: `🎮 ${threshold} Appearances`,
           description: `**${pokemon.pokemon_name}** made its **${threshold}th** recorded appearance!`,
         });
@@ -248,6 +250,7 @@ async function evaluatePokemonMilestones(match: MatchContext) {
               key: `pokemon:${pokemon.pokemon_id}:survival-streak:${threshold}`,
               category: "pokemon", type: "survival_streak", seasonId: match.season_id,
               divisionId: match.division_id, matchId: match.id, pokemonId: pokemon.pokemon_id,
+              coachId: pokemon.coach_id, seasonCoachId: pokemon.season_coach_id,
               title: `🛡️ ${threshold}-Match Survival Streak`,
               description: `**${pokemon.pokemon_name}** has gone **${threshold} appearances** without fainting!`,
             });
@@ -287,6 +290,7 @@ async function evaluatePokemonMilestones(match: MatchContext) {
     const coachPokemonRecord = Number(otherCoachBest?.total);
     if (
       pokemon.kills > 0
+      && speciesRecord > 0
       && priorPairKills <= speciesRecord
       && pairKills > speciesRecord
     ) {
@@ -294,12 +298,14 @@ async function evaluatePokemonMilestones(match: MatchContext) {
         key: `pokemon:${pokemon.pokemon_id}:coach:${pokemon.coach_id}:species-kill-record`,
         category: "pokemon", type: "species_coach_kill_record", seasonId: match.season_id,
         divisionId: match.division_id, matchId: match.id, pokemonId: pokemon.pokemon_id,
-        coachId: pokemon.coach_id, title: "📈 New Species Kill Record",
+        coachId: pokemon.coach_id, seasonCoachId: pokemon.season_coach_id,
+        title: "📈 New Species Kill Record",
         description: `**${pokemon.coach_name}** now holds the coach record for career kills with **${pokemon.pokemon_name}** (${pairKills})!`,
       });
     }
     if (
       pokemon.kills > 0
+      && coachPokemonRecord > 0
       && priorPairKills <= coachPokemonRecord
       && pairKills > coachPokemonRecord
     ) {
@@ -307,7 +313,8 @@ async function evaluatePokemonMilestones(match: MatchContext) {
         key: `coach:${pokemon.coach_id}:pokemon:${pokemon.pokemon_id}:personal-kill-record`,
         category: "pokemon", type: "coach_pokemon_kill_record", seasonId: match.season_id,
         divisionId: match.division_id, matchId: match.id, pokemonId: pokemon.pokemon_id,
-        coachId: pokemon.coach_id, title: "⭐ Coach's New Kill Leader",
+        coachId: pokemon.coach_id, seasonCoachId: pokemon.season_coach_id,
+        title: "⭐ Coach's New Kill Leader",
         description: `**${pokemon.pokemon_name}** now has the most career kills of any Pokémon coached by **${pokemon.coach_name}** (${pairKills})!`,
       });
     }
@@ -371,10 +378,21 @@ async function evaluateCompletedSeasonMilestones(match: MatchContext) {
   }));
   const topKills = Number(leaders[0]?.kills ?? 0);
   for (const leader of leaders.filter((entry) => Number(entry.kills) === topKills && topKills > 0)) {
+    const owner = rows<{ coach_id: number; season_coach_id: number }>(await rawClient.execute({
+      sql: `SELECT sc.coach_id, sc.id AS season_coach_id
+        FROM match_pokemon mp
+        JOIN matches m ON m.id = mp.match_id
+        JOIN season_coaches sc ON sc.id = mp.season_coach_id
+        WHERE m.season_id = ? AND m.week < 100 AND m.winner_id IS NOT NULL
+          AND mp.pokemon_id = ?
+        ORDER BY COALESCE(m.played_at, '') DESC, m.id DESC LIMIT 1`,
+      args: [match.season_id, leader.pokemon_id],
+    }))[0];
     await recordEvent({
       key: `season:${match.season_id}:pokemon:${leader.pokemon_id}:kill-leader`,
       category: "pokemon", type: "season_kill_leader", seasonId: match.season_id,
       divisionId: match.division_id, matchId: match.id, pokemonId: leader.pokemon_id,
+      coachId: owner?.coach_id, seasonCoachId: owner?.season_coach_id,
       title: "⚔️ Season Kill Leader",
       description: `**${leader.pokemon_name}** finished as the season's kill leader with **${topKills} kills**!`,
     });

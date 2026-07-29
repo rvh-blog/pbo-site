@@ -116,6 +116,12 @@ only a milestone newly reached by that result; lower milestones already present
 in the starting total stay silent. Regular-season awards are evaluated only
 after every regular-season fixture in the season is complete.
 
+Coach profile pages independently derive a permanent milestone cabinet from
+public historical results. This makes old and new achievements visible at the
+bottom of the coach's page without inserting historical events into the Discord
+delivery outbox. Pokemon milestones are attributed to the persistent coach who
+controlled the Pokemon when the achievement was reached.
+
 ## Wake Worker
 
 Cloudflare worker:

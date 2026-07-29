@@ -21,6 +21,7 @@ import { getActivePoll } from "@/lib/polls";
 import { isProjectMewReleased } from "@/lib/project-mew";
 import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
 import { MATCH_COMPLETION_COINS, STARTING_COACH_COINS } from "@/lib/coin-config";
+import { getCoachProfileMilestones } from "@/lib/coach-milestones";
 
 const COACH_YOUTUBE_URLS: Record<number, string> = {
   254: "https://www.youtube.com/user/AlmightyArceus",
@@ -898,7 +899,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
       (session?.type === "coach" && session.id === coachId));
 
   // Fetch shared data for placements and playoffs once - include txCounts and pokemonPrices
-  const [coachMatches, coachMatchPokemon, coachTransactions, rawSeasonCoaches, rawMatches, rawPlayoffs, coinBreakdown, coachStorePurchases, txCounts, pokemonPrices, activePoll] = await Promise.all([
+  const [coachMatches, coachMatchPokemon, coachTransactions, rawSeasonCoaches, rawMatches, rawPlayoffs, coinBreakdown, coachStorePurchases, txCounts, pokemonPrices, activePoll, coachMilestones] = await Promise.all([
     getCoachMatches(seasonCoachIds),
     getCoachMatchPokemon(seasonCoachIds),
     getCoachTransactions(seasonCoachIds),
@@ -913,6 +914,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
     selectedSeasonEntry ? getTransactionCounts(selectedSeasonEntry.id) : Promise.resolve(null),
     selectedSeasonId ? getSeasonPokemonPrices(selectedSeasonId) : Promise.resolve([]),
     getActivePoll(session),
+    getCoachProfileMilestones(coachId),
   ]);
   const allSeasonCoaches = rawSeasonCoaches.filter((sc) =>
     publicDivisionIdSet.has(sc.divisionId)
@@ -2998,6 +3000,83 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
           </div>
         </div>
       </div>
+
+      {/* Career Milestones */}
+      <section className="poke-card overflow-hidden">
+        <div className="flex items-center justify-between gap-4 border-b-2 border-[var(--background-tertiary)] p-5 sm:p-6">
+          <div className="section-title !mb-0">
+            <div
+              className="section-title-icon !bg-amber-500"
+              style={{ boxShadow: "0 4px 0 #b45309" }}
+            >
+              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM7 6H4v1a4 4 0 004 4M17 6h3v1a4 4 0 01-4 4" />
+              </svg>
+            </div>
+            <div>
+              <h3>Milestones</h3>
+              <p className="mt-0.5 text-xs font-normal text-[var(--foreground-muted)]">
+                Career achievements earned by this coach and their Pokémon
+              </p>
+            </div>
+          </div>
+          {coachMilestones.length > 0 && (
+            <span className="shrink-0 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-xs font-bold text-amber-300">
+              {coachMilestones.length}
+            </span>
+          )}
+        </div>
+        <div className="p-5 sm:p-6">
+          {coachMilestones.length === 0 ? (
+            <p className="py-4 text-center text-sm text-[var(--foreground-muted)]">
+              No milestones earned yet.
+            </p>
+          ) : (
+            <div className="grid max-h-[32rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+              {coachMilestones.map((milestone) => {
+                const card = (
+                  <div className={`h-full rounded-xl border p-4 transition-colors ${
+                    milestone.category === "coach"
+                      ? "border-amber-400/25 bg-amber-400/[0.06]"
+                      : milestone.category === "pokemon"
+                        ? "border-cyan-400/25 bg-cyan-400/[0.06]"
+                        : "border-violet-400/25 bg-violet-400/[0.06]"
+                  }`}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                        milestone.category === "coach"
+                          ? "bg-amber-400/15 text-amber-300"
+                          : milestone.category === "pokemon"
+                            ? "bg-cyan-400/15 text-cyan-300"
+                            : "bg-violet-400/15 text-violet-300"
+                      }`}>
+                        {milestone.category === "season" ? "Team / Season" : milestone.category}
+                      </span>
+                      <span className="text-[10px] text-[var(--foreground-subtle)]">
+                        Season {milestone.seasonNumber}
+                      </span>
+                    </div>
+                    <p className="font-bold text-[var(--foreground)]">{milestone.title}</p>
+                    <p className="mt-1 text-xs text-[var(--foreground-muted)]">{milestone.detail}</p>
+                  </div>
+                );
+
+                return milestone.matchId ? (
+                  <Link
+                    key={milestone.key}
+                    href={`/matches/${milestone.matchId}`}
+                    className="block rounded-xl hover:ring-2 hover:ring-[var(--primary)]/40"
+                  >
+                    {card}
+                  </Link>
+                ) : (
+                  <div key={milestone.key}>{card}</div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
 
     </div>
   );
