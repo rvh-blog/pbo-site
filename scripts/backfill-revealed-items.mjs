@@ -13,11 +13,20 @@ function nameKey(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
-  return normalized
+  let canonical = normalized
     .replace(/incarnate$/, "")
     .replace(/^palafinhero$/, "palafin")
     .replace(/^mimikyu(?:disguised|busted)$/, "mimikyu")
-    .replace(/^urshifu(?:rapidstrike|singlestrike)$/, "urshifu");
+    .replace(/^urshifu(?:rapidstrike|singlestrike)$/, "urshifu")
+    .replace(/^darmanitanstandard$/, "darmanitan")
+    .replace(/^darmanitangalarstandard$/, "darmanitangalar")
+    .replace(/^basculin(?:red|blue)striped$/, "basculin")
+    .replace(/^gourgeistaverage$/, "gourgeist");
+
+  if (canonical.startsWith("mega")) {
+    canonical = canonical.slice(4).replace(/[xy]$/, "");
+  }
+  return canonical.replace(/mega(?:x|y)?$/, "");
 }
 
 function rowKeys(row) {
