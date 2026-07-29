@@ -84,6 +84,9 @@ offer red **Keep Private** and green **Share Publicly** buttons. Their selector
 steps remain private so other users cannot interfere. Completed `/schedule`
 confirmations are always posted publicly and do not offer a privacy choice.
 
+`/matchup` displays one side-by-side column per team, keeping each team's
+coach, record, budget, and roster together.
+
 `/schedule` is locked to the invoking channel's mapped division and only
 proceeds when **Schedule Active** is enabled on that channel. It does not offer
 a division selector. `/draft` and `/match` remain restricted to their
