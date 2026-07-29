@@ -134,6 +134,19 @@ export async function execute(
   await interaction.deferReply({ ephemeral: true });
 
   try {
+    const sessionId = randomUUID();
+    const componentId = (name: string) => `schedule_${name}_${sessionId}`;
+    const weekSelectId = componentId("week");
+    const fixtureSelectId = componentId("fixture");
+    const timezoneRegionSelectId = componentId("timezone_region");
+    const timezoneRegionConfirmId = componentId("timezone_region_confirm");
+    const timezoneSelectId = componentId("timezone");
+    const timezoneConfirmId = componentId("timezone_confirm");
+    const timezonePreviousId = componentId("timezone_previous");
+    const timezoneNextId = componentId("timezone_next");
+    const daySelectId = componentId("day");
+    const timeModalId = componentId("time_modal");
+
     const config = await getChannelConfig(interaction.channelId);
     if (!config) {
       await interaction.editReply({
@@ -164,7 +177,7 @@ export async function execute(
 
     const weekRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId("schedule_week_select")
+        .setCustomId(weekSelectId)
         .setPlaceholder("Select a week")
         .addOptions(weeks.slice(0, 25).map((week) => ({
           label: getWeekLabel(week),
@@ -183,7 +196,9 @@ export async function execute(
     try {
       weekInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.StringSelect,
-        filter: (component) => component.user.id === interaction.user.id,
+        filter: (component) =>
+          component.user.id === interaction.user.id &&
+          component.customId === weekSelectId,
         time: 120_000,
       });
     } catch {
@@ -208,7 +223,7 @@ export async function execute(
 
     const fixtureRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId("schedule_fixture_select")
+        .setCustomId(fixtureSelectId)
         .setPlaceholder("Select a match")
         .addOptions(fixtures.slice(0, 25).map((fixture) => ({
           label: `${fixture.team1Name} vs ${fixture.team2Name}`.slice(0, 100),
@@ -231,7 +246,9 @@ export async function execute(
     try {
       fixtureInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.StringSelect,
-        filter: (component) => component.user.id === interaction.user.id,
+        filter: (component) =>
+          component.user.id === interaction.user.id &&
+          component.customId === fixtureSelectId,
         time: 120_000,
       });
     } catch {
@@ -259,7 +276,7 @@ export async function execute(
     const defaultRegion = timezoneRegion(defaultTimezone);
     const regionRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId("schedule_timezone_region_select")
+        .setCustomId(timezoneRegionSelectId)
         .setPlaceholder("Select a timezone region")
         .addOptions(TIMEZONE_REGIONS.map((region) => ({
           label: region.label,
@@ -270,7 +287,7 @@ export async function execute(
     );
     const regionConfirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId("schedule_timezone_region_confirm")
+        .setCustomId(timezoneRegionConfirmId)
         .setLabel("Confirm Region")
         .setStyle(ButtonStyle.Success)
     );
@@ -292,8 +309,8 @@ export async function execute(
         filter: (component) =>
           component.user.id === interaction.user.id &&
           (
-            component.customId === "schedule_timezone_region_select" ||
-            component.customId === "schedule_timezone_region_confirm"
+            component.customId === timezoneRegionSelectId ||
+            component.customId === timezoneRegionConfirmId
           ),
         time: 120_000,
       });
@@ -336,7 +353,7 @@ export async function execute(
       );
       const timezoneRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId("schedule_timezone_select")
+          .setCustomId(timezoneSelectId)
           .setPlaceholder("Select your timezone")
           .addOptions(pageTimezones.map((timezone) => ({
             label: timezoneDisplay(timezone.value, now).slice(0, 100),
@@ -347,17 +364,17 @@ export async function execute(
       );
       const pageRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
-          .setCustomId("schedule_timezone_confirm")
+          .setCustomId(timezoneConfirmId)
           .setLabel("Confirm Timezone")
           .setStyle(ButtonStyle.Success)
           .setDisabled(!pageTimezones.some((timezone) => timezone.value === defaultTimezone)),
         new ButtonBuilder()
-          .setCustomId("schedule_timezone_previous")
+          .setCustomId(timezonePreviousId)
           .setLabel("Previous")
           .setStyle(ButtonStyle.Secondary)
           .setDisabled(timezonePage === 0),
         new ButtonBuilder()
-          .setCustomId("schedule_timezone_next")
+          .setCustomId(timezoneNextId)
           .setLabel("Next")
           .setStyle(ButtonStyle.Secondary)
           .setDisabled(timezonePage === timezonePageCount - 1)
@@ -380,7 +397,12 @@ export async function execute(
         timezoneComponent = await response.awaitMessageComponent({
           filter: (component) =>
             component.user.id === interaction.user.id &&
-            component.customId.startsWith("schedule_timezone_"),
+            (
+              component.customId === timezoneSelectId ||
+              component.customId === timezoneConfirmId ||
+              component.customId === timezonePreviousId ||
+              component.customId === timezoneNextId
+            ),
           time: 120_000,
         });
       } catch {
@@ -392,12 +414,12 @@ export async function execute(
       }
 
       if (timezoneComponent.isButton()) {
-        if (timezoneComponent.customId === "schedule_timezone_confirm") {
+        if (timezoneComponent.customId === timezoneConfirmId) {
           selectedTimezone = defaultTimezone;
           await timezoneComponent.deferUpdate();
           continue;
         }
-        timezonePage += timezoneComponent.customId === "schedule_timezone_next" ? 1 : -1;
+        timezonePage += timezoneComponent.customId === timezoneNextId ? 1 : -1;
         timezonePage = Math.max(0, Math.min(timezonePage, timezonePageCount - 1));
         await timezoneComponent.deferUpdate();
         continue;
@@ -436,7 +458,7 @@ export async function execute(
 
     const dayRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId("schedule_day_select")
+        .setCustomId(daySelectId)
         .setPlaceholder("Select a day")
         .addOptions(dayOptions)
     );
@@ -456,7 +478,9 @@ export async function execute(
     try {
       dayInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.StringSelect,
-        filter: (component) => component.user.id === interaction.user.id,
+        filter: (component) =>
+          component.user.id === interaction.user.id &&
+          component.customId === daySelectId,
         time: 120_000,
       });
     } catch {
@@ -482,7 +506,7 @@ export async function execute(
       ? getZonedDateTime(new Date(selectedFixture.scheduledAt), selectedTimezone)
       : null;
     const modal = new ModalBuilder()
-      .setCustomId("schedule_time_modal")
+      .setCustomId(timeModalId)
       .setTitle(selectedFixture.scheduledAt ? "Propose New Match Time" : "Set Match Time");
 
     if (isCustomDate) {
@@ -522,7 +546,7 @@ export async function execute(
     try {
       modalInteraction = await dayInteraction.awaitModalSubmit({
         filter: (component) =>
-          component.customId === "schedule_time_modal" &&
+          component.customId === timeModalId &&
           component.user.id === interaction.user.id,
         time: 300_000,
       });
@@ -588,8 +612,8 @@ export async function execute(
       ? Math.floor(new Date(selectedFixture.scheduledAt).getTime() / 1000)
       : null;
     const dateOffset = getTimeZoneOffsetLabel(proposedDate, selectedTimezone);
-    const confirmId = `schedule_confirm_${selectedMatchId}`;
-    const keepId = `schedule_keep_${selectedMatchId}`;
+    const confirmId = componentId(`confirm_${selectedMatchId}`);
+    const keepId = componentId(`keep_${selectedMatchId}`);
     const confirmationEmbed = new EmbedBuilder()
       .setTitle(isReschedule ? "Confirm Match Reschedule" : "Confirm Match Schedule")
       .setDescription(
