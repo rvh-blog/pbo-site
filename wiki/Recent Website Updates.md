@@ -39,8 +39,8 @@ Changes #1-#8:
    2448 remains excluded because it has no `match_pokemon` rows.
 
 Production release validation also normalizes replay-default names for Mega
-Pokemon, standard Darmanitan formes, red/blue Basculin, and average Gourgeist
-before roster attribution.
+Pokemon, standard Darmanitan formes, red/blue Basculin, and Gourgeist size
+formes before roster attribution.
 
 Verification:
 

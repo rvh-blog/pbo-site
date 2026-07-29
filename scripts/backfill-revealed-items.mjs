@@ -21,7 +21,7 @@ function nameKey(value) {
     .replace(/^darmanitanstandard$/, "darmanitan")
     .replace(/^darmanitangalarstandard$/, "darmanitangalar")
     .replace(/^basculin(?:red|blue)striped$/, "basculin")
-    .replace(/^gourgeistaverage$/, "gourgeist");
+    .replace(/^gourgeist(?:average|small|large|super)$/, "gourgeist");
 
   if (canonical.startsWith("mega")) {
     canonical = canonical.slice(4).replace(/[xy]$/, "");
