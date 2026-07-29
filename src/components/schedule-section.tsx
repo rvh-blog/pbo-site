@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface MatchPokemon {
   id: number;
@@ -43,6 +44,7 @@ interface Match {
     coach: { name: string } | null;
   };
   isForfeit: boolean | null;
+  isGameOfTheWeek?: boolean | null;
   scheduledAt: string | null;
   matchPokemon: MatchPokemon[];
 }
@@ -146,11 +148,17 @@ export function ScheduleSection({
 
       {/* Week Selector */}
       <div className="p-3 sm:p-4 border-b-2" style={{ borderBottomColor: `${divisionColor}33` }}>
-        <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 scrollbar-thin">
+        <div
+          className="mobile-scroll-region flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 scrollbar-thin"
+          role="group"
+          aria-label="Choose schedule week"
+          tabIndex={0}
+        >
           {weeks.map((week) => (
             <button
               key={week}
               onClick={() => setSelectedWeek(week)}
+              aria-pressed={selectedWeek === week}
               className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${
                 selectedWeek === week
                   ? week > 100
@@ -171,9 +179,11 @@ export function ScheduleSection({
       {/* Matches for Selected Week */}
       <div className="p-4">
         {matchesForWeek.length === 0 ? (
-          <p className="text-[var(--foreground-muted)] text-center py-4 text-sm">
-            No matches scheduled for {getWeekLabel(selectedWeek)}
-          </p>
+          <EmptyState
+            compact
+            title={`No matches in ${getWeekLabel(selectedWeek)}`}
+            description="Choose another week above, or return to the season overview to browse divisions and completed results."
+          />
         ) : (
           <div className="space-y-3">
             {matchesForWeek.map((match) => {
@@ -204,6 +214,13 @@ export function ScheduleSection({
                 >
                   {/* Match Header */}
                   <div className="p-3">
+                    {match.isGameOfTheWeek && (
+                      <div className="mb-2 flex justify-center">
+                        <span className="rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[var(--accent)]">
+                          Game of the Week
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-2 md:gap-4">
                       {/* Team 1 */}
                       <div className={`flex-1 min-w-0 ${hasResult && !team1Won ? "opacity-50" : ""}`}>
@@ -341,6 +358,8 @@ export function ScheduleSection({
                       {hasResult && hasPokemonStats && (
                         <button
                           onClick={() => toggleMatch(match.id)}
+                          aria-expanded={isExpanded}
+                          aria-controls={`match-stats-${match.id}`}
                           className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                         >
                           <svg
@@ -373,7 +392,7 @@ export function ScheduleSection({
 
                   {/* Expanded Pokemon Stats */}
                   {isExpanded && hasPokemonStats && (
-                    <div className="border-t-2 border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
+                    <div id={`match-stats-${match.id}`} className="border-t-2 border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
                       <div className="grid grid-cols-2 gap-4">
                         {/* Team 1 Pokemon */}
                         <div>
@@ -400,9 +419,12 @@ export function ScheduleSection({
                               <div key={mp.id} className="flex items-center justify-between text-xs">
                                 <div className="flex items-center gap-1.5">
                                   {mp.pokemon?.spriteUrl ? (
-                                    <img
+                                    <Image
                                       src={mp.pokemon.spriteUrl}
                                       alt={mp.pokemon.displayName || mp.pokemon.name}
+                                      width={20}
+                                      height={20}
+                                      sizes="20px"
                                       className="w-5 h-5 object-contain"
                                     />
                                   ) : (
@@ -449,9 +471,12 @@ export function ScheduleSection({
                                 <div className="flex items-center gap-1.5">
                                   <span className="truncate text-right">{mp.pokemon?.displayName || mp.pokemon?.name}</span>
                                   {mp.pokemon?.spriteUrl ? (
-                                    <img
+                                    <Image
                                       src={mp.pokemon.spriteUrl}
                                       alt={mp.pokemon.displayName || mp.pokemon.name}
+                                      width={20}
+                                      height={20}
+                                      sizes="20px"
                                       className="w-5 h-5 object-contain"
                                     />
                                   ) : (

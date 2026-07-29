@@ -71,6 +71,7 @@ interface MatchPokemon {
   favorableSleep?: number | null;
   hpRestored?: number | null;
   movesUsed?: Record<string, number> | null;
+  revealedItems?: Array<{ item: string; turn: number; source: string }> | null;
   pokemon: Pokemon;
 }
 
@@ -127,6 +128,7 @@ interface PokemonEntry {
   favorableSleep?: number;
   hpRestored?: number;
   movesUsed?: Record<string, number>;
+  revealedItems?: Array<{ item: string; turn: number; source: string }>;
 }
 
 type MatchPokemonPayload = {
@@ -150,6 +152,7 @@ type MatchPokemonPayload = {
   favorableSleep?: number;
   hpRestored?: number;
   movesUsed?: Record<string, number>;
+  revealedItems?: Array<{ item: string; turn: number; source: string }>;
 };
 
 type TabType = "schedule" | "results" | "playoffs";
@@ -610,6 +613,7 @@ export default function AdminMatchesPage() {
         favorableSleep: coach1Pokemon[i]?.favorableSleep ?? undefined,
         hpRestored: coach1Pokemon[i]?.hpRestored ?? undefined,
         movesUsed: coach1Pokemon[i]?.movesUsed ?? undefined,
+        revealedItems: coach1Pokemon[i]?.revealedItems ?? undefined,
       }))
     );
     setTeam2Pokemon(
@@ -633,6 +637,7 @@ export default function AdminMatchesPage() {
         favorableSleep: coach2Pokemon[i]?.favorableSleep ?? undefined,
         hpRestored: coach2Pokemon[i]?.hpRestored ?? undefined,
         movesUsed: coach2Pokemon[i]?.movesUsed ?? undefined,
+        revealedItems: coach2Pokemon[i]?.revealedItems ?? undefined,
       }))
     );
   }
@@ -676,6 +681,7 @@ export default function AdminMatchesPage() {
             favorableSleep: p.favorableSleep,
             hpRestored: p.hpRestored,
             movesUsed: p.movesUsed,
+            revealedItems: p.revealedItems,
           });
         }
       });
@@ -703,6 +709,7 @@ export default function AdminMatchesPage() {
             favorableSleep: p.favorableSleep,
             hpRestored: p.hpRestored,
             movesUsed: p.movesUsed,
+            revealedItems: p.revealedItems,
           });
         }
       });
@@ -829,6 +836,7 @@ export default function AdminMatchesPage() {
           favorableSleep: p.favorableSleep,
           hpRestored: p.hpRestored,
           movesUsed: p.movesUsed,
+          revealedItems: p.revealedItems,
         });
       }
     });
@@ -856,6 +864,7 @@ export default function AdminMatchesPage() {
           favorableSleep: p.favorableSleep,
           hpRestored: p.hpRestored,
           movesUsed: p.movesUsed,
+          revealedItems: p.revealedItems,
         });
       }
     });
@@ -1116,6 +1125,7 @@ export default function AdminMatchesPage() {
             favorableSleep: replayPoke.favorableSleep,
             hpRestored: replayPoke.hpRestored,
             movesUsed: replayPoke.movesUsed,
+            revealedItems: replayPoke.revealedItems,
           });
         }
       }
@@ -1151,6 +1161,7 @@ export default function AdminMatchesPage() {
             favorableSleep: replayPoke.favorableSleep,
             hpRestored: replayPoke.hpRestored,
             movesUsed: replayPoke.movesUsed,
+            revealedItems: replayPoke.revealedItems,
           });
         }
       }
@@ -1849,6 +1860,12 @@ export default function AdminMatchesPage() {
                                               min="0"
                                             />
                                           </div>
+                                          <span
+                                            className="max-w-28 truncate text-[9px] font-bold text-[var(--accent)]"
+                                            title={p.revealedItems?.map((entry) => `${entry.item}, turn ${entry.turn}, ${entry.source}`).join(" → ") || "Unknown item"}
+                                          >
+                                            {p.revealedItems?.map((entry) => entry.item).join(" → ") || "Unknown"}
+                                          </span>
                                         </div>
                                       );
                                     })}
@@ -1914,6 +1931,12 @@ export default function AdminMatchesPage() {
                                               min="0"
                                             />
                                           </div>
+                                          <span
+                                            className="max-w-28 truncate text-[9px] font-bold text-[var(--accent)]"
+                                            title={p.revealedItems?.map((entry) => `${entry.item}, turn ${entry.turn}, ${entry.source}`).join(" → ") || "Unknown item"}
+                                          >
+                                            {p.revealedItems?.map((entry) => entry.item).join(" → ") || "Unknown"}
+                                          </span>
                                         </div>
                                       );
                                     })}

@@ -153,10 +153,21 @@ Time-synced roster utilities:
 
 `match_pokemon` stores per-match Pokemon brought, kills, deaths, and replay-derived stats.
 Replay detail fields include direct/indirect damage dealt and taken, HP restored,
-turns active, hazard-only damage taken, setup moves used, and favorable event
+turns active, hazard-only damage taken, setup moves used, favorable event
 counters for crits, misses, flinches, paralysis, freezes, and non-Will-O-Wisp
-burns. New replay detail fields require
-`migrations/add-match-pokemon-replay-detail-stats.sql` on existing databases.
+burns, plus `revealed_items` JSON entries containing an item, reveal turn, and
+source. The base replay-detail fields require
+`migrations/add-match-pokemon-replay-detail-stats.sql`; revealed item storage
+requires `migrations/add-revealed-held-items.sql` on existing databases.
+
+`revealed_items` is evidence from the public replay log, not a complete team
+sheet. An unrevealed starting item remains unknown. The same item is stored once
+per Pokemon per match even if it activates repeatedly. If Trick, Switcheroo, or
+another effect makes multiple distinct items observable on one Pokemon, each
+distinct item can be stored. Historical item aggregation starts at Season 5
+because earlier seasons do not have saved replay links. Use
+`scripts/backfill-revealed-items.mjs --dry-run` to audit replay matching before
+running the backfill against a database.
 
 `kill_events` stores individual replay-derived faint events.
 
@@ -197,6 +208,8 @@ Consumers:
 - Admin match entry.
 - Discord bot match reporting.
 - Wiglett match integration for supplemental stats.
+- Replay Analyzer, match summaries, Item Usage, Pokemon Stats, coach profiles,
+  Matchup Prep scouting, and admin match review for revealed item data.
 - Public analyzer page.
 
 Important distinction:

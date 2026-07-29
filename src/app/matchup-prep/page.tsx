@@ -11,6 +11,7 @@ import {
   moves,
   coachPurchases,
   storeItems,
+  matchPokemon,
 } from "@/lib/schema";
 import { eq, desc, and, or, inArray } from "drizzle-orm";
 import { MatchupPrepClient } from "./matchup-prep-client";
@@ -120,6 +121,12 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
   let coach1DroppedPokemon: any[] = [];
   let coach2DroppedPokemon: any[] = [];
   let divisionMatches: any[] = [];
+  let revealedItemScouting: Record<"coach1" | "coach2", Array<{
+    pokemonId: number;
+    pokemonName: string;
+    spriteUrl: string | null;
+    items: Array<{ item: string; reveals: number }>;
+  }>> = { coach1: [], coach2: [] };
   const teamSidePurchases: { coach1BlueTeam: boolean; coach1RedTeam: boolean; coach2BlueTeam: boolean; coach2RedTeam: boolean } = {
     coach1BlueTeam: false,
     coach1RedTeam: false,
@@ -134,7 +141,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
     const coachIds = [coach1Id, coach2Id].filter((id): id is number => id !== undefined);
 
     // Fetch transactions, division matches, and coach purchases in parallel
-    const [seasonTxs, divMatches, purchases] = await Promise.all([
+    const [seasonTxs, divMatches, purchases, itemRows] = await Promise.all([
       db.query.transactions.findMany({
         where: eq(transactions.seasonId, match.seasonId),
       }),
@@ -158,7 +165,75 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
             },
           })
         : Promise.resolve([]),
+      db.query.matchPokemon.findMany({
+        where: inArray(matchPokemon.seasonCoachId, [
+          match.coach1SeasonId,
+          match.coach2SeasonId,
+        ]),
+        columns: {
+          seasonCoachId: true,
+          pokemonId: true,
+          revealedItems: true,
+        },
+        with: {
+          pokemon: {
+            columns: { name: true, displayName: true, spriteUrl: true },
+          },
+          match: {
+            columns: { seasonId: true, week: true },
+          },
+        },
+      }),
     ]);
+
+    const buildItemScouting = (seasonCoachId: number) => {
+      const pokemonMap = new Map<number, {
+        pokemonId: number;
+        pokemonName: string;
+        spriteUrl: string | null;
+        itemCounts: Map<string, { item: string; reveals: number }>;
+      }>();
+
+      for (const row of itemRows) {
+        if (
+          row.seasonCoachId !== seasonCoachId ||
+          row.match?.seasonId !== match.seasonId ||
+          row.match.week >= match.week ||
+          !row.revealedItems?.length
+        ) continue;
+
+        let entry = pokemonMap.get(row.pokemonId);
+        if (!entry) {
+          entry = {
+            pokemonId: row.pokemonId,
+            pokemonName: row.pokemon?.displayName || row.pokemon?.name || "Unknown",
+            spriteUrl: row.pokemon?.spriteUrl || null,
+            itemCounts: new Map(),
+          };
+          pokemonMap.set(row.pokemonId, entry);
+        }
+
+        for (const item of new Set(row.revealedItems.map((reveal) => reveal.item))) {
+          const key = item.toLowerCase();
+          const existing = entry.itemCounts.get(key);
+          if (existing) existing.reveals += 1;
+          else entry.itemCounts.set(key, { item, reveals: 1 });
+        }
+      }
+
+      return Array.from(pokemonMap.values())
+        .map(({ itemCounts, ...entry }) => ({
+          ...entry,
+          items: Array.from(itemCounts.values()).sort((a, b) => b.reveals - a.reveals),
+        }))
+        .sort((a, b) => b.items.reduce((sum, item) => sum + item.reveals, 0) -
+          a.items.reduce((sum, item) => sum + item.reveals, 0));
+    };
+
+    revealedItemScouting = {
+      coach1: buildItemScouting(match.coach1SeasonId),
+      coach2: buildItemScouting(match.coach2SeasonId),
+    };
 
     // Process team side purchases
     for (const purchase of purchases) {
@@ -335,6 +410,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
       abilityDescriptions={abilityDescriptions}
       moveTypes={moveTypes}
       teamSidePurchases={teamSidePurchases}
+      revealedItemScouting={revealedItemScouting}
     />
   );
 }

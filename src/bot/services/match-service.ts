@@ -53,6 +53,7 @@ interface PokemonStats {
   name: string;
   kills: number;
   deaths: number;
+  revealedItems: Array<{ item: string; turn: number; source: string }>;
   damageDealt: number;
     damageDealtIndirect: number;
     damageTaken: number;
@@ -505,6 +506,7 @@ export async function recordMatchResult(
     favorableBurns?: number;
     favorableSleep?: number;
     hpRestored?: number;
+    revealedItems?: Array<{ item: string; turn: number; source: string }>;
   }[],
   startedAt?: string | null,
   endedAt?: string | null,
@@ -572,6 +574,7 @@ export async function recordMatchResult(
             favorableBurns: poke.favorableBurns ?? null,
             favorableSleep: poke.favorableSleep ?? null,
             hpRestored: poke.hpRestored ?? null,
+            revealedItems: poke.revealedItems ?? null,
           });
         }
       }
@@ -924,6 +927,7 @@ export async function buildPokemonDataFromReplay(
   favorableBurns?: number;
   favorableSleep?: number;
   hpRestored?: number;
+  revealedItems?: Array<{ item: string; turn: number; source: string }>;
 }[]> {
   const coach1Roster = await getCoachRoster(coach1SeasonId, matchWeek);
   const coach2Roster = await getCoachRoster(coach2SeasonId, matchWeek);
@@ -953,6 +957,7 @@ export async function buildPokemonDataFromReplay(
     favorableBurns?: number;
     favorableSleep?: number;
     hpRestored?: number;
+    revealedItems?: Array<{ item: string; turn: number; source: string }>;
   }[] = [];
 
   // Match coach1's Pokemon
@@ -979,6 +984,7 @@ export async function buildPokemonDataFromReplay(
         favorableBurns: replayPoke.favorableBurns,
         favorableSleep: replayPoke.favorableSleep,
         hpRestored: replayPoke.hpRestored,
+        revealedItems: replayPoke.revealedItems,
       });
     } else {
       console.warn(
@@ -1011,6 +1017,7 @@ export async function buildPokemonDataFromReplay(
         favorableBurns: replayPoke.favorableBurns,
         favorableSleep: replayPoke.favorableSleep,
         hpRestored: replayPoke.hpRestored,
+        revealedItems: replayPoke.revealedItems,
       });
     } else {
       console.warn(

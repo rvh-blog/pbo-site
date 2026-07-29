@@ -26,6 +26,11 @@ interface PokemonStats {
   favorableSleep: number;
   hpRestored: number;
   movesUsed: Record<string, number>;
+  revealedItems: Array<{
+    item: string;
+    turn: number;
+    source: string;
+  }>;
 }
 
 interface TurnSnapshot {
@@ -385,6 +390,24 @@ export async function POST(request: NextRequest) {
       return pokemonName ? team.find((p) => p.name === pokemonName) || null : null;
     };
 
+    const revealItem = (
+      parsed: PlayerRef | null,
+      itemName: string | undefined,
+      source: string
+    ) => {
+      if (!parsed || !itemName) return;
+      const item = itemName.replace(/^item:\s*/i, "").trim();
+      if (!item) return;
+      const pokemon = getPokemonByRef(parsed);
+      if (!pokemon) return;
+      const duplicate = pokemon.revealedItems.some(
+        (entry) => entry.item.toLowerCase() === item.toLowerCase()
+      );
+      if (!duplicate) {
+        pokemon.revealedItems.push({ item, turn: currentTurn, source });
+      }
+    };
+
     const getOpponentActiveRef = (player: "p1" | "p2"): PlayerRef | null => {
       const opponent = player === "p1" ? "p2" : "p1";
       const nickname = opponent === "p1" ? p1ActivePokemon : p2ActivePokemon;
@@ -500,6 +523,20 @@ export async function POST(request: NextRequest) {
       const parts = line.split("|");
       if (parts.length < 2) continue;
 
+      // Many held items are revealed through their effect rather than an
+      // explicit -item event (Leftovers healing, Life Orb recoil, Rocky
+      // Helmet damage, Toxic Orb status, and similar Showdown messages).
+      if (parts[1] !== "-item" && parts[1] !== "-enditem") {
+        const fromItem = parts.find((part) => /^\[from\]\s*item:/i.test(part));
+        if (fromItem) {
+          const ofPart = parts.find((part) => /^\[of\]\s*p[12][a-z]?:/i.test(part));
+          const ownerRef = extractNicknameOwner(
+            (ofPart || parts[2] || "").replace(/^\[of\]\s*/, "")
+          );
+          revealItem(ownerRef, fromItem.replace(/^\[from\]\s*/i, ""), "item effect");
+        }
+      }
+
       switch (parts[1]) {
         case "t:": {
           const timestamp = parseInt(parts[2]);
@@ -551,6 +588,7 @@ export async function POST(request: NextRequest) {
             favorableSleep: 0,
             hpRestored: 0,
             movesUsed: {},
+            revealedItems: [],
           };
 
           if (player === "p1") {
@@ -696,6 +734,28 @@ export async function POST(request: NextRequest) {
           if (parsed && pokemonInfo) {
             applyVisibleFormChange(parsed, pokemonInfo);
           }
+          break;
+        }
+
+        case "-item": {
+          const parsed = extractNicknameOwner(parts[2]);
+          const from = parts.find((part) => part.startsWith("[from]"))?.replace("[from]", "").trim();
+          revealItem(parsed, parts[3], from || "item gained");
+          break;
+        }
+
+        case "-enditem": {
+          const parsed = extractNicknameOwner(parts[2]);
+          const from = parts.find((part) => part.startsWith("[from]"))?.replace("[from]", "").trim();
+          const consumed = parts.some((part) => part === "[eat]");
+          revealItem(parsed, parts[3], from || (consumed ? "consumed" : "item lost"));
+          break;
+        }
+
+        case "-activate": {
+          const parsed = extractNicknameOwner(parts[2]);
+          const itemPart = parts.find((part) => /^item:/i.test(part));
+          revealItem(parsed, itemPart, "activation");
           break;
         }
 

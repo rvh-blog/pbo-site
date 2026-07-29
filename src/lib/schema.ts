@@ -309,6 +309,11 @@ export const matchPokemon = sqliteTable("match_pokemon", {
   favorableSleep: integer("favorable_sleep"), // Opponent is put to sleep by a favorable status proc
   hpRestored: integer("hp_restored"), // HP healed
   movesUsed: text("moves_used", { mode: "json" }).$type<Record<string, number>>(), // Replay move name -> usage count
+  revealedItems: text("revealed_items", { mode: "json" }).$type<Array<{
+    item: string;
+    turn: number;
+    source: string;
+  }>>(), // Held items explicitly revealed by replay events; unrevealed items remain unknown
 }, (table) => [
   index("idx_match_pokemon_match_id").on(table.matchId),
   index("idx_match_pokemon_season_coach_id").on(table.seasonCoachId),

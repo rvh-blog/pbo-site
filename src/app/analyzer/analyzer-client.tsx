@@ -13,6 +13,7 @@ interface PokemonStats {
   damageTaken: number;
   damageTakenIndirect: number;
   hpRestored: number;
+  revealedItems: Array<{ item: string; turn: number; source: string }>;
 }
 
 interface TurnSnapshot {
@@ -77,7 +78,7 @@ function formatTeamForCopy(name: string, team: PokemonStats[]) {
     name,
     ...team.map(
       (pokemon) =>
-        `${pokemon.name}: ${pokemon.kills}K/${pokemon.deaths}D, ${formatNumber(pokemon.damageDealt)} dmg, ${formatNumber(pokemon.hpRestored)} restored`
+        `${pokemon.name}: ${pokemon.kills}K/${pokemon.deaths}D, ${formatNumber(pokemon.damageDealt)} dmg, ${formatNumber(pokemon.hpRestored)} restored, item: ${pokemon.revealedItems?.map((entry) => entry.item).join(" → ") || "Unknown"}`
     ),
   ].join("\n");
 }
@@ -120,6 +121,12 @@ function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
               </div>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="col-span-2">
+                <div className="font-black uppercase tracking-wider text-[var(--foreground-subtle)]">Revealed item</div>
+                <div className="mt-0.5 font-bold text-[var(--accent)]">
+                  {pokemon.revealedItems?.map((entry) => `${entry.item} (T${entry.turn || 0})`).join(" → ") || "Unknown"}
+                </div>
+              </div>
               <div>
                 <div className="font-black uppercase tracking-wider text-[var(--foreground-subtle)]">Damage</div>
                 <div className="mt-0.5 font-bold text-[var(--foreground)]">{formatNumber(pokemon.damageDealt)}</div>
@@ -143,7 +150,8 @@ function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
       <div className="hidden overflow-hidden md:block">
         <table className="w-full table-fixed text-xs lg:text-sm">
           <colgroup>
-            <col className="w-[28%]" />
+            <col className="w-[16%]" />
+            <col className="w-[12%]" />
             <col className="w-[8%]" />
             <col className="w-[8%]" />
             <col className="w-[10%]" />
@@ -155,6 +163,7 @@ function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
           <thead className="bg-[var(--background-secondary)] text-[10px] uppercase tracking-widest text-[var(--foreground-muted)]">
             <tr>
               <th className="px-2 py-3 text-left">Pokemon</th>
+              <th className="px-1 py-3 text-left">Item</th>
               <th className="px-1 py-3 text-center">K</th>
               <th className="px-1 py-3 text-center">D</th>
               <th className="px-1 py-3 text-center">Dmg</th>
@@ -168,6 +177,9 @@ function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
             {team.map((pokemon) => (
               <tr key={pokemon.name} className="hover:bg-[var(--glass-hover)] transition-colors">
                 <td className="truncate px-2 py-3 font-bold text-white" title={pokemon.name}>{pokemon.name}</td>
+                <td className="truncate px-1 py-3 text-[var(--accent)]" title={pokemon.revealedItems?.map((entry) => `${entry.item}, turn ${entry.turn}, ${entry.source}`).join(" → ") || "Unknown"}>
+                  {pokemon.revealedItems?.map((entry) => entry.item).join(" → ") || "Unknown"}
+                </td>
                 <td className="px-1 py-3 text-center text-[var(--success)] font-bold">{pokemon.kills}</td>
                 <td className="px-1 py-3 text-center text-[var(--error)] font-bold">{pokemon.deaths}</td>
                 <td className="px-1 py-3 text-center text-[var(--foreground)]">{formatNumber(pokemon.damageDealt)}</td>
