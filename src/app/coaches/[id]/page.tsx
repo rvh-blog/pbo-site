@@ -1318,6 +1318,24 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
     return draftBudget - totalSpent;
   })() : 0;
 
+  const milestonesBySeason = Array.from(
+    coachMilestones.reduce((groups, milestone) => {
+      const seasonMilestones = groups.get(milestone.seasonNumber) ?? [];
+      seasonMilestones.push(milestone);
+      groups.set(milestone.seasonNumber, seasonMilestones);
+      return groups;
+    }, new Map<number, typeof coachMilestones>()),
+  )
+    .sort(([leftSeason], [rightSeason]) => rightSeason - leftSeason)
+    .map(([seasonNumber, seasonMilestones]) => ({
+      seasonNumber,
+      milestones: seasonMilestones.sort((left, right) => {
+        const categoryOrder = { coach: 0, season: 1, pokemon: 2 };
+        return categoryOrder[left.category] - categoryOrder[right.category]
+          || left.title.localeCompare(right.title);
+      }),
+    }));
+
   return (
     <div className="space-y-6">
       {activePoll && <PollCard initialPoll={activePoll} />}
@@ -3032,47 +3050,69 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
               No milestones earned yet.
             </p>
           ) : (
-            <div className="grid max-h-[32rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
-              {coachMilestones.map((milestone) => {
-                const card = (
-                  <div className={`h-full rounded-xl border p-4 transition-colors ${
-                    milestone.category === "coach"
-                      ? "border-amber-400/25 bg-amber-400/[0.06]"
-                      : milestone.category === "pokemon"
-                        ? "border-cyan-400/25 bg-cyan-400/[0.06]"
-                        : "border-violet-400/25 bg-violet-400/[0.06]"
-                  }`}>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+            <div className="max-h-[36rem] space-y-6 overflow-y-auto pr-1">
+              {milestonesBySeason.map(({ seasonNumber, milestones: seasonMilestones }) => (
+                <div
+                  key={seasonNumber}
+                  className="overflow-hidden rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)]/45"
+                >
+                  <div className="flex items-center justify-between border-b border-[var(--background-tertiary)] bg-gradient-to-r from-amber-400/10 to-transparent px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/15 text-sm font-black text-amber-300">
+                        S{seasonNumber}
+                      </span>
+                      <div>
+                        <h4 className="font-black text-[var(--foreground)]">Season {seasonNumber}</h4>
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-subtle)]">
+                          Achievement collection
+                        </p>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-[var(--background-tertiary)] px-2.5 py-1 text-[10px] font-bold text-[var(--foreground-muted)]">
+                      {seasonMilestones.length} {seasonMilestones.length === 1 ? "milestone" : "milestones"}
+                    </span>
+                  </div>
+                  <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {seasonMilestones.map((milestone) => {
+                      const card = (
+                        <div className={`h-full rounded-xl border p-4 transition-colors ${
+                          milestone.category === "coach"
+                            ? "border-amber-400/25 bg-amber-400/[0.06]"
+                            : milestone.category === "pokemon"
+                              ? "border-cyan-400/25 bg-cyan-400/[0.06]"
+                              : "border-violet-400/25 bg-violet-400/[0.06]"
+                        }`}>
+                          <div className="mb-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
                         milestone.category === "coach"
                           ? "bg-amber-400/15 text-amber-300"
                           : milestone.category === "pokemon"
                             ? "bg-cyan-400/15 text-cyan-300"
                             : "bg-violet-400/15 text-violet-300"
                       }`}>
-                        {milestone.category === "season" ? "Team / Season" : milestone.category}
-                      </span>
-                      <span className="text-[10px] text-[var(--foreground-subtle)]">
-                        Season {milestone.seasonNumber}
-                      </span>
-                    </div>
-                    <p className="font-bold text-[var(--foreground)]">{milestone.title}</p>
-                    <p className="mt-1 text-xs text-[var(--foreground-muted)]">{milestone.detail}</p>
-                  </div>
-                );
+                              {milestone.category === "season" ? "Team / Season" : milestone.category}
+                            </span>
+                          </div>
+                          <p className="font-bold text-[var(--foreground)]">{milestone.title}</p>
+                          <p className="mt-1 text-xs text-[var(--foreground-muted)]">{milestone.detail}</p>
+                        </div>
+                      );
 
-                return milestone.matchId ? (
-                  <Link
-                    key={milestone.key}
-                    href={`/matches/${milestone.matchId}`}
-                    className="block rounded-xl hover:ring-2 hover:ring-[var(--primary)]/40"
-                  >
-                    {card}
-                  </Link>
-                ) : (
-                  <div key={milestone.key}>{card}</div>
-                );
-              })}
+                      return milestone.matchId ? (
+                        <Link
+                          key={milestone.key}
+                          href={`/matches/${milestone.matchId}`}
+                          className="block rounded-xl hover:ring-2 hover:ring-[var(--primary)]/40"
+                        >
+                          {card}
+                        </Link>
+                      ) : (
+                        <div key={milestone.key}>{card}</div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
