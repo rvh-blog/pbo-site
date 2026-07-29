@@ -105,7 +105,8 @@ a successful league write into a reported failure.
 Completed match results are queued in `milestone_evaluation_queue` for coach,
 Pokemon, and regular-season milestone evaluation. Events are written
 idempotently to `milestone_events`; the bot polls the queue and posts each event
-once per Discord server to a configured **Match Report Active** channel.
+once per Discord server to the triggering division's configured
+**Milestone Active** channel.
 Evaluation and delivery attempts retry up to three times, with delivery state
 stored in `milestone_deliveries`.
 
@@ -121,6 +122,13 @@ public historical results. This makes old and new achievements visible at the
 bottom of the coach's page without inserting historical events into the Discord
 delivery outbox. Pokemon milestones are attributed to the persistent coach who
 controlled the Pokemon when the achievement was reached.
+
+Milestone routing is independent from Draft, Match, and Schedule routing.
+The Discord admin page exposes a **Milestone Active** toggle on every mapped
+channel. Only one mapped channel can be milestone-active for a given Discord
+server and division; enabling another automatically replaces the previous
+selection. Existing channel mappings default to milestone-inactive until an
+administrator selects destinations.
 
 ## Wake Worker
 

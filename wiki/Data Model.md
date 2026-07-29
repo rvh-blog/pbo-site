@@ -357,6 +357,8 @@ Discord milestone announcements use:
 
 Milestone coach identity uses persistent `coaches.id`; the triggering team uses
 `season_coaches.id`. Pokemon milestones use `pokemon.id`.
+`discord_channels.is_milestone_enabled` independently selects the announcement
+destination for each division and defaults to disabled.
 
 Wiglett audit/idempotency lives in `wiglett_events`.
 

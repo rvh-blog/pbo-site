@@ -15,6 +15,7 @@ export interface ChannelConfig {
   isDraftEnabled: boolean;
   isMatchReportEnabled: boolean;
   isScheduleEnabled: boolean;
+  isMilestoneEnabled: boolean;
   guild: {
     id: number;
     guildId: string;
@@ -62,6 +63,7 @@ export async function getChannelConfig(
     isDraftEnabled: result.isDraftEnabled ?? false,
     isMatchReportEnabled: result.isMatchReportEnabled ?? true,
     isScheduleEnabled: result.isScheduleEnabled ?? true,
+    isMilestoneEnabled: result.isMilestoneEnabled ?? false,
     guild: {
       id: result.guild.id,
       guildId: result.guild.guildId,

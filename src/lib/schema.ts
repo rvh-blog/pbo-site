@@ -966,6 +966,7 @@ export const discordChannels = sqliteTable("discord_channels", {
   isDraftEnabled: integer("is_draft_enabled", { mode: "boolean" }).default(false),
   isMatchReportEnabled: integer("is_match_report_enabled", { mode: "boolean" }).default(true),
   isScheduleEnabled: integer("is_schedule_enabled", { mode: "boolean" }).default(true),
+  isMilestoneEnabled: integer("is_milestone_enabled", { mode: "boolean" }).default(false),
 }, (table) => [
   index("idx_discord_channels_channel_id").on(table.channelId),
   index("idx_discord_channels_division_id").on(table.divisionId),

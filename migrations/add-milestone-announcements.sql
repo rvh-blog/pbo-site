@@ -39,3 +39,6 @@ CREATE TABLE IF NOT EXISTS milestone_evaluation_queue (
 CREATE INDEX IF NOT EXISTS idx_milestone_events_match ON milestone_events(match_id);
 CREATE INDEX IF NOT EXISTS idx_milestone_queue_status ON milestone_evaluation_queue(status, attempts);
 CREATE INDEX IF NOT EXISTS idx_milestone_deliveries_status ON milestone_deliveries(status, attempts);
+
+ALTER TABLE discord_channels
+  ADD COLUMN is_milestone_enabled INTEGER NOT NULL DEFAULT 0;

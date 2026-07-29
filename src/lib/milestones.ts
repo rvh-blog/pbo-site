@@ -51,6 +51,24 @@ export async function ensureMilestoneTables(): Promise<void> {
   await rawClient.execute("CREATE INDEX IF NOT EXISTS idx_milestone_events_match ON milestone_events(match_id)");
   await rawClient.execute("CREATE INDEX IF NOT EXISTS idx_milestone_queue_status ON milestone_evaluation_queue(status, attempts)");
   await rawClient.execute("CREATE INDEX IF NOT EXISTS idx_milestone_deliveries_status ON milestone_deliveries(status, attempts)");
+  await ensureMilestoneChannelColumn();
+}
+
+export async function ensureMilestoneChannelColumn(): Promise<void> {
+  const columns = rows<{ name: string }>(
+    await rawClient.execute("PRAGMA table_info(discord_channels)")
+  );
+  if (columns.length === 0 || columns.some((column) => column.name === "is_milestone_enabled")) {
+    return;
+  }
+  try {
+    await rawClient.execute(
+      "ALTER TABLE discord_channels ADD COLUMN is_milestone_enabled INTEGER NOT NULL DEFAULT 0"
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.toLowerCase().includes("duplicate column")) throw error;
+  }
 }
 
 interface EventInput {
@@ -330,9 +348,10 @@ async function evaluateCompletedSeasonMilestones(match: MatchContext) {
   }))[0];
   if (Number(pending?.total) !== 0) return;
 
-  const teams = rows<{ season_coach_id: number; coach_id: number; coach_name: string; team_name: string; wins: number; losses: number; differential: number }>(
+  const teams = rows<{ season_coach_id: number; division_id: number; coach_id: number; coach_name: string; team_name: string; wins: number; losses: number; differential: number }>(
     await rawClient.execute({
-      sql: `SELECT sc.id AS season_coach_id, sc.coach_id, c.name AS coach_name, sc.team_name,
+      sql: `SELECT sc.id AS season_coach_id, sc.division_id, sc.coach_id,
+        c.name AS coach_name, sc.team_name,
         SUM(CASE WHEN m.winner_id = sc.id THEN 1 ELSE 0 END) AS wins,
         SUM(CASE WHEN m.winner_id <> sc.id OR (m.winner_id IS NULL AND m.is_forfeit = 1)
                  THEN 1 ELSE 0 END) AS losses,
@@ -352,7 +371,7 @@ async function evaluateCompletedSeasonMilestones(match: MatchContext) {
     await recordEvent({
       key: `season:${match.season_id}:team:${team.season_coach_id}:undefeated`,
       category: "season", type: "undefeated_regular_season", seasonId: match.season_id,
-      divisionId: match.division_id, matchId: match.id, coachId: team.coach_id,
+      divisionId: team.division_id, matchId: match.id, coachId: team.coach_id,
       seasonCoachId: team.season_coach_id, title: "💎 Undefeated Regular Season",
       description: `**${team.team_name}** and **${team.coach_name}** completed the regular season undefeated!`,
     });
@@ -362,7 +381,7 @@ async function evaluateCompletedSeasonMilestones(match: MatchContext) {
     await recordEvent({
       key: `season:${match.season_id}:team:${team.season_coach_id}:best-differential`,
       category: "season", type: "best_regular_season_differential", seasonId: match.season_id,
-      divisionId: match.division_id, matchId: match.id, coachId: team.coach_id,
+      divisionId: team.division_id, matchId: match.id, coachId: team.coach_id,
       seasonCoachId: team.season_coach_id, title: "📊 League's Best Differential",
       description: `**${team.team_name}** finished the regular season with the league's best differential (**${bestDifferential >= 0 ? "+" : ""}${bestDifferential}**)!`,
     });
@@ -378,8 +397,8 @@ async function evaluateCompletedSeasonMilestones(match: MatchContext) {
   }));
   const topKills = Number(leaders[0]?.kills ?? 0);
   for (const leader of leaders.filter((entry) => Number(entry.kills) === topKills && topKills > 0)) {
-    const owner = rows<{ coach_id: number; season_coach_id: number }>(await rawClient.execute({
-      sql: `SELECT sc.coach_id, sc.id AS season_coach_id
+    const owner = rows<{ coach_id: number; season_coach_id: number; division_id: number }>(await rawClient.execute({
+      sql: `SELECT sc.coach_id, sc.id AS season_coach_id, sc.division_id
         FROM match_pokemon mp
         JOIN matches m ON m.id = mp.match_id
         JOIN season_coaches sc ON sc.id = mp.season_coach_id
@@ -391,7 +410,8 @@ async function evaluateCompletedSeasonMilestones(match: MatchContext) {
     await recordEvent({
       key: `season:${match.season_id}:pokemon:${leader.pokemon_id}:kill-leader`,
       category: "pokemon", type: "season_kill_leader", seasonId: match.season_id,
-      divisionId: match.division_id, matchId: match.id, pokemonId: leader.pokemon_id,
+      divisionId: owner?.division_id ?? match.division_id,
+      matchId: match.id, pokemonId: leader.pokemon_id,
       coachId: owner?.coach_id, seasonCoachId: owner?.season_coach_id,
       title: "⚔️ Season Kill Leader",
       description: `**${leader.pokemon_name}** finished as the season's kill leader with **${topKills} kills**!`,

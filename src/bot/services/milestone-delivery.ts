@@ -21,12 +21,8 @@ async function deliverMilestones(client: Client): Promise<void> {
     SELECT me.id AS event_id, dg.guild_id AS guild_snowflake, MIN(dc.channel_id) AS channel_id,
       me.title, me.description, me.match_id
     FROM milestone_events me
-    JOIN discord_channels dc ON (
-        dc.division_id = me.division_id OR
-        ((me.category = 'season' OR me.milestone_type = 'season_kill_leader')
-          AND dc.division_id IN (SELECT id FROM divisions WHERE season_id = me.season_id))
-      )
-      AND COALESCE(dc.is_match_report_enabled, 1) = 1
+    JOIN discord_channels dc ON dc.division_id = me.division_id
+      AND COALESCE(dc.is_milestone_enabled, 0) = 1
     JOIN discord_guilds dg ON dg.id = dc.guild_id AND COALESCE(dg.is_active, 1) = 1
     LEFT JOIN milestone_deliveries md ON md.event_id = me.id AND md.guild_id = dg.guild_id
     WHERE md.id IS NULL OR (md.status = 'failed' AND md.attempts < 3)
