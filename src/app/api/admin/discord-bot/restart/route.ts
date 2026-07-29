@@ -43,6 +43,36 @@ async function requireModerator(): Promise<NextResponse | null> {
   return null;
 }
 
+function getRequestHosts(request: NextRequest): Set<string> {
+  const hosts = new Set<string>();
+  const forwardedHost = request.headers
+    .get("x-forwarded-host")
+    ?.split(",")
+    .at(-1);
+
+  for (const value of [
+    forwardedHost,
+    request.headers.get("host"),
+    request.nextUrl.host,
+  ]) {
+    const host = value?.trim().toLowerCase();
+    if (host) hosts.add(host);
+  }
+
+  return hosts;
+}
+
+function hasValidRequestOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+
+  try {
+    return getRequestHosts(request).has(new URL(origin).host.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(): Promise<NextResponse> {
   const denied = await requireModerator();
   if (denied) return denied;
@@ -53,8 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const denied = await requireModerator();
   if (denied) return denied;
 
-  const origin = request.headers.get("origin");
-  if (origin && new URL(origin).host !== request.nextUrl.host) {
+  if (!hasValidRequestOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 
