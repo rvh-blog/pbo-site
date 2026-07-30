@@ -7,6 +7,8 @@ export interface CoachProfileMilestone {
   detail: string;
   seasonNumber: number;
   matchId?: number;
+  pokemonId?: number;
+  isLiveTitle?: boolean;
 }
 
 interface MatchRow extends Record<string, unknown> {
@@ -172,8 +174,8 @@ export async function getCoachProfileMilestones(
   const pokemonKills = new Map<number, number>();
   const pokemonAppearances = new Map<number, number>();
   const survivalStreaks = new Map<number, number>();
-  const coachSpeciesKills = new Map<string, number>();
   const coachPokemonKills = new Map<number, Map<number, number>>();
+  const coachPokemonLastRows = new Map<string, PokemonRow>();
   const seasonPokemonKills = new Map<number, Map<number, number>>();
   const seasonPokemonLastCoach = new Map<string, number>();
   const pokemonNames = new Map<number, string>();
@@ -221,31 +223,9 @@ export async function getCoachProfileMilestones(
     }
 
     const pairKey = `${row.coach_id}:${row.pokemon_id}`;
-    const priorPairKills = coachSpeciesKills.get(pairKey) ?? 0;
-    const otherSpeciesBest = Math.max(
-      0,
-      ...[...coachSpeciesKills.entries()]
-        .filter(([key]) => key.endsWith(`:${row.pokemon_id}`) && key !== pairKey)
-        .map(([, total]) => total),
-    );
-    const nextPairKills = priorPairKills + Number(row.kills);
-    coachSpeciesKills.set(pairKey, nextPairKills);
-    if (
-      row.coach_id === coachId
-      && Number(row.kills) > 0
-      && otherSpeciesBest > 0
-      && priorPairKills <= otherSpeciesBest
-      && nextPairKills > otherSpeciesBest
-    ) {
-      addMilestone(milestones, {
-        key: `pokemon:${row.pokemon_id}:species-record`, category: "pokemon",
-        title: "📈 Species Career Kill Record",
-        detail: `${row.pokemon_name} · ${nextPairKills} kills`,
-        seasonNumber: row.season_number, matchId: row.match_id,
-      });
-    }
-
     const coachTotals = coachPokemonKills.get(row.coach_id) ?? new Map<number, number>();
+    const priorPairKills = coachTotals.get(row.pokemon_id) ?? 0;
+    const nextPairKills = priorPairKills + Number(row.kills);
     const otherPokemonBest = Math.max(
       0,
       ...[...coachTotals.entries()]
@@ -254,6 +234,7 @@ export async function getCoachProfileMilestones(
     );
     coachTotals.set(row.pokemon_id, nextPairKills);
     coachPokemonKills.set(row.coach_id, coachTotals);
+    coachPokemonLastRows.set(pairKey, row);
     if (
       row.coach_id === coachId
       && Number(row.kills) > 0
@@ -277,6 +258,35 @@ export async function getCoachProfileMilestones(
       );
       seasonPokemonKills.set(row.season_id, seasonTotals);
       seasonPokemonLastCoach.set(`${row.season_id}:${row.pokemon_id}`, row.coach_id);
+    }
+  }
+
+  // This is a live title rather than a permanent historical achievement.
+  // When another coach takes the career kill lead for a Pokemon, the former
+  // holder stops receiving this milestone the next time their profile renders.
+  const targetCoachPokemonKills = coachPokemonKills.get(coachId);
+  if (targetCoachPokemonKills) {
+    for (const [pokemonId, kills] of targetCoachPokemonKills) {
+      const leaderKills = Math.max(
+        0,
+        ...[...coachPokemonKills.values()].map(
+          (coachTotals) => coachTotals.get(pokemonId) ?? 0,
+        ),
+      );
+      if (kills <= 0 || kills !== leaderKills) continue;
+
+      const latestRow = coachPokemonLastRows.get(`${coachId}:${pokemonId}`);
+      if (!latestRow) continue;
+      addMilestone(milestones, {
+        key: `pokemon:${pokemonId}:current-kill-leader`,
+        category: "pokemon",
+        title: `👑 ${latestRow.pokemon_name} Kill Leader`,
+        detail: `Current PBO leader · ${kills} career kills`,
+        seasonNumber: latestRow.season_number,
+        matchId: latestRow.match_id,
+        pokemonId,
+        isLiveTitle: true,
+      });
     }
   }
 

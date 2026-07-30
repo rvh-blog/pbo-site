@@ -123,6 +123,12 @@ bottom of the coach's page without inserting historical events into the Discord
 delivery outbox. Pokemon milestones are attributed to the persistent coach who
 controlled the Pokemon when the achievement was reached.
 
+The per-Pokemon career kill-leader spotlight is a live profile title rather
+than a permanent cabinet entry. Every coach tied for the most recorded career
+kills with that Pokemon receives the title. When another coach moves ahead,
+the former leader loses the profile milestone and the new outright leader can
+generate a Discord milestone announcement.
+
 Milestone routing is independent from Draft, Match, and Schedule routing.
 The Discord admin page exposes a **Milestone Active** toggle on every mapped
 channel. Only one mapped channel can be milestone-active for a given Discord

@@ -1318,13 +1318,15 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
     return draftBudget - totalSpent;
   })() : 0;
 
+  const liveMilestoneTitles = coachMilestones.filter((milestone) => milestone.isLiveTitle);
+  const historicalMilestones = coachMilestones.filter((milestone) => !milestone.isLiveTitle);
   const milestonesBySeason = Array.from(
-    coachMilestones.reduce((groups, milestone) => {
+    historicalMilestones.reduce((groups, milestone) => {
       const seasonMilestones = groups.get(milestone.seasonNumber) ?? [];
       seasonMilestones.push(milestone);
       groups.set(milestone.seasonNumber, seasonMilestones);
       return groups;
-    }, new Map<number, typeof coachMilestones>()),
+    }, new Map<number, typeof historicalMilestones>()),
   )
     .sort(([leftSeason], [rightSeason]) => rightSeason - leftSeason)
     .map(([seasonNumber, seasonMilestones]) => ({
@@ -3051,6 +3053,45 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
             </p>
           ) : (
             <div className="max-h-[36rem] space-y-6 overflow-y-auto pr-1">
+              {liveMilestoneTitles.length > 0 && (
+                <div className="overflow-hidden rounded-xl border border-yellow-300/40 bg-gradient-to-br from-yellow-300/[0.12] via-cyan-400/[0.08] to-transparent shadow-[0_0_28px_rgba(250,204,21,0.08)]">
+                  <div className="flex items-center justify-between border-b border-yellow-300/25 px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-yellow-300/20 text-lg">
+                        👑
+                      </span>
+                      <div>
+                        <h4 className="font-black text-yellow-200">Live Titles</h4>
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-subtle)]">
+                          Held only while this coach remains the leader
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" />
+                      Live
+                    </span>
+                  </div>
+                  <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {liveMilestoneTitles.map((milestone) => (
+                      <Link
+                        key={milestone.key}
+                        href={milestone.pokemonId ? `/pokemon/${milestone.pokemonId}` : "#"}
+                        className="group rounded-xl border border-yellow-300/30 bg-[var(--background-secondary)]/75 p-4 transition-all hover:-translate-y-0.5 hover:border-yellow-200/60 hover:shadow-[0_8px_24px_rgba(250,204,21,0.12)]"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="rounded-full bg-yellow-300/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-yellow-200">
+                            Live badge
+                          </span>
+                          <span className="text-base transition-transform group-hover:scale-110">🏅</span>
+                        </div>
+                        <p className="font-black text-[var(--foreground)]">{milestone.title}</p>
+                        <p className="mt-1 text-xs text-[var(--foreground-muted)]">{milestone.detail}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
               {milestonesBySeason.map(({ seasonNumber, milestones: seasonMilestones }) => (
                 <div
                   key={seasonNumber}
