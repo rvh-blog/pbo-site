@@ -317,8 +317,8 @@ async function evaluatePokemonMilestones(match: MatchContext) {
         category: "pokemon", type: "species_coach_kill_record", seasonId: match.season_id,
         divisionId: match.division_id, matchId: match.id, pokemonId: pokemon.pokemon_id,
         coachId: pokemon.coach_id, seasonCoachId: pokemon.season_coach_id,
-        title: "📈 New Species Kill Record",
-        description: `**${pokemon.coach_name}** now holds the coach record for career kills with **${pokemon.pokemon_name}** (${pairKills})!`,
+        title: `👑 New ${pokemon.pokemon_name} Kill Leader`,
+        description: `**${pokemon.coach_name}** now holds the PBO career kill lead with **${pokemon.pokemon_name}** (**${pairKills} kills**)!`,
       });
     }
     if (
