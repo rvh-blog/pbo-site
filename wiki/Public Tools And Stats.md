@@ -45,6 +45,14 @@ Kills per game is a sortable rate column. Summary cards identify the active
 view's kill, differential, and kills-per-game leaders, and each Pokemon row can
 expand into a game-by-game opponent, result, kill/death, and replay breakdown.
 
+The Item Usage leaderboard lives at `/leaderboards/items`. It counts distinct
+held items explicitly revealed for a Pokemon in one saved replay, supports
+season and division filters, and summarizes the leading Pokemon and persistent
+coaches for each item. Each item expands into a game-by-game source list with
+the matchup, holder, reveal turn/event, match page, and replay link. Items
+revealed only because the Pokemon received them through Trick or Switcheroo do
+not count as that Pokemon's usage. Unrevealed starting items remain unknown.
+
 Battle Record lives at `/battle-record` and is linked from the header beside
 Leaderboards. It shows all-time coach scoreline records from completed
 non-forfeit matches. Default sorting is descending games played, every column is
@@ -78,6 +86,8 @@ Relevant files:
 - `src/app/leaderboards/page.tsx`
 - `src/app/leaderboards/leaderboards-client.tsx`
 - `src/app/leaderboards/comprehensive/page.tsx`
+- `src/app/leaderboards/items/page.tsx`
+- `src/app/leaderboards/items/item-usage-filters.tsx`
 - `src/app/battle-record/page.tsx`
 - `src/app/battle-record/battle-record-table.tsx`
 - `src/app/admin/battle-records/page.tsx`

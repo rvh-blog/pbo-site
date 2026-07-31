@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { computeAndSortStandings } from "@/lib/standings-sort";
 import { getSeasonFormat } from "@/lib/season-format";
+import { findBuiltInPokemonNameMatch } from "@/lib/replay-roster-matching-core";
 
 interface Coach {
   id: number;
@@ -1037,6 +1038,25 @@ export default function AdminMatchesPage() {
     return normalized;
   }
 
+  function findReplayRosterMatch(roster: RosterEntry[], replayPokemonName: string) {
+    const normalizedReplayName = normalizeName(replayPokemonName);
+    const existingMatch = roster.find(
+      (entry) =>
+        normalizeName(entry.pokemon?.displayName || entry.pokemon?.name || "") ===
+        normalizedReplayName
+    );
+    if (existingMatch) return existingMatch;
+
+    return findBuiltInPokemonNameMatch(
+      roster,
+      replayPokemonName,
+      (entry) => ({
+        name: entry.pokemon?.name,
+        displayName: entry.pokemon?.displayName,
+      })
+    );
+  }
+
   async function handleScrapeReplay() {
     if (!matchForm.replayUrl) {
       setScrapeError("Please enter a replay URL first");
@@ -1080,15 +1100,13 @@ export default function AdminMatchesPage() {
       let p2MatchesTeam2 = 0;
 
       for (const replayPoke of data.p1Team) {
-        const normalizedReplayName = normalizeName(replayPoke.name);
-        if (team1Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) p1MatchesTeam1++;
-        if (team2Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) p1MatchesTeam2++;
+        if (findReplayRosterMatch(team1Rosters, replayPoke.name)) p1MatchesTeam1++;
+        if (findReplayRosterMatch(team2Rosters, replayPoke.name)) p1MatchesTeam2++;
       }
 
       for (const replayPoke of data.p2Team) {
-        const normalizedReplayName = normalizeName(replayPoke.name);
-        if (team1Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) p2MatchesTeam1++;
-        if (team2Rosters.some((r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName)) p2MatchesTeam2++;
+        if (findReplayRosterMatch(team1Rosters, replayPoke.name)) p2MatchesTeam1++;
+        if (findReplayRosterMatch(team2Rosters, replayPoke.name)) p2MatchesTeam2++;
       }
 
       const replayP1IsTeam1 = (p1MatchesTeam1 + p2MatchesTeam2) >= (p1MatchesTeam2 + p2MatchesTeam1);
@@ -1100,10 +1118,7 @@ export default function AdminMatchesPage() {
 
       const newTeam1Pokemon: PokemonEntry[] = [];
       for (const replayPoke of team1ReplayData) {
-        const normalizedReplayName = normalizeName(replayPoke.name);
-        const matchingRoster = team1Rosters.find(
-          (r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName
-        );
+        const matchingRoster = findReplayRosterMatch(team1Rosters, replayPoke.name);
         if (matchingRoster) {
           newTeam1Pokemon.push({
             pokemonId: matchingRoster.pokemonId.toString(),
@@ -1136,10 +1151,7 @@ export default function AdminMatchesPage() {
 
       const newTeam2Pokemon: PokemonEntry[] = [];
       for (const replayPoke of team2ReplayData) {
-        const normalizedReplayName = normalizeName(replayPoke.name);
-        const matchingRoster = team2Rosters.find(
-          (r: RosterEntry) => normalizeName(r.pokemon?.displayName || r.pokemon?.name || "") === normalizedReplayName
-        );
+        const matchingRoster = findReplayRosterMatch(team2Rosters, replayPoke.name);
         if (matchingRoster) {
           newTeam2Pokemon.push({
             pokemonId: matchingRoster.pokemonId.toString(),

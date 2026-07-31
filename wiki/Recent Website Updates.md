@@ -4,6 +4,49 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## July 30, 2026
+
+Coach milestones:
+
+- Coach profile milestone cabinets now include a live per-Pokemon career
+  kill-leader badge.
+- Every coach tied for the most recorded career kills with a Pokemon holds the
+  badge. It transfers automatically when another coach takes the lead, so the
+  former leader loses the live title.
+- A newly established outright leader can also produce the configured Discord
+  milestone announcement without turning the live title into a permanent
+  historical award.
+
+Item Usage:
+
+- Every item row on `/leaderboards/items` can expand into its counted
+  Pokemon-game appearances.
+- The game breakdown identifies season, division, week or playoff round,
+  matchup, Pokemon, coach, reveal turn/source, match page, and Showdown replay.
+- Items revealed only after that Pokemon received them through Trick or
+  Switcheroo are excluded from usage totals, Pokemon/coach rankings, and the
+  game breakdown. An originally held item still counts when another replay
+  event independently revealed it before transfer.
+
+Replay and roster matching:
+
+- Admin replay scraping now uses the shared client-safe roster-name matcher
+  after its existing exact/form rules.
+- An unevolved base-form replay entry can therefore populate the drafted Mega
+  row even when the Pokemon never Mega Evolves. Replay `2656950071`, for
+  example, assigns Lopunny's `1 K / 0 D` to Lopunny-Mega.
+- Exact drafted base-form matches remain higher priority when both a base and
+  Mega candidate are present.
+- Regression coverage checks every Mega currently stored in the Pokemon
+  database, including standard, X/Y/Z, custom Champions, and
+  Floette-Eternal-to-Floette-Mega matching.
+
+Verification:
+
+- `npx tsc --noEmit`, targeted ESLint, the replay-roster regression script,
+  whitespace checks, and the supplied Lopunny replay scrape pass.
+- The database-wide replay matching check passes for all 96 stored Mega forms.
+
 ## July 28, 2026
 
 Changes #1-#8:

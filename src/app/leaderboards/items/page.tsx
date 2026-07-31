@@ -21,6 +21,20 @@ type ItemRow = {
   uses: number;
   pokemon: Array<{ id: number; name: string; uses: number }>;
   coaches: Array<{ id: number; name: string; uses: number }>;
+  games: ItemGame[];
+};
+
+type ItemGame = {
+  matchId: number;
+  seasonNumber: number;
+  divisionName: string;
+  week: number;
+  replayUrl: string | null;
+  pokemon: { id: number; name: string };
+  coach: { id: number; name: string } | null;
+  teamName: string;
+  opponentTeamName: string;
+  reveals: Array<{ turn: number; source: string }>;
 };
 
 export default async function ItemUsagePage({ searchParams }: PageProps) {
@@ -33,6 +47,7 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
   const [rows, allSeasons, allDivisions] = await Promise.all([
     db.query.matchPokemon.findMany({
       columns: {
+        matchId: true,
         pokemonId: true,
         revealedItems: true,
       },
@@ -41,7 +56,7 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
           columns: { id: true, name: true, displayName: true },
         },
         seasonCoach: {
-          columns: { coachId: true },
+          columns: { id: true, coachId: true, teamName: true },
           with: {
             coach: {
               columns: { id: true, name: true },
@@ -49,10 +64,25 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
           },
         },
         match: {
-          columns: { seasonId: true, divisionId: true },
+          columns: {
+            id: true,
+            seasonId: true,
+            divisionId: true,
+            week: true,
+            replayUrl: true,
+          },
           with: {
             season: {
               columns: { seasonNumber: true },
+            },
+            division: {
+              columns: { name: true },
+            },
+            coach1: {
+              columns: { id: true, teamName: true },
+            },
+            coach2: {
+              columns: { id: true, teamName: true },
             },
           },
         },
@@ -74,6 +104,7 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
       uses: number;
       pokemon: Map<number, { id: number; name: string; uses: number }>;
       coaches: Map<number, { id: number; name: string; uses: number }>;
+      games: ItemGame[];
     }
   >();
   let trackedPokemonAppearances = 0;
@@ -89,19 +120,35 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
       continue;
     }
 
-    const distinctItems = new Map(
-      (row.revealedItems || []).map((reveal) => [reveal.item.toLowerCase(), reveal.item])
-    );
+    const distinctItems = new Map<
+      string,
+      { item: string; reveals: Array<{ turn: number; source: string }> }
+    >();
+    for (const reveal of row.revealedItems || []) {
+      if (isTransferredItemReveal(reveal.source)) continue;
+
+      const key = reveal.item.toLowerCase();
+      const existing = distinctItems.get(key);
+      if (existing) {
+        existing.reveals.push({ turn: reveal.turn, source: reveal.source });
+      } else {
+        distinctItems.set(key, {
+          item: reveal.item,
+          reveals: [{ turn: reveal.turn, source: reveal.source }],
+        });
+      }
+    }
     if (distinctItems.size > 0) trackedPokemonAppearances++;
 
-    for (const [key, item] of distinctItems) {
+    for (const [key, revealedItem] of distinctItems) {
       let itemEntry = itemMap.get(key);
       if (!itemEntry) {
         itemEntry = {
-          item,
+          item: revealedItem.item,
           uses: 0,
           pokemon: new Map(),
           coaches: new Map(),
+          games: [],
         };
         itemMap.set(key, itemEntry);
       }
@@ -130,8 +177,30 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
             uses: 1,
           });
         }
-
       }
+
+      const holderTeam = row.seasonCoach;
+      const opponentTeam =
+        row.match.coach1?.id === holderTeam?.id ? row.match.coach2 : row.match.coach1;
+      itemEntry.games.push({
+        matchId: row.match.id,
+        seasonNumber: row.match.season.seasonNumber,
+        divisionName: row.match.division?.name || "Unknown division",
+        week: row.match.week,
+        replayUrl: row.match.replayUrl,
+        pokemon: {
+          id: row.pokemon.id,
+          name: row.pokemon.displayName || row.pokemon.name,
+        },
+        coach: holderTeam?.coach
+          ? { id: holderTeam.coach.id, name: holderTeam.coach.name }
+          : null,
+        teamName: holderTeam?.teamName || "Unknown team",
+        opponentTeamName: opponentTeam?.teamName || "Unknown opponent",
+        reveals: revealedItem.reveals.sort(
+          (a, b) => a.turn - b.turn || a.source.localeCompare(b.source)
+        ),
+      });
     }
   }
 
@@ -145,6 +214,13 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
       coaches: Array.from(entry.coaches.values())
         .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name))
         .slice(0, 3),
+      games: entry.games.sort(
+        (a, b) =>
+          b.seasonNumber - a.seasonNumber ||
+          b.week - a.week ||
+          b.matchId - a.matchId ||
+          a.pokemon.name.localeCompare(b.pokemon.name)
+      ),
     }))
     .sort((a, b) => b.uses - a.uses || a.item.localeCompare(b.item));
   const totalRevealedUses = itemRows.reduce((sum, item) => sum + item.uses, 0);
@@ -180,8 +256,9 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
             <h1 className="font-pixel text-xl text-white sm:text-2xl">Item Usage</h1>
             <p className="mt-2 max-w-2xl text-sm text-[var(--foreground-muted)]">
               Most-used held items observed in saved PBO replays. Unrevealed items remain unknown
-              and are not included. Historical tracking currently goes back to Season 5 because
-              earlier seasons do not have saved replay links.
+              and are not included. Items revealed only after being received through Trick or
+              Switcheroo are also excluded. Historical tracking currently goes back to Season 5
+              because earlier seasons do not have saved replay links.
             </p>
           </div>
           <ItemUsageFilters
@@ -282,6 +359,92 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
                   </div>
                 </div>
 
+                <details className="group border-t border-[var(--background-tertiary)]/60">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-xs font-bold text-[var(--foreground-muted)] hover:bg-[var(--background-secondary)] hover:text-white sm:px-5">
+                    <span>
+                      View game sources{" "}
+                      <span className="font-mono font-normal">({item.games.length})</span>
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="text-base text-[var(--primary)] transition-transform group-open:rotate-180"
+                    >
+                      ▾
+                    </span>
+                  </summary>
+                  <div className="border-t border-[var(--background-tertiary)] bg-[var(--background)]/40 px-4 py-3 sm:px-5">
+                    <div className="mb-3 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+                      Each use is one Pokémon appearance. The source shows the replay event that
+                      revealed the item.
+                    </div>
+                    <div className="space-y-2">
+                      {item.games.map((game) => (
+                        <div
+                          key={`${game.matchId}-${game.pokemon.id}`}
+                          className="grid gap-2 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-3 text-xs sm:grid-cols-[minmax(10rem,0.9fr)_minmax(12rem,1.3fr)_minmax(10rem,1fr)_auto] sm:items-center"
+                        >
+                          <div>
+                            <div className="font-bold text-white">
+                              Season {game.seasonNumber} · {formatWeek(game.week)}
+                            </div>
+                            <div className="mt-0.5 text-[var(--foreground-subtle)]">
+                              {game.divisionName}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-white">
+                              {game.teamName} vs {game.opponentTeamName}
+                            </div>
+                            <div className="mt-0.5 text-[var(--foreground-muted)]">
+                              <Link
+                                href={`/pokemon/${game.pokemon.id}`}
+                                className="hover:text-[var(--primary)]"
+                              >
+                                {game.pokemon.name}
+                              </Link>
+                              {game.coach ? (
+                                <>
+                                  {" · "}
+                                  <Link
+                                    href={`/coaches/${game.coach.id}`}
+                                    className="hover:text-[var(--primary)]"
+                                  >
+                                    {game.coach.name}
+                                  </Link>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="font-mono text-[11px] text-[var(--foreground-muted)]">
+                            {game.reveals.map((reveal, revealIndex) => (
+                              <div key={`${reveal.turn}-${reveal.source}-${revealIndex}`}>
+                                Turn {reveal.turn} · {reveal.source}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex flex-wrap gap-2 sm:justify-end">
+                            <Link
+                              href={`/matches/${game.matchId}`}
+                              className="rounded-md border border-[var(--background-tertiary)] px-2.5 py-1.5 font-bold text-[var(--foreground-muted)] hover:border-[var(--primary)] hover:text-white"
+                            >
+                              Match
+                            </Link>
+                            {game.replayUrl ? (
+                              <a
+                                href={game.replayUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-md border border-[var(--primary)]/60 px-2.5 py-1.5 font-bold text-[var(--primary)] hover:border-[var(--primary)] hover:text-white"
+                              >
+                                Replay ↗
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </details>
               </div>
             ))}
           </div>
@@ -293,4 +456,16 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
       </section>
     </div>
   );
+}
+
+function formatWeek(week: number) {
+  if (week === 101) return "Quarterfinals";
+  if (week === 102) return "Semifinals";
+  if (week === 103) return "Finals";
+  if (week > 100) return `Playoff Round ${week - 100}`;
+  return `Week ${week}`;
+}
+
+function isTransferredItemReveal(source: string) {
+  return /^move:\s*(trick|switcheroo)$/i.test(source.trim());
 }

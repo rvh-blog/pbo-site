@@ -26,6 +26,7 @@ The parser returns:
 - Zoroark warning flag.
 - Turn HP snapshots.
 - Key faint/win events.
+- Per-Pokemon held-item reveals with item, turn, and reveal source.
 
 ## PBO Match Recording
 
@@ -37,6 +38,19 @@ For Season 11, `[Gen 9 Champions] NatDex Draft` is treated as the PBO format.
 That format preserves Mega form names during parsing, including names such as
 `Barbaracle-Mega` and `Floette-Mega`, so replay analyzer output and downstream
 matching can recognize the updated PokeAPI Pokemon records.
+
+Showdown team preview and switch events can keep a drafted Mega in its base
+form for the entire battle. Roster matching checks an exact base row first, then
+uses generated Mega aliases so the base replay entry can populate the drafted
+Mega row. The client-safe matcher is shared by admin replay review and the
+server-side bot matching fallback. Regression coverage checks every stored Mega
+form, including X/Y/Z and custom Champions variants; Floette-Eternal is handled
+as the visible pre-Mega form for Floette-Mega.
+
+Held-item usage is observational. The parser records explicit item events and
+effects, while leaderboard aggregation excludes a Pokemon/item pairing revealed
+only after that Pokemon received the item through Trick or Switcheroo.
+Unrevealed items are never inferred.
 
 ## Public Analyzer
 
