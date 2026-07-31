@@ -1,8 +1,7 @@
 import {
-  pokemonExactLookupKeys,
   pokemonNameKey,
-  pokemonNormalizedLookupKeys,
 } from "@/lib/pokemon-name-utils";
+import { findBuiltInPokemonNameMatch } from "@/lib/replay-roster-matching-core";
 import {
   type PokemonAliasMaps,
   pokemonExactLookupKeysWithAliases,
@@ -23,28 +22,6 @@ function setsIntersect<T>(left: Set<T>, right: Set<T>): boolean {
   return false;
 }
 
-function pokemonNamesMatch(
-  left: string | null | undefined,
-  right: string | null | undefined,
-  aliasMaps?: PokemonAliasMaps
-): boolean {
-  const leftExactKeys = aliasMaps
-    ? pokemonExactLookupKeysWithAliases(left, aliasMaps)
-    : pokemonExactLookupKeys(left);
-  const rightExactKeys = aliasMaps
-    ? pokemonExactLookupKeysWithAliases(right, aliasMaps)
-    : pokemonExactLookupKeys(right);
-  if (setsIntersect(leftExactKeys, rightExactKeys)) return true;
-
-  const leftNormalizedKeys = aliasMaps
-    ? pokemonNormalizedLookupKeysWithAliases(left, aliasMaps)
-    : pokemonNormalizedLookupKeys(left);
-  const rightNormalizedKeys = aliasMaps
-    ? pokemonNormalizedLookupKeysWithAliases(right, aliasMaps)
-    : pokemonNormalizedLookupKeys(right);
-  return setsIntersect(leftNormalizedKeys, rightNormalizedKeys);
-}
-
 export function findMatchingRosterPokemon(
   roster: ReplayRosterPokemon[],
   replayPokemonName: string,
@@ -60,9 +37,7 @@ export function findMatchingRosterPokemon(
   if (compactMatch) return compactMatch;
 
   if (!aliasMaps) {
-    return roster.find((row) => (
-      pokemonNamesMatch(replayPokemonName, row.displayName || row.name)
-    ));
+    return findBuiltInPokemonNameMatch(roster, replayPokemonName, (row) => row);
   }
 
   const exactKeys = pokemonExactLookupKeysWithAliases(replayPokemonName, aliasMaps);
@@ -79,8 +54,5 @@ export function findMatchingRosterPokemon(
 
   // Use the built-in alias catalogue independently of database-backed aliases
   // so known forms such as Single Strike Urshifu still resolve.
-  return roster.find((row) => (
-    pokemonNamesMatch(replayPokemonName, row.name)
-    || pokemonNamesMatch(replayPokemonName, row.displayName)
-  ));
+  return findBuiltInPokemonNameMatch(roster, replayPokemonName, (row) => row);
 }
