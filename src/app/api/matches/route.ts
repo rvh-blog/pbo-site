@@ -173,7 +173,7 @@ async function insertKillEvents(
       else if (causeLower.includes("sandstorm") || causeLower.includes("hail")) cause = "weather";
       else if (causeLower === "psn" || causeLower === "tox" || causeLower === "brn") cause = "status";
       else if (causeLower.includes("leech seed") || causeLower.includes("salt cure") || causeLower.includes("curse")) cause = "status";
-      else if (causeLower.includes("recoil")) cause = "recoil";
+      else if (causeLower.includes("recoil") || causeLower.includes("life orb")) cause = "recoil";
       else if (causeLower.includes("rocky helmet") || causeLower.includes("rough skin") || causeLower.includes("iron barbs")) cause = "contact";
       else if (causeLower.includes("future sight") || causeLower.includes("doom desire")) cause = "move";
       else cause = "other";

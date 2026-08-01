@@ -357,6 +357,7 @@ export async function POST(request: NextRequest) {
     const hpPercentMap: Map<string, number> = new Map();
     let currentTurn = 0;
     let lastMoveInfo: { player: "p1" | "p2"; nickname: string; moveName: string; turn: number } | null = null;
+    let lastMoveOpponent: PlayerRef | null = null;
     // Showdown emits a miss when a Pokemon attacks a Phantom Force user during
     // the user's semi-invulnerable turn. That is not an accuracy/luck event.
     let phantomForceSemiInvulnerable: PlayerRef | null = null;
@@ -780,6 +781,7 @@ export async function POST(request: NextRequest) {
               });
             }
             currentTurn = turnNum;
+            lastMoveOpponent = null;
             phantomForceSemiInvulnerable = null;
             faintedPlayersThisTurn.clear();
             switchedInThisBattleTurn.clear();
@@ -793,6 +795,11 @@ export async function POST(request: NextRequest) {
           const moveName = parts[3] || "unknown move";
           const parsed = extractNicknameOwner(attackerRef);
           if (parsed) {
+            const opponent = parsed.player === "p1" ? "p2" : "p1";
+            const opponentActive = opponent === "p1" ? p1ActivePokemon : p2ActivePokemon;
+            lastMoveOpponent = opponentActive
+              ? { player: opponent, nickname: opponentActive }
+              : null;
             lastDamageDealer = parsed;
             lastFaintSource = null;
             lastMoveInfo = { ...parsed, moveName, turn: currentTurn };
@@ -1422,8 +1429,10 @@ export async function POST(request: NextRequest) {
                 cause.includes("liquid ooze") || cause.includes("innards out")
               ) {
                 killer = contactDamageSource ? { ...contactDamageSource } : null;
-              } else if (cause.includes("recoil")) {
-                killer = lastDamageDealer ? { ...lastDamageDealer } : null;
+              } else if (cause.includes("recoil") || cause.includes("life orb")) {
+                // Recoil is credited to the opposing Pokemon that was in
+                // front when the move was used, even if it fainted first.
+                killer = lastMoveOpponent ? { ...lastMoveOpponent } : null;
               } else if (cause.includes("destiny bond")) {
                 // Destiny Bond — lastDamageDealer was set in the -activate handler
                 killer = lastDamageDealer ? { ...lastDamageDealer } : null;
