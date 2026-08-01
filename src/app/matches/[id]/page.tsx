@@ -12,7 +12,11 @@ import { HpChart } from "@/components/hp-chart";
 import { DecidingTurnsPanel } from "@/components/deciding-turns-panel";
 import { ShareButton } from "@/components/share-button";
 import { getSession } from "@/lib/session";
-import { getMatchDecidingTurnsEditorHiddenKey, getSiteSetting } from "@/lib/site-settings";
+import {
+  getMatchDecidingTurnsEditorHiddenKey,
+  getMatchDecidingTurnsPublishedKey,
+  getSiteSetting,
+} from "@/lib/site-settings";
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
 import type { TimeSyncTransaction } from "@/lib/roster-utils";
 
@@ -362,6 +366,7 @@ function BattleSummaryPanel({
   coach2Pokemon,
   decidingTurnsText,
   decidingTurnsEditorHidden,
+  decidingTurnsPublished,
   matchId,
 }: {
   canEditDecidingTurns: boolean;
@@ -374,12 +379,18 @@ function BattleSummaryPanel({
   coach2Pokemon: BattleSummaryPokemon[];
   decidingTurnsText: string | null;
   decidingTurnsEditorHidden: boolean;
+  decidingTurnsPublished: boolean;
   matchId: number;
 }) {
+  const showDecidingTurns = canEditDecidingTurns || decidingTurnsPublished;
+
   return (
     <div className="poke-card overflow-visible p-3 sm:p-5 md:overflow-hidden">
       <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-3 sm:p-5">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px_minmax(0,1fr)]">
+        <div className={showDecidingTurns
+          ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px_minmax(0,1fr)]"
+          : "grid gap-4 xl:grid-cols-2"}
+        >
           <div className="order-1 xl:order-none">
             <BattleSummaryTeam
               teamName={coach1Name}
@@ -389,15 +400,18 @@ function BattleSummaryPanel({
             />
           </div>
 
-          <div className="order-3 xl:order-none">
-            <DecidingTurnsPanel
-              canEdit={canEditDecidingTurns}
-              canManageEditorVisibility={canManageDecidingTurnsEditorVisibility}
-              initialText={decidingTurnsText}
-              initialEditorHidden={decidingTurnsEditorHidden}
-              matchId={matchId}
-            />
-          </div>
+          {showDecidingTurns && (
+            <div className="order-3 xl:order-none">
+              <DecidingTurnsPanel
+                canEdit={canEditDecidingTurns}
+                canManageEditorVisibility={canManageDecidingTurnsEditorVisibility}
+                initialText={decidingTurnsText}
+                initialEditorHidden={decidingTurnsEditorHidden}
+                initialPublished={decidingTurnsPublished}
+                matchId={matchId}
+              />
+            </div>
+          )}
 
           <div className="order-2 xl:order-none">
             <BattleSummaryTeam
@@ -493,6 +507,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
     coach1TimeSyncedRoster,
     coach2TimeSyncedRoster,
     decidingTurnsEditorHiddenSetting,
+    decidingTurnsPublishedSetting,
   ] = await Promise.all([
     getSeasonPokemonPrices(match.seasonId),
     getMatchEloChanges(matchId, coach1?.coachId, coach2?.coachId),
@@ -515,6 +530,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
       ? getTimeSyncedRoster(match.coach2SeasonId, match.week, coach2?.rosters || [])
       : Promise.resolve(null),
     getSiteSetting(getMatchDecidingTurnsEditorHiddenKey(match.id)),
+    getSiteSetting(getMatchDecidingTurnsPublishedKey(match.id)),
   ]);
 
   const victoryAnimItem = storeItemsList.find(i => i.slug === "victory-animation");
@@ -559,6 +575,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
     match.id === 2778 ||
     (isPlayed && (match.season?.seasonNumber ?? 0) >= 11);
   const decidingTurnsEditorHidden = decidingTurnsEditorHiddenSetting?.value === "true";
+  const decidingTurnsPublished = decidingTurnsPublishedSetting?.value === "true";
+  const canEditDecidingTurns = Boolean(session?.isMod || session?.isEditor);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -860,9 +878,12 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 coach2LogoUrl={coach2?.teamLogoUrl}
                 coach1Pokemon={coach1MatchPokemon}
                 coach2Pokemon={coach2MatchPokemon}
-                decidingTurnsText={match.decidingTurnsText}
+                decidingTurnsText={canEditDecidingTurns || decidingTurnsPublished
+                  ? match.decidingTurnsText
+                  : null}
                 decidingTurnsEditorHidden={decidingTurnsEditorHidden}
-                canEditDecidingTurns={Boolean(session?.isMod || session?.isEditor)}
+                decidingTurnsPublished={decidingTurnsPublished}
+                canEditDecidingTurns={canEditDecidingTurns}
                 canManageDecidingTurnsEditorVisibility={Boolean(session?.isMod)}
                 matchId={match.id}
               />

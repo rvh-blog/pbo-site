@@ -15,6 +15,10 @@ export function getMatchDecidingTurnsEditorHiddenKey(matchId: number) {
   return `match_${matchId}_deciding_turns_editor_hidden`;
 }
 
+export function getMatchDecidingTurnsPublishedKey(matchId: number) {
+  return `match_${matchId}_deciding_turns_published`;
+}
+
 export async function getSiteFeatureSettings() {
   const settings = await db.query.siteSettings.findMany({
     where: (s, { inArray }) => inArray(s.key, Object.values(SITE_SETTING_KEYS)),
