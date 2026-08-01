@@ -19,19 +19,23 @@ export function DecidingTurnsPanel({
   canManageEditorVisibility,
   initialText,
   initialEditorHidden,
+  initialPublished,
   matchId,
 }: {
   canEdit: boolean;
   canManageEditorVisibility: boolean;
   initialText: string | null;
   initialEditorHidden: boolean;
+  initialPublished: boolean;
   matchId: number;
 }) {
   const router = useRouter();
   const [text, setText] = useState(initialText ?? "");
   const [savedText, setSavedText] = useState(initialText ?? "");
   const [isEditorHidden, setIsEditorHidden] = useState(initialEditorHidden);
+  const [isPublished, setIsPublished] = useState(initialPublished);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [isTogglingHidden, setIsTogglingHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const displayLines = useMemo(() => getDisplayLines(savedText), [savedText]);
@@ -54,12 +58,43 @@ export function DecidingTurnsPanel({
       }
 
       setSavedText(data.decidingTurnsText ?? "");
+      setIsPublished(Boolean(data.decidingTurnsPublished));
       router.refresh();
     } catch {
       setError("Failed to save deciding turns");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function togglePublished(nextPublished: boolean) {
+    setIsPublishing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/matches/${matchId}/deciding-turns`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishDecidingTurns: nextPublished }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Failed to update publish status");
+        return;
+      }
+
+      setIsPublished(Boolean(data.decidingTurnsPublished));
+      router.refresh();
+    } catch {
+      setError("Failed to update publish status");
+    } finally {
+      setIsPublishing(false);
+    }
+  }
+
+  if (!canEdit && !isPublished) {
+    return null;
   }
 
   async function toggleEditorHidden(nextHidden: boolean) {
@@ -114,6 +149,23 @@ export function DecidingTurnsPanel({
 
       {canEdit && (
         <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between gap-2 rounded border border-white/15 bg-white/5 px-3 py-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-white/65">
+              {isPublished ? "Published" : "Draft only"}
+            </span>
+            <button
+              type="button"
+              onClick={() => togglePublished(!isPublished)}
+              disabled={isPublishing || (!isPublished && !savedText.trim())}
+              className="btn-retro-secondary px-3 py-2 text-[9px] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isPublishing
+                ? "Updating..."
+                : isPublished
+                  ? "Unpublish"
+                  : "Publish"}
+            </button>
+          </div>
           {canManageEditorVisibility && (
             <label className="flex min-h-11 items-center gap-3 rounded border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-wide text-white/75 md:min-h-0 md:gap-2 md:text-[10px]">
               <input
@@ -142,7 +194,7 @@ export function DecidingTurnsPanel({
                 disabled={isSaving}
                 className="btn-retro-secondary sticky bottom-[calc(.5rem+env(safe-area-inset-bottom))] z-20 w-full px-3 py-3 text-xs shadow-[0_-8px_24px_rgba(0,0,0,0.55)] disabled:cursor-not-allowed disabled:opacity-50 md:static md:py-2 md:text-[9px] md:shadow-none"
               >
-                {isSaving ? "Saving..." : "Save Deciding Turns"}
+                {isSaving ? "Saving..." : "Save Draft"}
               </button>
             </>
           )}

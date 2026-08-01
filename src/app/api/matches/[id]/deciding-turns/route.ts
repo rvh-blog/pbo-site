@@ -5,6 +5,7 @@ import { matches } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import {
   getMatchDecidingTurnsEditorHiddenKey,
+  getMatchDecidingTurnsPublishedKey,
   getSiteSetting,
   upsertSiteSetting,
 } from "@/lib/site-settings";
@@ -40,8 +41,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   const body = await request.json();
   const hasTextUpdate = Object.prototype.hasOwnProperty.call(body, "decidingTurnsText");
   const hasEditorHiddenUpdate = Object.prototype.hasOwnProperty.call(body, "hideDecidingTurnsEditor");
+  const hasPublishedUpdate = Object.prototype.hasOwnProperty.call(body, "publishDecidingTurns");
 
-  if (hasTextUpdate && !session.isMod && !session.isEditor) {
+  if ((hasTextUpdate || hasPublishedUpdate) && !session.isMod && !session.isEditor) {
     return NextResponse.json({ error: "Editor access required" }, { status: 403 });
   }
 
@@ -49,7 +51,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }
 
-  if (!hasTextUpdate && !hasEditorHiddenUpdate) {
+  if (!hasTextUpdate && !hasEditorHiddenUpdate && !hasPublishedUpdate) {
     return NextResponse.json(
       { error: "No deciding turns update provided" },
       { status: 400 }
@@ -81,7 +83,27 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     );
   }
 
+  if (hasPublishedUpdate && typeof body.publishDecidingTurns !== "boolean") {
+    return NextResponse.json(
+      { error: "Publish value must be a boolean" },
+      { status: 400 }
+    );
+  }
+
+  const effectiveText = hasTextUpdate
+    ? decidingTurnsText
+    : existingMatch.decidingTurnsText?.trim() ?? "";
+
+  if (hasPublishedUpdate && body.publishDecidingTurns && !effectiveText) {
+    return NextResponse.json(
+      { error: "Add and save deciding turns before publishing" },
+      { status: 400 }
+    );
+  }
+
   let updatedText = existingMatch.decidingTurnsText;
+  const textChanged = hasTextUpdate
+    && decidingTurnsText !== (existingMatch.decidingTurnsText?.trim() ?? "");
 
   if (hasTextUpdate) {
     const [updated] = await db
@@ -94,18 +116,32 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   }
 
   const hiddenSettingKey = getMatchDecidingTurnsEditorHiddenKey(matchId);
+  const publishedSettingKey = getMatchDecidingTurnsPublishedKey(matchId);
 
   if (hasEditorHiddenUpdate) {
     await upsertSiteSetting(hiddenSettingKey, body.hideDecidingTurnsEditor);
   }
 
+  if (hasPublishedUpdate) {
+    await upsertSiteSetting(publishedSettingKey, body.publishDecidingTurns);
+  } else if (textChanged) {
+    // A changed draft must be reviewed and explicitly published again.
+    await upsertSiteSetting(publishedSettingKey, false);
+  }
+
   const hiddenSetting = hasEditorHiddenUpdate
     ? { value: String(body.hideDecidingTurnsEditor) }
     : await getSiteSetting(hiddenSettingKey);
+  const publishedSetting = hasPublishedUpdate
+    ? { value: String(body.publishDecidingTurns) }
+    : textChanged
+      ? { value: "false" }
+      : await getSiteSetting(publishedSettingKey);
 
   return NextResponse.json({
     id: existingMatch.id,
     decidingTurnsText: updatedText,
     hideDecidingTurnsEditor: hiddenSetting?.value === "true",
+    decidingTurnsPublished: publishedSetting?.value === "true",
   });
 }
