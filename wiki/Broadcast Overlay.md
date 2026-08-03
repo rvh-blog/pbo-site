@@ -64,6 +64,12 @@ Pinsir-Mega without creating two overlay entries. The same roster slot keeps its
 HP, status, active state, kills, and brought classification throughout the
 transition. This generic rule also covers X/Y Megas.
 
+Showdown's X/Y Mega sprite filenames compact the variant suffix: canonical and
+friendly names such as `Charizard-Mega-Y` and `Mega Charizard Y` resolve to
+`charizard-megay`, while `Mega Charizard X` resolves to `charizard-megax`.
+Keep this conversion in `src/lib/showdown-sprites.ts` so animated and static
+sidebar paths share the same behavior.
+
 If a Pokemon appears during preview or battle, its matching roster entry belongs
 in the brought list and must not remain under Bench.
 

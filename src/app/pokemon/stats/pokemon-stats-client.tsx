@@ -150,9 +150,10 @@ interface PokemonStatsClientProps {
   stats: PokemonStatGroup[];
   seasons: SeasonOption[];
   divisions: DivisionOption[];
+  currentSeasonId: number | null;
 }
 
-export function PokemonStatsClient({ stats, seasons, divisions }: PokemonStatsClientProps) {
+export function PokemonStatsClient({ stats, seasons, divisions, currentSeasonId }: PokemonStatsClientProps) {
   const [sorts, setSorts] = useState<Record<Category, SortKey>>({
     dealt: "dmgDealtTotal",
     taken: "dmgTakenTotal",
@@ -160,7 +161,7 @@ export function PokemonStatsClient({ stats, seasons, divisions }: PokemonStatsCl
   });
 
   const [minGP, setMinGP] = useState(3);
-  const [seasonId, setSeasonId] = useState<number | "all">("all");
+  const [seasonId, setSeasonId] = useState<number | "all">(currentSeasonId ?? "all");
   const [divisionId, setDivisionId] = useState<number | "all">("all");
 
   const divisionGroups = useMemo(() => {

@@ -46,6 +46,22 @@ const DEX_SPRITE_OVERRIDES: Record<string, string> = {
 };
 
 function spriteId(name: string) {
+  const megaParts = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").split("-").filter(Boolean);
+  const megaIndex = megaParts.indexOf("mega");
+  if (megaIndex >= 0) {
+    const variantSuffixes = new Set(["x", "y", "z"]);
+    const leadingMega = megaIndex === 0;
+    const possibleVariant = leadingMega ? megaParts.at(-1) : megaParts[megaIndex + 1];
+    const variant = possibleVariant && variantSuffixes.has(possibleVariant) ? possibleVariant : "";
+    const baseParts = leadingMega
+      ? megaParts.slice(1, variant ? -1 : undefined)
+      : megaParts.slice(0, megaIndex);
+
+    if (baseParts.length > 0) {
+      return `${baseParts.join("-")}-mega${variant}`;
+    }
+  }
+
   const id = name.toLowerCase().replace(/[^a-z0-9-]/g, "");
   return SPRITE_NAME_OVERRIDES[id] ?? id;
 }

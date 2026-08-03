@@ -90,13 +90,14 @@ async function getPokemonBattleStatsUncached() {
 async function getSeasonsAndDivisionsUncached() {
   const [allSeasons, allDivisions] = await Promise.all([
     db.query.seasons.findMany({
-      columns: { id: true, name: true, seasonNumber: true },
+      columns: { id: true, name: true, seasonNumber: true, isCurrent: true },
     }),
     db.query.divisions.findMany({
       columns: { id: true, name: true, seasonId: true, displayOrder: true },
     }),
   ]);
   return {
+    currentSeasonId: allSeasons.find((season) => season.isCurrent)?.id ?? null,
     seasons: allSeasons
       .map((s) => ({ id: s.id, name: s.name, seasonNumber: s.seasonNumber }))
       .sort((a, b) => b.seasonNumber - a.seasonNumber),
@@ -819,6 +820,7 @@ export default async function PokemonStatsPage() {
         stats={stats}
         seasons={filterOptions.seasons}
         divisions={filterOptions.divisions}
+        currentSeasonId={filterOptions.currentSeasonId}
       />
 
       <section className="poke-card p-5 md:p-6">

@@ -93,6 +93,21 @@ assert.equal(
   "https://play.pokemonshowdown.com/sprites/gen5-shiny/zoroark-hisui.png",
   "Shiny regional forms must preserve their hyphenated static sprite ID",
 );
+assert.equal(
+  getGen5StaticSpriteUrl("Charizard-Mega-Y"),
+  "https://play.pokemonshowdown.com/sprites/gen5/charizard-megay.png",
+  "Mega Charizard Y must use Showdown's compact Mega suffix",
+);
+assert.equal(
+  getShowdownSpriteUrl("Mega Charizard X"),
+  "https://play.pokemonshowdown.com/sprites/ani/charizard-megax.gif",
+  "Friendly Mega names must use Showdown's species-first sprite ID",
+);
+assert.equal(
+  getGen5StaticSpriteUrl("Mewtwo-Mega-Y", true),
+  "https://play.pokemonshowdown.com/sprites/gen5-shiny/mewtwo-megay.png",
+  "Other X/Y Mega forms must use the same compact suffix convention",
+);
 
 assert.equal(NEW_MEGA_BATTLEFIELD_SPRITES.length, 48, "All 48 new Mega battlefield sprites must be registered");
 for (const { forme, spriteId, localUrl } of NEW_MEGA_BATTLEFIELD_SPRITES) {

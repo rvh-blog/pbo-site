@@ -17,7 +17,7 @@ export interface PboRecordCategory {
 }
 
 type BattleRecordTab = "coach-records" | "pokemon-moves" | "pbo-records";
-type PboRecordScope = "regular-season" | "playoffs";
+type PboRecordScope = "regular-season" | "playoffs" | "overall";
 
 const tabs: Array<{ id: BattleRecordTab; label: string }> = [
   { id: "coach-records", label: "Coach Records" },
@@ -76,12 +76,14 @@ export function BattleRecordView({
   records,
   regularSeasonPboRecords,
   playoffPboRecords,
+  overallPboRecords,
   pokemonMoveRecords,
   pokemonMoveDivisions,
 }: {
   records: BattleRecordRow[];
   regularSeasonPboRecords: PboRecordCategory[];
   playoffPboRecords: PboRecordCategory[];
+  overallPboRecords: PboRecordCategory[];
   pokemonMoveRecords: PokemonMoveRecord[];
   pokemonMoveDivisions: PokemonMoveDivision[];
 }) {
@@ -94,7 +96,9 @@ export function BattleRecordView({
       : "PBO Records";
   const activePboRecords = pboRecordScope === "regular-season"
     ? regularSeasonPboRecords
-    : playoffPboRecords;
+    : pboRecordScope === "playoffs"
+      ? playoffPboRecords
+      : overallPboRecords;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -160,10 +164,11 @@ export function BattleRecordView({
         ) : (
           <div>
             <div className="flex justify-center border-b-2 border-[var(--background-tertiary)] p-3 sm:p-4">
-              <div className="grid w-full max-w-md grid-cols-2 gap-2">
+              <div className="grid w-full max-w-2xl grid-cols-3 gap-2">
                 {([
                   { id: "regular-season", label: "Regular Season" },
                   { id: "playoffs", label: "Playoffs" },
+                  { id: "overall", label: "Overall" },
                 ] as const).map((scope) => {
                   const active = pboRecordScope === scope.id;
 

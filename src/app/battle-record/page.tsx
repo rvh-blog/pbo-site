@@ -343,7 +343,7 @@ function parseTurnCount(match: Pick<MatchRecord, "turnSnapshots" | "keyEvents">)
   return maxTurn;
 }
 
-type PboRecordScope = "regular-season" | "playoffs";
+type PboRecordScope = "regular-season" | "playoffs" | "overall";
 
 async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]> {
   const [allCoaches, allSeasonCoaches, allMatches, allRegularSeasonMatches, allSeasons, allDivisions, allMatchPokemon] = await Promise.all([
@@ -383,7 +383,11 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
       where: and(
         isNotNull(matches.winnerId),
         eq(matches.isForfeit, false),
-        scope === "regular-season" ? lte(matches.week, 100) : gt(matches.week, 100)
+        scope === "regular-season"
+          ? lte(matches.week, 100)
+          : scope === "playoffs"
+            ? gt(matches.week, 100)
+            : undefined
       ),
     }),
     db.query.matches.findMany({
@@ -511,7 +515,7 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
 
     return {
       title: `${seasonCoach?.teamName ?? "Unknown"} — ${row.wins}-${row.losses}, ${signedDifferential}`,
-      detail: `S${seasonNumber ?? "?"}${division ? ` ${division.name}` : ""} — Final ${scope === "regular-season" ? "regular-season" : "playoff"} differential`,
+      detail: `S${seasonNumber ?? "?"}${division ? ` ${division.name}` : ""} — Final ${scope === "regular-season" ? "regular-season" : scope === "playoffs" ? "playoff" : "overall"} differential`,
       href: seasonCoach ? `/coaches/${seasonCoach.coachId}` : undefined,
     };
   };
@@ -767,10 +771,11 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
 }
 
 export default async function BattleRecordPage() {
-  const [battleRecords, calculatedRegularSeasonRecords, calculatedPlayoffRecords, manualOverrides, pokemonMoveRecords] = await Promise.all([
+  const [battleRecords, calculatedRegularSeasonRecords, calculatedPlayoffRecords, overallPboRecords, manualOverrides, pokemonMoveRecords] = await Promise.all([
     getBattleRecords(),
     getPboRecords("regular-season"),
     getPboRecords("playoffs"),
+    getPboRecords("overall"),
     getBattleRecordOverrides(true),
     getPokemonMoveRecords(),
   ]);
@@ -790,6 +795,7 @@ export default async function BattleRecordPage() {
       records={battleRecords}
       regularSeasonPboRecords={regularSeasonPboRecords}
       playoffPboRecords={playoffPboRecords}
+      overallPboRecords={overallPboRecords}
       pokemonMoveRecords={pokemonMoveRecords.records}
       pokemonMoveDivisions={pokemonMoveRecords.divisions}
     />
