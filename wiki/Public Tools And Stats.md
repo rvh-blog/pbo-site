@@ -58,6 +58,12 @@ Leaderboards. It shows all-time coach scoreline records from completed
 non-forfeit matches. Default sorting is descending games played, every column is
 sortable, and the table supports a minimum-games filter.
 
+The PBO Records section has Regular Season, Playoffs, and Overall scopes.
+Overall recomputes each general record across regular-season and playoff matches
+together; it is not a merge of the two separate top-three lists. The
+playoff-specific consecutive-appearance category remains exclusive to the
+Playoffs scope.
+
 Battle Record metrics:
 
 - Average Differential Per Game: average match differential across all counted games.
@@ -129,6 +135,9 @@ Stats routes:
 
 Current expectations:
 
+- Pokemon Battle Stats selects the database-marked current season on initial
+  load. All Seasons remains available, and is the fallback when no season is
+  marked current.
 - Pokemon detail pages show a clickable all-time ranking box beside K/D when the ranking is available.
 - Season 10 Pokemon fun facts are tied to Season 10 and credit contributing coaches where the stat supports it.
 - Season 10 coach fun facts are tied to Season 10.

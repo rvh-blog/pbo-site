@@ -4,6 +4,42 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 2, 2026
+
+Broadcast overlay:
+
+- Standard X/Y Mega sidebar sprites now use Showdown's compact filename
+  convention. Names such as `Charizard-Mega-Y` resolve to `charizard-megay`,
+  preventing the broken Mega Charizard Y image.
+- Overlay regression checks cover canonical and friendly Mega names across
+  static, animated, and shiny sprite paths.
+
+Pokemon Battle Stats:
+
+- `/pokemon/stats` opens with the database-marked current season selected.
+  All Seasons remains available and is used only when no current season exists.
+
+Battle Record:
+
+- PBO Records includes an Overall scope to the right of Playoffs.
+- Overall records are recalculated from regular-season and playoff matches
+  together, including streaks, differential, Pokemon K/D and deaths, and game
+  length. The playoff-only appearance category stays in the Playoffs scope.
+
+Mega Stone verification:
+
+- Champions Mega Evolution protocol events continue to populate the revealed
+  held item with the reported Mega Stone; verification confirmed Pinsirite and
+  Lopunnite through the shared replay parser.
+- A reported Delphox-Mega `Unknown` item display still requires its exact replay
+  URL before the event can be reproduced. Do not infer a stone from the form
+  name alone when the replay evidence has not been inspected.
+
+Verification:
+
+- Overlay synchronization checks, targeted ESLint, TypeScript, and whitespace
+  checks pass.
+
 ## July 30, 2026
 
 Coach milestones:
