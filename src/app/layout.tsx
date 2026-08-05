@@ -120,7 +120,7 @@ export default function RootLayout({
           {children}
         </main>
 
-        <footer className="relative z-10 border-t-4 border-[var(--background-tertiary)] mt-16 bg-[var(--background-secondary)] py-8 sm:mt-20 sm:py-12">
+        <footer className="readable-content relative z-10 border-t-4 border-[var(--background-tertiary)] mt-16 bg-[var(--background-secondary)] py-8 sm:mt-20 sm:py-12">
           <div className="container mx-auto px-4 sm:px-6">
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr] lg:gap-8">
               <div className="sm:col-span-2 lg:col-span-1">

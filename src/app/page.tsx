@@ -1234,7 +1234,7 @@ export default async function Home() {
   ];
 
   return (
-    <div className="flex flex-col gap-10 sm:gap-12 lg:gap-16">
+    <div className="readable-content flex flex-col gap-10 sm:gap-12 lg:gap-16">
       <TwitchLiveStream />
       <section className="order-1 overflow-hidden rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">

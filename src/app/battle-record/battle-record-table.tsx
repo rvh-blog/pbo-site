@@ -136,7 +136,7 @@ export function BattleRecordTable({ records }: { records: BattleRecordRow[] }) {
   }
 
   return (
-    <div>
+    <div className="readable-content">
       <div className="flex flex-col gap-3 border-b border-[var(--background-tertiary)] bg-[var(--background-secondary)]/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <label className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest text-[var(--foreground-muted)]">
           Minimum Games

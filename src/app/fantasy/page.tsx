@@ -389,7 +389,7 @@ async function getFantasyData(
       teamName: team.teamName,
       coachName: team.coach?.name ?? "Unknown",
       teamLogoUrl: team.teamLogoUrl,
-      divisionName: team.division.name,
+      divisionName: normalizeDivisionName(team.division.name),
       totalScore: 0,
       recentScore: 0,
       games: 0,
@@ -845,7 +845,7 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
       : null;
 
   return (
-    <div className="space-y-5">
+    <div className="readable-content space-y-5">
       <section className="poke-card p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1054,7 +1054,7 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
       />
 
       <section className="grid gap-5 lg:grid-cols-2">
-        <div className="poke-card p-4 sm:p-5">
+        <div id="team-leaderboard" className="poke-card scroll-mt-32 p-4 sm:p-5">
           <div className="section-title">
             <div className="section-title-icon">
               <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

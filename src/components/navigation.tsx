@@ -230,7 +230,7 @@ export function Navigation() {
   }
 
   return (
-    <nav className="site-navigation sticky top-0 z-50 border-b-4 border-[var(--background-tertiary)] bg-[var(--background-secondary)]/90 shadow-xl backdrop-blur-md">
+    <nav className="readable-content site-navigation sticky top-0 z-50 border-b-4 border-[var(--background-tertiary)] bg-[var(--background-secondary)]/90 shadow-xl backdrop-blur-md">
       <div className="container relative mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="group flex min-w-0 items-center gap-2 sm:gap-3" onClick={() => setMobileMenuOpen(false)}>

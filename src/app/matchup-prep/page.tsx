@@ -279,6 +279,21 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
     coach2DroppedPokemon = coach2Result.droppedPokemonDetails;
     divisionMatches = divMatches;
 
+    const getTeamRecord = (seasonCoachId: number) => divMatches.reduce(
+      (record, divisionMatch) => {
+        if (
+          divisionMatch.winnerId !== null &&
+          (divisionMatch.coach1SeasonId === seasonCoachId ||
+            divisionMatch.coach2SeasonId === seasonCoachId)
+        ) {
+          if (divisionMatch.winnerId === seasonCoachId) record.wins += 1;
+          else record.losses += 1;
+        }
+        return record;
+      },
+      { wins: 0, losses: 0 }
+    );
+
     matchData = {
       id: match.id,
       week: match.week,
@@ -293,6 +308,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
         teamName: match.coach1?.teamName || "Unknown",
         teamAbbreviation: match.coach1?.teamAbbreviation || "",
         teamLogoUrl: match.coach1?.teamLogoUrl,
+        record: getTeamRecord(match.coach1SeasonId),
       },
       coach2: {
         seasonCoachId: match.coach2SeasonId,
@@ -301,6 +317,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
         teamName: match.coach2?.teamName || "Unknown",
         teamAbbreviation: match.coach2?.teamAbbreviation || "",
         teamLogoUrl: match.coach2?.teamLogoUrl,
+        record: getTeamRecord(match.coach2SeasonId),
       },
     };
   }

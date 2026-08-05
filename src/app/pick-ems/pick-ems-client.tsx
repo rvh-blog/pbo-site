@@ -1252,7 +1252,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="readable-content space-y-6">
       {/* Auth Modal */}
       <AuthModal
         isOpen={showAuthModal}

@@ -35,7 +35,7 @@ const DIVISION_MOVEMENT_RULES: Record<string, MovementRule> = {
 };
 
 function getDivisionMovementRule(divisionName: string): MovementRule {
-  return DIVISION_MOVEMENT_RULES[divisionName.toLowerCase()] ?? {
+  return DIVISION_MOVEMENT_RULES[divisionName.trim().toLowerCase()] ?? {
     relegationCount: 3,
   };
 }

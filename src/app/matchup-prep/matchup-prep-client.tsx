@@ -120,6 +120,7 @@ interface MatchData {
     teamName: string;
     teamAbbreviation: string;
     teamLogoUrl: string | null;
+    record: { wins: number; losses: number };
   };
   coach2: {
     seasonCoachId: number;
@@ -128,6 +129,7 @@ interface MatchData {
     teamName: string;
     teamAbbreviation: string;
     teamLogoUrl: string | null;
+    record: { wins: number; losses: number };
   };
 }
 
@@ -864,7 +866,7 @@ export function MatchupPrepClient({
                 <div>
                   <h2 className="font-bold text-lg">{leftTeam.teamName}</h2>
                   <p className="text-sm text-[var(--foreground-muted)]">
-                    {leftTeam.coachName}
+                    {leftTeam.coachName} ({leftTeam.record.wins}-{leftTeam.record.losses})
                   </p>
                 </div>
               </div>
@@ -933,7 +935,7 @@ export function MatchupPrepClient({
                 <div className="text-right">
                   <h2 className="font-bold text-lg">{rightTeam.teamName}</h2>
                   <p className="text-sm text-[var(--foreground-muted)]">
-                    {rightTeam.coachName}
+                    {rightTeam.coachName} ({rightTeam.record.wins}-{rightTeam.record.losses})
                   </p>
                 </div>
                 {rightTeam.teamLogoUrl ? (

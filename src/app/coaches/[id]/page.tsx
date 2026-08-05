@@ -1339,7 +1339,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
     }));
 
   return (
-    <div className="space-y-6">
+    <div className="readable-content space-y-6">
       {activePoll && <PollCard initialPoll={activePoll} />}
 
       {/* Mobile Championship & Special Badges */}
