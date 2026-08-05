@@ -129,7 +129,7 @@ export function ScheduleSection({
 
   return (
     <div
-      className="poke-card p-0 overflow-hidden"
+      className="readable-content poke-card p-0 overflow-hidden"
       style={{
         borderColor: `${divisionColor}44`,
         background: `linear-gradient(180deg, ${divisionColor}0f, transparent 42%)`,

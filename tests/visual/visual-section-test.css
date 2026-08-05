@@ -1,0 +1,5 @@
+.site-navigation,
+.mobile-section-nav,
+.skip-link {
+  visibility: hidden !important;
+}

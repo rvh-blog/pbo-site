@@ -4,6 +4,40 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 4, 2026
+
+Match Prep:
+
+- Selected teams now show their completed division record beside the coach
+  name.
+
+Infinity division:
+
+- Division-name matching trims saved whitespace before applying movement rules,
+  so Infinity marks only 15th and 16th as its two-team relegation zone.
+- Fantasy Team Leaderboard rows normalize the division name before choosing
+  colors, so Infinity consistently uses its pink treatment.
+
+Readability:
+
+- Dense public pages raise meaningful 8px and 9px metadata to 10px and 11px.
+- Shared retro buttons have a 44px minimum touch target in readable public
+  content.
+- The readability scope excludes fixed broadcast and slideshow canvases.
+
+Visual regression testing:
+
+- Playwright covers the home page, seasons, division standings, Fantasy,
+  Match Prep, and Battle Record at desktop and mobile sizes.
+- Focused baselines cover the division standings card and Fantasy Team
+  Leaderboard.
+
+Verification:
+
+- All 16 Playwright visual checks pass.
+- `npx tsc --noEmit`, visual-infrastructure ESLint, and whitespace checks
+  pass. Match Prep retains pre-existing lint debt outside these changes.
+
 ## August 2, 2026
 
 Broadcast overlay:

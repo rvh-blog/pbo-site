@@ -1982,6 +1982,22 @@ html[data-theme="light"] .score-display {
   line-height: 1.65;
 }
 
+/* Keep meaningful metadata readable on dense public pages without changing
+   fixed-size broadcast and slideshow canvases. Opt in at the page/component root. */
+.readable-content .text-\[8px\] {
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+}
+
+.readable-content .text-\[9px\] {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+}
+
+.readable-content :is(.btn-retro, .btn-retro-secondary) {
+  min-height: 2.75rem;
+}
+
 .deferred-section {
   content-visibility: auto;
   contain-intrinsic-size: auto 42rem;

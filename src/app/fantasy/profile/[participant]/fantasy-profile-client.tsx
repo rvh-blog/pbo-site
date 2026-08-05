@@ -134,7 +134,7 @@ export function FantasyProfileClient({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="readable-content space-y-5">
       <section className="poke-card p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
