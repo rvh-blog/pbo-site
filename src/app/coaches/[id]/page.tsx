@@ -1451,7 +1451,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
       <div className="flex justify-end">
         <ShareButton
           title={`${mostRecentSeasonEntry?.teamName ?? coach.name} — PBO`}
-          text={`View ${coach.name}'s PBO teams, record, Elo, and season history.`}
+          text={`View ${coach.name}'s PBO teams, record, ELO, and season history.`}
           path={`/coaches/${coachId}`}
           compact
         />

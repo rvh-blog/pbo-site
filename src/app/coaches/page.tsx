@@ -8,7 +8,7 @@ import { getAllCoachCosmetics } from "@/lib/glow-utils";
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: "Coaches and Teams",
-  description: "Browse PBO coaches, current teams, records, Elo ratings, and season history.",
+  description: "Browse PBO coaches, current teams, records, ELO ratings, and season history.",
   alternates: { canonical: "/coaches" },
 };
 
