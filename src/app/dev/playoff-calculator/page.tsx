@@ -1,5 +1,4 @@
 import { inArray } from "drizzle-orm";
-import { notFound } from "next/navigation";
 import { compareDivisions } from "@/lib/division-order";
 import { db } from "@/lib/db";
 import { matches, seasonCoaches } from "@/lib/schema";
@@ -69,8 +68,6 @@ function buildDemoSchedule(
 }
 
 export default async function DevPlayoffCalculatorPage() {
-  if (process.env.NODE_ENV === "production") notFound();
-
   const season = await db.query.seasons.findFirst({
     where: (season, { eq }) => eq(season.isCurrent, true),
     orderBy: (season, { desc }) => [desc(season.seasonNumber)],

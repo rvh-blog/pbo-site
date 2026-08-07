@@ -245,10 +245,11 @@ export async function GET(request: NextRequest) {
     broadcastResult = true;
   }
 
-  // Development-only playoff calculator, discoverable like the broadcast tool.
+  // Search-only playoff calculator: intentionally omitted from site navigation.
   const playoffCalculatorKeywords = ["playoff", "playoffs", "playoff calculator", "standings calculator", "scenario"];
-  const playoffCalculatorResult = process.env.NODE_ENV === "development"
-    && playoffCalculatorKeywords.some(k => k.includes(query) || query.includes(k));
+  const playoffCalculatorResult = playoffCalculatorKeywords.some(
+    (keyword) => keyword.includes(query) || query.includes(keyword),
+  );
 
   // Search moves (lowest priority, so searched last)
   const moveResults = await db
