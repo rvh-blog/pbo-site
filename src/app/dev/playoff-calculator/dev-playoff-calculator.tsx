@@ -552,8 +552,8 @@ export function DevPlayoffCalculator({ seasonName, divisions, teams, matches, de
         <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[var(--primary)]">{seasonName}</p>
-            <h1 className="mt-1 font-pixel text-xl leading-relaxed text-white sm:text-2xl">Playoff Predictor Lab</h1>
-            <p className="mt-2 max-w-3xl text-sm text-[var(--foreground-muted)]">Edit outcomes, model differential, inspect qualification paths, save scenarios, and simulate the eight-team field in every division.</p>
+            <h1 className="mt-1 font-pixel text-xl leading-relaxed text-white sm:text-2xl">Playoff Predictor</h1>
+            <p className="mt-2 max-w-3xl text-sm text-[var(--foreground-muted)]">Edit outcomes, model differential, save scenarios, and simulate the eight-team field in every division.</p>
             {demoDivisionIds.includes(selectedDivision.id) && <p className="mt-3 inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300">Demo schedule · Weeks 1–5 fake · Weeks 6–8 editable</p>}
           </div>
           <div className="flex flex-wrap gap-2">
