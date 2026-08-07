@@ -118,7 +118,11 @@ export async function getActivePoll(session?: SessionUser | null): Promise<Activ
 export async function getAdminPoll(): Promise<AdminPollData> {
   await ensurePollTables();
 
-  const poll = await db.query.polls.findFirst({
+  const activePoll = await db.query.polls.findFirst({
+    where: eq(polls.isActive, true),
+    orderBy: [desc(polls.updatedAt)],
+  });
+  const poll = activePoll ?? await db.query.polls.findFirst({
     orderBy: [desc(polls.updatedAt)],
   });
 
@@ -176,7 +180,11 @@ export async function saveAdminPoll(input: { question: string; options: string[]
 
   const { question, options } = normalizePollInput(input);
   const now = new Date().toISOString();
-  const latestPoll = await db.query.polls.findFirst({
+  const activePoll = await db.query.polls.findFirst({
+    where: eq(polls.isActive, true),
+    orderBy: [desc(polls.updatedAt)],
+  });
+  const latestPoll = activePoll ?? await db.query.polls.findFirst({
     orderBy: [desc(polls.updatedAt)],
   });
 

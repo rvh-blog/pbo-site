@@ -136,6 +136,18 @@ server and division; enabling another automatically replaces the previous
 selection. Existing channel mappings default to milestone-inactive until an
 administrator selects destinations.
 
+Read-only commands `/standings`, `/items`, `/team`, `/player`, and `/matchup`
+work in any server channel. They prompt for a public season and division; a
+mapped channel's season/division is shown as the default when applicable.
+Users can then choose **All Coaches** for division-wide results or one coach
+to narrow the result. `/help` and `/status` also work without a channel
+mapping.
+
+`/schedule` may be opened from any channel and prompts for a division, but it
+only proceeds when that division has **Schedule Active** on at least one
+configured channel in the server. `/draft` and `/match` remain restricted to
+the specifically mapped channel and its corresponding enable toggle.
+
 ## Wake Worker
 
 Cloudflare worker:

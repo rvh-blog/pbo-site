@@ -245,6 +245,11 @@ export async function GET(request: NextRequest) {
     broadcastResult = true;
   }
 
+  // Development-only playoff calculator, discoverable like the broadcast tool.
+  const playoffCalculatorKeywords = ["playoff", "playoffs", "playoff calculator", "standings calculator", "scenario"];
+  const playoffCalculatorResult = process.env.NODE_ENV === "development"
+    && playoffCalculatorKeywords.some(k => k.includes(query) || query.includes(k));
+
   // Search moves (lowest priority, so searched last)
   const moveResults = await db
     .select({
@@ -346,6 +351,17 @@ export async function GET(request: NextRequest) {
                 name: "Broadcast Overlay",
                 subtitle: "Set up a live OBS overlay for match broadcasts",
                 href: "/broadcast",
+              },
+            ]
+          : []),
+        ...(playoffCalculatorResult
+          ? [
+              {
+                type: "powerRanking" as const,
+                id: 2,
+                name: "Playoff Calculator",
+                subtitle: "Simulate division standings and the top-eight playoff field",
+                href: "/dev/playoff-calculator",
               },
             ]
           : []),

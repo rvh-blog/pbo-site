@@ -11,7 +11,7 @@ export type BattleEventType =
   | "chat" | "replace" | "status" | "curestatus"
   | "boost" | "unboost" | "setboost" | "clearallboost"
   | "clearpositiveboost" | "clearnegativeboost"
-  | "ability" | "endability" | "item" | "enditem"
+  | "ability" | "endability" | "item" | "enditem" | "mega"
   | "start"
   | "sidestart" | "sideend" | "weather"
   | "fieldstart" | "fieldend"
@@ -325,6 +325,14 @@ export function parseLine(line: string): BattleEvent | null {
       const ref = extractPlayerAndNickname(parts[2] || "");
       if (!ref) return null;
       return { type: "enditem", raw: trimmed, player: ref.player, nickname: ref.nickname, itemName: parts[3] };
+    }
+
+    case "-mega": {
+      // Standard: |-mega|p1a: Nickname|Garchompite
+      // Champions NatDex Draft: |-mega|p1a: Nickname|Garchomp|Garchompite
+      const ref = extractPlayerAndNickname(parts[2] || "");
+      if (!ref) return null;
+      return { type: "mega", raw: trimmed, player: ref.player, nickname: ref.nickname, itemName: parts[4] || parts[3] };
     }
 
     case "-sidestart": {

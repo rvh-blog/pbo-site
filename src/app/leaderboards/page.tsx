@@ -9,7 +9,7 @@ import { getPokemonLeaderboardStats } from "@/lib/pokemon-leaderboard";
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: "PBO Stats",
-  description: "Explore PBO coach rankings, Pokémon leaders, Elo, records, and all-time statistics.",
+  description: "Explore PBO coach rankings, Pokémon leaders, ELO, records, and all-time statistics.",
   alternates: { canonical: "/leaderboards" },
 };
 

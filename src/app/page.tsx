@@ -1640,7 +1640,7 @@ export default async function Home() {
               <EmptyState
                 compact
                 title="Trainer rankings are not ready"
-                description="Rankings will populate after recorded matches produce Elo results."
+                description="Rankings will populate after recorded matches produce ELO results."
                 actionHref="/coaches"
                 actionLabel="Browse coaches"
               />

@@ -377,7 +377,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                     onChange={(event) => setSortKey(event.target.value as SortKey)}
                     className="min-w-0 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-[var(--primary)]"
                   >
-                    <option value="elo">Sort: Elo</option>
+                    <option value="elo">Sort: ELO</option>
                     <option value="name">Sort: Name</option>
                     <option value="team">Sort: Team</option>
                     <option value="wins">Sort: Wins</option>

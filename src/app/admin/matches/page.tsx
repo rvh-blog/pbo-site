@@ -729,7 +729,7 @@ export default function AdminMatchesPage() {
             `Winner: ${winnerName}`,
             `Score differential: ${parseInt(matchForm.coach1Differential) || 0} / ${parseInt(matchForm.coach2Differential) || 0}`,
             `Pokemon stat rows: ${pokemonData.length}`,
-            "Affected data: match result, standings, Elo dependencies, playoff advancement, bets, and pick-ems.",
+            "Affected data: match result, standings, ELO dependencies, playoff advancement, bets, and pick-ems.",
           ].join("\n")
         )
       ) {
@@ -885,7 +885,7 @@ export default function AdminMatchesPage() {
           `Score differential: ${parseInt(matchForm.coach1Differential) || 0} / ${parseInt(matchForm.coach2Differential) || 0}`,
           `Pokemon stat rows: ${pokemonData.length}`,
           `Replay attached: ${matchForm.replayUrl ? "yes" : "no"}`,
-          "Affected data: match result, standings, Elo dependencies, bets, and pick-ems.",
+          "Affected data: match result, standings, ELO dependencies, bets, and pick-ems.",
         ].join("\n")
       )
     ) {
@@ -1294,7 +1294,7 @@ export default function AdminMatchesPage() {
             : `Match ID: ${id}`,
           match ? `Completed result: ${match.winnerId ? "yes" : "no"}` : "",
           match ? `Pokemon stat rows: ${match.matchPokemon?.length || 0}` : "",
-          "Affected data: match row, match Pokemon stats, standings, Elo dependencies, bets, and pick-ems.",
+          "Affected data: match row, match Pokemon stats, standings, ELO dependencies, bets, and pick-ems.",
           "This cannot be undone.",
         ]
           .filter(Boolean)

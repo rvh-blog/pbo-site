@@ -1006,7 +1006,8 @@ export function useShowdownBattle(
               break;
             }
 
-            case "item": {
+            case "item":
+            case "mega": {
               if (!event.player || !event.nickname) break;
               const itemPs = getByNickname(pokeMap, nickMap, event.nickname);
               if (itemPs && event.itemName) {

@@ -21,8 +21,7 @@ export async function POST(request: NextRequest) {
     const action = String(body?.action ?? "update");
 
     if (action === "end") {
-      const pollId = Number(body?.pollId);
-      await endAdminPoll(Number.isInteger(pollId) ? pollId : null);
+      await endAdminPoll(null);
     } else if (action === "create") {
       await createAdminPoll({
         question: String(body?.question ?? ""),
