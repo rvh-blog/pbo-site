@@ -186,7 +186,7 @@ export function PollAdminCard({ initialPoll }: { initialPoll: AdminPollData }) {
         <Button type="button" variant="outline" onClick={() => submit("update")} disabled={isPending}>
           Update Current
         </Button>
-        <Button type="button" variant="destructive" onClick={() => submit("end")} disabled={isPending || !pollId}>
+        <Button type="button" variant="destructive" onClick={() => submit("end")} disabled={isPending || !pollId || !isActive}>
           End Poll
         </Button>
         {message && <span className="text-sm text-[var(--success)]">{message}</span>}

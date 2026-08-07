@@ -1070,18 +1070,12 @@ export function MatchupPrepClient({
                       <div className="flex-1">
                       {topP ? (
                         <div
-                          className={`relative flex flex-col bg-[var(--card)] border rounded-lg p-2 h-full transition-colors hover:border-[var(--primary)] ${
+                          className={`relative flex flex-col bg-[var(--card)] border rounded-lg p-2 h-full ${
                             topP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                           } ${topP.isDropped ? "opacity-50" : ""}`}
                         >
-                          <Link
-                            href={`/pokemon/${topP.id}`}
-                            prefetch={false}
-                            aria-label={`View ${topP.displayName || topP.name}`}
-                            className="absolute inset-0 z-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-                          />
                           {topP.isTeraCaptain && (
-                            <div className="pointer-events-none absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
+                            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
                               <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M12 2L2 12l10 10 10-10L12 2z" />
                               </svg>
@@ -1099,7 +1093,7 @@ export function MatchupPrepClient({
                               <span key={t} className={`type-badge type-${t.toLowerCase()} text-[7px] px-1 py-0`}>{t}</span>
                             ))}
                           </div>
-                          <div className={`relative z-10 mt-1.5 pt-1.5 border-t flex-1 ${topP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"}`}>
+                          <div className={`mt-1.5 pt-1.5 border-t flex-1 ${topP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"}`}>
                             {topAbilities.map((a, abilityIdx) => {
                               const abilityName = typeof a === "string" ? a : a.name;
                               const description = abilityDescriptions[abilityName];
@@ -1138,18 +1132,12 @@ export function MatchupPrepClient({
                       <div className="flex-1">
                       {bottomP ? (
                         <div
-                          className={`relative flex flex-col bg-[var(--card)] border rounded-lg p-2 h-full transition-colors hover:border-[var(--primary)] ${
+                          className={`relative flex flex-col bg-[var(--card)] border rounded-lg p-2 h-full ${
                             bottomP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                           } ${bottomP.isDropped ? "opacity-50" : ""}`}
                         >
-                          <Link
-                            href={`/pokemon/${bottomP.id}`}
-                            prefetch={false}
-                            aria-label={`View ${bottomP.displayName || bottomP.name}`}
-                            className="absolute inset-0 z-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-                          />
                           {bottomP.isTeraCaptain && (
-                            <div className="pointer-events-none absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
+                            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
                               <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M12 2L2 12l10 10 10-10L12 2z" />
                               </svg>
@@ -1167,7 +1155,7 @@ export function MatchupPrepClient({
                               <span key={t} className={`type-badge type-${t.toLowerCase()} text-[7px] px-1 py-0`}>{t}</span>
                             ))}
                           </div>
-                          <div className={`relative z-10 mt-1.5 pt-1.5 border-t flex-1 ${bottomP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"}`}>
+                          <div className={`mt-1.5 pt-1.5 border-t flex-1 ${bottomP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"}`}>
                             {bottomAbilities.map((a, abilityIdx) => {
                               const abilityName = typeof a === "string" ? a : a.name;
                               const description = abilityDescriptions[abilityName];
@@ -1232,20 +1220,14 @@ export function MatchupPrepClient({
                   return (
                     <div
                       key={p.id}
-                      className={`relative flex flex-col bg-[var(--card)] border rounded-lg transition-colors hover:border-[var(--primary)] ${
+                      className={`relative flex flex-col bg-[var(--card)] border rounded-lg ${
                         p.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                       } ${p.isDropped ? "opacity-50" : ""}`}
                       style={{ padding: "clamp(6px, 0.5vw, 12px)" }}
                     >
-                      <Link
-                        href={`/pokemon/${p.id}`}
-                        prefetch={false}
-                        aria-label={`View ${p.displayName || p.name}`}
-                        className="absolute inset-0 z-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-                      />
                       {/* Tera Captain Badge */}
                       {p.isTeraCaptain && (
-                        <div className="pointer-events-none absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
+                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
                           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 2L2 12l10 10 10-10L12 2z" />
                           </svg>
@@ -1271,7 +1253,7 @@ export function MatchupPrepClient({
                           <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0.5 whitespace-nowrap`} style={{ fontSize: "clamp(6px, 0.45vw, 8px)" }}>{t}</span>
                         ))}
                       </div>
-                      <div className={`relative z-10 mt-1.5 pt-1.5 border-t ${
+                      <div className={`mt-1.5 pt-1.5 border-t ${
                         p.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                       }`}>
                         {abilities.map((a, abilityIdx) => {
@@ -1330,20 +1312,14 @@ export function MatchupPrepClient({
                   return (
                     <div
                       key={p.id}
-                      className={`relative flex flex-col bg-[var(--card)] border rounded-lg transition-colors hover:border-[var(--primary)] ${
+                      className={`relative flex flex-col bg-[var(--card)] border rounded-lg ${
                         p.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                       } ${p.isDropped ? "opacity-50" : ""}`}
                       style={{ padding: "clamp(6px, 0.5vw, 12px)" }}
                     >
-                      <Link
-                        href={`/pokemon/${p.id}`}
-                        prefetch={false}
-                        aria-label={`View ${p.displayName || p.name}`}
-                        className="absolute inset-0 z-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-                      />
                       {/* Tera Captain Badge */}
                       {p.isTeraCaptain && (
-                        <div className="pointer-events-none absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
+                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
                           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 2L2 12l10 10 10-10L12 2z" />
                           </svg>
@@ -1369,7 +1345,7 @@ export function MatchupPrepClient({
                           <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0.5 whitespace-nowrap`} style={{ fontSize: "clamp(6px, 0.45vw, 8px)" }}>{t}</span>
                         ))}
                       </div>
-                      <div className={`relative z-10 mt-1.5 pt-1.5 border-t ${
+                      <div className={`mt-1.5 pt-1.5 border-t ${
                         p.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                       }`}>
                         {abilities.map((a, abilityIdx) => {

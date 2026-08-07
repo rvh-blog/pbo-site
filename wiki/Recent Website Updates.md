@@ -4,6 +4,27 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 6, 2026
+
+Development playoff calculator:
+
+- Added a development-only playoff calculator that is discoverable through
+  site search and remains unavailable in production.
+- The calculator keeps all five divisions separate, projects eight playoff
+  teams per division, and uses differential when breaking standings ties.
+- Each team plays eight regular-season games. Unfinished division schedules
+  can be explored with editable outcomes, live updates, saved scenarios,
+  probability models, and clearly labeled demonstration data when needed.
+- The playoff bracket stays within the selected division. The No. 1 seed can
+  choose any other qualified seed, after which the highest remaining seed
+  chooses from the teams still unpaired.
+- User-facing references to the rating system consistently use `ELO`.
+
+Verification:
+
+- `npm run build`, `npx tsc --noEmit`, targeted playoff-calculator ESLint,
+  whitespace checks, and the local calculator route pass.
+
 ## August 4, 2026
 
 Match Prep:

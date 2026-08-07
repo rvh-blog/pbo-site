@@ -117,7 +117,7 @@ async function getDashboardData() {
       with: { rosters: { columns: { id: true } } },
     }),
     db.query.matches.findMany({
-      columns: { id: true, week: true, winnerId: true, isForfeit: true },
+      columns: { id: true, week: true, winnerId: true },
       where: eq(matches.seasonId, currentSeason.id),
       with: { matchPokemon: { columns: { id: true } } },
     }),
@@ -149,12 +149,7 @@ async function getDashboardData() {
   const regularMatches = seasonMatches.filter((match) => match.week <= 100);
   const pendingMatches = regularMatches.filter((match) => !match.winnerId);
   const completedMatches = regularMatches.filter((match) => match.winnerId);
-  const completedMissingPokemon = completedMatches.filter(
-    (match) => !match.isForfeit && match.matchPokemon.length === 0
-  );
-  const completedForfeitsWithoutPokemon = completedMatches.filter(
-    (match) => match.isForfeit && match.matchPokemon.length === 0
-  );
+  const completedMissingPokemon = completedMatches.filter((match) => match.matchPokemon.length === 0);
   const currentWeek = regularMatches.length > 0
     ? Math.min(...pendingMatches.map((match) => match.week), Math.max(...regularMatches.map((match) => match.week)))
     : null;
@@ -197,7 +192,6 @@ async function getDashboardData() {
       pendingMatches: pendingMatches.length,
       currentWeekPending,
       completedMissingPokemon: completedMissingPokemon.length,
-      completedForfeitsWithoutPokemon: completedForfeitsWithoutPokemon.length,
       incompleteRosterTeams: incompleteRosterTeams.length,
       teamsWithoutLogos: teamsWithoutLogos.length,
       recentTransactions: recentTransactions.length,
@@ -418,17 +412,6 @@ export default async function AdminDashboard() {
                 ))}
               </div>
             )}
-            {stats.completedForfeitsWithoutPokemon > 0 && (
-              <div className="mt-3 flex items-start justify-between gap-4 rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/10 p-3">
-                <div>
-                  <p className="font-semibold text-white">Forfeit results recorded</p>
-                  <p className="text-sm text-[var(--foreground-muted)]">
-                    {stats.completedForfeitsWithoutPokemon} completed forfeit{stats.completedForfeitsWithoutPokemon === 1 ? "" : "s"} have no Pokémon stat rows, which is expected because no battle was played.
-                  </p>
-                </div>
-                <StatusChip tone="info">No action</StatusChip>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -504,12 +487,6 @@ export default async function AdminDashboard() {
                 value: stats.completedMissingPokemon,
                 detail: "completed matches without match Pokemon",
                 tone: stats.completedMissingPokemon > 0 ? "error" as Tone : "success" as Tone,
-              },
-              {
-                label: "Forfeit results",
-                value: stats.completedForfeitsWithoutPokemon,
-                detail: "completed forfeits correctly recorded without Pokemon rows",
-                tone: stats.completedForfeitsWithoutPokemon > 0 ? "info" as Tone : "success" as Tone,
               },
               {
                 label: "Playoff links",

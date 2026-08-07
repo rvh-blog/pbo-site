@@ -61,7 +61,7 @@ export function SyncedHeightGrid({
 
   return (
     <>
-      <div className="order-5 synced-home-grid">
+      <div className="synced-home-grid">
       {/* Left Column: Battle Log */}
       <div ref={leftRef}>
         {leftContent}
