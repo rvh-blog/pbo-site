@@ -14,7 +14,9 @@ _release_power_rankings/
 .git-deny-acl-*/
 .agents/
 .secrets/
-src/app/dev/
+src/app/dev/*
+!src/app/dev/playoff-calculator/
+!src/app/dev/playoff-calculator/**
 .git
 .gitignore
 *.md
