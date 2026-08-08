@@ -320,7 +320,7 @@ const AboutCalculator = memo(function AboutCalculator() {
           </article>
           <article className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)] p-4">
             <h3 className="font-bold text-white">How are odds made?</h3>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--foreground-muted)]">Each team plays eight regular-season games. The calculator looks at every unfinished matchup across the whole division. If 14 or fewer division matchups remain, it checks every possible set of winners. Otherwise, it runs 1,500 test seasons. The three playoff weeks are handled separately in the bracket.</p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--foreground-muted)]">Each team plays eight regular-season games. The calculator looks at every unfinished matchup across the whole division. If 14 or fewer division matchups remain, it checks every possible set of winners. When more remain, it estimates the possible outcomes. The three playoff weeks are handled separately in the bracket.</p>
           </article>
           <article className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)] p-4">
             <h3 className="font-bold text-white">Prediction choices</h3>
@@ -420,7 +420,6 @@ export function DevPlayoffCalculator({ seasonName, divisions, teams, matches, de
   const activeTeamIds = new Set(activeTeams.map((team) => team.id));
   const workerOddsValid = workerAnalysis.odds && [...workerAnalysis.odds.projections.keys()].every((teamId) => activeTeamIds.has(teamId));
   const projections = workerOddsValid ? workerAnalysis.odds!.projections : fallbackProjections;
-  const oddsResult = workerOddsValid ? workerAnalysis.odds! : { method: "simulation" as const, scenarioCount: 0, projections };
   const leverage = useMemo(() => analysisEnabled ? workerAnalysis.leverage : [], [analysisEnabled, workerAnalysis.leverage]);
   const dataWarnings = useMemo(() => inspectDataQuality(divisionTeams, divisionMatches), [divisionMatches, divisionTeams]);
 
@@ -570,7 +569,7 @@ export function DevPlayoffCalculator({ seasonName, divisions, teams, matches, de
 
       <nav className="poke-card flex gap-2 overflow-x-auto p-2" aria-label="Division calculator">{divisions.map((division) => { const divisionMatches = matches.filter((match) => match.divisionId === division.id && match.week <= 100); const remaining = divisionMatches.filter((match) => !match.winnerId); const picked = divisionMatches.filter((match) => predictions[match.id]).length; const active = division.id === selectedDivision.id; return <button key={division.id} type="button" onClick={() => setSelectedDivisionId(division.id)} className={`min-w-[150px] flex-1 rounded-lg border px-4 py-3 text-left ${active ? "border-[var(--primary)] bg-[var(--primary)]/15 text-white" : "border-transparent bg-[var(--background)] text-[var(--foreground-muted)] hover:text-white"}`}><span className="block font-bold">{division.name}</span><span className="mt-1 block text-[10px] uppercase">{picked} edits · {remaining.length} open{demoDivisionIds.includes(division.id) ? " · Demo" : ""}</span></button>; })}</nav>
 
-      <section className="poke-card p-4 sm:p-5"><div className={`${showLeagueSummary ? "mb-3" : ""} flex items-center justify-between`}><div><p className="text-[10px] font-bold uppercase tracking-widest text-sky-300">League-wide view</p><h2 className="mt-1 text-xl font-black text-white">All five playoff fields</h2></div><button type="button" onClick={() => setShowLeagueSummary((shown) => !shown)} className="btn-retro-secondary px-3 py-2 text-[10px]">{showLeagueSummary ? "Collapse" : "Expand"}</button></div>{showLeagueSummary && <div className="grid gap-3 lg:grid-cols-5">{divisionSummaries.map(({ division, standings }) => <button key={division.id} type="button" onClick={() => setSelectedDivisionId(division.id)} className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)] p-3 text-left hover:border-[var(--primary)]"><p className="mb-2 font-bold text-white">{division.name}</p><div className="space-y-1">{standings.slice(0, PLAYOFF_SPOTS).map((team, index) => <div key={team.id} className="flex gap-2 text-[10px]"><span className="w-4 text-[var(--primary)]">{index + 1}</span><span className="truncate text-[var(--foreground-muted)]">{teamLabel(team)}</span></div>)}</div></button>)}</div>}</section>
+      <section className="poke-card p-4 sm:p-5"><div className={`${showLeagueSummary ? "mb-3" : ""} flex items-center justify-between`}><div><p className="text-[10px] font-bold uppercase tracking-widest text-sky-300">League-wide view</p><h2 className="mt-1 text-xl font-black text-white">All five playoff fields</h2></div><button type="button" onClick={() => setShowLeagueSummary((shown) => !shown)} className="btn-retro-secondary px-3 py-2 text-[10px]">{showLeagueSummary ? "Collapse" : "Expand"}</button></div>{showLeagueSummary && <div className="grid gap-3 lg:grid-cols-5">{divisionSummaries.map(({ division, standings }) => <button key={division.id} type="button" onClick={() => setSelectedDivisionId(division.id)} className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)] p-3 text-left hover:border-[var(--primary)]"><p className="mb-2 font-bold text-white">{division.name}</p><div className="space-y-1">{standings.slice(0, PLAYOFF_SPOTS).map((team, index) => <div key={team.id} className="flex gap-2 text-[10px]"><span className="w-4 text-[var(--primary)]">{index + 1}</span><span className="truncate text-[var(--foreground-muted)]">{team.teamName}</span></div>)}</div></button>)}</div>}</section>
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(420px,0.9fr)_minmax(680px,1.3fr)]">
         <section className="poke-card p-4 sm:p-5 xl:sticky xl:top-4"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-widest text-[var(--primary)]">Scenario editor</p><h2 className="mt-1 text-xl font-black text-white">Match outcomes</h2></div>
@@ -585,10 +584,7 @@ export function DevPlayoffCalculator({ seasonName, divisions, teams, matches, de
           <section className="poke-card p-4 sm:p-5">
             <div className="mb-4 flex items-end justify-between gap-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">
-                  Live projection · {oddsResult.scenarioCount === 0 ? "calculating after page load" : oddsResult.method === "exact" ? `${oddsResult.scenarioCount.toLocaleString()} exact weighted scenarios` : `${oddsResult.scenarioCount.toLocaleString()} simulations`}
-                </p>
-                <h2 className="mt-1 text-xl font-black text-white">{selectedDivision.name} standings</h2>
+                <h2 className="text-xl font-black text-white">{selectedDivision.name} standings</h2>
               </div>
               <p className="text-right text-[9px] uppercase text-[var(--foreground-subtle)]">{predictionModel} model<br />Wins → diff → H2H → SoS</p>
             </div>
