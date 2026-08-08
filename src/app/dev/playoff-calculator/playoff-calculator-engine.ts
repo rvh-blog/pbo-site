@@ -1,4 +1,5 @@
 import type { MatchForStandings } from "@/lib/standings-sort";
+import { calculateExpectedScore } from "@/lib/elo";
 
 export const PLAYOFF_SPOTS = 8;
 
@@ -259,56 +260,12 @@ function seededRandom(seed: number) {
   };
 }
 
-type ProbabilityContext = {
-  recentForm: Map<number, number>;
-  scheduleStrength: Map<number, number>;
-  headToHead: Map<string, number>;
-};
-
-function buildProbabilityContext(
-  teams: CalculatorTeam[],
-  matches: CalculatorMatch[],
-  predictions: Predictions,
-  standings: Standing[],
-): ProbabilityContext {
-  const resolveActive = buildActiveResolver(teams);
-  const completed = applyPredictions(matches, predictions).filter((match) => match.winnerId && !match.isForfeit);
-  const recentByTeam = new Map<number, Array<{ week: number; won: boolean }>>();
-  const headToHead = new Map<string, number>();
-  for (const match of completed) {
-    const first = resolveActive(match.coach1SeasonId);
-    const second = resolveActive(match.coach2SeasonId);
-    const winner = match.winnerId ? resolveActive(match.winnerId) : null;
-    if (!first || !second || !winner) continue;
-    const loser = winner === first ? second : first;
-    recentByTeam.set(first, [...(recentByTeam.get(first) ?? []), { week: match.week, won: winner === first }]);
-    recentByTeam.set(second, [...(recentByTeam.get(second) ?? []), { week: match.week, won: winner === second }]);
-    const winnerKey = `${winner}:${loser}`;
-    const loserKey = `${loser}:${winner}`;
-    headToHead.set(winnerKey, (headToHead.get(winnerKey) ?? 0) + 1);
-    headToHead.set(loserKey, (headToHead.get(loserKey) ?? 0) - 1);
-  }
-  const recentForm = new Map(standings.map((team) => {
-    const recent = (recentByTeam.get(team.id) ?? []).sort((a, b) => b.week - a.week).slice(0, 3);
-    return [team.id, recent.reduce((score, result) => score + (result.won ? 1 : -1), 0)];
-  }));
-  const records = new Map(standings.map((team) => [team.id, team.wins - team.losses]));
-  const scheduleStrength = new Map(standings.map((team) => [team.id, team.opponentActiveIds.reduce((sum, opponentId) => sum + (records.get(opponentId) ?? 0), 0)]));
-  return { recentForm, scheduleStrength, headToHead };
-}
-
 function probabilityFor(
   first: Standing | undefined,
   second: Standing | undefined,
-  context: ProbabilityContext,
 ) {
-  if (!first || !second) return 0.5;
-  const score = (first.wins - second.wins) * 0.48
-    + (first.differential - second.differential) * 0.032
-    + ((context.recentForm.get(first.id) ?? 0) - (context.recentForm.get(second.id) ?? 0)) * 0.13
-    + ((context.scheduleStrength.get(first.id) ?? 0) - (context.scheduleStrength.get(second.id) ?? 0)) * 0.018
-    + (context.headToHead.get(`${first.id}:${second.id}`) ?? 0) * 0.16;
-  return Math.max(0.18, Math.min(0.82, 1 / (1 + Math.exp(-score))));
+  if (first?.eloRating == null || second?.eloRating == null) return 0.5;
+  return calculateExpectedScore(first.eloRating, second.eloRating);
 }
 
 export function calculateQualificationBounds(
@@ -362,7 +319,6 @@ export function simulatePlayoffOdds({
   const activeTeams = teams.filter((team) => team.isActive);
   const baselineStandings = standingsFor(teams, matches, predictions);
   const baselineById = new Map(baselineStandings.map((team) => [team.id, team]));
-  const probabilityContext = buildProbabilityContext(teams, matches, predictions, baselineStandings);
   const averages = averageWinningDifferentials(teams, applyPredictions(matches, predictions));
   const openMatches = matches.filter((match) => !match.winnerId && !predictions[match.id] && !match.isForfeit);
   const seedCounts = new Map(activeTeams.map((team) => [team.id, Array(activeTeams.length).fill(0) as number[]]));
@@ -374,7 +330,7 @@ export function simulatePlayoffOdds({
     for (const match of openMatches) {
       const first = baselineById.get(match.coach1SeasonId);
       const second = baselineById.get(match.coach2SeasonId);
-      const firstWins = random() < probabilityFor(first, second, probabilityContext);
+      const firstWins = random() < probabilityFor(first, second);
       const winnerId = firstWins ? match.coach1SeasonId : match.coach2SeasonId;
       const average = averages.get(winnerId) ?? 3;
       const differential = Math.max(1, Math.min(6, average + Math.floor(random() * 3) - 1));
@@ -430,7 +386,6 @@ export function calculatePlayoffOdds({
 
   const baseline = standingsFor(teams, matches, predictions);
   const baselineById = new Map(baseline.map((team) => [team.id, team]));
-  const probabilityContext = buildProbabilityContext(teams, matches, predictions, baseline);
   const averages = averageWinningDifferentials(teams, applyPredictions(matches, predictions));
   const seedWeights = new Map(activeTeams.map((team) => [team.id, Array(activeTeams.length).fill(0) as number[]]));
   const branchPredictions: Predictions = { ...predictions };
@@ -448,7 +403,6 @@ export function calculatePlayoffOdds({
     const firstOdds = probabilityFor(
       baselineById.get(match.coach1SeasonId),
       baselineById.get(match.coach2SeasonId),
-      probabilityContext,
     );
     branchPredictions[match.id] = {
       winnerId: match.coach1SeasonId,
@@ -501,7 +455,6 @@ export function calculateMatchLeverage({
 
   const baseline = standingsFor(teams, matches, predictions);
   const baselineById = new Map(baseline.map((team) => [team.id, team]));
-  const probabilityContext = buildProbabilityContext(teams, matches, predictions, baseline);
   const random = seededRandom(hashScenario(predictions) + teamId * 131 + openMatches.length * 17);
   const iterations = 1200;
   const counts = openMatches.map(() => ({ first: 0, firstQualified: 0, second: 0, secondQualified: 0 }));
@@ -513,7 +466,6 @@ export function calculateMatchLeverage({
       const firstWins = random() < probabilityFor(
         baselineById.get(match.coach1SeasonId),
         baselineById.get(match.coach2SeasonId),
-        probabilityContext,
       );
       firstWon[index] = firstWins;
       const winnerId = firstWins ? match.coach1SeasonId : match.coach2SeasonId;

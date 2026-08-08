@@ -4,6 +4,23 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 8, 2026
+
+Playoff calculator:
+
+- Individual game probabilities now use only the shared PBO ELO expected-score
+  formula. Wins, differential, recent form, strength of schedule, and
+  head-to-head no longer affect matchup win probability.
+- The calculator remains absent from site navigation. Admins can show or hide
+  its site-search result from the dashboard Visibility Controls; the result is
+  hidden by default.
+
+Fun facts:
+
+- Pokemon and coach fun-facts pages now calculate and label their records from
+  Season 11 instead of Season 10. The Pokemon fun-facts cache key was versioned
+  so deployment cannot briefly reuse the previous season's cached results.
+
 ## August 6, 2026
 
 Development playoff calculator:

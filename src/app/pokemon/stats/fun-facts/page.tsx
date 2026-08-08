@@ -35,7 +35,7 @@ export default async function PokemonFunFactsPage() {
           Pokemon Fun Facts
         </h1>
         <p className="mt-1 text-base text-[var(--foreground-muted)]">
-          Odd records and standout moments from Season 10
+          Odd records and standout moments from Season 11
         </p>
       </div>
 

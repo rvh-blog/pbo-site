@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthenticated } from "@/lib/auth";
 import {
   getSiteFeatureSettings,
   SITE_SETTING_KEYS,
@@ -6,6 +7,10 @@ import {
 } from "@/lib/site-settings";
 
 export async function GET() {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     return NextResponse.json(await getSiteFeatureSettings());
   } catch (error) {
@@ -18,6 +23,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const {
@@ -26,6 +35,7 @@ export async function POST(request: NextRequest) {
       fantasyUiHidden,
       blogUiHidden,
       recentDraftPicksHidden,
+      playoffCalculatorSearchEnabled,
     } = body;
 
     const updates: { key: string; value: string }[] = [];
@@ -47,7 +57,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (recentDraftPicksHidden !== undefined) {
-      updates.push({ key: "recent_draft_picks_hidden", value: String(recentDraftPicksHidden) });
+      updates.push({ key: SITE_SETTING_KEYS.recentDraftPicksHidden, value: String(recentDraftPicksHidden) });
+    }
+
+    if (playoffCalculatorSearchEnabled !== undefined) {
+      updates.push({ key: SITE_SETTING_KEYS.playoffCalculatorSearchEnabled, value: String(playoffCalculatorSearchEnabled) });
     }
 
     for (const update of updates) {

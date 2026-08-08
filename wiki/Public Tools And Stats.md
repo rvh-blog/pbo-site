@@ -139,8 +139,8 @@ Current expectations:
   load. All Seasons remains available, and is the fallback when no season is
   marked current.
 - Pokemon detail pages show a clickable all-time ranking box beside K/D when the ranking is available.
-- Season 10 Pokemon fun facts are tied to Season 10 and credit contributing coaches where the stat supports it.
-- Season 10 coach fun facts are tied to Season 10.
+- Season 11 Pokemon fun facts are tied to Season 11 and credit contributing coaches where the stat supports it.
+- Season 11 coach fun facts are tied to Season 11.
 - Pokemon and coach fun facts should be mobile optimized and use larger readable text.
 - Coach fun facts should not include The Finisher.
 - Ride or Die should show the top 25 inside its section without forcing the page to grow.
