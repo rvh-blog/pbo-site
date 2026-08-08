@@ -6,7 +6,6 @@ import {
   calculatePlayoffOdds,
   type CalculatorMatch,
   type CalculatorTeam,
-  type PredictionModel,
   type Predictions,
   type TeamProjection,
 } from "./playoff-calculator-engine";
@@ -25,7 +24,6 @@ export type WorkerRequest = {
   teams: CalculatorTeam[];
   matches: CalculatorMatch[];
   predictions: Predictions;
-  model: PredictionModel;
   teamId?: number;
   matrixMatchIds?: [number, number];
 };
@@ -52,7 +50,6 @@ function cacheKey(request: WorkerRequest) {
     task: request.task,
     teamId: request.teamId,
     matrixMatchIds: request.matrixMatchIds,
-    model: request.model,
     teams: request.teams.map((team) => [team.id, team.isActive, team.replacedById, team.eloRating]),
     matches: request.matches.map((match) => [match.id, match.winnerId, match.coach1Differential, match.coach2Differential, match.isForfeit]),
     predictions: Object.entries(request.predictions).sort(([left], [right]) => Number(left) - Number(right)),
@@ -77,10 +74,10 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   try {
     let result: Omit<WorkerResponse, "requestId" | "durationMs" | "cacheHit">;
     if (request.task === "odds") {
-      const odds = calculatePlayoffOdds({ teams: request.teams, matches: request.matches, predictions: request.predictions, model: request.model });
+      const odds = calculatePlayoffOdds({ teams: request.teams, matches: request.matches, predictions: request.predictions });
       result = { task: request.task, odds: { method: odds.method, scenarioCount: odds.scenarioCount, projections: [...odds.projections] } };
     } else if (request.task === "leverage") {
-      result = { task: request.task, leverage: request.teamId ? calculateMatchLeverage({ teamId: request.teamId, teams: request.teams, matches: request.matches, predictions: request.predictions, model: request.model }) : [] };
+      result = { task: request.task, leverage: request.teamId ? calculateMatchLeverage({ teamId: request.teamId, teams: request.teams, matches: request.matches, predictions: request.predictions }) : [] };
     } else {
       const [firstId, secondId] = request.matrixMatchIds ?? [];
       const first = request.matches.find((match) => match.id === firstId);
@@ -95,7 +92,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
               [first.id]: { winnerId: firstWinnerId, differential: averages.get(firstWinnerId) ?? 3 },
               [second.id]: { winnerId: secondWinnerId, differential: averages.get(secondWinnerId) ?? 3 },
             };
-            const odds = calculatePlayoffOdds({ teams: request.teams, matches: request.matches, predictions, model: request.model, iterations: 300 });
+            const odds = calculatePlayoffOdds({ teams: request.teams, matches: request.matches, predictions, iterations: 300 });
             const projection = odds.projections.get(request.teamId);
             matrix.push({ firstWinnerId, secondWinnerId, odds: projection?.playoffProbability ?? 0, bestSeed: projection?.bestSeed ?? 0, worstSeed: projection?.worstSeed ?? 0 });
           }

@@ -49,8 +49,6 @@ export type TeamProjection = {
   status: QualificationStatus;
 };
 
-export type PredictionModel = "neutral" | "standings" | "elo";
-
 export type OddsResult = {
   projections: Map<number, TeamProjection>;
   method: "exact" | "simulation";
@@ -302,14 +300,9 @@ function buildProbabilityContext(
 function probabilityFor(
   first: Standing | undefined,
   second: Standing | undefined,
-  model: PredictionModel,
   context: ProbabilityContext,
 ) {
   if (!first || !second) return 0.5;
-  if (model === "neutral") return 0.5;
-  if (model === "elo" && first.eloRating !== null && second.eloRating !== null) {
-    return Math.max(0.12, Math.min(0.88, 1 / (1 + 10 ** ((second.eloRating - first.eloRating) / 400))));
-  }
   const score = (first.wins - second.wins) * 0.48
     + (first.differential - second.differential) * 0.032
     + ((context.recentForm.get(first.id) ?? 0) - (context.recentForm.get(second.id) ?? 0)) * 0.13
@@ -360,13 +353,11 @@ export function simulatePlayoffOdds({
   matches,
   predictions,
   iterations = 1500,
-  model = "standings",
 }: {
   teams: CalculatorTeam[];
   matches: CalculatorMatch[];
   predictions: Predictions;
   iterations?: number;
-  model?: PredictionModel;
 }) {
   const activeTeams = teams.filter((team) => team.isActive);
   const baselineStandings = standingsFor(teams, matches, predictions);
@@ -383,7 +374,7 @@ export function simulatePlayoffOdds({
     for (const match of openMatches) {
       const first = baselineById.get(match.coach1SeasonId);
       const second = baselineById.get(match.coach2SeasonId);
-      const firstWins = random() < probabilityFor(first, second, model, probabilityContext);
+      const firstWins = random() < probabilityFor(first, second, probabilityContext);
       const winnerId = firstWins ? match.coach1SeasonId : match.coach2SeasonId;
       const average = averages.get(winnerId) ?? 3;
       const differential = Math.max(1, Math.min(6, average + Math.floor(random() * 3) - 1));
@@ -418,14 +409,12 @@ export function calculatePlayoffOdds({
   teams,
   matches,
   predictions,
-  model = "standings",
   exactLimit = 14,
   iterations = 1500,
 }: {
   teams: CalculatorTeam[];
   matches: CalculatorMatch[];
   predictions: Predictions;
-  model?: PredictionModel;
   exactLimit?: number;
   iterations?: number;
 }): OddsResult {
@@ -433,7 +422,7 @@ export function calculatePlayoffOdds({
   const openMatches = matches.filter((match) => !match.winnerId && !predictions[match.id] && !match.isForfeit);
   if (openMatches.length > exactLimit) {
     return {
-      projections: simulatePlayoffOdds({ teams, matches, predictions, iterations, model }),
+      projections: simulatePlayoffOdds({ teams, matches, predictions, iterations }),
       method: "simulation",
       scenarioCount: iterations,
     };
@@ -459,7 +448,6 @@ export function calculatePlayoffOdds({
     const firstOdds = probabilityFor(
       baselineById.get(match.coach1SeasonId),
       baselineById.get(match.coach2SeasonId),
-      model,
       probabilityContext,
     );
     branchPredictions[match.id] = {
@@ -501,13 +489,11 @@ export function calculateMatchLeverage({
   teams,
   matches,
   predictions,
-  model,
 }: {
   teamId: number;
   teams: CalculatorTeam[];
   matches: CalculatorMatch[];
   predictions: Predictions;
-  model: PredictionModel;
 }) {
   const averages = averageWinningDifferentials(teams, applyPredictions(matches, predictions));
   const openMatches = matches.filter((match) => !match.winnerId && !predictions[match.id] && !match.isForfeit);
@@ -527,7 +513,6 @@ export function calculateMatchLeverage({
       const firstWins = random() < probabilityFor(
         baselineById.get(match.coach1SeasonId),
         baselineById.get(match.coach2SeasonId),
-        model,
         probabilityContext,
       );
       firstWon[index] = firstWins;

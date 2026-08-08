@@ -5,7 +5,6 @@ import type {
   CalculatorMatch,
   CalculatorTeam,
   MatchLeverage,
-  PredictionModel,
   Predictions,
   TeamProjection,
 } from "./playoff-calculator-engine";
@@ -21,7 +20,6 @@ export function usePlayoffWorker({
   teams,
   matches,
   predictions,
-  model,
   teamId,
   analysisEnabled,
   primaryMatchId,
@@ -29,7 +27,6 @@ export function usePlayoffWorker({
   teams: CalculatorTeam[];
   matches: CalculatorMatch[];
   predictions: Predictions;
-  model: PredictionModel;
   teamId: number | null;
   analysisEnabled: boolean;
   primaryMatchId?: number;
@@ -37,8 +34,8 @@ export function usePlayoffWorker({
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
   const latestByTaskRef = useRef<Record<WorkerRequest["task"], number>>({ odds: 0, leverage: 0, matrix: 0 });
-  const latestInputsRef = useRef({ teams, matches, predictions, model, teamId, primaryMatchId });
-  latestInputsRef.current = { teams, matches, predictions, model, teamId, primaryMatchId };
+  const latestInputsRef = useRef({ teams, matches, predictions, teamId, primaryMatchId });
+  latestInputsRef.current = { teams, matches, predictions, teamId, primaryMatchId };
   const [odds, setOdds] = useState<{ method: "exact" | "simulation"; scenarioCount: number; projections: Map<number, TeamProjection> } | null>(null);
   const [leverage, setLeverage] = useState<MatchLeverage[]>([]);
   const [matrix, setMatrix] = useState<MatrixCell[]>([]);
@@ -65,7 +62,7 @@ export function usePlayoffWorker({
           const requestId = ++requestIdRef.current;
           latestByTaskRef.current.matrix = requestId;
           setPendingTasks((current) => new Set(current).add("matrix"));
-          worker.postMessage({ requestId, task: "matrix", teams: inputs.teams, matches: inputs.matches, predictions: inputs.predictions, model: inputs.model, teamId: inputs.teamId, matrixMatchIds: [inputs.primaryMatchId, secondMatchId] } satisfies WorkerRequest);
+          worker.postMessage({ requestId, task: "matrix", teams: inputs.teams, matches: inputs.matches, predictions: inputs.predictions, teamId: inputs.teamId, matrixMatchIds: [inputs.primaryMatchId, secondMatchId] } satisfies WorkerRequest);
         }
       }
       if (response.matrix) setMatrix(response.matrix);
@@ -78,7 +75,7 @@ export function usePlayoffWorker({
       const requestId = ++requestIdRef.current;
       latestByTaskRef.current[task] = requestId;
       setPendingTasks((current) => new Set(current).add(task));
-      workerRef.current?.postMessage({ requestId, task, teams, matches, predictions, model, ...extra } satisfies WorkerRequest);
+      workerRef.current?.postMessage({ requestId, task, teams, matches, predictions, ...extra } satisfies WorkerRequest);
     }, delay);
   }
 
@@ -87,14 +84,14 @@ export function usePlayoffWorker({
     return () => window.clearTimeout(timeout);
     // schedule is intentionally recreated with the serialized analysis inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matches, model, predictions, teams]);
+  }, [matches, predictions, teams]);
 
   useEffect(() => {
     if (!analysisEnabled || !teamId) return;
     const timeout = schedule("leverage", 220, { teamId });
     return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisEnabled, matches, model, predictions, teamId, teams]);
+  }, [analysisEnabled, matches, predictions, teamId, teams]);
 
   return { odds, leverage, matrix, timings, pendingTasks, error };
 }
