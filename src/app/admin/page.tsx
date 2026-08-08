@@ -522,6 +522,7 @@ export default async function AdminDashboard() {
         <CardContent className="space-y-4">
           <HomepageVisibilityCard
             initialRecentDraftPicksHidden={featureSettings.recentDraftPicksHidden}
+            initialPlayoffCalculatorSearchEnabled={featureSettings.playoffCalculatorSearchEnabled}
           />
         </CardContent>
       </Card>

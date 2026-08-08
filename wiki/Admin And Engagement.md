@@ -49,11 +49,12 @@ The admin dashboard includes lightweight public-home visibility controls.
 Current controls:
 
 - Recent Draft Picks: hides or shows the Recent Draft Picks panel on the public home page.
+- Playoff Calculator Search: hides or shows the search-only playoff calculator result without adding it to navigation.
 
-Recent Draft Picks visibility is stored in `site_settings` as
-`recent_draft_picks_hidden`. The home page reads the setting through
-`src/lib/site-settings.ts` and skips the recent-picks roster query while the
-panel is hidden.
+These controls are stored in `site_settings` as `recent_draft_picks_hidden` and
+`playoff_calculator_search_enabled`. The home page and search route read them
+through `src/lib/site-settings.ts`. The playoff calculator is hidden from
+search by default until an admin enables it.
 
 Relevant files:
 

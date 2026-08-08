@@ -211,11 +211,11 @@ function getContributorList(
 async function getPokemonFunFactsUncached(): Promise<MiscStatEntry[]> {
   const entries: MiscStatEntry[] = [];
 
-  // Get Season 10 IDs first (needed to filter everything else)
+  // Get Season 11 IDs first (needed to filter everything else)
   const allSeasons = await db.query.seasons.findMany({
     columns: { id: true, seasonNumber: true },
   });
-  const season10Ids = new Set(allSeasons.filter((s) => s.seasonNumber === 10).map((s) => s.id));
+  const season11Ids = new Set(allSeasons.filter((s) => s.seasonNumber === 11).map((s) => s.id));
 
   // Run all data queries in parallel
   const [rawKills, rawRosters, rawMP] = await Promise.all([
@@ -275,8 +275,8 @@ async function getPokemonFunFactsUncached(): Promise<MiscStatEntry[]> {
     }),
   ]);
 
-  const allKills = rawKills.filter((k) => k.match && season10Ids.has(k.match.seasonId));
-  const allMP = rawMP.filter((mp) => mp.match && season10Ids.has(mp.match.seasonId));
+  const allKills = rawKills.filter((k) => k.match && season11Ids.has(k.match.seasonId));
+  const allMP = rawMP.filter((mp) => mp.match && season11Ids.has(mp.match.seasonId));
   // Map: `${seasonCoachId}-${pokemonId}` -> price
   const rosterPriceMap = new Map<string, number>();
   for (const r of rawRosters) {
@@ -777,7 +777,7 @@ async function getPokemonFunFactsUncached(): Promise<MiscStatEntry[]> {
 
 export const getPokemonFunFacts = unstable_cache(
   getPokemonFunFactsUncached,
-  ["pokemon-stats-fun-facts"],
+  ["pokemon-stats-fun-facts-season-11"],
   { revalidate: 300 }
 );
 

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPublicVisibilityState } from "@/lib/public-visibility";
 import { customPokemonAliasesForRow, getPokemonAliasMaps, type PokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { isHiddenPublicPokemonForm, pokemonSearchAliases } from "@/lib/pokemon-name-utils";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -15,7 +16,10 @@ export async function GET(request: NextRequest) {
   }
 
   const searchPattern = `%${query}%`;
-  const visibility = await getPublicVisibilityState();
+  const [visibility, featureSettings] = await Promise.all([
+    getPublicVisibilityState(),
+    getSiteFeatureSettings(),
+  ]);
   const publicSeasonFilter = sql`${seasons.isPublic} IS NOT 0`;
   const publicDivisionFilter = visibility.hiddenDivisionNames.has("infinity")
     ? sql`lower(${divisions.name}) <> 'infinity'`
@@ -247,9 +251,10 @@ export async function GET(request: NextRequest) {
 
   // Search-only playoff calculator: intentionally omitted from site navigation.
   const playoffCalculatorKeywords = ["playoff", "playoffs", "playoff calculator", "standings calculator", "scenario"];
-  const playoffCalculatorResult = playoffCalculatorKeywords.some(
-    (keyword) => keyword.includes(query) || query.includes(keyword),
-  );
+  const playoffCalculatorResult = featureSettings.playoffCalculatorSearchEnabled
+    && playoffCalculatorKeywords.some(
+      (keyword) => keyword.includes(query) || query.includes(keyword),
+    );
 
   // Search moves (lowest priority, so searched last)
   const moveResults = await db

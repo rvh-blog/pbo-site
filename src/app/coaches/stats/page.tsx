@@ -19,10 +19,10 @@ interface MiscStatEntry {
 async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
   const entries: MiscStatEntry[] = [];
 
-  // Get Season 10 IDs
+  // Get Season 11 IDs
   const allSeasons = await db.query.seasons.findMany();
   const seasonNumberById = new Map(allSeasons.map((season) => [season.id, season.seasonNumber]));
-  const season10Ids = new Set(allSeasons.filter((s) => s.seasonNumber === 10).map((s) => s.id));
+  const season11Ids = new Set(allSeasons.filter((s) => s.seasonNumber === 11).map((s) => s.id));
 
   // Run all queries in parallel
   const [allMatches, allSeasonCoaches, allCoaches, rawKillEvents, rawMP] = await Promise.all([
@@ -35,8 +35,8 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
     db.query.matchPokemon.findMany({ with: { match: true } }),
   ]);
 
-  const s10Matches = allMatches.filter((m) => season10Ids.has(m.seasonId) && m.winnerId);
-  const s10KillEvents = rawKillEvents.filter((k) => k.match && season10Ids.has(k.match.seasonId));
+  const s11Matches = allMatches.filter((m) => season11Ids.has(m.seasonId) && m.winnerId);
+  const s11KillEvents = rawKillEvents.filter((k) => k.match && season11Ids.has(k.match.seasonId));
 
   // Build coach lookup from seasonCoachId -> coachId -> coach name
   const scToCoach = new Map<number, { coachId: number; name: string }>();
@@ -57,7 +57,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
 
   // 1. Longest average game time (no forfeits)
   const gameTimes = new Map<number, { totalMs: number; count: number; name: string }>();
-  for (const m of s10Matches) {
+  for (const m of s11Matches) {
     if (m.isForfeit || !m.startedAt || !m.endedAt) continue;
     const duration = new Date(m.endedAt).getTime() - new Date(m.startedAt).getTime();
     if (duration <= 0 || duration > 3600000) continue; // skip invalid (>1hr)
@@ -106,7 +106,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
 
   // 2. Clutch King — most wins by exactly 1 mon remaining
   const clutchWins = new Map<number, { count: number; name: string }>();
-  for (const m of s10Matches) {
+  for (const m of s11Matches) {
     if (!m.winnerId) continue;
     const diff = m.winnerId === m.coach1SeasonId
       ? (m.coach1Differential || 0)
@@ -131,10 +131,10 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
   }
 
   // 3. Iron Wall — fewest kills given up per game (min 3 games, no forfeits)
-  const nonForfeitMatches = s10Matches.filter(m => !m.isForfeit);
+  const nonForfeitMatches = s11Matches.filter(m => !m.isForfeit);
   const nonForfeitMatchIds = new Set(nonForfeitMatches.map(m => m.id));
   const killsGivenUp = new Map<number, { total: number; games: number; name: string }>();
-  for (const k of s10KillEvents) {
+  for (const k of s11KillEvents) {
     if (!k.victimSeasonCoachId || !nonForfeitMatchIds.has(k.matchId)) continue;
     const coach = scToCoach.get(k.victimSeasonCoachId);
     if (!coach) continue;
@@ -167,7 +167,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
 
   // 4. One Mon Army — coach with most games where a single Pokemon got 3+ kills
   const killsByMatchCoachPokemon = new Map<string, number>();
-  for (const k of s10KillEvents) {
+  for (const k of s11KillEvents) {
     if (!k.killerSeasonCoachId || !k.killerPokemonId) continue;
     const key = `${k.matchId}-${k.killerSeasonCoachId}-${k.killerPokemonId}`;
     killsByMatchCoachPokemon.set(key, (killsByMatchCoachPokemon.get(key) || 0) + 1);
@@ -195,12 +195,12 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
 
   // 5. Overtime Specialist — most games past 30 turns
   const turnCounts = new Map<number, number>(); // matchId -> max turn
-  for (const k of s10KillEvents) {
+  for (const k of s11KillEvents) {
     const current = turnCounts.get(k.matchId) || 0;
     if (k.turn > current) turnCounts.set(k.matchId, k.turn);
   }
   const overtimeMap = new Map<number, { count: number; name: string }>();
-  for (const m of s10Matches) {
+  for (const m of s11Matches) {
     const maxTurn = turnCounts.get(m.id) || 0;
     if (maxTurn < 30) continue;
     for (const scId of [m.coach1SeasonId, m.coach2SeasonId]) {
@@ -224,7 +224,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
 
   // 6. Team Player - most games where 4+ different Pokemon got a KO
   const pokemonKillersByMatchCoach = new Map<string, Set<number>>();
-  for (const k of s10KillEvents) {
+  for (const k of s11KillEvents) {
     if (!k.killerSeasonCoachId || !k.killerPokemonId || !nonForfeitMatchIds.has(k.matchId)) continue;
     const key = `${k.matchId}-${k.killerSeasonCoachId}`;
     const set = pokemonKillersByMatchCoach.get(key) || new Set<number>();
@@ -328,7 +328,7 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
 
   // 9. Late Game Closer - most KOs after turn 20
   const lateGameClosers = new Map<number, { count: number; name: string }>();
-  for (const k of s10KillEvents) {
+  for (const k of s11KillEvents) {
     if (!k.killerSeasonCoachId || k.turn <= 20 || !nonForfeitMatchIds.has(k.matchId)) continue;
     const coach = scToCoach.get(k.killerSeasonCoachId);
     if (!coach) continue;
@@ -350,17 +350,17 @@ async function getCoachFunFacts(): Promise<MiscStatEntry[]> {
   // 10. Most unique Pokemon used
   const scByCoach = new Map<number, number[]>();
   for (const sc of allSeasonCoaches) {
-    if (!season10Ids.has(sc.divisionId ? (allMatches.find(m => m.divisionId === sc.divisionId)?.seasonId || 0) : 0)) {
-      // Use a different approach — check if any S10+ match references this seasonCoach
+    if (!season11Ids.has(sc.divisionId ? (allMatches.find(m => m.divisionId === sc.divisionId)?.seasonId || 0) : 0)) {
+      // Use a different approach — check if any S11 match references this seasonCoach
     }
     const list = scByCoach.get(sc.coachId) || [];
     list.push(sc.id);
     scByCoach.set(sc.coachId, list);
   }
   // Use matchPokemon to find unique pokemon per coach
-  const s10MP = rawMP.filter((mp) => mp.match && season10Ids.has(mp.match.seasonId));
+  const s11MP = rawMP.filter((mp) => mp.match && season11Ids.has(mp.match.seasonId));
   const uniquePokemonByCoach = new Map<number, Set<number>>();
-  for (const mp of s10MP) {
+  for (const mp of s11MP) {
     const coach = scToCoach.get(mp.seasonCoachId);
     if (!coach) continue;
     const set = uniquePokemonByCoach.get(coach.coachId) || new Set();
@@ -412,7 +412,7 @@ export default async function CoachStatsPage() {
           Coach Battle Stats
         </h1>
         <p className="mt-1 text-base text-[var(--foreground-muted)]">
-          Fun facts and records from Season 10
+          Fun facts and records from Season 11
         </p>
       </div>
 

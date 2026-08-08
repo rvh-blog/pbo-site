@@ -56,7 +56,7 @@ Check mobile width for:
 - Tables with horizontal overflow.
 - Buttons with long text.
 - Cards and chart containers.
-- Fun facts pages, especially Season 10 Pokemon and coach fun facts with larger
+- Fun facts pages, especially Season 11 Pokemon and coach fun facts with larger
   text.
 
 The global header uses explicit compatibility classes and traditional pixel
