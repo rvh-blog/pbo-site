@@ -173,7 +173,6 @@ export async function getCoachProfileMilestones(
 
   const pokemonKills = new Map<number, number>();
   const pokemonAppearances = new Map<number, number>();
-  const survivalStreaks = new Map<number, number>();
   const coachPokemonKills = new Map<number, Map<number, number>>();
   const coachPokemonLastRows = new Map<string, PokemonRow>();
   const seasonPokemonKills = new Map<number, Map<number, number>>();
@@ -207,19 +206,6 @@ export async function getCoachProfileMilestones(
           seasonNumber: row.season_number, matchId: row.match_id,
         });
       }
-    }
-
-    const nextStreak = Number(row.deaths) === 0
-      ? (survivalStreaks.get(row.pokemon_id) ?? 0) + 1
-      : 0;
-    survivalStreaks.set(row.pokemon_id, nextStreak);
-    if (row.coach_id === coachId && (nextStreak === 5 || nextStreak === 10)) {
-      addMilestone(milestones, {
-        key: `pokemon:${row.pokemon_id}:survival:${nextStreak}`, category: "pokemon",
-        title: `🛡️ ${nextStreak}-Match Survival Streak`,
-        detail: `${row.pokemon_name} · Season ${row.season_number}`,
-        seasonNumber: row.season_number, matchId: row.match_id,
-      });
     }
 
     const pairKey = `${row.coach_id}:${row.pokemon_id}`;

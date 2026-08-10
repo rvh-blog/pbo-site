@@ -198,11 +198,27 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
               All-time rankings and statistics
             </p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)]">
-            <svg className="w-4 h-4 text-[var(--accent)]" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-            </svg>
-            <span className="text-sm font-bold">{coachStats.length} Coaches</span>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href="/battle-record"
+                className="rounded-lg border-2 border-sky-300/35 bg-sky-300/5 px-4 py-3 text-center text-xs font-bold uppercase tracking-widest text-sky-200 transition-colors hover:border-sky-200 hover:bg-sky-300/15 hover:text-white sm:min-w-36"
+              >
+                Coach Records
+              </Link>
+              <Link
+                href="/battle-record?tab=pbo-records"
+                className="rounded-lg border-2 border-sky-300/35 bg-sky-300/5 px-4 py-3 text-center text-xs font-bold uppercase tracking-widest text-sky-200 transition-colors hover:border-sky-200 hover:bg-sky-300/15 hover:text-white sm:min-w-36"
+              >
+                PBO Records
+              </Link>
+            </div>
+            <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2">
+              <svg className="w-4 h-4 text-[var(--accent)]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+              </svg>
+              <span className="text-sm font-bold">{coachStats.length} Coaches</span>
+            </div>
           </div>
         </div>
       </div>

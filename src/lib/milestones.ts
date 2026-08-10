@@ -248,35 +248,6 @@ async function evaluatePokemonMilestones(match: MatchContext) {
         });
       }
     }
-    if (pokemon.deaths === 0) {
-      const recent = rows<{ match_id: number; deaths: number }>(await rawClient.execute({
-        sql: `SELECT mp.match_id, COALESCE(mp.deaths, 0) AS deaths
-          FROM match_pokemon mp JOIN matches m ON m.id = mp.match_id
-          WHERE mp.pokemon_id = ? AND m.winner_id IS NOT NULL
-          ORDER BY COALESCE(m.played_at, '') DESC, m.id DESC LIMIT 10`,
-        args: [pokemon.pokemon_id],
-      }));
-      if (recent[0]?.match_id === match.id) {
-        let streak = 0;
-        for (const appearance of recent) {
-          if (Number(appearance.deaths) !== 0) break;
-          streak++;
-        }
-        for (const threshold of [5, 10]) {
-          if (streak === threshold) {
-            await recordEvent({
-              key: `pokemon:${pokemon.pokemon_id}:survival-streak:${threshold}`,
-              category: "pokemon", type: "survival_streak", seasonId: match.season_id,
-              divisionId: match.division_id, matchId: match.id, pokemonId: pokemon.pokemon_id,
-              coachId: pokemon.coach_id, seasonCoachId: pokemon.season_coach_id,
-              title: `🛡️ ${threshold}-Match Survival Streak`,
-              description: `**${pokemon.pokemon_name}** has gone **${threshold} appearances** without fainting!`,
-            });
-          }
-        }
-      }
-    }
-
     const pairTotal = rows<{ total: number }>(await rawClient.execute({
       sql: `SELECT COALESCE(SUM(mp.kills), 0) AS total FROM match_pokemon mp
         JOIN season_coaches sc ON sc.id = mp.season_coach_id

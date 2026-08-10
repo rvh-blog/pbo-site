@@ -26,7 +26,7 @@ interface FeatureSettings {
 const navItems = [
   { href: "/seasons", label: "Seasons" },
   { href: "/coaches", label: "Coaches" },
-  { href: "/matchup-prep", label: "Match Prep" },
+  { href: "/matchup-prep", label: "Game Prep" },
   { href: "/pick-ems", label: "Pick-Ems" },
   { href: "/fantasy", label: "Fantasy" },
   { href: "/blog", label: "Blog" },
@@ -34,13 +34,16 @@ const navItems = [
 ];
 
 const matchPrepLinks = [
+  { href: "/matchup-prep", label: "Matchup Prep" },
   { href: "/draft-planner", label: "Free Agency" },
   { href: "/analyzer", label: "Replay Analyzer" },
 ];
 
 const pboStatsLinks = [
+  { href: "/leaderboards", label: "Leaderboards" },
   { href: "/leaderboards/comprehensive", label: "Comprehensive Leaderboard" },
   { href: "/battle-record", label: "Battle Record" },
+  { href: "/battle-record?tab=move-usage", label: "Move Usage" },
   { href: "/leaderboards/items", label: "Item Usage" },
 ];
 
@@ -54,6 +57,8 @@ export function Navigation() {
   const [personaOpen, setPersonaOpen] = useState(false);
   const [mobileMatchPrepOpen, setMobileMatchPrepOpen] = useState(false);
   const [mobilePboStatsOpen, setMobilePboStatsOpen] = useState(false);
+  const [tabletMatchPrepOpen, setTabletMatchPrepOpen] = useState(false);
+  const [tabletPboStatsOpen, setTabletPboStatsOpen] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
     fantasyUiHidden: false,
@@ -261,8 +266,8 @@ export function Navigation() {
             if (item.href === "/matchup-prep") {
               return (
                 <div key={item.href} className="group relative">
-                  <Link
-                    href={item.href}
+                  <button
+                    type="button"
                     aria-haspopup="menu"
                     className={`inline-flex items-center gap-1 font-bold uppercase text-sm tracking-wide transition-all ${
                       isActive
@@ -274,7 +279,7 @@ export function Navigation() {
                     <svg className="h-3 w-3 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
                     </svg>
-                  </Link>
+                  </button>
                   <div className="invisible absolute left-1/2 top-full z-50 w-44 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                     <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
                       {matchPrepLinks.map((subItem) => {
@@ -303,8 +308,8 @@ export function Navigation() {
             if (item.href === "/leaderboards") {
               return (
                 <div key={item.href} className="group relative">
-                  <Link
-                    href={item.href}
+                  <button
+                    type="button"
                     aria-haspopup="menu"
                     className={`inline-flex items-center gap-1 font-bold uppercase text-sm tracking-wide transition-all ${
                       pboStatsActive
@@ -316,7 +321,7 @@ export function Navigation() {
                     <svg className="h-3 w-3 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
                     </svg>
-                  </Link>
+                  </button>
                   <div className="invisible absolute left-1/2 top-full z-50 w-64 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                     <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
                       {pboStatsLinks.map((subItem) => (
@@ -325,7 +330,7 @@ export function Navigation() {
                           href={subItem.href}
                           role="menuitem"
                           className={`block rounded px-3 py-2 text-xs font-bold uppercase transition-colors ${
-                            pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)
+                            pathname === subItem.href || (subItem.href !== "/leaderboards" && pathname.startsWith(`${subItem.href}/`))
                               ? "bg-[var(--background-tertiary)] text-white"
                               : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
                           }`}
@@ -530,7 +535,7 @@ export function Navigation() {
       </div>
 
       {/* Tablet navigation keeps primary destinations visible without crowding the header. */}
-      <div className="tablet-primary-navigation border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)]/95">
+      <div className="tablet-primary-navigation flex-col border-t border-[var(--background-tertiary)] bg-[var(--background-secondary)]/95">
         <div className="container mx-auto flex gap-1 overflow-x-auto px-4 py-1.5 sm:px-6" aria-label="Primary navigation">
           {visibleNavItems.map((item) => {
             const isActive = item.href === "/matchup-prep"
@@ -538,6 +543,56 @@ export function Navigation() {
               : item.href === "/leaderboards"
                 ? pboStatsActive
                 : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            if (item.href === "/matchup-prep") {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => {
+                    setTabletMatchPrepOpen((open) => !open);
+                    setTabletPboStatsOpen(false);
+                  }}
+                  aria-haspopup="menu"
+                  aria-expanded={tabletMatchPrepOpen}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+                    isActive
+                      ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
+                      : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {item.label}
+                  <svg className={`h-3 w-3 transition-transform ${tabletMatchPrepOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+              );
+            }
+
+            if (item.href === "/leaderboards") {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => {
+                    setTabletPboStatsOpen((open) => !open);
+                    setTabletMatchPrepOpen(false);
+                  }}
+                  aria-haspopup="menu"
+                  aria-expanded={tabletPboStatsOpen}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+                    isActive
+                      ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
+                      : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {item.label}
+                  <svg className={`h-3 w-3 transition-transform ${tabletPboStatsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+              );
+            }
 
             return (
               <Link
@@ -555,6 +610,44 @@ export function Navigation() {
             );
           })}
         </div>
+        {tabletMatchPrepOpen && (
+          <div className="container mx-auto flex gap-1 overflow-x-auto border-t border-[var(--background-tertiary)] px-4 py-1.5 sm:px-6" role="menu" aria-label="Game Prep">
+            {matchPrepLinks.map((subItem) => (
+              <Link
+                key={subItem.href}
+                href={subItem.href}
+                role="menuitem"
+                onClick={() => setTabletMatchPrepOpen(false)}
+                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold uppercase transition-colors ${
+                  pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)
+                    ? "bg-[var(--background-tertiary)] text-white"
+                    : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                }`}
+              >
+                {subItem.label}
+              </Link>
+            ))}
+          </div>
+        )}
+        {tabletPboStatsOpen && (
+          <div className="container mx-auto flex gap-1 overflow-x-auto border-t border-[var(--background-tertiary)] px-4 py-1.5 sm:px-6" role="menu" aria-label="PBO Stats">
+            {pboStatsLinks.map((subItem) => (
+              <Link
+                key={subItem.href}
+                href={subItem.href}
+                role="menuitem"
+                onClick={() => setTabletPboStatsOpen(false)}
+                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold uppercase transition-colors ${
+                  pathname === subItem.href || (subItem.href !== "/leaderboards" && pathname.startsWith(`${subItem.href}/`))
+                    ? "bg-[var(--background-tertiary)] text-white"
+                    : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                }`}
+              >
+                {subItem.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Mobile Menu Dropdown - absolute to overlay content */}
@@ -655,30 +748,23 @@ export function Navigation() {
               if (item.href === "/matchup-prep") {
                 return (
                   <div key={item.href}>
-                    <div className="flex items-center gap-1">
-                      <Link
-                        href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex-1 rounded-lg px-4 py-3 font-bold uppercase text-sm tracking-wide transition-all ${
+                    <button
+                      type="button"
+                      onClick={() => setMobileMatchPrepOpen((open) => !open)}
+                      aria-haspopup="menu"
+                      aria-label="Toggle Game Prep menu"
+                      aria-expanded={mobileMatchPrepOpen}
+                      className={`flex w-full items-center justify-between rounded-lg px-4 py-3 font-bold uppercase text-sm tracking-wide transition-all ${
                           isActive
                             ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
                             : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
                         }`}
-                      >
-                        {item.label}
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => setMobileMatchPrepOpen((open) => !open)}
-                        aria-label="Toggle Match Prep menu"
-                        aria-expanded={mobileMatchPrepOpen}
-                        className="rounded-lg px-3 py-3 text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
-                      >
-                        <svg className={`h-4 w-4 transition-transform ${mobileMatchPrepOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
-                        </svg>
-                      </button>
-                    </div>
+                    >
+                      {item.label}
+                      <svg className={`h-4 w-4 transition-transform ${mobileMatchPrepOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
                     {mobileMatchPrepOpen && (
                       <div className="ml-4 space-y-1 border-l-2 border-[var(--background-tertiary)] pl-3">
                         {matchPrepLinks.map((subItem) => (
@@ -704,30 +790,23 @@ export function Navigation() {
               if (item.href === "/leaderboards") {
                 return (
                   <div key={item.href}>
-                    <div className="flex items-center gap-1">
-                      <Link
-                        href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex-1 rounded-lg px-4 py-3 font-bold uppercase text-sm tracking-wide transition-all ${
+                    <button
+                      type="button"
+                      onClick={() => setMobilePboStatsOpen((open) => !open)}
+                      aria-haspopup="menu"
+                      aria-label="Toggle PBO Stats menu"
+                      aria-expanded={mobilePboStatsOpen}
+                      className={`flex w-full items-center justify-between rounded-lg px-4 py-3 font-bold uppercase text-sm tracking-wide transition-all ${
                           pboStatsActive
                             ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
                             : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
                         }`}
-                      >
-                        {item.label}
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => setMobilePboStatsOpen((open) => !open)}
-                        aria-label="Toggle PBO Stats menu"
-                        aria-expanded={mobilePboStatsOpen}
-                        className="rounded-lg px-3 py-3 text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
-                      >
-                        <svg className={`h-4 w-4 transition-transform ${mobilePboStatsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
-                        </svg>
-                      </button>
-                    </div>
+                    >
+                      {item.label}
+                      <svg className={`h-4 w-4 transition-transform ${mobilePboStatsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
                     {mobilePboStatsOpen && (
                       <div className="ml-4 space-y-1 border-l-2 border-[var(--background-tertiary)] pl-3">
                         {pboStatsLinks.map((subItem) => (

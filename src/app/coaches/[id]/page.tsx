@@ -1283,6 +1283,41 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
     ? Math.round((totalWins / (totalWins + totalLosses)) * 100)
     : 0;
 
+  const summarizeMatches = (matchesToSummarize: typeof coachMatches) => {
+    let wins = 0;
+    let losses = 0;
+    let differential = 0;
+    const seasonIds = new Set<number>();
+
+    for (const match of matchesToSummarize) {
+      const isCoach1 = seasonCoachIds.includes(match.coach1SeasonId);
+      const mySeasonCoachId = isCoach1 ? match.coach1SeasonId : match.coach2SeasonId;
+
+      if (match.winnerId === mySeasonCoachId) {
+        wins++;
+      } else if (match.winnerId) {
+        losses++;
+      }
+
+      differential += isCoach1
+        ? match.coach1Differential || 0
+        : match.coach2Differential || 0;
+      seasonIds.add(match.seasonId);
+    }
+
+    return {
+      wins,
+      losses,
+      winRate: wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0,
+      differential,
+      seasons: seasonIds.size,
+    };
+  };
+  const recordBreakdowns = [
+    { title: "Regular Season", stats: summarizeMatches(coachMatches.filter((match) => match.week <= 100)) },
+    { title: "Playoffs", stats: summarizeMatches(coachMatches.filter((match) => match.week > 100)) },
+  ];
+
   // Build price map for tera captain cost breakdown
   const priceMap = new Map(
     pokemonPrices.map((pp) => [pp.pokemonId, { basePrice: pp.price, teraCaptainCost: pp.teraCaptainCost }])
@@ -1943,6 +1978,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
 
       {/* Stats Cards - Compact row on mobile, grid on desktop */}
       <div>
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-muted)]">Overall</p>
         <div className="poke-card p-3 flex justify-between sm:hidden">
           <div className="text-center">
             <p className="text-lg font-bold tabular-nums text-[var(--success)]">{totalWins}</p>
@@ -1994,6 +2030,45 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
             <p className="text-2xl font-bold tabular-nums text-[var(--primary)]">{coachSeasons.length}</p>
             <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide mt-1">Seasons</p>
           </div>
+        </div>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          {recordBreakdowns.map(({ title, stats }) => (
+            <details key={title} className="group poke-card overflow-hidden p-0">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--background-tertiary)]/25 group-open:border-b-2 group-open:border-[var(--background-tertiary)] [&::-webkit-details-marker]:hidden">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-white">{title}</h3>
+                <span className="shrink-0 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)] transition-colors group-hover:border-[var(--primary)] group-hover:text-white">
+                  <span className="group-open:hidden">Expand</span>
+                  <span className="hidden group-open:inline">Collapse</span>
+                </span>
+              </summary>
+              <div className="grid grid-cols-5 divide-x divide-[var(--background-tertiary)]">
+                <div className="px-2 py-3 text-center">
+                  <p className="text-lg font-bold tabular-nums text-[var(--success)]">{stats.wins}</p>
+                  <p className="mt-1 text-[8px] uppercase text-[var(--foreground-muted)] sm:text-[9px]">Wins</p>
+                </div>
+                <div className="px-2 py-3 text-center">
+                  <p className="text-lg font-bold tabular-nums text-[var(--error)]">{stats.losses}</p>
+                  <p className="mt-1 text-[8px] uppercase text-[var(--foreground-muted)] sm:text-[9px]">Losses</p>
+                </div>
+                <div className="px-2 py-3 text-center">
+                  <p className="text-lg font-bold tabular-nums">{stats.winRate}%</p>
+                  <p className="mt-1 text-[8px] uppercase text-[var(--foreground-muted)] sm:text-[9px]">Win Rate</p>
+                </div>
+                <div className="px-2 py-3 text-center">
+                  <p className={`text-lg font-bold tabular-nums ${
+                    stats.differential > 0 ? "text-[var(--success)]" : stats.differential < 0 ? "text-[var(--error)]" : ""
+                  }`}>
+                    {stats.differential > 0 ? "+" : ""}{stats.differential}
+                  </p>
+                  <p className="mt-1 text-[8px] uppercase text-[var(--foreground-muted)] sm:text-[9px]">Diff</p>
+                </div>
+                <div className="px-2 py-3 text-center">
+                  <p className="text-lg font-bold tabular-nums text-[var(--primary)]">{stats.seasons}</p>
+                  <p className="mt-1 text-[8px] uppercase text-[var(--foreground-muted)] sm:text-[9px]">Seasons</p>
+                </div>
+              </div>
+            </details>
+          ))}
         </div>
       </div>
 
@@ -2717,22 +2792,28 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
       )}
 
       {revealedItemTendencies.length > 0 && (
-        <div className="poke-card p-0 overflow-hidden">
-          <div className="p-4 sm:p-6 border-b-2 border-[var(--background-tertiary)]">
-            <div className="section-title !mb-0">
-              <div className="section-title-icon">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
+        <details className="group poke-card overflow-hidden p-0">
+          <summary className="cursor-pointer list-none p-4 transition-colors hover:bg-[var(--background-tertiary)]/25 group-open:border-b-2 group-open:border-[var(--background-tertiary)] sm:p-6 [&::-webkit-details-marker]:hidden">
+            <div className="flex items-center justify-between gap-4">
+              <div className="section-title !mb-0">
+                <div className="section-title-icon">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </div>
+                <div>
+                  <h3>Revealed Item Tendencies</h3>
+                  <p className="mt-1 text-xs font-normal text-[var(--foreground-muted)]">
+                    Only items explicitly shown in recorded replays
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3>Revealed Item Tendencies</h3>
-                <p className="mt-1 text-xs font-normal text-[var(--foreground-muted)]">
-                  Only items explicitly shown in recorded replays
-                </p>
-              </div>
+              <span className="shrink-0 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-bold uppercase tracking-wide text-[var(--foreground-muted)] transition-colors group-hover:border-[var(--primary)] group-hover:text-white">
+                <span className="group-open:hidden">Expand</span>
+                <span className="hidden group-open:inline">Collapse</span>
+              </span>
             </div>
-          </div>
+          </summary>
           <div className="grid gap-2 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
             {revealedItemTendencies.map((trend) => (
               <Link
@@ -2757,7 +2838,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
               </Link>
             ))}
           </div>
-        </div>
+        </details>
       )}
 
       {/* Season History & Recent Matches */}
