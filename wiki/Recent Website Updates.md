@@ -4,6 +4,42 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 10, 2026
+
+Navigation and leaderboards:
+
+- `PBO Stats` is now a dropdown-only navigation group containing Leaderboards,
+  Comprehensive Leaderboard, Battle Record, Move Usage, and Item Usage.
+- `Match Prep` was renamed to `Game Prep` and is now a dropdown-only group
+  containing Matchup Prep, Free Agency, and Replay Analyzer.
+- The Leaderboards page now also links to Coach Records and PBO Records.
+- Battle Record query links can open PBO Records or Move Usage directly.
+
+PBO Records:
+
+- Added Overall, Regular Season, and Playoffs career records for wins, losses,
+  and matches played.
+- Added championship records, highest peak Elo, and most consecutive seasons
+  played in their applicable scopes.
+- Removed the proposed regular-season, playoff, and all-time 6-0 record cards.
+
+Coach profiles and milestones:
+
+- Overall coach record cards remain visible. Separate Regular Season and
+  Playoffs breakdowns show wins, losses, win rate, differential, and seasons;
+  both breakdowns are collapsed by default.
+- Revealed Item Tendencies is collapsed by default and uses an explicit
+  Expand/Collapse control.
+- Removed the 5-Match Survival Streak milestone from website milestone
+  generation and Discord delivery. Historical database rows remain intact but
+  are excluded from delivery.
+
+Verification:
+
+- `npx tsc --noEmit`, targeted ESLint, bot build, whitespace checks, and local
+  route smoke tests pass for the affected areas. The coach page retains
+  pre-existing targeted lint debt outside these changes.
+
 ## August 8, 2026
 
 Playoff calculator:

@@ -16,12 +16,11 @@ export interface PboRecordCategory {
   entries: PboRecordEntry[];
 }
 
-type BattleRecordTab = "coach-records" | "pokemon-moves" | "pbo-records";
+export type BattleRecordTab = "coach-records" | "pokemon-moves" | "pbo-records";
 type PboRecordScope = "regular-season" | "playoffs" | "overall";
 
-const tabs: Array<{ id: BattleRecordTab; label: string }> = [
+const tabs: Array<{ id: Exclude<BattleRecordTab, "pokemon-moves">; label: string }> = [
   { id: "coach-records", label: "Coach Records" },
-  { id: "pokemon-moves", label: "Move Usage" },
   { id: "pbo-records", label: "PBO Records" },
 ];
 
@@ -79,6 +78,7 @@ export function BattleRecordView({
   overallPboRecords,
   pokemonMoveRecords,
   pokemonMoveDivisions,
+  initialTab = "coach-records",
 }: {
   records: BattleRecordRow[];
   regularSeasonPboRecords: PboRecordCategory[];
@@ -86,8 +86,9 @@ export function BattleRecordView({
   overallPboRecords: PboRecordCategory[];
   pokemonMoveRecords: PokemonMoveRecord[];
   pokemonMoveDivisions: PokemonMoveDivision[];
+  initialTab?: BattleRecordTab;
 }) {
-  const [activeTab, setActiveTab] = useState<BattleRecordTab>("coach-records");
+  const [activeTab, setActiveTab] = useState<BattleRecordTab>(initialTab);
   const [pboRecordScope, setPboRecordScope] = useState<PboRecordScope>("regular-season");
   const activeTitle = activeTab === "coach-records"
     ? "Coach Records"

@@ -26,12 +26,13 @@ See also:
 - Division page: `src/app/seasons/[id]/divisions/[divId]/page.tsx`
 - Match details: `src/app/matches/[id]/page.tsx`
 - Coaches: `src/app/coaches`
-- Battle Record: `src/app/battle-record` (available from the PBO Stats menu)
+- Battle Record: `src/app/battle-record` (Coach Records, PBO Records, and direct
+  Move Usage/PBO Records query links; available from the PBO Stats menu)
 - PBO Stats: `src/app/leaderboards`
 - Item Usage: `src/app/leaderboards/items` (Season 5+ replay-revealed item,
   Pokemon, and persistent-coach aggregates)
 - Free Agency: `src/app/draft-planner`
-- Matchup prep: `src/app/matchup-prep`
+- Matchup Prep: `src/app/matchup-prep` (available from the Game Prep menu)
 - Pick-ems: `src/app/pick-ems`
 - Fantasy: `src/app/fantasy`
 - Power rankings: `src/app/power-rankings`
@@ -46,9 +47,14 @@ See also:
 ## Current UI And Performance Notes
 
 - Division selectors use season-grouped options (`<optgroup>`): season headings contain their divisions across public, admin, broadcast, matchup, coach, and Free Agency flows.
-- Match Prep navigation contains Free Agency and Replay Analyzer.
-- PBO Stats navigation contains the Leaderboards page, Battle Record, and Item
-  Usage.
+- Game Prep is a dropdown-only navigation group containing Matchup Prep, Free
+  Agency, and Replay Analyzer.
+- PBO Stats is a dropdown-only navigation group containing Leaderboards,
+  Comprehensive Leaderboard, Battle Record, Move Usage, and Item Usage.
+- Leaderboards also links directly to Coach Records and PBO Records.
+- Coach profiles keep overall stats visible and provide collapsed Regular
+  Season and Playoffs record breakdowns. Revealed Item Tendencies is also
+  collapsed by default.
 - Item Usage has immediate season and season-grouped division filters. Counts
   represent distinct replay-observed Pokemon/item appearances, not repeated
   activations or unrevealed starting items.
@@ -143,6 +149,8 @@ Admin notes:
 - Admin restart/status endpoint: `src/app/api/admin/discord-bot/restart`
 - Stats service: `src/bot/services/stats-service.ts`
 - Build script: `scripts/build-bot.js`
+- Milestone delivery excludes the retired `survival_streak` milestone type;
+  historical event rows are preserved.
 
 ## Data Import And Maintenance Scripts
 

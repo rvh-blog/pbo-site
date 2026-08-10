@@ -25,7 +25,8 @@ async function deliverMilestones(client: Client): Promise<void> {
       AND COALESCE(dc.is_milestone_enabled, 0) = 1
     JOIN discord_guilds dg ON dg.id = dc.guild_id AND COALESCE(dg.is_active, 1) = 1
     LEFT JOIN milestone_deliveries md ON md.event_id = me.id AND md.guild_id = dg.guild_id
-    WHERE md.id IS NULL OR (md.status = 'failed' AND md.attempts < 3)
+    WHERE me.milestone_type <> 'survival_streak'
+      AND (md.id IS NULL OR (md.status = 'failed' AND md.attempts < 3))
     GROUP BY me.id, dg.guild_id, me.title, me.description, me.match_id
     ORDER BY me.id ASC LIMIT 20
   `);
