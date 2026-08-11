@@ -16,7 +16,10 @@ interface PokemonStatGroup {
   totalDamageTaken: number;
   totalDamageTakenIndirect: number;
   totalHpRestored: number;
+  totalKills: number;
+  totalDeaths: number;
   gamesPlayed: number;
+  damageGamesPlayed: number;
 }
 
 interface PokemonStat {
@@ -29,7 +32,10 @@ interface PokemonStat {
   totalDamageTaken: number;
   totalDamageTakenIndirect: number;
   totalHpRestored: number;
+  totalKills: number;
+  totalDeaths: number;
   gamesPlayed: number;
+  damageGamesPlayed: number;
 }
 
 interface SeasonOption {
@@ -46,6 +52,10 @@ interface DivisionOption {
 }
 
 type SortKey =
+  | "killsTotal"
+  | "killsAvg"
+  | "deathsTotal"
+  | "deathsAvg"
   | "dmgDealtTotal"
   | "dmgDealtDirect"
   | "dmgDealtIndirect"
@@ -57,7 +67,7 @@ type SortKey =
   | "hpRestoredTotal"
   | "hpRestoredAvg";
 
-type Category = "dealt" | "taken" | "healed";
+type Category = "kills" | "deaths" | "dealt" | "taken" | "healed";
 
 const CATEGORY_CONFIG: Record<
   Category,
@@ -70,6 +80,28 @@ const CATEGORY_CONFIG: Record<
     sorts: { key: SortKey; label: string }[];
   }
 > = {
+  kills: {
+    label: "Kills",
+    color: "var(--success)",
+    iconBg: "!bg-[var(--success)]",
+    iconShadow: "0 4px 0 #166534",
+    icon: "M12 3v3m0 12v3M3 12h3m12 0h3m-5.636-5.364-2.122 2.122m-4.484 4.484-2.122 2.122m8.728 0-2.122-2.122M8.758 8.758 6.636 6.636",
+    sorts: [
+      { key: "killsTotal", label: "Total" },
+      { key: "killsAvg", label: "Per Game" },
+    ],
+  },
+  deaths: {
+    label: "Deaths",
+    color: "var(--error)",
+    iconBg: "!bg-[var(--error)]",
+    iconShadow: "0 4px 0 #991b1b",
+    icon: "M9 10h.01M15 10h.01M9.5 16a3.5 3.5 0 015 0M12 3a9 9 0 100 18 9 9 0 000-18z",
+    sorts: [
+      { key: "deathsTotal", label: "Total" },
+      { key: "deathsAvg", label: "Per Game" },
+    ],
+  },
   dealt: {
     label: "Damage Dealt",
     color: "var(--error)",
@@ -111,6 +143,14 @@ const CATEGORY_CONFIG: Record<
 
 function getSortValue(p: PokemonStat, key: SortKey): number {
   switch (key) {
+    case "killsTotal":
+      return p.totalKills;
+    case "killsAvg":
+      return p.totalKills / p.gamesPlayed;
+    case "deathsTotal":
+      return p.totalDeaths;
+    case "deathsAvg":
+      return p.totalDeaths / p.gamesPlayed;
     case "dmgDealtTotal":
       return p.totalDamageDealt + p.totalDamageDealtIndirect;
     case "dmgDealtDirect":
@@ -118,7 +158,7 @@ function getSortValue(p: PokemonStat, key: SortKey): number {
     case "dmgDealtIndirect":
       return p.totalDamageDealtIndirect;
     case "dmgDealtAvg":
-      return (p.totalDamageDealt + p.totalDamageDealtIndirect) / p.gamesPlayed;
+      return (p.totalDamageDealt + p.totalDamageDealtIndirect) / p.damageGamesPlayed;
     case "dmgTakenTotal":
       return p.totalDamageTaken + p.totalDamageTakenIndirect;
     case "dmgTakenDirect":
@@ -126,24 +166,35 @@ function getSortValue(p: PokemonStat, key: SortKey): number {
     case "dmgTakenIndirect":
       return p.totalDamageTakenIndirect;
     case "dmgTakenAvg":
-      return (p.totalDamageTaken + p.totalDamageTakenIndirect) / p.gamesPlayed;
+      return (p.totalDamageTaken + p.totalDamageTakenIndirect) / p.damageGamesPlayed;
     case "hpRestoredTotal":
       return p.totalHpRestored;
     case "hpRestoredAvg":
-      return p.totalHpRestored / p.gamesPlayed;
+      return p.totalHpRestored / p.damageGamesPlayed;
   }
 }
 
 function formatValue(p: PokemonStat, key: SortKey): string {
   const val = getSortValue(p, key);
+  if (key.startsWith("kills") || key.startsWith("deaths")) {
+    return key.endsWith("Avg") ? val.toFixed(2) : `${Math.round(val)}`;
+  }
   if (key.endsWith("Avg")) return `${val.toFixed(1)}%`;
   return `${Math.round(val)}%`;
 }
 
+function getGamesPlayed(p: PokemonStat, key: SortKey): number {
+  return key.startsWith("kills") || key.startsWith("deaths")
+    ? p.gamesPlayed
+    : p.damageGamesPlayed;
+}
+
 function getSecondaryInfo(p: PokemonStat, key: SortKey): string {
-  if (key.endsWith("Avg")) return `${p.gamesPlayed} GP`;
-  const avg = getSortValue(p, key) / p.gamesPlayed;
-  return `${avg.toFixed(1)}%/g`;
+  const gamesPlayed = getGamesPlayed(p, key);
+  if (key.endsWith("Avg")) return `${gamesPlayed} GP`;
+  const avg = getSortValue(p, key) / gamesPlayed;
+  const suffix = key.startsWith("kills") || key.startsWith("deaths") ? "/g" : "%/g";
+  return `${avg.toFixed(key.startsWith("kills") || key.startsWith("deaths") ? 2 : 1)}${suffix}`;
 }
 
 interface PokemonStatsClientProps {
@@ -155,6 +206,8 @@ interface PokemonStatsClientProps {
 
 export function PokemonStatsClient({ stats, seasons, divisions, currentSeasonId }: PokemonStatsClientProps) {
   const [sorts, setSorts] = useState<Record<Category, SortKey>>({
+    kills: "killsTotal",
+    deaths: "deathsTotal",
     dealt: "dmgDealtTotal",
     taken: "dmgTakenTotal",
     healed: "hpRestoredTotal",
@@ -209,7 +262,10 @@ export function PokemonStatsClient({ stats, seasons, divisions, currentSeasonId 
         existing.totalDamageTaken += g.totalDamageTaken;
         existing.totalDamageTakenIndirect += g.totalDamageTakenIndirect;
         existing.totalHpRestored += g.totalHpRestored;
+        existing.totalKills += g.totalKills;
+        existing.totalDeaths += g.totalDeaths;
         existing.gamesPlayed += g.gamesPlayed;
+        existing.damageGamesPlayed += g.damageGamesPlayed;
       } else {
         map.set(g.id, {
           id: g.id,
@@ -221,14 +277,15 @@ export function PokemonStatsClient({ stats, seasons, divisions, currentSeasonId 
           totalDamageTaken: g.totalDamageTaken,
           totalDamageTakenIndirect: g.totalDamageTakenIndirect,
           totalHpRestored: g.totalHpRestored,
+          totalKills: g.totalKills,
+          totalDeaths: g.totalDeaths,
           gamesPlayed: g.gamesPlayed,
+          damageGamesPlayed: g.damageGamesPlayed,
         });
       }
     }
     return Array.from(map.values());
   }, [stats, seasonId, divisionId]);
-
-  const filtered = aggregated.filter((p) => p.gamesPlayed >= minGP);
 
   return (
     <div className="space-y-6">
@@ -294,10 +351,10 @@ export function PokemonStatsClient({ stats, seasons, divisions, currentSeasonId 
 
       {/* Stat Leaderboards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {(["dealt", "taken", "healed"] as Category[]).map((category) => {
+      {(["kills", "deaths", "dealt", "taken", "healed"] as Category[]).map((category) => {
         const config = CATEGORY_CONFIG[category];
         const sortKey = sorts[category];
-        const sorted = [...filtered].sort(
+        const sorted = aggregated.filter((pokemon) => getGamesPlayed(pokemon, sortKey) >= minGP).sort(
           (a, b) => getSortValue(b, sortKey) - getSortValue(a, sortKey)
         );
 

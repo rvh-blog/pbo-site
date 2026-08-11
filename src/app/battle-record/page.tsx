@@ -938,7 +938,13 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
     { title: "Most Wins in a Row", entries: mostWinsInRow },
     { title: "Most Losses in a Row", entries: mostLossesInRow },
     { title: "Best Differential", entries: bestDifferential },
-    { title: "Worst Differential", entries: worstDifferential },
+  );
+
+  if (scope !== "playoffs") {
+    categories.push({ title: "Worst Differential", entries: worstDifferential });
+  }
+
+  categories.push(
     { title: "Most Deaths", entries: mostDeaths },
     { title: "Longest Game (Turns)", entries: longestByTurns },
     { title: "Longest Game (Duration)", entries: longestByTime },

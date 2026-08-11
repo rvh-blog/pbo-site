@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
-import { matchPokemon, killEvents } from "@/lib/schema";
+import { killEvents } from "@/lib/schema";
 import { isNotNull } from "drizzle-orm";
 import { PokemonStatsClient } from "./pokemon-stats-client";
 
@@ -17,9 +17,10 @@ export const metadata = {
 
 async function getPokemonBattleStatsUncached() {
   const allMatchPokemon = await db.query.matchPokemon.findMany({
-    where: isNotNull(matchPokemon.damageDealt),
     columns: {
       pokemonId: true,
+      kills: true,
+      deaths: true,
       damageDealt: true,
       damageDealtIndirect: true,
       damageTaken: true,
@@ -49,7 +50,10 @@ async function getPokemonBattleStatsUncached() {
       totalDamageTaken: number;
       totalDamageTakenIndirect: number;
       totalHpRestored: number;
+      totalKills: number;
+      totalDeaths: number;
       gamesPlayed: number;
+      damageGamesPlayed: number;
     }
   >();
 
@@ -71,15 +75,21 @@ async function getPokemonBattleStatsUncached() {
       totalDamageTaken: 0,
       totalDamageTakenIndirect: 0,
       totalHpRestored: 0,
+      totalKills: 0,
+      totalDeaths: 0,
       gamesPlayed: 0,
+      damageGamesPlayed: 0,
     };
 
+    existing.totalKills += mp.kills ?? 0;
+    existing.totalDeaths += mp.deaths ?? 0;
+    existing.gamesPlayed += 1;
     existing.totalDamageDealt += mp.damageDealt ?? 0;
     existing.totalDamageDealtIndirect += mp.damageDealtIndirect ?? 0;
     existing.totalDamageTaken += mp.damageTaken ?? 0;
     existing.totalDamageTakenIndirect += mp.damageTakenIndirect ?? 0;
     existing.totalHpRestored += mp.hpRestored ?? 0;
-    existing.gamesPlayed += 1;
+    existing.damageGamesPlayed += mp.damageDealt === null ? 0 : 1;
 
     groupMap.set(key, existing);
   }
@@ -112,7 +122,7 @@ async function getSeasonsAndDivisionsUncached() {
 
 const getPokemonBattleStats = unstable_cache(
   getPokemonBattleStatsUncached,
-  ["pokemon-stats-battle"],
+  ["pokemon-stats-battle-v2"],
   { revalidate: 300 }
 );
 
@@ -807,7 +817,7 @@ export default async function PokemonStatsPage() {
               Pokemon Battle Stats
             </h1>
             <p className="text-sm text-[var(--foreground-muted)] mt-1">
-              All-time damage dealt, damage taken, and HP recovered
+              All-time kills, deaths, damage dealt, damage taken, and HP recovered
             </p>
           </div>
           <Link href="/pokemon/combinations" className="btn-retro-secondary inline-flex w-fit px-3 py-2 text-[10px]">
