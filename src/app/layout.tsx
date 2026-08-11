@@ -36,12 +36,21 @@ export const metadata: Metadata = {
     description:
       "Live standings, schedules, rosters, match tools, fantasy, and the complete PBO draft league archive.",
     url: "/",
+    images: [
+      {
+        url: "/pbo-social-banner.png",
+        width: 2048,
+        height: 1152,
+        alt: "Pokémon Battle Organization league banner",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "PBO - Pokémon Battle Organization",
     description:
       "Live standings, schedules, rosters, match tools, fantasy, and the complete PBO draft league archive.",
+    images: ["/pbo-social-banner.png"],
   },
   icons: {
     icon: [

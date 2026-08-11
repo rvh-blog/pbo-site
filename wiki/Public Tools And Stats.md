@@ -62,7 +62,17 @@ The PBO Records section has Regular Season, Playoffs, and Overall scopes.
 Overall recomputes each general record across regular-season and playoff matches
 together; it is not a merge of the two separate top-three lists. The
 playoff-specific consecutive-appearance category remains exclusive to the
-Playoffs scope.
+Playoffs scope. Worst Differential appears in Regular Season and Overall but is
+intentionally omitted from Playoffs.
+
+Pokemon Battle Stats lives at `/pokemon/stats` and is linked from the
+Leaderboards `More Stats` button. It provides Kills, Deaths, Damage Dealt,
+Damage Taken, and HP Recovered leaderboards. Each category supports Total and
+Per Game views where applicable, plus season, season-grouped division, and
+minimum-games filters. Kill and death totals use all recorded Pokemon
+appearances. Damage and recovery averages count only appearances with recorded
+replay-derived damage data, preventing older rows without damage tracking from
+diluting those averages.
 
 Battle Record metrics:
 
@@ -94,6 +104,8 @@ Relevant files:
 - `src/app/leaderboards/comprehensive/page.tsx`
 - `src/app/leaderboards/items/page.tsx`
 - `src/app/leaderboards/items/item-usage-filters.tsx`
+- `src/app/pokemon/stats/page.tsx`
+- `src/app/pokemon/stats/pokemon-stats-client.tsx`
 - `src/app/battle-record/page.tsx`
 - `src/app/battle-record/battle-record-table.tsx`
 - `src/app/admin/battle-records/page.tsx`

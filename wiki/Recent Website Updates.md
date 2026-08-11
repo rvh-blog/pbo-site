@@ -34,6 +34,20 @@ Coach profiles and milestones:
   generation and Discord delivery. Historical database rows remain intact but
   are excluded from delivery.
 
+Stats and sharing follow-up:
+
+- The Leaderboards `More Stats` link is now presented as a button and retains
+  its `/pokemon/stats` destination.
+- Pokemon Battle Stats now includes Kills and Deaths leaderboards with Total
+  and Per Game views. Season, division, and minimum-games filters apply to all
+  five stat categories.
+- Kill and death totals cover every recorded Pokemon appearance. Damage and HP
+  averages continue to use only appearances with replay-derived damage data.
+- Removed Worst Differential from the Playoffs PBO Records scope. Regular
+  Season and Overall continue to show that category.
+- Open Graph and Twitter link previews now use the supplied 2048x1152 PBO
+  league banner instead of the generated text card.
+
 Verification:
 
 - `npx tsc --noEmit`, targeted ESLint, bot build, whitespace checks, and local

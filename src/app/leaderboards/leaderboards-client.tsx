@@ -448,7 +448,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
               </div>
               <Link
                 href="/pokemon/stats"
-                className="flex items-center gap-1.5 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors font-bold"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border-2 border-[var(--primary)] bg-[var(--primary)] px-3 py-2 text-xs font-bold text-white transition-colors hover:border-[var(--primary-hover)] hover:bg-[var(--primary-hover)]"
               >
                 More Stats
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

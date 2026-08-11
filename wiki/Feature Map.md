@@ -41,7 +41,8 @@ See also:
 - Replay Analyzer: `src/app/analyzer`
 - Blog: `src/app/blog`
 - Elo tracker: `src/app/elo-tracker`
-- Pokemon stats: `src/app/pokemon/stats`
+- Pokemon stats: `src/app/pokemon/stats` (kills, deaths, damage dealt, damage
+  taken, and HP recovered with season/division/minimum-games filters)
 - Pokemon combinations: `src/app/pokemon/combinations`
 
 ## Current UI And Performance Notes
@@ -52,12 +53,15 @@ See also:
 - PBO Stats is a dropdown-only navigation group containing Leaderboards,
   Comprehensive Leaderboard, Battle Record, Move Usage, and Item Usage.
 - Leaderboards also links directly to Coach Records and PBO Records.
+- The Leaderboards `More Stats` control is a button linking to Pokemon Battle
+  Stats.
 - Coach profiles keep overall stats visible and provide collapsed Regular
   Season and Playoffs record breakdowns. Revealed Item Tendencies is also
   collapsed by default.
 - Item Usage has immediate season and season-grouped division filters. Counts
   represent distinct replay-observed Pokemon/item appearances, not repeated
   activations or unrevealed starting items.
+- Root Open Graph and Twitter metadata use `public/pbo-social-banner.png`.
 - Fantasy About visibility is persisted by the Fantasy page client and can be hidden per browser.
 - Image delivery uses AVIF/WebP where supported, with high-traffic sprites migrated to `next/image`.
 - Browser performance samples are collected by `src/components/performance-monitor.tsx` and exposed through `src/app/api/performance/route.ts` and the health endpoint.
