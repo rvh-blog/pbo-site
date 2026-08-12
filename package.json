@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "changelog:verify": "node scripts/verify-changelog-release.mjs",
+    "deploy:fly": "npm run changelog:verify && flyctl deploy --remote-only --yes",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots",
     "db:generate": "drizzle-kit generate",

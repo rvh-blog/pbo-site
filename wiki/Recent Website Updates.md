@@ -14,6 +14,9 @@ Changelog:
   update history.
 - Changelog writes are recorded in the admin audit log, and the supporting
   database table is initialized safely when the feature is first used.
+- Fly releases now require a same-day checked-in changelog entry. New bundled
+  entries sync into the live changelog automatically without overwriting
+  admin-authored updates.
 
 Compare:
 

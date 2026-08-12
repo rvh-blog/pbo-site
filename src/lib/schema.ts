@@ -1494,6 +1494,7 @@ export const pollVotes = sqliteTable("poll_votes", {
 // Public website changelog entries managed from the admin control center.
 export const changelogEntries = sqliteTable("changelog_entries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  sourceKey: text("source_key"),
   title: text("title").notNull(),
   summary: text("summary"),
   publishedAt: text("published_at").notNull(),
@@ -1506,4 +1507,5 @@ export const changelogEntries = sqliteTable("changelog_entries", {
   updatedAt: text("updated_at").notNull(),
 }, (table) => [
   index("idx_changelog_entries_published").on(table.isPublished, table.publishedAt),
+  uniqueIndex("idx_changelog_entries_source_key").on(table.sourceKey),
 ]);

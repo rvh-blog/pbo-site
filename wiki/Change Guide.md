@@ -33,6 +33,13 @@ Do not revert unrelated user changes.
 
 For shared work, use [[GitHub Collaboration Runbook]]: branch, verify, push, open a pull request, merge to `main`, then deploy merged `main` to Fly.
 
+Every Fly release must add a uniquely keyed, same-day entry to
+`src/data/changelog-releases.json`, even when another release already shipped
+that day. Use `npm run deploy:fly`; its pre-deploy check requires the deployment
+commit to update that file and prevents a release when the dated entry is
+missing. The deployed app syncs new bundled entries into the changelog
+automatically.
+
 ## Safe Data Changes
 
 If changing tables or fields:

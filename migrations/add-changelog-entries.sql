@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS changelog_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_key TEXT,
   title TEXT NOT NULL,
   summary TEXT,
   published_at TEXT NOT NULL,
@@ -12,8 +13,12 @@ CREATE TABLE IF NOT EXISTS changelog_entries (
 CREATE INDEX IF NOT EXISTS idx_changelog_entries_published
   ON changelog_entries(is_published, published_at);
 
-INSERT INTO changelog_entries (title, summary, published_at, changes, is_published, created_at, updated_at)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_changelog_entries_source_key
+  ON changelog_entries(source_key);
+
+INSERT INTO changelog_entries (source_key, title, summary, published_at, changes, is_published, created_at, updated_at)
 SELECT
+  '2026-08-10-stats-and-sharing-updates',
   'Stats & Sharing Updates',
   'Expanded career records, clearer coach profiles, and richer Pokemon battle statistics.',
   '2026-08-10',
@@ -25,8 +30,9 @@ WHERE NOT EXISTS (
   SELECT 1 FROM changelog_entries WHERE title = 'Stats & Sharing Updates' AND published_at = '2026-08-10'
 );
 
-INSERT INTO changelog_entries (title, summary, published_at, changes, is_published, created_at, updated_at)
+INSERT INTO changelog_entries (source_key, title, summary, published_at, changes, is_published, created_at, updated_at)
 SELECT
+  '2026-08-08-season-11-fun-facts',
   'Season 11 Fun Facts',
   'Public fun-fact records and the playoff projection tool now reflect the current league format.',
   '2026-08-08',
@@ -38,8 +44,9 @@ WHERE NOT EXISTS (
   SELECT 1 FROM changelog_entries WHERE title = 'Season 11 Fun Facts' AND published_at = '2026-08-08'
 );
 
-INSERT INTO changelog_entries (title, summary, published_at, changes, is_published, created_at, updated_at)
+INSERT INTO changelog_entries (source_key, title, summary, published_at, changes, is_published, created_at, updated_at)
 SELECT
+  '2026-08-04-readability-and-match-prep',
   'Readability & Match Prep',
   'A round of usability improvements for public pages on desktop and mobile.',
   '2026-08-04',
