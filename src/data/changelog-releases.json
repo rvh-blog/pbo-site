@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-08-11-changelog-startup-sync",
+    "title": "Automatic Release Notes",
+    "summary": "Website deployments and release notes now ship as one guarded workflow.",
+    "publishedAt": "2026-08-11",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Every Fly deployment must include a uniquely keyed changelog entry dated for that Pacific-time day, and the server synchronizes it automatically during startup."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-11-stats-comparisons-and-changelog",
     "title": "Stats, Comparisons & Changelog",
     "summary": "A full statistics integrity pass, new comparison tools, clearer replay reports, and a deployment-backed website changelog.",
