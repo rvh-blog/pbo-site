@@ -4,6 +4,17 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 12, 2026
+
+Compare:
+
+- Coach comparison entries now use each coach's latest team name for searching and display, sorted alphabetically, while career records remain keyed to the persistent coach.
+
+Store and cosmetics:
+
+- Added Inferno, Icy, and animated Chromatic Flow logo frames for 375 PBO Coins each.
+- All three use the existing permanent ownership and single-active-logo-frame rules.
+
 ## August 11, 2026
 
 Changelog:
