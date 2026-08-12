@@ -8,11 +8,18 @@ Fly app:
 pbo-site
 ```
 
-Deploy:
+Deploy with the same-day changelog guard:
 
 ```bash
-fly deploy
+npm run deploy:fly
 ```
+
+The command refuses to deploy unless the deployment commit updates
+`src/data/changelog-releases.json` and it contains a valid entry dated for the
+current day in `America/Los_Angeles`. Every separately deployed update must add
+a new entry with a unique `sourceKey`, including multiple releases on one day.
+Bundled release entries are inserted into the production changelog once when
+the deployed app first reads them; admin-authored entries are not overwritten.
 
 The default Fly remote build can take several minutes for this app. For a
 non-interactive deployment, submit it detached and monitor the app separately:
@@ -32,7 +39,7 @@ In the shared GitHub flow, deploy from merged `main`, not from an unreviewed loc
 ```bash
 git checkout main
 git pull
-fly deploy
+npm run deploy:fly
 ```
 
 ## Before Deploy
@@ -42,6 +49,7 @@ fly deploy
 3. Confirm DB migrations or manual DB changes are handled.
 4. Confirm no secrets or local DB files are staged.
 5. Confirm the code being deployed is the intended merged GitHub state.
+6. Add that release's same-day entry to `src/data/changelog-releases.json`.
 
 Recommended:
 

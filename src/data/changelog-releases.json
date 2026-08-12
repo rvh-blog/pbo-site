@@ -1,0 +1,69 @@
+[
+  {
+    "sourceKey": "2026-08-11-stats-comparisons-and-changelog",
+    "title": "Stats, Comparisons & Changelog",
+    "summary": "A full statistics integrity pass, new comparison tools, clearer replay reports, and a deployment-backed website changelog.",
+    "publishedAt": "2026-08-11",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Compare up to four coaches or Pokemon with shareable season, division, match-phase, and forfeit filters."
+      },
+      {
+        "type": "added",
+        "text": "Admins can create, edit, publish, draft, and delete categorized website updates from the new Changelog editor."
+      },
+      {
+        "type": "improved",
+        "text": "Coach records can switch between Overall, Regular Season, and Playoffs, while the comprehensive Pokemon leaderboard now includes wins and losses."
+      },
+      {
+        "type": "improved",
+        "text": "Match replays have a clearer visual hierarchy and separate Favorable Crits, Flinches, Missed Moves, and HAX Count statistics."
+      },
+      {
+        "type": "fixed",
+        "text": "A Seasons 5-11 audit corrected invalid or orphaned stat rows, record calculations, revealed-item handling, and stale fantasy cache totals."
+      },
+      {
+        "type": "fixed",
+        "text": "Battle Record calculations now reject malformed winners, apply the official Season 6 differential rule, and use qualifying matches for consecutive-season records."
+      }
+    ]
+  },
+  {
+    "sourceKey": "2026-08-10-stats-and-sharing-updates",
+    "title": "Stats & Sharing Updates",
+    "summary": "Expanded career records, clearer coach profiles, and richer Pokemon battle statistics.",
+    "publishedAt": "2026-08-10",
+    "changes": [
+      { "type": "added", "text": "PBO Records now includes Overall, Regular Season, and Playoffs career records for wins, losses, and matches played." },
+      { "type": "added", "text": "Pokemon Battle Stats now includes Kills and Deaths leaderboards with Total and Per Game views." },
+      { "type": "improved", "text": "Coach profiles keep overall records visible while Regular Season, Playoffs, and Revealed Item Tendencies can be expanded when needed." },
+      { "type": "improved", "text": "Game Prep and PBO Stats navigation groups now organize their related tools in focused dropdown menus." },
+      { "type": "removed", "text": "The retired 5-Match Survival Streak milestone is no longer generated or delivered." }
+    ]
+  },
+  {
+    "sourceKey": "2026-08-08-season-11-fun-facts",
+    "title": "Season 11 Fun Facts",
+    "summary": "Public fun-fact records and the playoff projection tool now reflect the current league format.",
+    "publishedAt": "2026-08-08",
+    "changes": [
+      { "type": "improved", "text": "Pokemon and coach fun-fact pages now calculate and label their records from Season 11." },
+      { "type": "improved", "text": "The playoff calculator uses the shared PBO ELO expected-score formula for matchup probabilities." },
+      { "type": "fixed", "text": "The Pokemon fun-facts cache was versioned so deployments cannot briefly reuse Season 10 results." }
+    ]
+  },
+  {
+    "sourceKey": "2026-08-04-readability-and-match-prep",
+    "title": "Readability & Match Prep",
+    "summary": "A round of usability improvements for public pages on desktop and mobile.",
+    "publishedAt": "2026-08-04",
+    "changes": [
+      { "type": "added", "text": "Selected Match Prep teams now show their completed division record beside the coach name." },
+      { "type": "improved", "text": "Dense public-page metadata is larger and shared retro buttons provide a 44px minimum touch target." },
+      { "type": "fixed", "text": "Infinity standings and Fantasy leaderboard colors now handle saved division names consistently." }
+    ]
+  }
+]
