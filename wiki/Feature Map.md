@@ -95,6 +95,8 @@ Feature notes:
 - Pick-ems admin: `src/app/admin/pick-ems`
 - Engagement admin: `src/app/admin/engagement`
 - Admin audit log: `src/app/admin/audit-log`
+- Admin changelog editor: `src/app/admin/changelog`
+- Public changelog page: `src/app/changelog`
 - League poll editor: `src/components/admin/poll-admin-card.tsx` on `src/app/admin/page.tsx`
 
 Admin notes:

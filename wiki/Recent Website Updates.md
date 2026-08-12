@@ -6,6 +6,15 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## August 11, 2026
 
+Changelog:
+
+- Added a moderator-only admin editor at `/admin/changelog` for creating,
+  editing, publishing, drafting, and deleting categorized website updates.
+- Added the `/changelog` release-notes page and seeded the initial August 2026
+  update history.
+- Changelog writes are recorded in the admin audit log, and the supporting
+  database table is initialized safely when the feature is first used.
+
 Compare:
 
 - Added `/compare` under PBO Stats for comparing two to four coaches or

@@ -1490,3 +1490,20 @@ export const pollVotes = sqliteTable("poll_votes", {
   index("idx_poll_votes_poll_id").on(table.pollId),
   index("idx_poll_votes_coach_id").on(table.coachId),
 ]);
+
+// Public website changelog entries managed from the admin control center.
+export const changelogEntries = sqliteTable("changelog_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  summary: text("summary"),
+  publishedAt: text("published_at").notNull(),
+  changes: text("changes", { mode: "json" }).$type<Array<{
+    type: "added" | "improved" | "fixed" | "removed";
+    text: string;
+  }>>().notNull(),
+  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_changelog_entries_published").on(table.isPublished, table.publishedAt),
+]);

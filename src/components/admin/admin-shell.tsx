@@ -14,6 +14,7 @@ import {
   Command,
   ExternalLink,
   FileSpreadsheet,
+  FileText,
   History,
   LayoutDashboard,
   LogOut,
@@ -114,6 +115,7 @@ const NAV_GROUPS: AdminNavGroup[] = [
   {
     label: "System",
     items: [
+      { href: "/admin/changelog", label: "Changelog", description: "Publish website release notes", keywords: ["updates", "release notes", "news"], icon: FileText },
       { href: "/admin/audit-log", label: "Audit Log", description: "Review sensitive administrative changes", keywords: ["history", "changes", "security"], icon: History },
       { href: "/dev/damage-calculator", label: "Dev Damage Calc", description: "Development damage calculator", keywords: ["developer", "calculator", "testing"], icon: BarChart3, devOnly: true },
     ],
