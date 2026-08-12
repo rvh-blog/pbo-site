@@ -58,6 +58,30 @@ export const LOGO_FRAME_ITEMS = [
     category: "logo_frame",
     maxPerUser: 1,
   },
+  {
+    slug: "logo-frame-inferno",
+    name: "Inferno Logo Frame",
+    description: "A red and orange frame with a fiery glow.",
+    price: 375,
+    category: "logo_frame",
+    maxPerUser: 1,
+  },
+  {
+    slug: "logo-frame-icy",
+    name: "Icy Logo Frame",
+    description: "A light blue frame with an icy glow.",
+    price: 375,
+    category: "logo_frame",
+    maxPerUser: 1,
+  },
+  {
+    slug: "logo-frame-chromatic-flow",
+    name: "Chromatic Flow Logo Frame",
+    description: "A continuously shifting rainbow gradient.",
+    price: 375,
+    category: "logo_frame",
+    maxPerUser: 1,
+  },
 ] as const satisfies readonly LogoFrameItem[];
 
 export const EARNED_LOGO_FRAME_ITEMS = [
@@ -159,6 +183,21 @@ export function getLogoFrameStyle(slug: string, customColors?: string[] | null) 
       return {
         ringClass: "bg-gradient-to-br from-zinc-950 via-slate-700 to-zinc-950",
         innerClass: "border border-violet-300/35 shadow-[0_0_18px_rgba(139,92,246,0.35)]",
+      };
+    case "logo-frame-inferno":
+      return {
+        ringClass: "bg-[radial-gradient(circle_at_25%_80%,#fde047_0_7%,transparent_22%),radial-gradient(circle_at_72%_74%,#fb923c_0_12%,transparent_28%),conic-gradient(from_210deg,#450a0a,#ef4444,#f97316,#facc15,#7f1d1d,#450a0a)] shadow-[0_0_22px_rgba(249,115,22,0.65),0_0_8px_rgba(239,68,68,0.65)]",
+        innerClass: "border border-orange-100/45 shadow-[inset_0_0_8px_rgba(251,146,60,0.3)]",
+      };
+    case "logo-frame-icy":
+      return {
+        ringClass: "bg-[conic-gradient(from_45deg,#ecfeff,#67e8f9,#1d4ed8,#cffafe,#38bdf8,#f8fafc,#0e7490,#ecfeff)] shadow-[0_0_22px_rgba(103,232,249,0.65),inset_0_0_8px_rgba(255,255,255,0.75)]",
+        innerClass: "border border-cyan-50/70 shadow-[inset_0_0_8px_rgba(207,250,254,0.45)]",
+      };
+    case "logo-frame-chromatic-flow":
+      return {
+        ringClass: "animate-gradient bg-[linear-gradient(120deg,#22d3ee,#6366f1,#f472b6,#facc15,#4ade80,#22d3ee)] shadow-[0_0_24px_rgba(99,102,241,0.55)]",
+        innerClass: "border border-white/45 shadow-[inset_0_0_8px_rgba(255,255,255,0.3)]",
       };
     default:
       return {

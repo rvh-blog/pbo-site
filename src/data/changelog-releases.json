@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-08-12-inferno-icy-chromatic-frames",
+    "title": "New Logo Frames",
+    "summary": "Three new animated and themed logo frames are available in the PBO Store.",
+    "publishedAt": "2026-08-12",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Inferno, Icy, and Chromatic Flow logo frames are now available for 375 PBO Coins each."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-12-compare-team-name-search",
     "title": "Team Name Comparison Search",
     "summary": "Coach comparisons are now easier to find by franchise name.",

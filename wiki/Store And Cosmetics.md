@@ -48,6 +48,14 @@ Champion Gold is earned-only:
 - Description: earned by winning a championship in any division.
 - It should not behave like a normal paid item.
 
+Paid frame catalog additions from August 12, 2026:
+
+- Inferno (`logo-frame-inferno`) — red/orange fire styling, 375 PBO Coins.
+- Icy (`logo-frame-icy`) — pale-blue ice styling, 375 PBO Coins.
+- Chromatic Flow (`logo-frame-chromatic-flow`) — animated rainbow gradient, 375 PBO Coins.
+
+These frames use the normal permanent-purchase and single-active-frame behavior. Their catalog rows are added idempotently by `migrations/add-inferno-icy-chromatic-logo-frames.sql`.
+
 Relevant files and migrations:
 
 - `src/lib/logo-frame-items.ts`
@@ -58,3 +66,4 @@ Relevant files and migrations:
 - `migrations/make-champion-gold-earned-only.sql`
 - `migrations/update-logo-frame-prices.sql`
 - `migrations/rename-custom-colors-logo-frame.sql`
+- `migrations/add-inferno-icy-chromatic-logo-frames.sql`
