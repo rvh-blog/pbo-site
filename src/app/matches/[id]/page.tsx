@@ -204,16 +204,26 @@ function formatKnownNumber(value: number | null | undefined, suffix = "") {
 function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
   const hasHazardDamage = teamPokemon.some((mp) => mp.hazardDamageTaken !== null);
   const hasSetupMoves = teamPokemon.some((mp) => mp.setupMovesUsed !== null);
-  const hasFavorableEvents = teamPokemon.some(
-    (mp) =>
-      mp.favorableCrits !== null ||
-      mp.favorableMisses !== null ||
-      mp.favorableFlinches !== null ||
-      mp.favorableParalysis !== null ||
-      mp.favorableFreezes !== null ||
-      mp.favorableBurns !== null ||
-      mp.favorableSleep !== null
-  );
+  const sumKnownStat = (
+    fields: Array<keyof Pick<
+      BattleSummaryPokemon,
+      | "favorableCrits"
+      | "favorableMisses"
+      | "favorableFlinches"
+      | "favorableParalysis"
+      | "favorableFreezes"
+      | "favorableBurns"
+      | "favorableSleep"
+    >>,
+  ) => {
+    const hasKnownValue = teamPokemon.some((mp) => fields.some((field) => mp[field] !== null));
+    if (!hasKnownValue) return "x";
+
+    return teamPokemon.reduce(
+      (sum, mp) => sum + fields.reduce((subtotal, field) => subtotal + (mp[field] ?? 0), 0),
+      0,
+    );
+  };
 
   return {
     hazardDamageTaken: hasHazardDamage
@@ -222,20 +232,15 @@ function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
     setupMoves: hasSetupMoves
       ? teamPokemon.reduce((sum, mp) => sum + (mp.setupMovesUsed || 0), 0)
       : "x",
-    favorableEvents: hasFavorableEvents
-      ? teamPokemon.reduce(
-          (sum, mp) =>
-            sum +
-            (mp.favorableCrits || 0) +
-            (mp.favorableMisses || 0) +
-            (mp.favorableFlinches || 0) +
-            (mp.favorableParalysis || 0) +
-            (mp.favorableFreezes || 0) +
-            (mp.favorableBurns || 0) +
-            (mp.favorableSleep || 0),
-          0
-        )
-      : "x",
+    favorableCrits: sumKnownStat(["favorableCrits"]),
+    flinches: sumKnownStat(["favorableFlinches"]),
+    missedMoves: sumKnownStat(["favorableMisses"]),
+    statusProcs: sumKnownStat([
+      "favorableParalysis",
+      "favorableFreezes",
+      "favorableBurns",
+      "favorableSleep",
+    ]),
   };
 }
 
@@ -251,27 +256,43 @@ function BattleSummaryTeam({
   align: "left" | "right";
 }) {
   const stats = getBattleSummaryStats(pokemonRows);
+  const isLeft = align === "left";
+  const accentText = isLeft ? "text-cyan-300" : "text-rose-300";
+  const accentBorder = isLeft ? "border-cyan-400/25" : "border-rose-400/25";
+  const accentGlow = isLeft
+    ? "bg-gradient-to-br from-cyan-400/[0.10] via-transparent to-transparent"
+    : "bg-gradient-to-bl from-rose-400/[0.10] via-transparent to-transparent";
+  const summaryCards = [
+    ["Hazard Damage Taken", stats.hazardDamageTaken],
+    ["Set Up Moves Used", stats.setupMoves],
+    ["Favorable Crits", stats.favorableCrits],
+    ["Flinches", stats.flinches],
+    ["Missed Moves", stats.missedMoves],
+    ["HAX COUNT", stats.statusProcs],
+  ];
 
   return (
-    <div className="space-y-3">
-      <div className={`flex items-center gap-3 ${align === "right" ? "justify-end" : ""}`}>
+    <section className={`relative space-y-3 overflow-hidden rounded-xl border bg-[#07101f]/75 p-3 shadow-[0_18px_45px_rgba(0,0,0,0.18)] sm:p-4 ${accentBorder}`}>
+      <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${accentGlow}`} />
+      <div aria-hidden="true" className={`absolute inset-x-0 top-0 h-px ${isLeft ? "bg-cyan-300/70" : "bg-rose-300/70"}`} />
+      <div className={`relative flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-2.5 ${align === "right" ? "justify-end" : ""}`}>
         {align === "left" && (
-          <div className="w-14 h-14 rounded bg-white/10 border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-black/25 shadow-lg ${accentBorder}`}>
             {logoUrl ? (
-              <Image src={logoUrl} alt={teamName} width={56} height={56} className="object-contain" />
+              <Image src={logoUrl} alt={teamName} width={56} height={56} className="h-12 w-12 object-contain" />
             ) : (
               <span className="text-xs font-black text-white">{teamName.slice(0, 2).toUpperCase()}</span>
             )}
           </div>
         )}
         <div className={align === "right" ? "text-right" : ""}>
-          <div className="text-[10px] uppercase font-black text-white/55">Team</div>
-          <div className="text-sm sm:text-base font-black text-white leading-tight">{teamName}</div>
+          <div className={`text-[9px] font-black uppercase tracking-[0.18em] ${accentText}`}>Team Report</div>
+          <div className="mt-0.5 text-sm font-black leading-tight text-white sm:text-base">{teamName}</div>
         </div>
         {align === "right" && (
-          <div className="w-14 h-14 rounded bg-white/10 border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-black/25 shadow-lg ${accentBorder}`}>
             {logoUrl ? (
-              <Image src={logoUrl} alt={teamName} width={56} height={56} className="object-contain" />
+              <Image src={logoUrl} alt={teamName} width={56} height={56} className="h-12 w-12 object-contain" />
             ) : (
               <span className="text-xs font-black text-white">{teamName.slice(0, 2).toUpperCase()}</span>
             )}
@@ -279,30 +300,19 @@ function BattleSummaryTeam({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-1.5 text-center">
-        {[
-          ["Hazard Damage Taken", stats.hazardDamageTaken],
-          ["Set Up Moves Used", stats.setupMoves],
-          ["Favorable Crits/Flinch/Miss/Status Proc", stats.favorableEvents],
-        ].map(([label, value]) => (
-          <div key={label} className="flex min-h-[60px] flex-col rounded border border-white/15 bg-black/35 px-2 py-1.5">
-            <div className="flex min-h-[22px] items-start justify-center text-[9px] sm:text-[10px] uppercase font-black text-white/55 leading-tight">
-              {label === "Favorable Crits/Flinch/Miss/Status Proc" ? (
-                <span>
-                  <span className="block">Favorable Crits/Flinches</span>
-                  <span className="block">Miss/Status Proc</span>
-                </span>
-              ) : (
-                label
-              )}
+      <div className="relative grid grid-cols-2 gap-2 text-center sm:grid-cols-3">
+        {summaryCards.map(([label, value]) => (
+          <div key={label} className="flex min-h-[66px] flex-col justify-between rounded-lg border border-white/10 bg-black/25 px-2.5 py-2 shadow-inner shadow-black/20">
+            <div className="flex min-h-[24px] items-start justify-center text-[8px] font-black uppercase leading-tight tracking-wide text-white/50 sm:text-[9px]">
+              {label}
             </div>
-            <div className="mt-0.5 text-lg sm:text-xl font-black text-white">{value}</div>
+            <div className={`mt-1 font-mono text-lg font-black sm:text-xl ${accentText}`}>{value}</div>
           </div>
         ))}
       </div>
 
-      <div className="overflow-hidden rounded border border-white/15 bg-black/30">
-        <div className="grid grid-cols-[1fr_52px_82px_56px] bg-white/10 px-2 py-1.5 text-[9px] uppercase font-black text-white/55">
+      <div className="relative overflow-hidden rounded-lg border border-white/10 bg-black/25">
+        <div className="grid grid-cols-[1fr_52px_82px_56px] border-b border-white/10 bg-white/[0.055] px-2.5 py-2 text-[8px] font-black uppercase tracking-wider text-white/45 sm:text-[9px]">
           <span>Pokemon</span>
           <span className="text-center">Kills</span>
           <span className="text-center">Damage</span>
@@ -314,13 +324,13 @@ function BattleSummaryTeam({
             const deaths = mp.deaths || 0;
             const totalDamage = Math.round((mp.damageDealt || 0) + (mp.damageDealtIndirect || 0));
             const rowTone = mp.turnsActive === 0
-              ? "bg-gray-500/18 border-gray-400/30"
+              ? "bg-slate-400/[0.035] border-slate-400/30"
               : deaths > 0
-                ? "bg-red-500/18 border-red-400/30"
-                : "bg-emerald-500/18 border-emerald-400/30";
+                ? "bg-rose-500/[0.065] border-rose-400/45"
+                : "bg-emerald-500/[0.065] border-emerald-400/45";
 
             return (
-              <div key={mp.id} className={`grid grid-cols-[1fr_52px_82px_56px] items-center border-l-4 ${rowTone} px-2 py-1.5`}>
+              <div key={mp.id} className={`grid min-h-12 grid-cols-[1fr_52px_82px_56px] items-center border-l-2 px-2.5 py-1.5 transition-colors hover:bg-white/[0.055] ${rowTone}`}>
                 <div className="flex items-center gap-2 min-w-0">
                   {mp.pokemon?.spriteUrl ? (
                     <Image
@@ -336,22 +346,22 @@ function BattleSummaryTeam({
                   <span className="min-w-0">
                     <span className="block truncate text-xs sm:text-sm font-black text-white">{getPokemonLabel(mp)}</span>
                     <span
-                      className="block truncate text-[9px] font-bold text-[var(--accent)]"
+                      className="block truncate text-[8px] font-bold text-amber-300/80 sm:text-[9px]"
                       title={mp.revealedItems?.map((entry) => `${entry.item}, turn ${entry.turn}, ${entry.source}`).join(" → ") || "Unknown item"}
                     >
                       {mp.revealedItems?.map((entry) => entry.item).join(" → ") || "Unknown item"}
                     </span>
                   </span>
                 </div>
-                <span className="text-center font-mono text-sm font-black text-white">{kills}</span>
-                <span className="text-center font-mono text-sm font-black text-white">{totalDamage}%</span>
-                <span className="text-center font-mono text-sm font-black text-white">{formatKnownNumber(mp.turnsActive)}</span>
+                <span className="text-center font-mono text-sm font-black text-white/90">{kills}</span>
+                <span className="text-center font-mono text-sm font-black text-white/90">{totalDamage}%</span>
+                <span className="text-center font-mono text-sm font-black text-white/90">{formatKnownNumber(mp.turnsActive)}</span>
               </div>
             );
           })}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -386,7 +396,16 @@ function BattleSummaryPanel({
 
   return (
     <div className="poke-card overflow-visible p-3 sm:p-5 md:overflow-hidden">
-      <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-3 sm:p-5">
+      <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.025] to-transparent p-3 sm:p-5">
+        <div className="mb-4 flex items-end justify-between gap-4 border-b border-white/10 pb-3">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-300/80">Replay Analytics</p>
+            <h2 className="mt-1 text-sm font-black text-white sm:text-base">Battle Report</h2>
+          </div>
+          <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-white/45">
+            Team Comparison
+          </span>
+        </div>
         <div className={showDecidingTurns
           ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px_minmax(0,1fr)]"
           : "grid gap-4 xl:grid-cols-2"}
@@ -421,6 +440,11 @@ function BattleSummaryPanel({
               align="right"
             />
           </div>
+        </div>
+        <div className="mt-4 flex justify-center border-t border-white/10 pt-3">
+          <p className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-center text-[9px] leading-relaxed text-[var(--foreground-muted)] sm:text-[10px]">
+            <span className="font-bold text-white/70">HAX Count</span> combines favorable paralysis, freeze, burn, and sleep events.
+          </p>
         </div>
       </div>
     </div>

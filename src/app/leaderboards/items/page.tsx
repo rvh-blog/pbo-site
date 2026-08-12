@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { seasons } from "@/lib/schema";
 import { desc } from "drizzle-orm";
 import { ItemUsageFilters } from "./item-usage-filters";
+import { isTransferredItemReveal } from "@/lib/revealed-items";
 
 export const dynamic = "force-dynamic";
 
@@ -464,8 +465,4 @@ function formatWeek(week: number) {
   if (week === 103) return "Finals";
   if (week > 100) return `Playoff Round ${week - 100}`;
   return `Week ${week}`;
-}
-
-function isTransferredItemReveal(source: string) {
-  return /^move:\s*(trick|switcheroo)$/i.test(source.trim());
 }

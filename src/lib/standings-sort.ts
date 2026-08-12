@@ -39,7 +39,14 @@ export function computeAndSortStandings<T extends { id: number }>(
   replacementMap: Map<number, number[]>,
   matches: MatchForStandings[]
 ): (T & StandingsTeam & { opponentActiveIds: number[] })[] {
-  const regularMatches = matches.filter((m) => m.week <= 100);
+  const regularMatches = matches.filter((m) => (
+    m.week <= 100
+    && (
+      m.winnerId === null
+      || m.winnerId === m.coach1SeasonId
+      || m.winnerId === m.coach2SeasonId
+    )
+  ));
 
   // Build teamIds map for each active coach
   const teamIdsMap = new Map<number, Set<number>>();

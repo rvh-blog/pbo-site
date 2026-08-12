@@ -41,6 +41,7 @@ const matchPrepLinks = [
 
 const pboStatsLinks = [
   { href: "/leaderboards", label: "Leaderboards" },
+  { href: "/compare", label: "Compare" },
   { href: "/leaderboards/comprehensive", label: "Comprehensive Leaderboard" },
   { href: "/battle-record", label: "Battle Record" },
   { href: "/battle-record?tab=move-usage", label: "Move Usage" },
@@ -185,7 +186,7 @@ export function Navigation() {
     pathname === "/matchup-prep" ||
     pathname.startsWith("/draft-planner") ||
     pathname.startsWith("/analyzer");
-  const pboStatsActive = pathname === "/leaderboards" || pathname.startsWith("/leaderboards/") || pathname === "/battle-record" || pathname.startsWith("/battle-record/");
+  const pboStatsActive = pathname === "/leaderboards" || pathname.startsWith("/leaderboards/") || pathname === "/battle-record" || pathname.startsWith("/battle-record/") || pathname === "/compare" || pathname.startsWith("/compare/");
   const userInitial = authUser?.name.trim().charAt(0).toUpperCase() ?? "";
 
   async function handleLogout() {

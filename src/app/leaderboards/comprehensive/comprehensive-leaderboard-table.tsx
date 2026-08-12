@@ -12,6 +12,8 @@ type SortKey =
   | "season"
   | "kills"
   | "deaths"
+  | "wins"
+  | "losses"
   | "differential"
   | "kd"
   | "killsPerGame"
@@ -27,6 +29,8 @@ const columns: { key: SortKey; label: string; align?: "center" }[] = [
   { key: "season", label: "Season" },
   { key: "kills", label: "Kills", align: "center" },
   { key: "deaths", label: "Deaths", align: "center" },
+  { key: "wins", label: "Wins", align: "center" },
+  { key: "losses", label: "Losses", align: "center" },
   { key: "differential", label: "+/-", align: "center" },
   { key: "kd", label: "K/D", align: "center" },
   { key: "killsPerGame", label: "K/G", align: "center" },
@@ -82,6 +86,10 @@ function compareEntries(
       return left.kills - right.kills;
     case "deaths":
       return left.deaths - right.deaths;
+    case "wins":
+      return left.wins - right.wins;
+    case "losses":
+      return left.losses - right.losses;
     case "differential":
       return left.differential - right.differential;
     case "kd":
@@ -214,8 +222,8 @@ export function ComprehensiveLeaderboardTable({
   ].sort((left, right) => left.label.localeCompare(right.label));
   const visibleColumns = columns.filter((column) => showSeasonColumn || column.key !== "season");
   const gridColumnsClass = showSeasonColumn
-    ? "grid-cols-[56px_minmax(215px,1fr)_minmax(220px,1.2fr)_120px_110px_72px_72px_84px_72px_72px_72px]"
-    : "grid-cols-[56px_minmax(215px,1fr)_minmax(220px,1.2fr)_120px_72px_72px_84px_72px_72px_72px]";
+    ? "grid-cols-[56px_minmax(215px,1fr)_minmax(220px,1.2fr)_120px_110px_72px_72px_64px_64px_84px_72px_72px_72px]"
+    : "grid-cols-[56px_minmax(215px,1fr)_minmax(220px,1.2fr)_120px_72px_72px_64px_64px_84px_72px_72px_72px]";
   const hasActiveFilters = Boolean(
     searchQuery
     || divisionFilter !== "all"
@@ -448,7 +456,7 @@ export function ComprehensiveLeaderboardTable({
         </p>
       ) : (
         <div className="mobile-scroll-region overflow-x-auto" aria-label="Scrollable detailed statistics">
-            <div className={showSeasonColumn ? "min-w-[1120px]" : "min-w-[1010px]"}>
+            <div className={showSeasonColumn ? "min-w-[1280px]" : "min-w-[1170px]"}>
             <div className={`grid ${gridColumnsClass} items-center border-b border-[var(--background-tertiary)] px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]`}>
               <span>Rank</span>
               {visibleColumns.map((column) => {
@@ -568,6 +576,12 @@ export function ComprehensiveLeaderboardTable({
                 </span>
                 <span className="text-center font-mono font-bold text-[var(--error)]">
                   {entry.deaths}
+                </span>
+                <span className="text-center font-mono font-black text-[var(--success)]">
+                  {entry.wins}
+                </span>
+                <span className="text-center font-mono font-bold text-[var(--error)]">
+                  {entry.losses}
                 </span>
                 <span
                   className={`text-center font-mono font-bold ${

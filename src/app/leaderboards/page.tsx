@@ -42,6 +42,7 @@ function getTopEloCoach(
 
   for (const match of allMatches) {
     if (!match.winnerId) continue;
+    if (match.winnerId !== match.coach1SeasonId && match.winnerId !== match.coach2SeasonId) continue;
     const isCoach1 = seasonCoachIds.has(match.coach1SeasonId);
     const isCoach2 = seasonCoachIds.has(match.coach2SeasonId);
 
@@ -93,6 +94,7 @@ function getCoachStats(
 
   for (const match of allMatches) {
     if (!match.winnerId) continue;
+    if (match.winnerId !== match.coach1SeasonId && match.winnerId !== match.coach2SeasonId) continue;
 
     const coach1Id = seasonCoachToCoach.get(match.coach1SeasonId);
     const coach2Id = seasonCoachToCoach.get(match.coach2SeasonId);

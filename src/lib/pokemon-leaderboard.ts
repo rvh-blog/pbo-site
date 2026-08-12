@@ -48,6 +48,8 @@ export type SeasonTeamPokemonLeaderboardStat = SeasonPokemonLeaderboardStat & {
   divisionName: string;
   seasonId: number;
   seasonName: string;
+  wins: number;
+  losses: number;
   killsPerGame: number;
   games: SeasonTeamPokemonGame[];
 };
@@ -177,6 +179,8 @@ export function aggregateSeasonTeamPokemonLeaderboard(
       seasonName: row.seasonCoach.division?.season?.name || "Unknown Season",
       kills: 0,
       deaths: 0,
+      wins: 0,
+      losses: 0,
       gamesPlayed: 0,
       games: [],
     };
@@ -185,6 +189,11 @@ export function aggregateSeasonTeamPokemonLeaderboard(
     existing.deaths += row.deaths || 0;
     existing.gamesPlayed += 1;
     if (row.match) {
+      if (row.match.winnerId === row.seasonCoachId) {
+        existing.wins += 1;
+      } else if (row.match.winnerId) {
+        existing.losses += 1;
+      }
       const opponent = row.match.coach1SeasonId === row.seasonCoachId
         ? row.match.coach2
         : row.match.coach1;
@@ -239,7 +248,11 @@ export async function getPokemonLeaderboardStats(): Promise<PokemonLeaderboardSt
         columns: { id: true, name: true, displayName: true, spriteUrl: true },
       },
       match: {
-        columns: { winnerId: true },
+        columns: {
+          coach1SeasonId: true,
+          coach2SeasonId: true,
+          winnerId: true,
+        },
       },
     },
   });
@@ -250,7 +263,13 @@ export async function getPokemonLeaderboardStats(): Promise<PokemonLeaderboardSt
   >();
 
   for (const mp of allMatchPokemon) {
-    if (!mp.pokemon) continue;
+    if (
+      !mp.pokemon
+      || !mp.match
+      || mp.match.winnerId === null
+      || (mp.match.winnerId !== mp.match.coach1SeasonId && mp.match.winnerId !== mp.match.coach2SeasonId)
+      || (mp.seasonCoachId !== mp.match.coach1SeasonId && mp.seasonCoachId !== mp.match.coach2SeasonId)
+    ) continue;
 
     const existing = pokemonMap.get(mp.pokemon.id) || {
       id: mp.pokemon.id,

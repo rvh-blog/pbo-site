@@ -18,6 +18,7 @@ import { MatchupPrepClient } from "./matchup-prep-client";
 import { getTimeSyncedRoster } from "@/lib/roster-utils";
 import { getSeasonPokemonMovesMap, movesForSeasonPokemon } from "@/lib/season-pokemon-moves";
 import { pokemonNameKey } from "@/lib/pokemon-name-utils";
+import { getDistinctHeldItemNames } from "@/lib/revealed-items";
 
 export const metadata: Metadata = {
   title: "Match Prep",
@@ -213,7 +214,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
           pokemonMap.set(row.pokemonId, entry);
         }
 
-        for (const item of new Set(row.revealedItems.map((reveal) => reveal.item))) {
+        for (const item of getDistinctHeldItemNames(row.revealedItems)) {
           const key = item.toLowerCase();
           const existing = entry.itemCounts.get(key);
           if (existing) existing.reveals += 1;

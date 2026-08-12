@@ -4,6 +4,64 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 11, 2026
+
+Compare:
+
+- Added `/compare` under PBO Stats for comparing two to four coaches or
+  Pokémon on one page.
+- Comparison selections and filters are stored in the URL so a configured
+  comparison can be shared.
+- Coach comparisons include games, wins, losses, win percentage,
+  differential, seasons played, current Elo, and pairwise head-to-head
+  records.
+- Pokémon comparisons include records, kills, deaths, K/D, kills per game,
+  damage, turns active, HAX events, and pairwise head-to-head results where
+  the selected Pokémon opposed one another.
+- Season, division, Overall/Regular Season/Playoffs, and forfeit filters apply
+  consistently to the comparison.
+- Comparison slots use theme-aware red, blue, yellow, and green accents that
+  remain readable in both dark and light mode.
+
+Comprehensive Pokémon leaderboard:
+
+- Added sortable Wins and Losses columns.
+- Invalid results and orphaned Pokémon appearances no longer enter public
+  Pokémon totals.
+
+Coaches:
+
+- Added an always-visible Overall, Regular, and Playoffs filter. Games, wins,
+  losses, win percentage, and differential recalculate with the selected
+  match phase; current Elo remains unchanged.
+
+Battle Record:
+
+- Coach Records now includes All, Active, and Inactive filters based on active
+  team entries in the latest season. The status filter combines with Minimum
+  Games and table sorting.
+- Regular-season differential records exclude unfinished and forfeit matches.
+- Malformed winner IDs no longer create false losses, and consecutive-season
+  records now require qualifying match participation.
+
+Replay reports:
+
+- Split the combined favorable-event total into Favorable Crits, Flinches,
+  Missed Moves, and HAX Count.
+- HAX Count combines favorable paralysis, freeze, burn, and sleep events; the
+  replay report now explains that definition.
+- Refined replay report hierarchy, team cards, statistic cards, Pokémon rows,
+  item labels, and team-specific visual treatment.
+
+Statistics integrity:
+
+- Completed a read-only production audit covering Seasons 5–11. See
+  [[Stats Audit 2026-08-11]].
+- Preserved the official Season 6 asymmetric differential rule.
+- Standardized Trick/Switcheroo exclusions across revealed-item statistics.
+- Fantasy weekly caches now refresh when their saved game totals do not match
+  completed Pokémon appearance rows.
+
 ## August 10, 2026
 
 Navigation and leaderboards:

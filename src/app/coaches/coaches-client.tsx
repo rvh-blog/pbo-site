@@ -40,6 +40,7 @@ type Match = {
   coach1Differential: number | null;
   coach2Differential: number | null;
   isForfeit: boolean;
+  week: number;
   divisionId: number;
   seasonId: number;
 };
@@ -67,11 +68,13 @@ type Props = {
 type SortKey = "elo" | "name" | "team" | "wins" | "losses" | "winRate" | "differential" | "games" | "seasons";
 type SortDirection = "asc" | "desc";
 type ActiveFilter = "all" | "active" | "inactive";
+type MatchPhase = "overall" | "regular-season" | "playoffs";
 
 export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions, seasons }: Props) {
   const [includeForfeits, setIncludeForfeits] = useState(true);
   const [showAllTimeStats, setShowAllTimeStats] = useState(true); // true = all-time, false = filtered
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
+  const [matchPhase, setMatchPhase] = useState<MatchPhase>("overall");
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null);
   const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -142,8 +145,13 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
         }
       }
 
-      // Filter by forfeit toggle
-      const filteredMatches = [...relevantMatches.values()].filter((match) => includeForfeits || !match.isForfeit);
+      // Apply match phase and forfeit filters before calculating every record stat.
+      const filteredMatches = [...relevantMatches.values()].filter((match) => {
+        if (!includeForfeits && match.isForfeit) return false;
+        if (matchPhase === "regular-season" && match.week >= 101) return false;
+        if (matchPhase === "playoffs" && match.week < 101) return false;
+        return true;
+      });
 
       let wins = 0;
       let losses = 0;
@@ -179,7 +187,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
         hasMatchesInFilter,
       };
     });
-  }, [coaches, seasonCoachEntries, matches, includeForfeits, showAllTimeStats, selectedSeasonId, selectedDivisionId]);
+  }, [coaches, seasonCoachEntries, matches, includeForfeits, matchPhase, showAllTimeStats, selectedSeasonId, selectedDivisionId]);
 
   // Filter out coaches with no games if filtering by season/division
   const displayedCoaches = useMemo(() => {
@@ -325,25 +333,54 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
                   <h3>ELO Rankings</h3>
                 </div>
 
-                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">
-                    Current Season Coaches
-                  </span>
-                  <div className="flex w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] sm:w-auto">
-                    {(["all", "active", "inactive"] as const).map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setActiveFilter(value)}
-                        className={`flex-1 px-3 py-2 text-[10px] font-bold uppercase transition-colors sm:flex-none sm:text-xs ${
-                          activeFilter === value
-                            ? "bg-[var(--primary)] text-white"
-                            : "text-[var(--foreground-muted)] hover:text-white"
-                        }`}
-                      >
-                        {value === "all" ? "All" : value === "active" ? "Active" : "Inactive"}
-                      </button>
-                    ))}
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-5">
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">
+                      Match Type
+                    </span>
+                    <div className="flex w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] sm:w-auto">
+                      {([
+                        ["overall", "Overall"],
+                        ["regular-season", "Regular"],
+                        ["playoffs", "Playoffs"],
+                      ] as const).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setMatchPhase(value)}
+                          aria-pressed={matchPhase === value}
+                          className={`flex-1 px-3 py-2 text-[10px] font-bold uppercase transition-colors sm:flex-none sm:text-xs ${
+                            matchPhase === value
+                              ? "bg-[var(--primary)] text-white"
+                              : "text-[var(--foreground-muted)] hover:text-white"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">
+                      Current Season Coaches
+                    </span>
+                    <div className="flex w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] sm:w-auto">
+                      {(["all", "active", "inactive"] as const).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setActiveFilter(value)}
+                          className={`flex-1 px-3 py-2 text-[10px] font-bold uppercase transition-colors sm:flex-none sm:text-xs ${
+                            activeFilter === value
+                              ? "bg-[var(--primary)] text-white"
+                              : "text-[var(--foreground-muted)] hover:text-white"
+                          }`}
+                        >
+                          {value === "all" ? "All" : value === "active" ? "Active" : "Inactive"}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

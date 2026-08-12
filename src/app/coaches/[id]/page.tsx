@@ -22,6 +22,7 @@ import { isProjectMewReleased } from "@/lib/project-mew";
 import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
 import { MATCH_COMPLETION_COINS, STARTING_COACH_COINS } from "@/lib/coin-config";
 import { getCoachProfileMilestones } from "@/lib/coach-milestones";
+import { getDistinctHeldItemNames } from "@/lib/revealed-items";
 
 const COACH_YOUTUBE_URLS: Record<number, string> = {
   254: "https://www.youtube.com/user/AlmightyArceus",
@@ -486,7 +487,7 @@ async function getSeasonPokemonPrices(seasonId: number) {
 async function getCoachMatchPokemon(seasonCoachIds: number[]) {
   if (seasonCoachIds.length === 0) return [];
 
-  return await db.query.matchPokemon.findMany({
+  const rows = await db.query.matchPokemon.findMany({
     where: inArray(matchPokemon.seasonCoachId, seasonCoachIds),
     with: {
       pokemon: true,
@@ -500,6 +501,7 @@ async function getCoachMatchPokemon(seasonCoachIds: number[]) {
       },
     },
   });
+  return rows.filter((row) => row.match !== null);
 }
 
 async function getOpponentMatchPokemon(matchIds: number[], seasonCoachIds: number[]) {
@@ -1193,7 +1195,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
       !mp.match?.season ||
       mp.match.season.seasonNumber < 5
     ) continue;
-    for (const item of new Set(mp.revealedItems.map((reveal) => reveal.item))) {
+    for (const item of getDistinctHeldItemNames(mp.revealedItems)) {
       const key = `${mp.pokemonId}:${item.toLowerCase()}`;
       const existing = revealedItemMap.get(key);
       if (existing) {

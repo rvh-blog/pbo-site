@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { killEvents } from "@/lib/schema";
 import { isNotNull } from "drizzle-orm";
 import { PokemonStatsClient } from "./pokemon-stats-client";
+import { getDistinctHeldItemNames } from "@/lib/revealed-items";
 
 // The production image does not contain the local SQLite database used during
 // development, so keep the route runtime-rendered and cache the data queries
@@ -155,7 +156,7 @@ async function getRevealedItemTrendsUncached() {
 
   for (const row of rows) {
     if (!row.pokemon || !row.revealedItems?.length) continue;
-    for (const item of new Set(row.revealedItems.map((reveal) => reveal.item))) {
+    for (const item of getDistinctHeldItemNames(row.revealedItems)) {
       const key = `${row.pokemon.id}:${item.toLowerCase()}`;
       const existing = trends.get(key);
       if (existing) {

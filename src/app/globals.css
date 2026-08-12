@@ -101,6 +101,32 @@ html[data-theme="light"] {
   --error: #dc2626;
 }
 
+/* Compare slots use brighter accents on the navy theme and deeper shades on
+   the light theme so the same four identities remain legible in both modes. */
+.compare-slot-red { --compare-accent: #ff6b6b; }
+.compare-slot-blue { --compare-accent: #60a5fa; }
+.compare-slot-yellow { --compare-accent: #fde047; }
+.compare-slot-green { --compare-accent: #4ade80; }
+
+html[data-theme="light"] .compare-slot-red { --compare-accent: #b91c1c; }
+html[data-theme="light"] .compare-slot-blue { --compare-accent: #1d4ed8; }
+html[data-theme="light"] .compare-slot-yellow { --compare-accent: #854d0e; }
+html[data-theme="light"] .compare-slot-green { --compare-accent: #166534; }
+
+.compare-accent-text {
+  color: var(--compare-accent);
+}
+
+.compare-accent-surface {
+  border-color: color-mix(in srgb, var(--compare-accent) 68%, transparent);
+  background: color-mix(in srgb, var(--compare-accent) 12%, var(--card));
+}
+
+html[data-theme="light"] .compare-accent-surface {
+  border-color: color-mix(in srgb, var(--compare-accent) 55%, var(--card-border));
+  background: color-mix(in srgb, var(--compare-accent) 8%, var(--card));
+}
+
 /* Tailwind's white text utilities predate theming. On light neutral surfaces,
    make them follow the active foreground color. Colored controls and banners
    retain white as their intentional inverse text color. */
