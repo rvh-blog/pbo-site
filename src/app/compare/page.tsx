@@ -81,9 +81,22 @@ export default async function ComparePage({ searchParams }: PageProps) {
     }),
   ]);
 
+  const latestSeasonCoachByCoachId = new Map<number, typeof allSeasonCoaches[number]>();
+  for (const entry of allSeasonCoaches) {
+    const current = latestSeasonCoachByCoachId.get(entry.coachId);
+    const entrySeasonNumber = entry.division?.season?.seasonNumber ?? 0;
+    const currentSeasonNumber = current?.division?.season?.seasonNumber ?? 0;
+    if (!current || entrySeasonNumber > currentSeasonNumber || (entrySeasonNumber === currentSeasonNumber && entry.id > current.id)) {
+      latestSeasonCoachByCoachId.set(entry.coachId, entry);
+    }
+  }
+
   const coachOptions = allCoaches
-    .map((coach) => ({ id: coach.id, name: coach.name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .map((coach) => ({
+      id: coach.id,
+      name: latestSeasonCoachByCoachId.get(coach.id)?.teamName.trim() || coach.name,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   const pokemonOptions = allPokemon
     .map((pokemon) => ({
       id: pokemon.id,
@@ -151,9 +164,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
         seasonsPlayed.add(match.seasonId);
       }
 
-      const latestEntry = [...entries].sort(
-        (a, b) => (b.division?.season?.seasonNumber ?? 0) - (a.division?.season?.seasonNumber ?? 0) || b.id - a.id,
-      )[0];
+      const latestEntry = latestSeasonCoachByCoachId.get(coachId);
       const games = wins + losses;
       const stats: CompareStats = {
         games,
