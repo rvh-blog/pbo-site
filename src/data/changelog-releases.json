@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-08-12-compare-team-name-search",
+    "title": "Team Name Comparison Search",
+    "summary": "Coach comparisons are now easier to find by franchise name.",
+    "publishedAt": "2026-08-12",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "The coach comparison picker now lists and searches the latest team names in alphabetical order while preserving career coach records."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-11-changelog-startup-sync",
     "title": "Automatic Release Notes",
     "summary": "Website deployments and release notes now ship as one guarded workflow.",
