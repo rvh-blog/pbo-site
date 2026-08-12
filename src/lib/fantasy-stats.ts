@@ -148,8 +148,25 @@ export async function getFantasyWeeklyStatsForWeek(seasonId: number, week: numbe
     where: and(eq(fantasyWeeklyStats.seasonId, seasonId), eq(fantasyWeeklyStats.week, week)),
   });
   if (existing.length > 0) {
-    statsCache.set(key, { expiresAt: Date.now() + statsCacheTtlMs, rows: existing });
-    return existing;
+    const weekMatches = await db.query.matches.findMany({
+      where: and(eq(matches.seasonId, seasonId), eq(matches.week, week)),
+      columns: { id: true, winnerId: true },
+    });
+    const completedMatchIds = weekMatches
+      .filter((match) => match.winnerId !== null)
+      .map((match) => match.id);
+    const expectedGames = completedMatchIds.length > 0
+      ? (await db.query.matchPokemon.findMany({
+          where: inArray(matchPokemon.matchId, completedMatchIds),
+          columns: { id: true },
+        })).length
+      : 0;
+    const persistedGames = existing.reduce((sum, row) => sum + row.games, 0);
+
+    if (persistedGames === expectedGames) {
+      statsCache.set(key, { expiresAt: Date.now() + statsCacheTtlMs, rows: existing });
+      return existing;
+    }
   }
 
   return refreshFantasyWeeklyStatsForWeek(seasonId, week);

@@ -8,6 +8,7 @@ export interface BattleRecordRow {
   coachId: number;
   coachName: string;
   logoUrl: string | null;
+  isActive: boolean;
   games: number;
   averageDifferential: number;
   averageWinDifference: number | null;
@@ -37,6 +38,7 @@ type SortKey = keyof Pick<
 >;
 
 type SortDirection = "asc" | "desc";
+type ActiveFilter = "all" | "active" | "inactive";
 
 const columns: Array<{ key: SortKey; label: string; className?: string; title?: string }> = [
   { key: "coachName", label: "Coach", className: "sm:px-6" },
@@ -110,9 +112,15 @@ export function BattleRecordTable({ records }: { records: BattleRecordRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("games");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [minimumGames, setMinimumGames] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
 
   const sortedRecords = useMemo(() => {
-    return records.filter((record) => record.games >= minimumGames).sort((a, b) => {
+    return records.filter((record) => {
+      if (record.games < minimumGames) return false;
+      if (activeFilter === "active") return record.isActive;
+      if (activeFilter === "inactive") return !record.isActive;
+      return true;
+    }).sort((a, b) => {
       const base = compareValues(a, b, sortKey);
       const sorted = sortDirection === "asc" ? base : -base;
 
@@ -123,7 +131,7 @@ export function BattleRecordTable({ records }: { records: BattleRecordRow[] }) {
         a.coachName.localeCompare(b.coachName)
       );
     });
-  }, [minimumGames, records, sortDirection, sortKey]);
+  }, [activeFilter, minimumGames, records, sortDirection, sortKey]);
 
   function handleSort(nextKey: SortKey) {
     if (nextKey === sortKey) {
@@ -137,18 +145,41 @@ export function BattleRecordTable({ records }: { records: BattleRecordRow[] }) {
 
   return (
     <div className="readable-content">
-      <div className="flex flex-col gap-3 border-b border-[var(--background-tertiary)] bg-[var(--background-secondary)]/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <label className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest text-[var(--foreground-muted)]">
-          Minimum Games
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={minimumGames}
-            onChange={(event) => setMinimumGames(Math.max(0, Number.parseInt(event.target.value, 10) || 0))}
-            className="w-24 rounded border border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-center font-mono text-sm text-white outline-none transition-colors focus:border-white/40"
-          />
-        </label>
+      <div className="flex flex-col gap-3 border-b border-[var(--background-tertiary)] bg-[var(--background-secondary)]/60 px-4 py-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
+          <div
+            className="flex w-full overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] sm:w-auto"
+            aria-label="Filter coaches by current-season status"
+          >
+            {(["all", "active", "inactive"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setActiveFilter(value)}
+                aria-pressed={activeFilter === value}
+                className={`flex-1 px-3 py-2 text-[10px] font-bold uppercase transition-colors sm:flex-none sm:text-xs ${
+                  activeFilter === value
+                    ? "bg-[var(--primary)] text-white"
+                    : "text-[var(--foreground-muted)] hover:text-white"
+                }`}
+              >
+                {value === "all" ? "All" : value === "active" ? "Active" : "Inactive"}
+              </button>
+            ))}
+          </div>
+
+          <label className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest text-[var(--foreground-muted)]">
+            Minimum Games
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={minimumGames}
+              onChange={(event) => setMinimumGames(Math.max(0, Number.parseInt(event.target.value, 10) || 0))}
+              className="w-24 rounded border border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-center font-mono text-sm text-white outline-none transition-colors focus:border-white/40"
+            />
+          </label>
+        </div>
         <p className="text-xs font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">
           Showing {sortedRecords.length} of {records.length}
         </p>

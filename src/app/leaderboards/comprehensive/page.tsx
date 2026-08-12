@@ -74,7 +74,15 @@ export default async function ComprehensiveLeaderboardPage({ searchParams }: Pag
         : inArray(divisionsTable.seasonId, selectedSeasonIds),
     }),
     db.query.matches.findMany({
-      columns: { id: true, divisionId: true, seasonId: true, week: true },
+      columns: {
+        id: true,
+        divisionId: true,
+        seasonId: true,
+        week: true,
+        coach1SeasonId: true,
+        coach2SeasonId: true,
+        winnerId: true,
+      },
       where: selectedSeasonIds.length === 1
         ? eq(matchesTable.seasonId, selectedSeasonIds[0])
         : inArray(matchesTable.seasonId, selectedSeasonIds),
@@ -87,18 +95,22 @@ export default async function ComprehensiveLeaderboardPage({ searchParams }: Pag
       : filterPublicDivisions(seasonDivisions, visibility)
     ).map((division) => division.id)
   );
-  const visibleMatchIds = seasonMatches
-    .filter((match) => visibleDivisionIds.has(match.divisionId))
+  const completedVisibleMatches = seasonMatches.filter((match) => (
+    visibleDivisionIds.has(match.divisionId)
+    && match.winnerId !== null
+    && (match.winnerId === match.coach1SeasonId || match.winnerId === match.coach2SeasonId)
+  ));
+  const visibleMatchIds = completedVisibleMatches
     .map((match) => match.id);
   const visibleMatchIdSet = new Set(visibleMatchIds);
   const regularSeasonMatchIdSet = new Set(
-    seasonMatches
-      .filter((match) => visibleDivisionIds.has(match.divisionId) && match.week <= 100)
+    completedVisibleMatches
+      .filter((match) => match.week <= 100)
       .map((match) => match.id)
   );
   const playoffMatchIdSet = new Set(
-    seasonMatches
-      .filter((match) => visibleDivisionIds.has(match.divisionId) && match.week > 100)
+    completedVisibleMatches
+      .filter((match) => match.week > 100)
       .map((match) => match.id)
   );
 

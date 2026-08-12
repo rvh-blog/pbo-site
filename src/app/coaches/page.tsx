@@ -50,6 +50,7 @@ async function getCoachesData() {
         coach1Differential: true,
         coach2Differential: true,
         isForfeit: true,
+        week: true,
         divisionId: true,
         seasonId: true,
       },
@@ -128,6 +129,7 @@ async function getCoachesData() {
     coach1Differential: m.coach1Differential,
     coach2Differential: m.coach2Differential,
     isForfeit: m.isForfeit === true,
+    week: m.week,
     divisionId: m.divisionId,
     seasonId: m.seasonId,
   }));

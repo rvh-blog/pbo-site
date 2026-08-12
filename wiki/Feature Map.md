@@ -40,6 +40,9 @@ See also:
 - Multi-Cast overlay: `src/app/broadcast/multi-cast`
 - Replay Analyzer: `src/app/analyzer`
 - Blog: `src/app/blog`
+- Coach and Pokémon comparison: `src/app/compare` (two to four entries,
+  season/division/phase filters, pairwise head-to-head records, and shareable
+  URL state)
 - Elo tracker: `src/app/elo-tracker`
 - Pokemon stats: `src/app/pokemon/stats` (kills, deaths, damage dealt, damage
   taken, and HP recovered with season/division/minimum-games filters)

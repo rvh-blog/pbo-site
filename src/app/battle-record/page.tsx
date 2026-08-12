@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { and, eq, gt, gte, isNotNull, lte } from "drizzle-orm";
+import { and, eq, gt, gte, isNotNull, lte, or } from "drizzle-orm";
 import { divisions, matches, matchPokemon, pokemon, seasons } from "@/lib/schema";
 import { compareDivisionNames } from "@/lib/division-order";
 import type { BattleRecordRow } from "./battle-record-table";
@@ -17,7 +17,7 @@ export const metadata = {
 };
 
 async function getBattleRecords(): Promise<BattleRecordRow[]> {
-  const [allCoaches, allSeasonCoaches, allMatches, allSeasons] = await Promise.all([
+  const [allCoaches, allSeasonCoaches, allMatches, allSeasons, allDivisions] = await Promise.all([
     db.query.coaches.findMany({
       columns: {
         id: true,
@@ -28,7 +28,9 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
       columns: {
         id: true,
         coachId: true,
+        divisionId: true,
         teamLogoUrl: true,
+        isActive: true,
       },
     }),
     db.query.matches.findMany({
@@ -47,7 +49,11 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
       },
       where: and(
         isNotNull(matches.winnerId),
-        eq(matches.isForfeit, false)
+        eq(matches.isForfeit, false),
+        or(
+          eq(matches.winnerId, matches.coach1SeasonId),
+          eq(matches.winnerId, matches.coach2SeasonId)
+        )
       ),
     }),
     db.query.seasons.findMany({
@@ -56,11 +62,26 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
         seasonNumber: true,
       },
     }),
+    db.query.divisions.findMany({
+      columns: {
+        id: true,
+        seasonId: true,
+      },
+    }),
   ]);
 
   const coachBySeasonCoachId = new Map(allSeasonCoaches.map((sc) => [sc.id, sc.coachId]));
   const coachNameById = new Map(allCoaches.map((coach) => [coach.id, coach.name]));
   const seasonNumberById = new Map(allSeasons.map((season) => [season.id, season.seasonNumber]));
+  const latestSeasonId = [...allSeasons].sort((a, b) => b.seasonNumber - a.seasonNumber)[0]?.id;
+  const latestDivisionIds = new Set(
+    allDivisions.filter((division) => division.seasonId === latestSeasonId).map((division) => division.id)
+  );
+  const activeCoachIds = new Set(
+    allSeasonCoaches
+      .filter((seasonCoach) => latestDivisionIds.has(seasonCoach.divisionId) && seasonCoach.isActive)
+      .map((seasonCoach) => seasonCoach.coachId)
+  );
   const coachLogoMap = new Map<number, string | null>();
   const sortedSeasonCoaches = [...allSeasonCoaches].sort((a, b) => b.id - a.id);
 
@@ -163,6 +184,7 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
         coachId,
         coachName: coachNameById.get(coachId) ?? "Unknown",
         logoUrl: coachLogoMap.get(coachId) ?? null,
+        isActive: activeCoachIds.has(coachId),
         games: row.games,
         averageDifferential: row.differential / row.games,
         averageWinDifference: row.winCount > 0 ? row.winDifferential / row.winCount : null,
@@ -358,7 +380,7 @@ type ChampionshipRow = {
 };
 
 async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]> {
-  const [allCoaches, allSeasonCoaches, allMatches, allRegularSeasonMatches, allSeasons, allDivisions, allMatchPokemon, allEloHistory, championshipFinals] = await Promise.all([
+  const [allCoaches, allSeasonCoaches, allMatches, allSeasons, allDivisions, allMatchPokemon, allEloHistory, championshipFinals] = await Promise.all([
     db.query.coaches.findMany({
       columns: {
         id: true,
@@ -395,33 +417,16 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
       where: and(
         isNotNull(matches.winnerId),
         eq(matches.isForfeit, false),
+        or(
+          eq(matches.winnerId, matches.coach1SeasonId),
+          eq(matches.winnerId, matches.coach2SeasonId)
+        ),
         scope === "regular-season"
           ? lte(matches.week, 100)
           : scope === "playoffs"
             ? gt(matches.week, 100)
             : undefined
       ),
-    }),
-    db.query.matches.findMany({
-      columns: {
-        id: true,
-        seasonId: true,
-        divisionId: true,
-        week: true,
-        coach1SeasonId: true,
-        coach2SeasonId: true,
-        winnerId: true,
-        coach1Differential: true,
-        coach2Differential: true,
-        isForfeit: true,
-        playedAt: true,
-        scheduledAt: true,
-        startedAt: true,
-        endedAt: true,
-        turnSnapshots: true,
-        keyEvents: true,
-      },
-      where: lte(matches.week, 100),
     }),
     db.query.seasons.findMany({
       columns: {
@@ -478,7 +483,6 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
   const seasonCoachById = new Map(allSeasonCoaches.map((seasonCoach) => [seasonCoach.id, seasonCoach]));
   const seasonNumberById = new Map(allSeasons.map((season) => [season.id, season.seasonNumber]));
   const divisionNameById = new Map(allDivisions.map((division) => [division.id, division.name]));
-  const divisionSeasonIdById = new Map(allDivisions.map((division) => [division.id, division.seasonId]));
   const completedMatchById = new Map(allMatches.map((match) => [match.id, match]));
 
   const matchSortValue = (match: MatchRecord) =>
@@ -592,13 +596,17 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
   }));
 
   const seasonsByCoach = new Map<number, Set<number>>();
-  for (const seasonCoach of allSeasonCoaches) {
-    const seasonId = divisionSeasonIdById.get(seasonCoach.divisionId);
-    const seasonNumber = seasonId ? seasonNumberById.get(seasonId) : undefined;
+  for (const match of allMatches) {
+    const seasonNumber = seasonNumberById.get(match.seasonId);
     if (seasonNumber === undefined) continue;
-    const seasonNumbers = seasonsByCoach.get(seasonCoach.coachId) ?? new Set<number>();
-    seasonNumbers.add(seasonNumber);
-    seasonsByCoach.set(seasonCoach.coachId, seasonNumbers);
+
+    for (const seasonCoachId of [match.coach1SeasonId, match.coach2SeasonId]) {
+      const seasonCoach = seasonCoachById.get(seasonCoachId);
+      if (!seasonCoach) continue;
+      const seasonNumbers = seasonsByCoach.get(seasonCoach.coachId) ?? new Set<number>();
+      seasonNumbers.add(seasonNumber);
+      seasonsByCoach.set(seasonCoach.coachId, seasonNumbers);
+    }
   }
   const seasonStreaks: Array<{ coachId: number; count: number; startSeason: number; endSeason: number }> = [];
   for (const [coachId, seasonNumbers] of seasonsByCoach) {
@@ -634,9 +642,7 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
     lastMatchSort: number;
   }>();
 
-  const differentialMatches = scope === "regular-season" ? allRegularSeasonMatches : allMatches;
-
-  for (const match of differentialMatches) {
+  for (const match of allMatches) {
     for (const participant of [
       { seasonCoachId: match.coach1SeasonId, differential: match.coach1Differential ?? 0 },
       { seasonCoachId: match.coach2SeasonId, differential: match.coach2Differential ?? 0 },
