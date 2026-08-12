@@ -74,21 +74,25 @@ function formatValue(value: number | null, format: string) {
   return Math.round(value).toLocaleString();
 }
 
-function EntityPicker({ label, selected, options, onSelect }: {
+function EntityPicker({ label, selected, options, placeholder, onSelect }: {
   label: string;
   selected: CompareEntity | null;
   options: Option[];
+  placeholder: string;
   onSelect: (id: number) => void;
 }) {
   const listId = `compare-${label.toLowerCase()}-options`;
+  const selectedOptionName = selected
+    ? options.find((option) => option.id === selected.id)?.name ?? selected.name
+    : "";
   return (
     <label className="block min-w-0">
       <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--foreground-muted)]">{label}</span>
       <input
         key={selected?.id ?? "empty"}
         list={listId}
-        defaultValue={selected?.name ?? ""}
-        placeholder="Search by name"
+        defaultValue={selectedOptionName}
+        placeholder={placeholder}
         onChange={(event) => {
           const match = options.find((option) => option.name.toLowerCase() === event.target.value.trim().toLowerCase());
           if (match) onSelect(match.id);
@@ -198,6 +202,7 @@ export function CompareClient({
                 label={slotLabels[index]}
                 selected={entity}
                 options={options.filter((option) => option.id === entity.id || !selections.some((selected) => selected.id === option.id))}
+                placeholder={mode === "coaches" ? "Search by team name" : "Search by Pokémon name"}
                 onSelect={(id) => updateQuery({ [slotKeys[index]]: id })}
               />
               {index >= 2 && (
@@ -216,6 +221,7 @@ export function CompareClient({
               label={`Add ${slotLabels[selections.length]}`}
               selected={null}
               options={options.filter((option) => !selections.some((selected) => selected.id === option.id))}
+              placeholder={mode === "coaches" ? "Search by team name" : "Search by Pokémon name"}
               onSelect={(id) => updateQuery({ [slotKeys[selections.length]]: id })}
             />
           )}
