@@ -6,6 +6,34 @@ This page summarizes recent user-facing behavior changes so future work starts f
 
 ## August 12, 2026
 
+Statistics and data quality:
+
+- Leaderboards now switch between the current season and all-time coach and
+  Pokémon statistics. The current-season view includes active coaches, current
+  teams, Elo, records, and Pokémon results.
+- Added `/admin/data-quality`, with summary metrics, weekly completeness, and a
+  review queue for missing deciding turns, replay links, Pokémon rows, and
+  invalid match winners.
+
+Performance and efficiency:
+
+- Public homepage, leaderboard, season, and coach datasets use 60-second cache
+  windows. Session- and account-specific content remains dynamic.
+- Current-season and all-time Pokémon leaderboards are aggregated from one
+  database scan instead of separate reads.
+- Season and coach pages now scope match, roster, transaction, playoff, and
+  Pokémon queries in SQL instead of loading whole tables and filtering them in
+  application memory.
+- Added targeted indexes for featured matches, upcoming scheduled matches,
+  playoff finals, and Pokémon match-stat lookups. Existing production databases
+  require `migrations/add-home-leaderboard-performance-indexes.sql`.
+- Replaced homepage height-synchronization JavaScript with CSS grid behavior,
+  removing resize listeners, observer state, and avoidable hydration.
+- Local warm-request checks improved from roughly 2967 ms to 377 ms for the
+  homepage, 509 ms to 168 ms for leaderboards, 2788 ms to 341 ms for season
+  pages, and 11172 ms to 870 ms for coach pages. These are development-machine
+  observations rather than production service-level guarantees.
+
 Compare:
 
 - Coach comparison entries now use each coach's latest team name for searching and display, sorted alphabetically, while career records remain keyed to the persistent coach.
