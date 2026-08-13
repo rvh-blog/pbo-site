@@ -93,6 +93,7 @@ const NAV_GROUPS: AdminNavGroup[] = [
     label: "Battles",
     items: [
       { href: "/admin/matches", label: "Matches", description: "Schedules, results, and playoffs", keywords: ["result", "schedule", "replay", "playoffs"], icon: Swords },
+      { href: "/admin/data-quality", label: "Data Quality", description: "Find incomplete match records", keywords: ["missing", "deciding turns", "replay", "audit"], icon: ShieldCheck },
       { href: "/admin/transactions", label: "Transactions", description: "Adds, drops, and trades", keywords: ["add", "drop", "trade", "free agency"], icon: ClipboardList },
       { href: "/admin/battle-records", label: "Battle Records", description: "Record category overrides", keywords: ["records", "override", "stats"], icon: Trophy },
     ],

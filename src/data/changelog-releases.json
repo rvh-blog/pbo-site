@@ -1,5 +1,33 @@
 [
   {
+    "sourceKey": "2026-08-12-stats-data-quality-performance",
+    "title": "Current Stats & Faster Public Pages",
+    "summary": "Current-season leaderboards, match data-quality tools, and faster public page data paths.",
+    "publishedAt": "2026-08-12",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Leaderboards can switch between the current season and all-time coach and Pokemon statistics."
+      },
+      {
+        "type": "added",
+        "text": "Admins have a Data Quality review queue for missing deciding turns, replay links, Pokemon rows, and invalid winners."
+      },
+      {
+        "type": "improved",
+        "text": "Homepage, leaderboard, season, and coach public datasets now use short-lived caching while account-specific content remains dynamic."
+      },
+      {
+        "type": "improved",
+        "text": "Season and coach queries now fetch scoped rows, leaderboard scopes share one Pokemon-stat scan, and targeted indexes accelerate common public reads."
+      },
+      {
+        "type": "improved",
+        "text": "The homepage column layout now uses CSS instead of browser resize observers and synchronization state."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-12-inferno-icy-chromatic-frames",
     "title": "New Logo Frames",
     "summary": "Three new animated and themed logo frames are available in the PBO Store.",

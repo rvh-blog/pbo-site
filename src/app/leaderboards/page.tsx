@@ -1,10 +1,11 @@
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
-import { playoffMatches } from "@/lib/schema";
+import { unstable_cache } from "next/cache";
+import { playoffMatches, seasons } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { LeaderboardsClient } from "./leaderboards-client";
 import { getAllCoachCosmetics } from "@/lib/glow-utils";
-import { getPokemonLeaderboardStats } from "@/lib/pokemon-leaderboard";
+import { getPokemonLeaderboardStatsForScopes } from "@/lib/pokemon-leaderboard";
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -14,8 +15,15 @@ export const metadata: Metadata = {
 };
 
 type CoachSummary = { id: number; name: string; eloRating: number };
-type SeasonCoachSummary = { id: number; coachId: number; teamName: string; teamLogoUrl: string | null };
-type MatchSummary = { coach1SeasonId: number; coach2SeasonId: number; winnerId: number | null };
+type SeasonCoachSummary = {
+  id: number;
+  coachId: number;
+  divisionId: number;
+  teamName: string;
+  teamLogoUrl: string | null;
+  isActive: boolean | null;
+};
+type MatchSummary = { seasonId: number; coach1SeasonId: number; coach2SeasonId: number; winnerId: number | null };
 
 function getTopEloCoach(
   allCoaches: CoachSummary[],
@@ -115,6 +123,9 @@ function getCoachStats(
 
   // Build final stats
   const coachStats = allCoaches.map((coach) => {
+    const latestEntry = allSeasonCoaches
+      .filter((entry) => entry.coachId === coach.id)
+      .sort((a, b) => b.id - a.id)[0];
     const wins = coachWins.get(coach.id) || 0;
     const losses = coachLosses.get(coach.id) || 0;
     const gamesPlayed = wins + losses;
@@ -128,6 +139,7 @@ function getCoachStats(
       losses,
       gamesPlayed,
       winRate,
+      teamName: latestEntry?.teamName ?? null,
     };
   });
 
@@ -204,19 +216,25 @@ async function getMostLovedPairs() {
     .slice(0, 25);
 }
 
-export default async function LeaderboardsPage() {
-  // Fetch shared data once - eliminates N+1 queries
-  const [allCoaches, allSeasonCoaches, allMatches, pokemonStats, mostLovedPairs, playoffFinals, allRosters] = await Promise.all([
+const getCachedLeaderboardData = unstable_cache(
+  async () => {
+    const currentSeason = await db.query.seasons.findFirst({
+      columns: { id: true, name: true },
+      where: eq(seasons.isCurrent, true),
+      with: { divisions: { columns: { id: true, name: true } } },
+    });
+
+    const [allCoaches, allSeasonCoaches, allMatches, pokemonScopeStats, mostLovedPairs, playoffFinals, allRosters] = await Promise.all([
     db.query.coaches.findMany({
       columns: { id: true, name: true, eloRating: true },
     }),
     db.query.seasonCoaches.findMany({
-      columns: { id: true, coachId: true, teamName: true, teamLogoUrl: true },
+      columns: { id: true, coachId: true, divisionId: true, teamName: true, teamLogoUrl: true, isActive: true },
     }),
     db.query.matches.findMany({
-      columns: { coach1SeasonId: true, coach2SeasonId: true, winnerId: true },
+      columns: { seasonId: true, coach1SeasonId: true, coach2SeasonId: true, winnerId: true },
     }),
-    getPokemonLeaderboardStats(),
+    getPokemonLeaderboardStatsForScopes(currentSeason?.id ?? null),
     getMostLovedPairs(),
     // Get all playoff finals (round 3) for championship counts
     db.query.playoffMatches.findMany({
@@ -227,11 +245,54 @@ export default async function LeaderboardsPage() {
     db.query.rosters.findMany({
       columns: { seasonCoachId: true, pokemonId: true },
     }),
-  ]);
+    ]);
+
+    return {
+      currentSeason,
+      allCoaches,
+      allSeasonCoaches,
+      allMatches,
+      pokemonStats: pokemonScopeStats.allTime,
+      currentSeasonPokemonStats: pokemonScopeStats.currentSeason,
+      mostLovedPairs,
+      playoffFinals,
+      allRosters,
+    };
+  },
+  ["leaderboards-public-data-v2"],
+  { revalidate: 60, tags: ["leaderboards-public-data"] }
+);
+
+export default async function LeaderboardsPage() {
+  const {
+    currentSeason,
+    allCoaches,
+    allSeasonCoaches,
+    allMatches,
+    pokemonStats,
+    currentSeasonPokemonStats,
+    mostLovedPairs,
+    playoffFinals,
+    allRosters,
+  } = await getCachedLeaderboardData();
 
   // Process with pre-fetched data (no additional DB queries)
   const topEloCoach = getTopEloCoach(allCoaches, allSeasonCoaches, allMatches);
   const coachStats = getCoachStats(allCoaches, allSeasonCoaches, allMatches);
+  const currentDivisionIds = new Set(currentSeason?.divisions.map((division) => division.id) ?? []);
+  const currentSeasonCoaches = allSeasonCoaches.filter((entry) =>
+    currentDivisionIds.has(entry.divisionId) && entry.isActive !== false
+  );
+  const currentCoachIds = new Set(currentSeasonCoaches.map((entry) => entry.coachId));
+  const currentCoaches = allCoaches.filter((coach) => currentCoachIds.has(coach.id));
+  const currentMatches = currentSeason
+    ? allMatches.filter((match) => match.seasonId === currentSeason.id)
+    : [];
+  const currentTopEloCoach = getTopEloCoach(currentCoaches, currentSeasonCoaches, currentMatches);
+  const currentCoachStats = getCoachStats(currentCoaches, currentSeasonCoaches, currentMatches).map((coach) => ({
+    ...coach,
+    championships: 0,
+  }));
 
   // Calculate championship counts per coach
   // Build a map: seasonCoachId -> coachId
@@ -305,6 +366,10 @@ export default async function LeaderboardsPage() {
       topEloCoach={topEloCoach}
       coachStats={coachStatsWithChamps}
       pokemonStats={pokemonStatsWithChamps}
+      currentSeasonName={currentSeason?.name ?? null}
+      currentTopEloCoach={currentTopEloCoach}
+      currentCoachStats={currentCoachStats}
+      currentPokemonStats={currentSeasonPokemonStats.map((pokemon) => ({ ...pokemon, championships: 0 }))}
       mostLovedPairs={mostLovedPairs}
       rowBgData={rowBgData}
       rowBorderData={rowBorderData}

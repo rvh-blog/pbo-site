@@ -247,6 +247,8 @@ export const matches = sqliteTable("matches", {
   index("idx_matches_coach2_season_id").on(table.coach2SeasonId),
   index("idx_matches_division_week").on(table.divisionId, table.week),
   index("idx_matches_season_week").on(table.seasonId, table.week),
+  index("idx_matches_season_gotw_week").on(table.seasonId, table.isGameOfTheWeek, table.week),
+  index("idx_matches_season_winner_scheduled").on(table.seasonId, table.winnerId, table.scheduledAt),
   index("idx_matches_is_forfeit_winner_id").on(table.isForfeit, table.winnerId),
   index("idx_matches_season_winner_id").on(table.seasonId, table.winnerId),
 ]);
@@ -274,6 +276,7 @@ export const playoffMatches = sqliteTable("playoff_matches", {
   index("idx_playoff_matches_division_id").on(table.divisionId),
   index("idx_playoff_matches_higher_seed_id").on(table.higherSeedId),
   index("idx_playoff_matches_lower_seed_id").on(table.lowerSeedId),
+  index("idx_playoff_matches_round_winner_id").on(table.round, table.winnerId),
   index("idx_playoff_matches_season_winner_id").on(table.seasonId, table.winnerId),
   index("idx_playoff_matches_season_round_winner_id").on(table.seasonId, table.round, table.winnerId),
 ]);
@@ -316,6 +319,7 @@ export const matchPokemon = sqliteTable("match_pokemon", {
   }>>(), // Held items explicitly revealed by replay events; unrevealed items remain unknown
 }, (table) => [
   index("idx_match_pokemon_match_id").on(table.matchId),
+  index("idx_match_pokemon_pokemon_id").on(table.pokemonId),
   index("idx_match_pokemon_season_coach_id").on(table.seasonCoachId),
   index("idx_match_pokemon_season_coach_pokemon").on(table.seasonCoachId, table.pokemonId),
 ]);

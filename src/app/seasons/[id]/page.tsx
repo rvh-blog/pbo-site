@@ -1,7 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
-import { seasons, seasonCoaches, matches, playoffMatches, killEvents } from "@/lib/schema";
+import { seasons, seasonCoaches, matches, playoffMatches, matchPokemon } from "@/lib/schema";
 import { eq, and, isNotNull, lte, desc, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getCoachesGlow } from "@/lib/glow-utils";
@@ -233,15 +234,11 @@ async function getSeasonKillLeaderboard(seasonId: number, visibleDivisionIds?: S
 
   // Get all match pokemon records
   const allMatchPokemon = await db.query.matchPokemon.findMany({
+    where: inArray(matchPokemon.matchId, matchIds),
     with: {
       pokemon: true,
     },
   });
-
-  // Filter to only season matches
-  const seasonMatchPokemon = allMatchPokemon.filter((mp) =>
-    matchIds.includes(mp.matchId)
-  );
 
   // Aggregate stats by pokemon
   const statsMap = new Map<
@@ -257,7 +254,7 @@ async function getSeasonKillLeaderboard(seasonId: number, visibleDivisionIds?: S
     }
   >();
 
-  for (const mp of seasonMatchPokemon) {
+  for (const mp of allMatchPokemon) {
     const key = mp.pokemonId;
 
     if (!statsMap.has(key)) {
@@ -294,63 +291,6 @@ async function getSeasonKillLeaderboard(seasonId: number, visibleDivisionIds?: S
   return leaderboard.slice(0, 7); // Top 7 to match Recent Battles height
 }
 
-async function getSeasonMoveKillLeaderboard(seasonId: number, visibleDivisionIds?: Set<number>) {
-  // Get all matches for this season
-  const seasonMatches = await db.query.matches.findMany({
-    where: eq(matches.seasonId, seasonId),
-  });
-
-  const matchIds = seasonMatches
-    .filter((m) => !visibleDivisionIds || visibleDivisionIds.has(m.divisionId))
-    .map((m) => m.id);
-
-  if (matchIds.length === 0) return [];
-
-  // Get all kill events for these matches with move info
-  const seasonKillEvents = await db.query.killEvents.findMany({
-    where: inArray(killEvents.matchId, matchIds),
-    with: {
-      move: true,
-    },
-  });
-
-  // Aggregate kills by move
-  const moveKillsMap = new Map<
-    string,
-    {
-      moveId: number | null;
-      moveName: string;
-      moveDisplayName: string | null;
-      moveType: string | null;
-      kills: number;
-    }
-  >();
-
-  for (const event of seasonKillEvents) {
-    // Use moveId if available, otherwise use moveName as key
-    const key = event.moveId ? `id:${event.moveId}` : `name:${event.moveName || event.cause}`;
-    const displayName = event.move?.displayName || event.moveName || event.cause;
-
-    if (!moveKillsMap.has(key)) {
-      moveKillsMap.set(key, {
-        moveId: event.moveId,
-        moveName: event.move?.name || event.moveName || event.cause,
-        moveDisplayName: displayName,
-        moveType: event.move?.type || null,
-        kills: 0,
-      });
-    }
-
-    moveKillsMap.get(key)!.kills += 1;
-  }
-
-  // Convert to array and sort by kills descending
-  const leaderboard = Array.from(moveKillsMap.values());
-  leaderboard.sort((a, b) => b.kills - a.kills);
-
-  return leaderboard.slice(0, 7); // Top 7 to match Pokemon leaderboard
-}
-
 async function getPlayoffData(seasonId: number, visibleDivisionIds?: Set<number>) {
   const playoffs = await db.query.playoffMatches.findMany({
     where: eq(playoffMatches.seasonId, seasonId),
@@ -376,36 +316,61 @@ async function getPlayoffData(seasonId: number, visibleDivisionIds?: Set<number>
   return byDivision;
 }
 
+const getCachedSeason = unstable_cache(
+  getSeason,
+  ["season-page-season-v1"],
+  { revalidate: 60, tags: ["season-public-data"] }
+);
+
+const getCachedSeasonMatches = unstable_cache(
+  (seasonId: number) => db.query.matches.findMany({ where: eq(matches.seasonId, seasonId) }),
+  ["season-page-matches-v1"],
+  { revalidate: 60, tags: ["season-public-data"] }
+);
+
+const getCachedSeasonLeaderboards = unstable_cache(
+  async (seasonId: number, divisionIds: number[]) => {
+    const visibleDivisionIds = new Set(divisionIds);
+    const [killLeaderboard, playoffsByDivision] = await Promise.all([
+      getSeasonKillLeaderboard(seasonId, visibleDivisionIds),
+      getPlayoffData(seasonId, visibleDivisionIds),
+    ]);
+    return { killLeaderboard, playoffsByDivision };
+  },
+  ["season-page-leaderboards-v2"],
+  { revalidate: 60, tags: ["season-public-data"] }
+);
+
 export default async function SeasonPage({ params }: PageProps) {
   const resolvedParams = await params;
   const seasonId = parseInt(resolvedParams.id);
 
   // Fetch all data in parallel
-  const [season, allSeasonMatches, session, visibility] = await Promise.all([
-    getSeason(seasonId),
-    db.query.matches.findMany({
-      where: eq(matches.seasonId, seasonId),
-    }),
+  const [seasonData, allSeasonMatches, session, visibility] = await Promise.all([
+    getCachedSeason(seasonId),
+    getCachedSeasonMatches(seasonId),
     getSession(),
     getPublicVisibilityState(),
   ]);
 
-  if (!season || (!session?.isMod && !isPublicSeasonVisible(season))) {
+  if (!seasonData || (!session?.isMod && !isPublicSeasonVisible(seasonData))) {
     notFound();
   }
 
-  if (!session?.isMod) {
-    season.divisions = filterPublicDivisions(season.divisions, visibility);
-  }
+  const season = {
+    ...seasonData,
+    divisions: session?.isMod
+      ? seasonData.divisions
+      : filterPublicDivisions(seasonData.divisions, visibility),
+  };
 
   const visibleDivisionIds = new Set(season.divisions.map((division) => division.id));
   const visibleSeasonMatches = allSeasonMatches.filter((match) => visibleDivisionIds.has(match.divisionId));
 
-  const [killLeaderboard, moveKillLeaderboard, playoffsByDivision] = await Promise.all([
-    getSeasonKillLeaderboard(seasonId, visibleDivisionIds),
-    getSeasonMoveKillLeaderboard(seasonId, visibleDivisionIds),
-    getPlayoffData(seasonId, visibleDivisionIds),
-  ]);
+  const { killLeaderboard, playoffsByDivision } = await getCachedSeasonLeaderboards(
+    seasonId,
+    Array.from(visibleDivisionIds).sort((a, b) => a - b)
+  );
 
   // Compute standings for all divisions in parallel
   const allStandings = await Promise.all(
