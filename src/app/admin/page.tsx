@@ -117,7 +117,14 @@ async function getDashboardData() {
       with: { rosters: { columns: { id: true } } },
     }),
     db.query.matches.findMany({
-      columns: { id: true, week: true, winnerId: true },
+      columns: {
+        id: true,
+        week: true,
+        winnerId: true,
+        isForfeit: true,
+        replayUrl: true,
+        decidingTurnsText: true,
+      },
       where: eq(matches.seasonId, currentSeason.id),
       with: { matchPokemon: { columns: { id: true } } },
     }),
@@ -149,7 +156,10 @@ async function getDashboardData() {
   const regularMatches = seasonMatches.filter((match) => match.week <= 100);
   const pendingMatches = regularMatches.filter((match) => !match.winnerId);
   const completedMatches = regularMatches.filter((match) => match.winnerId);
+  const completedNonForfeitMatches = completedMatches.filter((match) => !match.isForfeit);
   const completedMissingPokemon = completedMatches.filter((match) => match.matchPokemon.length === 0);
+  const completedMissingReplays = completedNonForfeitMatches.filter((match) => !match.replayUrl?.trim());
+  const completedMissingDecidingTurns = completedNonForfeitMatches.filter((match) => !match.decidingTurnsText?.trim());
   const currentWeek = regularMatches.length > 0
     ? Math.min(...pendingMatches.map((match) => match.week), Math.max(...regularMatches.map((match) => match.week)))
     : null;
@@ -192,6 +202,8 @@ async function getDashboardData() {
       pendingMatches: pendingMatches.length,
       currentWeekPending,
       completedMissingPokemon: completedMissingPokemon.length,
+      completedMissingReplays: completedMissingReplays.length,
+      completedMissingDecidingTurns: completedMissingDecidingTurns.length,
       incompleteRosterTeams: incompleteRosterTeams.length,
       teamsWithoutLogos: teamsWithoutLogos.length,
       recentTransactions: recentTransactions.length,
@@ -269,6 +281,18 @@ export default async function AdminDashboard() {
       detail: `${stats.completedMissingPokemon} completed match${stats.completedMissingPokemon === 1 ? "" : "es"} have no Pokemon stat rows`,
       href: "/admin/matches",
       tone: "error" as Tone,
+    },
+    stats.completedMissingDecidingTurns > 0 && {
+      label: "Add deciding turns",
+      detail: `${stats.completedMissingDecidingTurns} completed match${stats.completedMissingDecidingTurns === 1 ? "" : "es"} need deciding turns`,
+      href: "/admin/data-quality",
+      tone: "warning" as Tone,
+    },
+    stats.completedMissingReplays > 0 && {
+      label: "Add replay links",
+      detail: `${stats.completedMissingReplays} completed match${stats.completedMissingReplays === 1 ? "" : "es"} need replay links`,
+      href: "/admin/data-quality",
+      tone: "warning" as Tone,
     },
     stats.incompleteRosterTeams > 0 && {
       label: "Complete rosters",
@@ -352,7 +376,14 @@ export default async function AdminDashboard() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard
+          label="Data Quality"
+          value={stats.completedMissingDecidingTurns + stats.completedMissingReplays + stats.completedMissingPokemon}
+          detail="missing match data fields"
+          href="/admin/data-quality"
+          tone={stats.completedMissingDecidingTurns + stats.completedMissingReplays + stats.completedMissingPokemon > 0 ? "warning" : "success"}
+        />
         <MetricCard
           label="Matches"
           value={stats.pendingMatches}
@@ -461,6 +492,7 @@ export default async function AdminDashboard() {
             {[
               ["Upload schedule", "/admin/matches", `${stats.pendingMatches} pending matches`],
               ["Enter match result", "/admin/matches", `${stats.completedMissingPokemon} results missing Pokemon rows`],
+              ["Review data quality", "/admin/data-quality", `${stats.completedMissingDecidingTurns + stats.completedMissingReplays} missing match details`],
               ["Manage current rosters", "/admin/rosters", `${stats.incompleteRosterTeams} incomplete teams`],
               ["Add transaction", "/admin/transactions", `${stats.recentTransactions} transactions this week`],
               ["Sync sheets", "/admin/sheets", `${stats.failedSheets} failed, ${stats.staleSheets} stale`],

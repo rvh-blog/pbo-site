@@ -26,6 +26,7 @@ interface CoachStat {
   gamesPlayed: number;
   winRate: number;
   championships: number;
+  teamName?: string | null;
 }
 
 interface PokemonStat {
@@ -61,6 +62,10 @@ interface LeaderboardsClientProps {
   topEloCoach: TopEloCoach | null;
   coachStats: CoachStat[];
   pokemonStats: PokemonStat[];
+  currentSeasonName: string | null;
+  currentTopEloCoach: TopEloCoach | null;
+  currentCoachStats: CoachStat[];
+  currentPokemonStats: PokemonStat[];
   mostLovedPairs: MostLovedPair[];
   rowBgData: Record<number, { color: string }>;
   rowBorderData: Record<number, { color: string }>;
@@ -115,15 +120,30 @@ function LiquidMetalWrapper({
   );
 }
 
-export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, mostLovedPairs, rowBgData, rowBorderData }: LeaderboardsClientProps) {
+export function LeaderboardsClient({
+  topEloCoach,
+  coachStats,
+  pokemonStats,
+  currentSeasonName,
+  currentTopEloCoach,
+  currentCoachStats,
+  currentPokemonStats,
+  mostLovedPairs,
+  rowBgData,
+  rowBorderData,
+}: LeaderboardsClientProps) {
+  const [scope, setScope] = useState<"current" | "all">(currentSeasonName ? "current" : "all");
   const [coachSort, setCoachSort] = useState<CoachSortKey>("elo");
   const [pokemonSort, setPokemonSort] = useState<PokemonSortKey>("kills");
   const [coachMinGP, setCoachMinGP] = useState(5);
   const [pokemonMinGP, setPokemonMinGP] = useState(5);
 
+  const displayedCoachStats = scope === "current" ? currentCoachStats : coachStats;
+  const displayedPokemonStats = scope === "current" ? currentPokemonStats : pokemonStats;
+  const displayedTopEloCoach = scope === "current" ? currentTopEloCoach : topEloCoach;
   const filteredCoachStats = coachSort === "winRate"
-    ? coachStats.filter(c => c.gamesPlayed >= coachMinGP)
-    : coachStats;
+    ? displayedCoachStats.filter(c => c.gamesPlayed >= coachMinGP)
+    : displayedCoachStats;
   const sortedCoaches = [...filteredCoachStats].sort((a, b) => {
     switch (coachSort) {
       case "elo":
@@ -146,8 +166,8 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
   });
 
   const filteredPokemonStats = pokemonSort === "winRate"
-    ? pokemonStats.filter(p => p.gamesPlayed >= pokemonMinGP)
-    : pokemonStats;
+    ? displayedPokemonStats.filter(p => p.gamesPlayed >= pokemonMinGP)
+    : displayedPokemonStats;
   const sortedPokemon = [...filteredPokemonStats].sort((a, b) => {
     switch (pokemonSort) {
       case "kills":
@@ -174,7 +194,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
     { key: "wins", label: "Wins" },
     { key: "winRate", label: "Win %" },
     { key: "gamesPlayed", label: "Games" },
-    { key: "championships", label: "Champs" },
+    ...(scope === "all" ? [{ key: "championships" as const, label: "Champs" }] : []),
   ];
 
   const pokemonSortOptions: { key: PokemonSortKey; label: string }[] = [
@@ -182,7 +202,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
     { key: "differential", label: "Diff" },
     { key: "winRate", label: "Win %" },
     { key: "gamesPlayed", label: "Games" },
-    { key: "championships", label: "Champs" },
+    ...(scope === "all" ? [{ key: "championships" as const, label: "Champs" }] : []),
   ];
 
   return (
@@ -195,10 +215,36 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
               Leaderboards
             </h1>
             <p className="text-sm text-[var(--foreground-muted)] mt-1">
-              All-time rankings and statistics
+              {scope === "current" && currentSeasonName
+                ? `${currentSeasonName} active-player rankings and statistics`
+                : "All-time rankings and statistics"}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {currentSeasonName && (
+              <div className="flex rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1" aria-label="Leaderboard scope">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScope("current");
+                    if (coachSort === "championships") setCoachSort("elo");
+                    if (pokemonSort === "championships") setPokemonSort("kills");
+                  }}
+                  aria-pressed={scope === "current"}
+                  className={`rounded-md px-3 py-2 text-xs font-bold transition-colors ${scope === "current" ? "bg-[var(--primary)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+                >
+                  {currentSeasonName}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScope("all")}
+                  aria-pressed={scope === "all"}
+                  className={`rounded-md px-3 py-2 text-xs font-bold transition-colors ${scope === "all" ? "bg-[var(--primary)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+                >
+                  All Time
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <Link
                 href="/battle-record"
@@ -217,14 +263,14 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
               <svg className="w-4 h-4 text-[var(--accent)]" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
               </svg>
-              <span className="text-sm font-bold">{coachStats.length} Coaches</span>
+              <span className="text-sm font-bold">{displayedCoachStats.length} Coaches</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Top Rated Coach Spotlight */}
-      {topEloCoach && (
+      {displayedTopEloCoach && (
         <div id="pokemon-all-time" className="poke-card p-0 overflow-hidden scroll-mt-24">
           <div className="p-6 border-b-2 border-[var(--background-tertiary)] bg-[var(--accent)]/10">
             <div className="section-title !mb-0">
@@ -235,39 +281,41 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
               </div>
               <div>
                 <h3>Top Rated Coach</h3>
-                <p className="text-xs text-[var(--foreground-muted)] font-normal">Highest All-Time ELO</p>
+                <p className="text-xs text-[var(--foreground-muted)] font-normal">
+                  {scope === "current" ? `Highest ELO among active ${currentSeasonName} players` : "Highest All-Time ELO"}
+                </p>
               </div>
             </div>
           </div>
           <div className="p-6">
             <div className="flex flex-col md:flex-row items-center gap-6">
-              <Link href={`/coaches/${topEloCoach.coach.id}`} className="flex-shrink-0 group">
-                {topEloCoach.teamLogoUrl ? (
+              <Link href={`/coaches/${displayedTopEloCoach.coach.id}`} className="flex-shrink-0 group">
+                {displayedTopEloCoach.teamLogoUrl ? (
                   <img
-                    src={topEloCoach.teamLogoUrl}
-                    alt={topEloCoach.teamName}
+                    src={displayedTopEloCoach.teamLogoUrl}
+                    alt={displayedTopEloCoach.teamName}
                     className="w-20 h-20 rounded-lg border-2 border-[var(--background-tertiary)] group-hover:scale-105 transition-transform object-cover"
                   />
                 ) : (
                   <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-light)] flex items-center justify-center border-2 border-[var(--background-tertiary)] group-hover:scale-105 transition-transform">
                     <span className="text-black text-3xl font-black">
-                      {topEloCoach.coach.name.charAt(0).toUpperCase()}
+                      {displayedTopEloCoach.coach.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
               </Link>
               <div className="text-center md:text-left flex-1">
-                <Link href={`/coaches/${topEloCoach.coach.id}`}>
+                <Link href={`/coaches/${displayedTopEloCoach.coach.id}`}>
                   <h2 className="text-2xl font-bold hover:text-[var(--primary)] transition-colors">
-                    {topEloCoach.coach.name}
+                    {displayedTopEloCoach.coach.name}
                   </h2>
                 </Link>
-                <p className="text-[var(--foreground-muted)]">{topEloCoach.teamName}</p>
+                <p className="text-[var(--foreground-muted)]">{displayedTopEloCoach.teamName}</p>
               </div>
               <div className="flex gap-4">
                 <div className="text-center px-4 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)]">
                   <p className="text-2xl font-bold tabular-nums text-[var(--accent)]">
-                    {topEloCoach.elo}
+                    {displayedTopEloCoach.elo}
                   </p>
                   <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide">
                     ELO Rating
@@ -275,10 +323,10 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
                 </div>
                 <div className="text-center px-4 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)]">
                   <p className="text-2xl font-bold tabular-nums text-[var(--success)]">
-                    {topEloCoach.wins}-{topEloCoach.losses}
+                    {displayedTopEloCoach.wins}-{displayedTopEloCoach.losses}
                   </p>
                   <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide">
-                    All-Time Record
+                    {scope === "current" ? `${currentSeasonName} Record` : "All-Time Record"}
                   </p>
                 </div>
               </div>
@@ -389,7 +437,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
                           {coach.name}
                         </p>
                         <p className={`text-xs ${hasBg ? 'text-[var(--foreground)]' : 'text-[var(--foreground-muted)]'}`}>
-                          {coach.wins}W - {coach.losses}L ({coach.winRate.toFixed(0)}%)
+                          {scope === "current" && coach.teamName ? `${coach.teamName} · ` : ""}{coach.wins}W - {coach.losses}L ({coach.winRate.toFixed(0)}%)
                         </p>
                       </div>
                       <div className="w-20 text-right">
@@ -440,7 +488,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
                   </svg>
                 </div>
                 <div>
-                  <h3>Pokemon All-Time</h3>
+                  <h3>{scope === "current" ? `${currentSeasonName} Pokemon` : "Pokemon All-Time"}</h3>
                   <p className="text-xs font-normal text-[var(--foreground-muted)]">
                     Default rank is total kills, with fewer games as the tiebreaker.
                   </p>
@@ -589,7 +637,7 @@ export function LeaderboardsClient({ topEloCoach, coachStats, pokemonStats, most
       </div>
 
       {/* Most Loved Section */}
-      {mostLovedPairs.length > 0 && (
+      {scope === "all" && mostLovedPairs.length > 0 && (
         <div className="poke-card p-0 overflow-hidden">
           <div className="p-4 sm:p-6 border-b-2 border-[var(--background-tertiary)]">
             <div className="section-title !mb-0">

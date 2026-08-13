@@ -910,6 +910,11 @@ html[data-theme="light"] .poke-card:hover {
 @media (min-width: 1024px) and (min-aspect-ratio: 4/3) {
   .synced-home-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .synced-home-grid > * {
+    min-height: 0;
   }
 }
 

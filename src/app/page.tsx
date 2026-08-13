@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { getActivePoll } from "@/lib/polls";
@@ -1183,29 +1184,71 @@ function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] 
   );
 }
 
+const getCachedPublicHomeData = unstable_cache(
+  async () => {
+    const currentSeasonPromise = getCurrentSeason();
+    const featureSettingsPromise = getSiteFeatureSettings();
+    const recentDraftPicksPromise = featureSettingsPromise.then((settings) =>
+      settings.recentDraftPicksHidden
+        ? []
+        : getRecentDraftPicksByDivision(currentSeasonPromise)
+    );
+    const upcomingBattlesPromise = currentSeasonPromise.then((season) =>
+      season?.isCurrent ? getUpcomingBattles(season.id, undefined, null) : []
+    );
+
+    const [
+      currentSeason,
+      previousSeasonChampions,
+      recentBattles,
+      upcomingBattles,
+      recentDraftPicksByDivision,
+      stats,
+      gamesOfTheWeek,
+      topCoaches,
+    ] = await Promise.all([
+      currentSeasonPromise,
+      getPreviousSeasonChampions(),
+      getRecentBattles(),
+      upcomingBattlesPromise,
+      recentDraftPicksPromise,
+      getStats(currentSeasonPromise),
+      getCurrentGamesOfTheWeek(currentSeasonPromise),
+      getTopCoaches(),
+    ]);
+
+    return {
+      currentSeason,
+      previousSeasonChampions,
+      recentBattles,
+      upcomingBattles,
+      recentDraftPicksByDivision,
+      stats,
+      gamesOfTheWeek,
+      topCoaches,
+    };
+  },
+  ["home-public-data-v1"],
+  { revalidate: 60, tags: ["home-public-data"] }
+);
+
 export default async function Home() {
-  // Run all queries in parallel for much better performance on network-attached storage
-  const currentSeasonPromise = getCurrentSeason();
-  const featureSettingsPromise = getSiteFeatureSettings();
-  const recentDraftPicksPromise = featureSettingsPromise.then((settings) =>
-    settings.recentDraftPicksHidden
-      ? []
-      : getRecentDraftPicksByDivision(currentSeasonPromise)
-  );
-  const upcomingBattlesPromise = currentSeasonPromise.then((season) =>
-    season?.isCurrent ? getUpcomingBattles(season.id, undefined, null) : []
-  );
-  const [currentSeason, previousSeasonChampions, recentBattles, upcomingBattles, recentDraftPicksByDivision, stats, gamesOfTheWeek, topCoaches, personalizedHome] = await Promise.all([
-    currentSeasonPromise,
-    getPreviousSeasonChampions(),
-    getRecentBattles(),
-    upcomingBattlesPromise,
-    recentDraftPicksPromise,
-    getStats(currentSeasonPromise),
-    getCurrentGamesOfTheWeek(currentSeasonPromise),
-    getTopCoaches(),
+  const publicHomeDataPromise = getCachedPublicHomeData();
+  const currentSeasonPromise = publicHomeDataPromise.then((data) => data.currentSeason);
+  const [publicHomeData, personalizedHome] = await Promise.all([
+    publicHomeDataPromise,
     getHomePersonalization(currentSeasonPromise),
   ]);
+  const {
+    currentSeason,
+    previousSeasonChampions,
+    recentBattles,
+    upcomingBattles,
+    recentDraftPicksByDivision,
+    stats,
+    gamesOfTheWeek,
+    topCoaches,
+  } = publicHomeData;
   const visibleTopCoaches = topCoaches.filter((coach, index) => index < 5 || coach.isShowcase);
   const previousSeasonPlayoffHref = previousSeasonChampions[0]?.seasonId
     ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs`
