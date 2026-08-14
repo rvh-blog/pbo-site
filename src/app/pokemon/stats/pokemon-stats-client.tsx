@@ -409,7 +409,7 @@ export function PokemonStatsClient({ stats, seasons, divisions, currentSeasonId 
                 </p>
               ) : (
                 <div className="space-y-1">
-                  {sorted.slice(0, 100).map((pkmn, index) => (
+                  {sorted.slice(0, 150).map((pkmn, index) => (
                     <Link
                       key={pkmn.id}
                       href={`/pokemon/${pkmn.id}`}

@@ -624,7 +624,7 @@ export default async function DivisionPage({ params }: PageProps) {
           </div>
         }
         rightContent={
-          <div id="leaders" className="scroll-mt-32 h-full">
+          <div id="leaders" className="scroll-mt-32 h-full min-h-0">
             <KillLeaderboard
               combined={killLeaderboard.combined}
               regular={killLeaderboard.regular}

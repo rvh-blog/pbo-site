@@ -231,6 +231,10 @@ async function getPokemonMoveRecords(): Promise<{
     .where(and(
       isNotNull(matches.winnerId),
       eq(matches.isForfeit, false),
+      or(
+        eq(matches.winnerId, matches.coach1SeasonId),
+        eq(matches.winnerId, matches.coach2SeasonId)
+      ),
       gte(seasons.seasonNumber, 9),
       isNotNull(matchPokemon.movesUsed),
     ));
