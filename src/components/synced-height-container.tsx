@@ -44,8 +44,8 @@ export function SyncedHeightContainer({
     <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start ${className}`}>
       <div ref={leftRef}>{leftContent}</div>
       <div
-        className="flex flex-col overflow-hidden"
-        style={leftHeight ? { maxHeight: `${leftHeight}px` } : undefined}
+        className="flex min-h-0 flex-col overflow-hidden"
+        style={{ height: leftHeight ? `min(${leftHeight}px, 70dvh)` : "70dvh" }}
       >
         {rightContent}
       </div>

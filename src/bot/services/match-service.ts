@@ -54,6 +54,7 @@ interface PokemonStats {
   name: string;
   kills: number;
   deaths: number;
+  movesUsed: Record<string, number>;
   revealedItems: Array<{ item: string; turn: number; source: string }>;
   damageDealt: number;
     damageDealtIndirect: number;
@@ -507,6 +508,7 @@ export async function recordMatchResult(
     favorableBurns?: number;
     favorableSleep?: number;
     hpRestored?: number;
+    movesUsed?: Record<string, number>;
     revealedItems?: Array<{ item: string; turn: number; source: string }>;
   }[],
   startedAt?: string | null,
@@ -575,6 +577,7 @@ export async function recordMatchResult(
             favorableBurns: poke.favorableBurns ?? null,
             favorableSleep: poke.favorableSleep ?? null,
             hpRestored: poke.hpRestored ?? null,
+            movesUsed: poke.movesUsed ?? null,
             revealedItems: poke.revealedItems ?? null,
           });
         }
@@ -949,6 +952,7 @@ export async function buildPokemonDataFromReplay(
   favorableBurns?: number;
   favorableSleep?: number;
   hpRestored?: number;
+  movesUsed?: Record<string, number>;
   revealedItems?: Array<{ item: string; turn: number; source: string }>;
 }[]> {
   const coach1Roster = await getCoachRoster(coach1SeasonId, matchWeek);
@@ -979,6 +983,7 @@ export async function buildPokemonDataFromReplay(
     favorableBurns?: number;
     favorableSleep?: number;
     hpRestored?: number;
+    movesUsed?: Record<string, number>;
     revealedItems?: Array<{ item: string; turn: number; source: string }>;
   }[] = [];
 
@@ -1006,6 +1011,7 @@ export async function buildPokemonDataFromReplay(
         favorableBurns: replayPoke.favorableBurns,
         favorableSleep: replayPoke.favorableSleep,
         hpRestored: replayPoke.hpRestored,
+        movesUsed: replayPoke.movesUsed,
         revealedItems: replayPoke.revealedItems,
       });
     } else {
@@ -1039,6 +1045,7 @@ export async function buildPokemonDataFromReplay(
         favorableBurns: replayPoke.favorableBurns,
         favorableSleep: replayPoke.favorableSleep,
         hpRestored: replayPoke.hpRestored,
+        movesUsed: replayPoke.movesUsed,
         revealedItems: replayPoke.revealedItems,
       });
     } else {

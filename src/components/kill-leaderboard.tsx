@@ -38,7 +38,7 @@ export function KillLeaderboard({
 
   return (
     <div
-      className="poke-card p-4 sm:p-6 flex flex-col h-full"
+      className="poke-card p-4 sm:p-6 flex min-h-0 flex-col h-full"
       style={{
         borderColor: `${divisionColor}44`,
         background: `linear-gradient(180deg, ${divisionColor}0f, transparent 42%)`,
@@ -80,7 +80,7 @@ export function KillLeaderboard({
         </p>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto space-y-2">
+          <div className="scrollbar-thin min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
             <div className="flex items-center gap-2 sm:gap-3 px-2 pb-1 text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wide border-b border-[var(--background-tertiary)]">
               <div className="w-5 sm:w-8 shrink-0"></div>
               <div className="flex items-center gap-2 flex-1 min-w-0">

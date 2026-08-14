@@ -23,6 +23,55 @@ export type PokemonMoveDivision = {
   records: PokemonMoveRecord[];
 };
 
+function aggregateMoveRecords(records: PokemonMoveRecord[]): PokemonMoveRecord[] {
+  const aggregated = new Map<number, {
+    pokemonId: number;
+    pokemonName: string;
+    spriteUrl: string | null;
+    games: number;
+    moves: Map<string, { name: string; uses: number }>;
+  }>();
+
+  for (const record of records) {
+    const current = aggregated.get(record.pokemonId) ?? {
+      pokemonId: record.pokemonId,
+      pokemonName: record.pokemonName,
+      spriteUrl: record.spriteUrl,
+      games: 0,
+      moves: new Map<string, { name: string; uses: number }>(),
+    };
+    current.games += record.games;
+
+    for (const move of record.moves) {
+      const key = move.name.toLowerCase();
+      const currentMove = current.moves.get(key) ?? { name: move.name, uses: 0 };
+      currentMove.uses += move.uses;
+      current.moves.set(key, currentMove);
+    }
+
+    aggregated.set(record.pokemonId, current);
+  }
+
+  return [...aggregated.values()]
+    .map((record) => {
+      const moves = [...record.moves.values()].sort(
+        (a, b) => b.uses - a.uses || a.name.localeCompare(b.name)
+      );
+      return {
+        ...record,
+        totalUses: moves.reduce((sum, move) => sum + move.uses, 0),
+        moves,
+      };
+    })
+    .filter((record) => record.totalUses > 0)
+    .sort(
+      (a, b) =>
+        b.totalUses - a.totalUses ||
+        b.games - a.games ||
+        a.pokemonName.localeCompare(b.pokemonName)
+    );
+}
+
 export function PokemonMoveRecords({
   records,
   divisions,
@@ -30,11 +79,17 @@ export function PokemonMoveRecords({
   records: PokemonMoveRecord[];
   divisions: PokemonMoveDivision[];
 }) {
+  const [selectedSeasonNumber, setSelectedSeasonNumber] = useState("all");
   const [selectedDivisionId, setSelectedDivisionId] = useState("all");
   const [showOverallMoves, setShowOverallMoves] = useState(true);
-  const activeRecords = selectedDivisionId === "all"
-    ? records
-    : divisions.find((division) => String(division.divisionId) === selectedDivisionId)?.records || [];
+  const selectedSeasonDivisions = selectedSeasonNumber === "all"
+    ? divisions
+    : divisions.filter((division) => String(division.seasonNumber) === selectedSeasonNumber);
+  const activeRecords = selectedDivisionId !== "all"
+    ? divisions.find((division) => String(division.divisionId) === selectedDivisionId)?.records || []
+    : selectedSeasonNumber === "all"
+      ? records
+      : aggregateMoveRecords(selectedSeasonDivisions.flatMap((division) => division.records));
   const divisionsBySeason = divisions.reduce((groups, division) => {
     const seasonDivisions = groups.get(division.seasonNumber) || [];
     seasonDivisions.push(division);
@@ -62,6 +117,28 @@ export function PokemonMoveRecords({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b-2 border-[var(--background-tertiary)] px-4 py-3 sm:px-6">
+        <label htmlFor="move-usage-season" className="text-xs font-bold uppercase tracking-wider text-[var(--foreground-muted)]">
+          Season
+        </label>
+        <select
+          id="move-usage-season"
+          value={selectedSeasonNumber}
+          onChange={(event) => {
+            setSelectedSeasonNumber(event.target.value);
+            setSelectedDivisionId("all");
+          }}
+          className="rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-bold text-white outline-none focus:border-[var(--accent)]"
+        >
+          <option value="all">All Seasons</option>
+          {[...new Set(divisions.map((division) => division.seasonNumber))]
+            .sort((a, b) => b - a)
+            .map((seasonNumber) => (
+              <option key={seasonNumber} value={seasonNumber}>
+                Season {seasonNumber}
+              </option>
+            ))}
+        </select>
+
         <label htmlFor="move-usage-division" className="text-xs font-bold uppercase tracking-wider text-[var(--foreground-muted)]">
           Division
         </label>
@@ -72,7 +149,9 @@ export function PokemonMoveRecords({
           className="rounded border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-bold text-white outline-none focus:border-[var(--accent)]"
         >
           <option value="all">All Divisions</option>
-          {[...divisionsBySeason.entries()].sort(([a], [b]) => b - a).map(([seasonNumber, seasonDivisions]) => (
+          {[...divisionsBySeason.entries()]
+            .filter(([seasonNumber]) => selectedSeasonNumber === "all" || String(seasonNumber) === selectedSeasonNumber)
+            .sort(([a], [b]) => b - a).map(([seasonNumber, seasonDivisions]) => (
             <optgroup key={seasonNumber} label={`Season ${seasonNumber}`}>
               {seasonDivisions
                 .sort((a, b) => compareDivisionNames(a.divisionName, b.divisionName))
