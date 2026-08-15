@@ -4,6 +4,22 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 14, 2026
+
+Division pages:
+
+- Added a Draft Board action to every division page. The link opens the current
+  season's draft board with that division selected.
+- On desktop, the Kill Leaders card now matches the full measured height of the
+  Standings card instead of stopping at a viewport-height cap. Long leaderboards
+  continue to scroll inside the synchronized card.
+- Mobile layouts retain natural card heights instead of forcing desktop height
+  synchronization.
+
+Verification:
+
+- `npx tsc --noEmit`, targeted ESLint, and `npm run build` pass.
+
 ## August 12, 2026
 
 Statistics and data quality:
