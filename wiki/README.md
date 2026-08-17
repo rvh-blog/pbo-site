@@ -13,4 +13,3 @@ For GitHub or plain Markdown readers, start here:
 - [Change Guide](./Change%20Guide.md)
 - [Operations](./Operations.md)
 - [Feature Map](./Feature%20Map.md)
-- [Experimental Stats Development Handoff — August 15, 2026](./Experimental%20Stats%20Development%20Handoff%202026-08-15.md)

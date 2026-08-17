@@ -74,52 +74,6 @@ appearances. Damage and recovery averages count only appearances with recorded
 replay-derived damage data, preventing older rows without damage tracking from
 diluting those averages.
 
-Experimental Stats lives at `/experimental-stats` under the PBO Stats menu. It
-is a lightweight Savant-style landing hub whose reports live on dedicated child
-routes for Pokemon, coaches, comparison, rolling trends, custom leaderboards,
-replay search, battle visualization, rare events, and the metric glossary.
-Analytics routes share URL-backed season, division, week, coach, Pokemon, move,
-item, sample-size, result, stage, and forfeit filters. Mobile uses a compact
-report selector, collapsed filter panel, stacked report cards, and card versions
-of wide result tables. Route-scoped queries omit timeline payloads when a report
-does not need them. The glossary distinguishes fully available fields from
-partial proxies and metrics that require normalized protocol-event storage. Do
-not present an unrecorded protocol metric as inferred fact.
-
-Rates and percentile qualification are coverage-aware per metric. Damage,
-healing, turns active, setup moves, favorable events, moves, and held items each
-retain their own recorded-data coverage; a null historical field is unknown,
-not zero. Percentiles require the configured minimum number of covered
-appearances for that metric. Held-item distributions use the shared revealed
-item helper and exclude items received through Trick or Switcheroo. Completed
-replay queries require the winner to be one of the match's two season-coach
-participants, and unmatched match-Pokemon rows must not be attributed to either
-team. If the saved win event cannot map replay player 1/2 to the two teams, the
-battle visualizer labels HP lines by replay player instead of guessing.
-
-Appending `?demo=1` to an Experimental Stats report enables a deterministic,
-clearly labeled preview dataset. Demo rows are generated in application memory,
-are never written to SQLite, preserve demo mode while navigating reports and
-changing filters, and must not link to real match evidence. The hub includes a
-**Preview with demo stats** entry point, and every demo report includes an exit
-control that returns to real stored data.
-
-The Pokemon report follows a reference-stat layout with Standard, Advanced,
-Career, Game Log, Splits, and Records tabs. Career rows are grouped by season
-and season-coach team and include an overall total. Rankings always describe
-the active filter scope, rates use only appearances with coverage for that
-metric, and the Similar Pokemon list is descriptive statistical similarity—not
-matchup advice. Lead and Terastallization splits remain visibly unavailable
-until those protocol events are stored rather than being inferred.
-
-Coach reports include season-by-season franchise summaries, usage, item
-distribution, and recorded battle-length coverage. Battle Visualizer reports
-include a compact two-team Pokemon box score above the event views. Replay
-Search acts as a Replay Finder with composable shared filters plus minimum
-damage, minimum kills, and survived-game conditions; every real result links
-back to its match and replay evidence. Unknown replay-derived values remain
-unknown and do not silently become zero.
-
 Battle Record metrics:
 
 - Average Differential Per Game: average match differential across all counted games.
@@ -152,11 +106,6 @@ Relevant files:
 - `src/app/leaderboards/items/item-usage-filters.tsx`
 - `src/app/pokemon/stats/page.tsx`
 - `src/app/pokemon/stats/pokemon-stats-client.tsx`
-- `src/app/experimental-stats/page.tsx`
-- `src/app/experimental-stats/experimental-stats-client.tsx`
-- `src/lib/experimental-stats.ts`
-- `src/lib/experimental-stats-data.ts`
-- `src/lib/experimental-stats-demo.ts`
 - `src/app/battle-record/page.tsx`
 - `src/app/battle-record/battle-record-table.tsx`
 - `src/app/admin/battle-records/page.tsx`
