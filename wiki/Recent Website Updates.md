@@ -17,6 +17,14 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 17, 2026
+
+Draft planner:
+
+- Expanded the Draft Board base Speed range filter from 0-160 to 0-200 so
+  users can include the fastest supported Pokemon without disabling the speed
+  filter.
+
 ## August 14, 2026
 
 Division pages:
