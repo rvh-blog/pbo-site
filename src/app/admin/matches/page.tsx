@@ -7,6 +7,13 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { computeAndSortStandings } from "@/lib/standings-sort";
 import { getSeasonFormat } from "@/lib/season-format";
 import { findBuiltInPokemonNameMatch } from "@/lib/replay-roster-matching-core";
+import { usesExpandedHaxRules } from "@/lib/hax-rules";
+
+type FavorableEvent = {
+  type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+  turn: number;
+  description: string;
+};
 
 interface Coach {
   id: number;
@@ -70,6 +77,9 @@ interface MatchPokemon {
   favorableFreezes?: number | null;
   favorableBurns?: number | null;
   favorableSleep?: number | null;
+  favorableConfusions?: number | null;
+  favorableConfusionSelfHits?: number | null;
+  favorableEvents?: FavorableEvent[] | null;
   hpRestored?: number | null;
   movesUsed?: Record<string, number> | null;
   revealedItems?: Array<{ item: string; turn: number; source: string }> | null;
@@ -127,6 +137,9 @@ interface PokemonEntry {
   favorableFreezes?: number;
   favorableBurns?: number;
   favorableSleep?: number;
+  favorableConfusions?: number;
+  favorableConfusionSelfHits?: number;
+  favorableEvents?: FavorableEvent[];
   hpRestored?: number;
   movesUsed?: Record<string, number>;
   revealedItems?: Array<{ item: string; turn: number; source: string }>;
@@ -151,6 +164,9 @@ type MatchPokemonPayload = {
   favorableFreezes?: number;
   favorableBurns?: number;
   favorableSleep?: number;
+  favorableConfusions?: number;
+  favorableConfusionSelfHits?: number;
+  favorableEvents?: FavorableEvent[];
   hpRestored?: number;
   movesUsed?: Record<string, number>;
   revealedItems?: Array<{ item: string; turn: number; source: string }>;
@@ -612,6 +628,9 @@ export default function AdminMatchesPage() {
         favorableFreezes: coach1Pokemon[i]?.favorableFreezes ?? undefined,
         favorableBurns: coach1Pokemon[i]?.favorableBurns ?? undefined,
         favorableSleep: coach1Pokemon[i]?.favorableSleep ?? undefined,
+        favorableConfusions: coach1Pokemon[i]?.favorableConfusions ?? undefined,
+        favorableConfusionSelfHits: coach1Pokemon[i]?.favorableConfusionSelfHits ?? undefined,
+        favorableEvents: coach1Pokemon[i]?.favorableEvents ?? undefined,
         hpRestored: coach1Pokemon[i]?.hpRestored ?? undefined,
         movesUsed: coach1Pokemon[i]?.movesUsed ?? undefined,
         revealedItems: coach1Pokemon[i]?.revealedItems ?? undefined,
@@ -636,6 +655,9 @@ export default function AdminMatchesPage() {
         favorableFreezes: coach2Pokemon[i]?.favorableFreezes ?? undefined,
         favorableBurns: coach2Pokemon[i]?.favorableBurns ?? undefined,
         favorableSleep: coach2Pokemon[i]?.favorableSleep ?? undefined,
+        favorableConfusions: coach2Pokemon[i]?.favorableConfusions ?? undefined,
+        favorableConfusionSelfHits: coach2Pokemon[i]?.favorableConfusionSelfHits ?? undefined,
+        favorableEvents: coach2Pokemon[i]?.favorableEvents ?? undefined,
         hpRestored: coach2Pokemon[i]?.hpRestored ?? undefined,
         movesUsed: coach2Pokemon[i]?.movesUsed ?? undefined,
         revealedItems: coach2Pokemon[i]?.revealedItems ?? undefined,
@@ -680,6 +702,9 @@ export default function AdminMatchesPage() {
             favorableFreezes: p.favorableFreezes,
             favorableBurns: p.favorableBurns,
             favorableSleep: p.favorableSleep,
+            favorableConfusions: p.favorableConfusions,
+            favorableConfusionSelfHits: p.favorableConfusionSelfHits,
+            favorableEvents: p.favorableEvents,
             hpRestored: p.hpRestored,
             movesUsed: p.movesUsed,
             revealedItems: p.revealedItems,
@@ -708,6 +733,9 @@ export default function AdminMatchesPage() {
             favorableFreezes: p.favorableFreezes,
             favorableBurns: p.favorableBurns,
             favorableSleep: p.favorableSleep,
+            favorableConfusions: p.favorableConfusions,
+            favorableConfusionSelfHits: p.favorableConfusionSelfHits,
+            favorableEvents: p.favorableEvents,
             hpRestored: p.hpRestored,
             movesUsed: p.movesUsed,
             revealedItems: p.revealedItems,
@@ -835,6 +863,9 @@ export default function AdminMatchesPage() {
           favorableFreezes: p.favorableFreezes,
           favorableBurns: p.favorableBurns,
           favorableSleep: p.favorableSleep,
+          favorableConfusions: p.favorableConfusions,
+          favorableConfusionSelfHits: p.favorableConfusionSelfHits,
+          favorableEvents: p.favorableEvents,
           hpRestored: p.hpRestored,
           movesUsed: p.movesUsed,
           revealedItems: p.revealedItems,
@@ -863,6 +894,9 @@ export default function AdminMatchesPage() {
           favorableFreezes: p.favorableFreezes,
           favorableBurns: p.favorableBurns,
           favorableSleep: p.favorableSleep,
+          favorableConfusions: p.favorableConfusions,
+          favorableConfusionSelfHits: p.favorableConfusionSelfHits,
+          favorableEvents: p.favorableEvents,
           hpRestored: p.hpRestored,
           movesUsed: p.movesUsed,
           revealedItems: p.revealedItems,
@@ -1084,7 +1118,13 @@ export default function AdminMatchesPage() {
       const res = await fetch("/api/replay-scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ replayUrl: matchForm.replayUrl }),
+        body: JSON.stringify({
+          replayUrl: matchForm.replayUrl,
+          expandedHaxRules: usesExpandedHaxRules(
+            selectedSeason?.seasonNumber,
+            currentMatch?.week ?? (playoffMatch ? 100 + playoffMatch.round : null),
+          ),
+        }),
       });
 
       if (!res.ok) {
@@ -1138,6 +1178,9 @@ export default function AdminMatchesPage() {
             favorableFreezes: replayPoke.favorableFreezes,
             favorableBurns: replayPoke.favorableBurns,
             favorableSleep: replayPoke.favorableSleep,
+            favorableConfusions: replayPoke.favorableConfusions,
+            favorableConfusionSelfHits: replayPoke.favorableConfusionSelfHits,
+            favorableEvents: replayPoke.favorableEvents,
             hpRestored: replayPoke.hpRestored,
             movesUsed: replayPoke.movesUsed,
             revealedItems: replayPoke.revealedItems,
@@ -1171,6 +1214,9 @@ export default function AdminMatchesPage() {
             favorableFreezes: replayPoke.favorableFreezes,
             favorableBurns: replayPoke.favorableBurns,
             favorableSleep: replayPoke.favorableSleep,
+            favorableConfusions: replayPoke.favorableConfusions,
+            favorableConfusionSelfHits: replayPoke.favorableConfusionSelfHits,
+            favorableEvents: replayPoke.favorableEvents,
             hpRestored: replayPoke.hpRestored,
             movesUsed: replayPoke.movesUsed,
             revealedItems: replayPoke.revealedItems,

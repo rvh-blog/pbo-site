@@ -18,6 +18,7 @@ import { getTimeSyncedRoster, type TimeSyncTransaction } from "@/lib/roster-util
 import { checkAndAwardPickEmRewards, awardGotwBonus } from "@/lib/pick-em-rewards";
 import { syncDivision } from "@/lib/sheets-sync-all";
 import { queueMilestoneEvaluation } from "@/lib/milestones";
+import { usesExpandedHaxRules } from "@/lib/hax-rules";
 import {
   getPokemonAliasMaps,
 } from "@/lib/pokemon-name-aliases";
@@ -70,6 +71,13 @@ interface PokemonStats {
     favorableFreezes: number;
     favorableBurns: number;
     favorableSleep: number;
+    favorableConfusions: number;
+    favorableConfusionSelfHits: number;
+    favorableEvents: Array<{
+      type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+      turn: number;
+      description: string;
+    }>;
     hpRestored: number;
   }
 
@@ -182,10 +190,12 @@ export async function getMatchDetails(matchId: number): Promise<{
   coach2Name: string;
   winnerId: number | null;
   replayUrl: string | null;
+  seasonNumber: number;
 } | null> {
   const match = await db.query.matches.findFirst({
     where: eq(matches.id, matchId),
     with: {
+      season: true,
       coach1: {
         with: { coach: true },
       },
@@ -209,13 +219,18 @@ export async function getMatchDetails(matchId: number): Promise<{
     coach2Name: match.coach2.coach.name,
     winnerId: match.winnerId,
     replayUrl: match.replayUrl,
+    seasonNumber: match.season.seasonNumber,
   };
 }
 
 /**
  * Parse a Pokemon Showdown replay URL using the shared API endpoint
  */
-export async function parseReplay(replayUrl: string): Promise<ParsedReplay | null> {
+export async function parseReplay(
+  replayUrl: string,
+  seasonNumber?: number,
+  week?: number,
+): Promise<ParsedReplay | null> {
   try {
     // Use the same replay scraper API that the admin page uses
     // In production, this will be the deployed URL; in development, localhost
@@ -226,7 +241,10 @@ export async function parseReplay(replayUrl: string): Promise<ParsedReplay | nul
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ replayUrl }),
+      body: JSON.stringify({
+        replayUrl,
+        expandedHaxRules: usesExpandedHaxRules(seasonNumber, week),
+      }),
     });
 
     if (!response.ok) {
@@ -507,6 +525,9 @@ export async function recordMatchResult(
     favorableFreezes?: number;
     favorableBurns?: number;
     favorableSleep?: number;
+    favorableConfusions?: number;
+    favorableConfusionSelfHits?: number;
+    favorableEvents?: PokemonStats["favorableEvents"];
     hpRestored?: number;
     movesUsed?: Record<string, number>;
     revealedItems?: Array<{ item: string; turn: number; source: string }>;
@@ -576,6 +597,9 @@ export async function recordMatchResult(
             favorableFreezes: poke.favorableFreezes ?? null,
             favorableBurns: poke.favorableBurns ?? null,
             favorableSleep: poke.favorableSleep ?? null,
+            favorableConfusions: poke.favorableConfusions ?? null,
+            favorableConfusionSelfHits: poke.favorableConfusionSelfHits ?? null,
+            favorableEvents: poke.favorableEvents ?? null,
             hpRestored: poke.hpRestored ?? null,
             movesUsed: poke.movesUsed ?? null,
             revealedItems: poke.revealedItems ?? null,
@@ -951,6 +975,9 @@ export async function buildPokemonDataFromReplay(
   favorableFreezes?: number;
   favorableBurns?: number;
   favorableSleep?: number;
+  favorableConfusions?: number;
+  favorableConfusionSelfHits?: number;
+  favorableEvents?: PokemonStats["favorableEvents"];
   hpRestored?: number;
   movesUsed?: Record<string, number>;
   revealedItems?: Array<{ item: string; turn: number; source: string }>;
@@ -982,6 +1009,9 @@ export async function buildPokemonDataFromReplay(
     favorableFreezes?: number;
     favorableBurns?: number;
     favorableSleep?: number;
+    favorableConfusions?: number;
+    favorableConfusionSelfHits?: number;
+    favorableEvents?: PokemonStats["favorableEvents"];
     hpRestored?: number;
     movesUsed?: Record<string, number>;
     revealedItems?: Array<{ item: string; turn: number; source: string }>;
@@ -1010,6 +1040,9 @@ export async function buildPokemonDataFromReplay(
         favorableFreezes: replayPoke.favorableFreezes,
         favorableBurns: replayPoke.favorableBurns,
         favorableSleep: replayPoke.favorableSleep,
+        favorableConfusions: replayPoke.favorableConfusions,
+        favorableConfusionSelfHits: replayPoke.favorableConfusionSelfHits,
+        favorableEvents: replayPoke.favorableEvents,
         hpRestored: replayPoke.hpRestored,
         movesUsed: replayPoke.movesUsed,
         revealedItems: replayPoke.revealedItems,
@@ -1044,6 +1077,9 @@ export async function buildPokemonDataFromReplay(
         favorableFreezes: replayPoke.favorableFreezes,
         favorableBurns: replayPoke.favorableBurns,
         favorableSleep: replayPoke.favorableSleep,
+        favorableConfusions: replayPoke.favorableConfusions,
+        favorableConfusionSelfHits: replayPoke.favorableConfusionSelfHits,
+        favorableEvents: replayPoke.favorableEvents,
         hpRestored: replayPoke.hpRestored,
         movesUsed: replayPoke.movesUsed,
         revealedItems: replayPoke.revealedItems,

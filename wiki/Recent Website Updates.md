@@ -1,5 +1,18 @@
 # Recent Website Updates
 
+## Expanded HAX Context — Season 11 Week 6
+
+- Expanded the match-report HAX count from Season 11 Week 6 onward to include
+  favorable crits, misses, flinches, paralysis, freezes, burns, sleep,
+  confusion applications, and confusion self-hits.
+- Excluded guaranteed critical hits from Wicked Blow, Surging Strikes, and
+  Flower Trick from the favorable-crit and HAX totals under the expanded rules.
+- Added a match-report dropdown with the turn and description for each saved
+  HAX event.
+- Added a visible legacy/expanded rules label. Season 11 Weeks 1-5 keep the
+  legacy definition and are not backfilled; later seasons use the expanded
+  definition from Week 1.
+
 Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.

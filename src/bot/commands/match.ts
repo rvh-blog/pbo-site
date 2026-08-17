@@ -259,7 +259,11 @@ export async function execute(
       components: [],
     });
 
-    const replayData = await parseReplay(replayUrl);
+    const replayData = await parseReplay(
+      replayUrl,
+      matchDetails.seasonNumber,
+      selectedWeek,
+    );
 
     if (!replayData) {
       await interaction.editReply({

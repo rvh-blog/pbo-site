@@ -527,6 +527,13 @@ async function buildCanonicalPokemonData(
     favorableFreezes?: number;
     favorableBurns?: number;
     favorableSleep?: number;
+    favorableConfusions?: number;
+    favorableConfusionSelfHits?: number;
+    favorableEvents?: Array<{
+      type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+      turn: number;
+      description: string;
+    }>;
     hpRestored?: number;
   }[] = [];
 
@@ -563,6 +570,13 @@ function overlayReplayExtraStats<
     favorableFreezes?: number;
     favorableBurns?: number;
     favorableSleep?: number;
+    favorableConfusions?: number;
+    favorableConfusionSelfHits?: number;
+    favorableEvents?: Array<{
+      type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+      turn: number;
+      description: string;
+    }>;
     hpRestored?: number;
   }
 >(canonical: T[], scraped: T[]): T[] {
@@ -590,6 +604,9 @@ function overlayReplayExtraStats<
       favorableFreezes: extra.favorableFreezes,
       favorableBurns: extra.favorableBurns,
       favorableSleep: extra.favorableSleep,
+      favorableConfusions: extra.favorableConfusions,
+      favorableConfusionSelfHits: extra.favorableConfusionSelfHits,
+      favorableEvents: extra.favorableEvents,
       hpRestored: extra.hpRestored,
     };
   });
@@ -706,7 +723,13 @@ async function processMatchResult(payload: JsonRecord, divisionId: number) {
   }
 
   const replayUrl = getString(payload, ["replayUrl", "replay", "replayURL"]);
-  const replayData = replayUrl ? await parseReplay(replayUrl) : null;
+  const division = await db.query.divisions.findFirst({
+    where: eq(divisions.id, divisionId),
+    with: { season: true },
+  });
+  const replayData = replayUrl
+    ? await parseReplay(replayUrl, division?.season?.seasonNumber, match.week)
+    : null;
   let p1IsCoach1: boolean | undefined;
 
   if (replayData) {

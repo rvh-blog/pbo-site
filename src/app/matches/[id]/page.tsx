@@ -19,6 +19,7 @@ import {
 } from "@/lib/site-settings";
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
 import type { TimeSyncTransaction } from "@/lib/roster-utils";
+import { usesExpandedHaxRules } from "@/lib/hax-rules";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -152,6 +153,13 @@ type BattleSummaryPokemon = {
   favorableFreezes: number | null;
   favorableBurns: number | null;
   favorableSleep: number | null;
+  favorableConfusions: number | null;
+  favorableConfusionSelfHits: number | null;
+  favorableEvents: Array<{
+    type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+    turn: number;
+    description: string;
+  }> | null;
   revealedItems: Array<{ item: string; turn: number; source: string }> | null;
 };
 
@@ -201,7 +209,7 @@ function formatKnownNumber(value: number | null | undefined, suffix = "") {
   return value === null || value === undefined ? "x" : `${value}${suffix}`;
 }
 
-function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
+function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[], expandedHaxRules: boolean) {
   const hasHazardDamage = teamPokemon.some((mp) => mp.hazardDamageTaken !== null);
   const hasSetupMoves = teamPokemon.some((mp) => mp.setupMovesUsed !== null);
   const sumKnownStat = (
@@ -214,6 +222,8 @@ function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
       | "favorableFreezes"
       | "favorableBurns"
       | "favorableSleep"
+      | "favorableConfusions"
+      | "favorableConfusionSelfHits"
     >>,
   ) => {
     const hasKnownValue = teamPokemon.some((mp) => fields.some((field) => mp[field] !== null));
@@ -232,15 +242,24 @@ function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[]) {
     setupMoves: hasSetupMoves
       ? teamPokemon.reduce((sum, mp) => sum + (mp.setupMovesUsed || 0), 0)
       : "x",
-    favorableCrits: sumKnownStat(["favorableCrits"]),
-    flinches: sumKnownStat(["favorableFlinches"]),
-    missedMoves: sumKnownStat(["favorableMisses"]),
-    statusProcs: sumKnownStat([
-      "favorableParalysis",
-      "favorableFreezes",
-      "favorableBurns",
-      "favorableSleep",
-    ]),
+    haxCount: sumKnownStat(expandedHaxRules
+      ? [
+          "favorableCrits",
+          "favorableMisses",
+          "favorableFlinches",
+          "favorableParalysis",
+          "favorableFreezes",
+          "favorableBurns",
+          "favorableSleep",
+          "favorableConfusions",
+          "favorableConfusionSelfHits",
+        ]
+      : [
+          "favorableParalysis",
+          "favorableFreezes",
+          "favorableBurns",
+          "favorableSleep",
+        ]),
   };
 }
 
@@ -249,13 +268,15 @@ function BattleSummaryTeam({
   logoUrl,
   pokemonRows,
   align,
+  expandedHaxRules,
 }: {
   teamName: string;
   logoUrl?: string | null;
   pokemonRows: BattleSummaryPokemon[];
   align: "left" | "right";
+  expandedHaxRules: boolean;
 }) {
-  const stats = getBattleSummaryStats(pokemonRows);
+  const stats = getBattleSummaryStats(pokemonRows, expandedHaxRules);
   const isLeft = align === "left";
   const accentText = isLeft ? "text-cyan-300" : "text-rose-300";
   const accentBorder = isLeft ? "border-cyan-400/25" : "border-rose-400/25";
@@ -265,11 +286,14 @@ function BattleSummaryTeam({
   const summaryCards = [
     ["Hazard Damage Taken", stats.hazardDamageTaken],
     ["Set Up Moves Used", stats.setupMoves],
-    ["Favorable Crits", stats.favorableCrits],
-    ["Flinches", stats.flinches],
-    ["Missed Moves", stats.missedMoves],
-    ["HAX COUNT", stats.statusProcs],
+    ["HAX COUNT", stats.haxCount],
   ];
+  const haxEvents = pokemonRows
+    .flatMap((pokemon) => (pokemon.favorableEvents || []).map((event) => ({
+      ...event,
+      pokemon: getPokemonLabel(pokemon),
+    })))
+    .sort((a, b) => a.turn - b.turn);
 
   return (
     <section className={`relative space-y-3 overflow-hidden rounded-xl border bg-[#07101f]/75 p-3 shadow-[0_18px_45px_rgba(0,0,0,0.18)] sm:p-4 ${accentBorder}`}>
@@ -310,6 +334,32 @@ function BattleSummaryTeam({
           </div>
         ))}
       </div>
+
+      {expandedHaxRules && (
+        <details className="relative overflow-hidden rounded-lg border border-white/10 bg-black/25">
+          <summary className="cursor-pointer select-none px-3 py-2 text-[9px] font-black uppercase tracking-wider text-white/60 transition-colors hover:bg-white/[0.05] hover:text-white/85">
+            HAX event context ({haxEvents.length})
+          </summary>
+          <div className="border-t border-white/10 px-3 py-2">
+            {haxEvents.length > 0 ? (
+              <ol className="space-y-2">
+                {haxEvents.map((event, index) => (
+                  <li key={`${event.turn}-${event.type}-${event.pokemon}-${index}`} className="text-[10px] leading-relaxed text-white/65 sm:text-xs">
+                    <span className={`mr-2 font-mono font-black ${accentText}`}>T{event.turn}</span>
+                    <span className="font-bold text-white/85">{event.pokemon}</span>
+                    <span className="mx-1 text-white/30">·</span>
+                    {event.description}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-[10px] leading-relaxed text-white/45 sm:text-xs">
+                No saved event context. Context is recorded for matches processed under the expanded rules.
+              </p>
+            )}
+          </div>
+        </details>
+      )}
 
       <div className="relative overflow-hidden rounded-lg border border-white/10 bg-black/25">
         <div className="grid grid-cols-[1fr_52px_82px_56px] border-b border-white/10 bg-white/[0.055] px-2.5 py-2 text-[8px] font-black uppercase tracking-wider text-white/45 sm:text-[9px]">
@@ -378,6 +428,7 @@ function BattleSummaryPanel({
   decidingTurnsEditorHidden,
   decidingTurnsPublished,
   matchId,
+  expandedHaxRules,
 }: {
   canEditDecidingTurns: boolean;
   canManageDecidingTurnsEditorVisibility: boolean;
@@ -391,6 +442,7 @@ function BattleSummaryPanel({
   decidingTurnsEditorHidden: boolean;
   decidingTurnsPublished: boolean;
   matchId: number;
+  expandedHaxRules: boolean;
 }) {
   const showDecidingTurns = canEditDecidingTurns || decidingTurnsPublished;
 
@@ -416,6 +468,7 @@ function BattleSummaryPanel({
               logoUrl={coach1LogoUrl}
               pokemonRows={coach1Pokemon}
               align="left"
+              expandedHaxRules={expandedHaxRules}
             />
           </div>
 
@@ -438,12 +491,16 @@ function BattleSummaryPanel({
               logoUrl={coach2LogoUrl}
               pokemonRows={coach2Pokemon}
               align="right"
+              expandedHaxRules={expandedHaxRules}
             />
           </div>
         </div>
         <div className="mt-4 flex justify-center border-t border-white/10 pt-3">
           <p className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-center text-[9px] leading-relaxed text-[var(--foreground-muted)] sm:text-[10px]">
-            <span className="font-bold text-white/70">HAX Count</span> combines favorable paralysis, freeze, burn, and sleep events.
+            <span className="font-bold text-white/70">{expandedHaxRules ? "Expanded HAX rules" : "Legacy HAX rules"}</span>
+            {expandedHaxRules
+              ? " · Active since Season 11 Week 6: crits, misses, flinches, paralysis, freezes, burns, sleep, confusion, and confusion self-hits. Guaranteed crits from Wicked Blow, Surging Strikes, and Flower Trick are excluded."
+              : " · Used through Season 11 Week 5: paralysis, freezes, burns, and sleep only."}
           </p>
         </div>
       </div>
@@ -910,6 +967,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 canEditDecidingTurns={canEditDecidingTurns}
                 canManageDecidingTurnsEditorVisibility={Boolean(session?.isMod)}
                 matchId={match.id}
+                expandedHaxRules={usesExpandedHaxRules(match.season.seasonNumber, match.week)}
               />
             );
           })()}
