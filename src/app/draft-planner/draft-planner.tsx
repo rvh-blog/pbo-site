@@ -32,6 +32,7 @@ const TYPE_CHART: Record<string, Record<string, number>> = {
 };
 
 const ALL_TYPES = ["normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"];
+const SPEED_FILTER_MAX = 200;
 
 function formatTypeName(type: string) {
   return type.charAt(0).toUpperCase() + type.slice(1);
@@ -616,7 +617,7 @@ export function DraftPlanner({
   const [statFocusAsc, setStatFocusAsc] = useState(false);
   const [maxPrice, setMaxPrice] = useState(19);
   const [minSpeed, setMinSpeed] = useState(0);
-  const [maxSpeed, setMaxSpeed] = useState(160);
+  const [maxSpeed, setMaxSpeed] = useState(SPEED_FILTER_MAX);
   const [sortByFit, setSortByFit] = useState(false);
   const [availableOnly, setAvailableOnly] = useState(true);
   const [roleFilters, setRoleFilters] = useState<DraftRole[]>([]);
@@ -2111,12 +2112,12 @@ export function DraftPlanner({
                         <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded bg-[var(--background-tertiary)]" />
                         <div
                           className="absolute top-1/2 h-1 -translate-y-1/2 rounded bg-[var(--primary)]"
-                          style={{ left: `${(minSpeed / 160) * 100}%`, right: `${100 - (maxSpeed / 160) * 100}%` }}
+                          style={{ left: `${(minSpeed / SPEED_FILTER_MAX) * 100}%`, right: `${100 - (maxSpeed / SPEED_FILTER_MAX) * 100}%` }}
                         />
                         <input
                           type="range"
                           min="0"
-                          max="160"
+                          max={SPEED_FILTER_MAX}
                           step="5"
                           value={minSpeed}
                           onChange={(e) => setMinSpeed(Math.min(Number(e.target.value), maxSpeed))}
@@ -2125,7 +2126,7 @@ export function DraftPlanner({
                         <input
                           type="range"
                           min="0"
-                          max="160"
+                          max={SPEED_FILTER_MAX}
                           step="5"
                           value={maxSpeed}
                           onChange={(e) => setMaxSpeed(Math.max(Number(e.target.value), minSpeed))}
