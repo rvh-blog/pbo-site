@@ -155,7 +155,14 @@ Time-synced roster utilities:
 Replay detail fields include direct/indirect damage dealt and taken, HP restored,
 turns active, hazard-only damage taken, setup moves used, favorable event
 counters for crits, misses, flinches, paralysis, freezes, and non-Will-O-Wisp
-burns, plus `revealed_items` JSON entries containing an item, reveal turn, and
+burns. Beginning with Season 11 Week 6, replay rows also store confusion
+applications, confusion self-hits, and `favorable_events` JSON context with the
+event type, turn, and description. The expanded HAX total includes crits,
+misses, flinches, paralysis, freezes, burns, sleep, confusion, and confusion
+self-hits; guaranteed critical hits from Wicked Blow, Surging Strikes, and
+Flower Trick are excluded. Earlier matches retain the legacy HAX definition
+and are not backfilled. Match Pokemon also store `revealed_items` JSON entries
+containing an item, reveal turn, and
 source. The base replay-detail fields require
 `migrations/add-match-pokemon-replay-detail-stats.sql`; revealed item storage
 requires `migrations/add-revealed-held-items.sql` on existing databases.

@@ -24,6 +24,9 @@ interface PokemonStats {
   favorableFreezes: number;
   favorableBurns: number;
   favorableSleep: number;
+  favorableConfusions: number;
+  favorableConfusionSelfHits: number;
+  favorableEvents: FavorableEvent[];
   hpRestored: number;
   movesUsed: Record<string, number>;
   revealedItems: Array<{
@@ -31,6 +34,12 @@ interface PokemonStats {
     turn: number;
     source: string;
   }>;
+}
+
+interface FavorableEvent {
+  type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+  turn: number;
+  description: string;
 }
 
 interface TurnSnapshot {
@@ -142,6 +151,12 @@ const PIVOT_MOVES = new Set([
 
 const CHAMPIONS_NATDEX_DRAFT_TIER = "[Gen 9 Champions] NatDex Draft";
 
+const GUARANTEED_CRIT_MOVES_EXCLUDED_FROM_HAX = new Set([
+  "flower trick",
+  "surging strikes",
+  "wicked blow",
+]);
+
 function shouldPreserveMegaFormsForTier(tier: string | null) {
   return tier === CHAMPIONS_NATDEX_DRAFT_TIER;
 }
@@ -250,7 +265,12 @@ function extractNicknameOwner(pokemonRef: string): { player: "p1" | "p2"; nickna
 
 export async function POST(request: NextRequest) {
   try {
-    const { replayUrl, preserveMegas = false, debugActiveTurns = false } = await request.json();
+    const {
+      replayUrl,
+      preserveMegas = false,
+      debugActiveTurns = false,
+      expandedHaxRules = false,
+    } = await request.json();
 
     if (!replayUrl) {
       return NextResponse.json({ error: "Replay URL is required" }, { status: 400 });
@@ -342,6 +362,9 @@ export async function POST(request: NextRequest) {
     // Status inflicter tracking (poison, burn, etc.)
     const statusInflicterMap: Map<string, PlayerRef> = new Map();
 
+    // Confusion source tracking for attributing applications and self-hits.
+    const confusionSourceMap: Map<string, PlayerRef> = new Map();
+
     // Effect source tracking (leech seed, trapping moves, curse, etc.)
     const effectSourceMap: Map<string, PlayerRef> = new Map();
 
@@ -425,11 +448,15 @@ export async function POST(request: NextRequest) {
         | "favorableFreezes"
         | "favorableBurns"
         | "favorableSleep"
+        | "favorableConfusions"
+        | "favorableConfusionSelfHits",
+      event?: FavorableEvent,
     ) => {
       if (!parsed) return;
       const pokemon = getPokemonByRef(parsed);
       if (pokemon) {
         pokemon[field]++;
+        if (event && expandedHaxRules) pokemon.favorableEvents.push(event);
       }
     };
 
@@ -587,6 +614,9 @@ export async function POST(request: NextRequest) {
             favorableFreezes: 0,
             favorableBurns: 0,
             favorableSleep: 0,
+            favorableConfusions: 0,
+            favorableConfusionSelfHits: 0,
+            favorableEvents: [],
             hpRestored: 0,
             movesUsed: {},
             revealedItems: [],
@@ -607,6 +637,7 @@ export async function POST(request: NextRequest) {
           const parsed = extractNicknameOwner(pokemonRef);
 
           if (parsed && pokemonInfo) {
+            confusionSourceMap.delete(`${parsed.player}:${parsed.nickname}`);
             const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms, aliasMaps });
             const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
             let pokemon = team.find((p) => p.name === pokemonName);
@@ -833,11 +864,19 @@ export async function POST(request: NextRequest) {
           const targetRef = parts[2];
           const parsed = extractNicknameOwner(targetRef);
           if (parsed && lastDamageDealer) {
+            const moveName = lastMoveInfo?.moveName?.trim() || "Unknown move";
+            if (expandedHaxRules && GUARANTEED_CRIT_MOVES_EXCLUDED_FROM_HAX.has(moveName.toLowerCase())) {
+              break;
+            }
             const targetName = (parsed.player === "p1" ? p1NicknameMap : p2NicknameMap).get(parsed.nickname);
             const hpKey = targetName ? `${parsed.player}:${targetName}` : null;
             const hpBeforeHit = hpKey ? (hpPercentMap.get(hpKey) ?? 100) : 100;
             if (hpBeforeHit > 25) {
-              incrementFavorableEvent(lastDamageDealer, "favorableCrits");
+              incrementFavorableEvent(lastDamageDealer, "favorableCrits", {
+                type: "crit",
+                turn: currentTurn,
+                description: `${lastDamageDealer.nickname} landed a critical hit with ${moveName} on ${parsed.nickname}.`,
+              });
             }
           }
           break;
@@ -856,7 +895,12 @@ export async function POST(request: NextRequest) {
             break;
           }
 
-          incrementFavorableEvent(target || (attacker ? getOpponentActiveRef(attacker.player) : null), "favorableMisses");
+          const beneficiary = target || (attacker ? getOpponentActiveRef(attacker.player) : null);
+          incrementFavorableEvent(beneficiary, "favorableMisses", {
+            type: "miss",
+            turn: currentTurn,
+            description: `${attacker?.nickname || "The opponent"} missed${lastMoveInfo?.moveName ? ` with ${lastMoveInfo.moveName}` : ""}${target ? ` against ${target.nickname}` : ""}.`,
+          });
           break;
         }
 
@@ -866,9 +910,17 @@ export async function POST(request: NextRequest) {
           const beneficiary = parsed ? getOpponentActiveRef(parsed.player) : null;
 
           if (isParalysisCantMove(effect)) {
-            incrementFavorableEvent(beneficiary, "favorableParalysis");
+            incrementFavorableEvent(beneficiary, "favorableParalysis", {
+              type: "paralysis",
+              turn: currentTurn,
+              description: `${parsed?.nickname || "The opponent"} was fully paralyzed.`,
+            });
           } else if (isFlinchCantMove(effect)) {
-            incrementFavorableEvent(beneficiary, "favorableFlinches");
+            incrementFavorableEvent(beneficiary, "favorableFlinches", {
+              type: "flinch",
+              turn: currentTurn,
+              description: `${parsed?.nickname || "The opponent"} flinched.`,
+            });
           }
           break;
         }
@@ -961,9 +1013,17 @@ export async function POST(request: NextRequest) {
             const isSelfItemStatus = fromSource.includes("item:");
 
             if (statusType === "frz" && hasOpponentInflicter) {
-              incrementFavorableEvent(beneficiary, "favorableFreezes");
+              incrementFavorableEvent(beneficiary, "favorableFreezes", {
+                type: "freeze",
+                turn: currentTurn,
+                description: `${parsed.nickname} was frozen${statusSource ? ` by ${statusSource}` : ""}.`,
+              });
             } else if (statusType === "brn" && hasOpponentInflicter && !isSelfItemStatus && !isWillOWisp(statusSource)) {
-              incrementFavorableEvent(beneficiary, "favorableBurns");
+              incrementFavorableEvent(beneficiary, "favorableBurns", {
+                type: "burn",
+                turn: currentTurn,
+                description: `${parsed.nickname} was burned${statusSource ? ` by ${statusSource}` : ""}.`,
+              });
             } else if (
               statusType === "par" &&
               fromSource.includes("ability: static") &&
@@ -972,14 +1032,23 @@ export async function POST(request: NextRequest) {
             ) {
               incrementFavorableEvent(
                 { player: statusOfMatch[1] as "p1" | "p2", nickname: statusOfMatch[2] },
-                "favorableParalysis"
+                "favorableParalysis",
+                {
+                  type: "paralysis",
+                  turn: currentTurn,
+                  description: `${parsed.nickname} was paralyzed by Static.`,
+                },
               );
             } else if (
               statusType === "slp" &&
               (fromSource.includes("dire claw") || lastMoveInfo?.moveName.toLowerCase() === "dire claw") &&
               hasOpponentInflicter
             ) {
-              incrementFavorableEvent(beneficiary, "favorableSleep");
+              incrementFavorableEvent(beneficiary, "favorableSleep", {
+                type: "sleep",
+                turn: currentTurn,
+                description: `${parsed.nickname} was put to sleep by Dire Claw.`,
+              });
             }
 
             if ((statusType === "psn" || statusType === "tox") && fromSource.includes("toxic spikes")) {
@@ -1042,7 +1111,18 @@ export async function POST(request: NextRequest) {
             }
 
             if (source) {
-              if (effectName.includes("future sight")) {
+              if (expandedHaxRules && effectName === "confusion") {
+                const confusionKey = `${parsed.player}:${parsed.nickname}`;
+                const isFatigueConfusion = parts.some((part) => part === "[fatigue]");
+                if (!isFatigueConfusion && source.player !== parsed.player) {
+                  confusionSourceMap.set(confusionKey, source);
+                  incrementFavorableEvent(source, "favorableConfusions", {
+                    type: "confusion",
+                    turn: currentTurn,
+                    description: `${parsed.nickname} became confused${lastMoveInfo?.moveName ? ` from ${lastMoveInfo.moveName}` : ""}.`,
+                  });
+                }
+              } else if (effectName.includes("future sight")) {
                 const targetSide = parsed.player === "p1" ? "p2" : "p1";
                 futureSightMap.set(targetSide, {
                   player: parsed.player,
@@ -1149,7 +1229,10 @@ export async function POST(request: NextRequest) {
         case "-end": {
           // Future Sight / Doom Desire resolving
           const effectName = (parts[3] || "").toLowerCase();
-          if (effectName.includes("future sight")) {
+          const parsed = extractNicknameOwner(parts[2]);
+          if (effectName === "confusion" && parsed) {
+            confusionSourceMap.delete(`${parsed.player}:${parsed.nickname}`);
+          } else if (effectName.includes("future sight")) {
             lastFaintSource = "Future Sight";
           } else if (effectName.includes("doom desire")) {
             lastFaintSource = "Doom Desire";
@@ -1183,6 +1266,17 @@ export async function POST(request: NextRequest) {
 
             damageAmount = Math.max(0, oldHp - newHpPercent);
             if (hpKey) hpPercentMap.set(hpKey, newHpPercent);
+          }
+
+          const isConfusionSelfHit = parts.some((part) => /^\[from\]\s*confusion$/i.test(part));
+          if (expandedHaxRules && parsed && isConfusionSelfHit) {
+            const confusionKey = `${parsed.player}:${parsed.nickname}`;
+            const beneficiary = confusionSourceMap.get(confusionKey) || getOpponentActiveRef(parsed.player);
+            incrementFavorableEvent(beneficiary, "favorableConfusionSelfHits", {
+              type: "confusion-self-hit",
+              turn: currentTurn,
+              description: `${parsed.nickname} hurt itself in confusion.`,
+            });
           }
 
           // Skip damage events for already-fainted Pokemon

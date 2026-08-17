@@ -50,6 +50,13 @@ interface PokemonDataEntry {
   favorableFreezes?: number;
   favorableBurns?: number;
   favorableSleep?: number;
+  favorableConfusions?: number;
+  favorableConfusionSelfHits?: number;
+  favorableEvents?: Array<{
+    type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+    turn: number;
+    description: string;
+  }>;
   movesUsed?: Record<string, number>;
 }
 
@@ -325,6 +332,9 @@ export async function POST(request: NextRequest) {
         favorableFreezes: poke.favorableFreezes ?? null,
         favorableBurns: poke.favorableBurns ?? null,
         favorableSleep: poke.favorableSleep ?? null,
+        favorableConfusions: poke.favorableConfusions ?? null,
+        favorableConfusionSelfHits: poke.favorableConfusionSelfHits ?? null,
+        favorableEvents: poke.favorableEvents ?? null,
         hpRestored: poke.hpRestored ?? null,
         movesUsed: poke.movesUsed ?? null,
         revealedItems: poke.revealedItems ?? null,
@@ -478,6 +488,9 @@ export async function PUT(request: NextRequest) {
           favorableFreezes: poke.favorableFreezes ?? null,
           favorableBurns: poke.favorableBurns ?? null,
           favorableSleep: poke.favorableSleep ?? null,
+          favorableConfusions: poke.favorableConfusions ?? null,
+          favorableConfusionSelfHits: poke.favorableConfusionSelfHits ?? null,
+          favorableEvents: poke.favorableEvents ?? null,
           hpRestored: poke.hpRestored ?? null,
           movesUsed: poke.movesUsed ?? null,
           revealedItems: poke.revealedItems ?? null,

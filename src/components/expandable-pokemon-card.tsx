@@ -25,6 +25,13 @@ interface PokemonData {
   favorableFreezes?: number | null;
   favorableBurns?: number | null;
   favorableSleep?: number | null;
+  favorableConfusions?: number | null;
+  favorableConfusionSelfHits?: number | null;
+  favorableEvents?: Array<{
+    type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+    turn: number;
+    description: string;
+  }> | null;
   hpRestored: number | null;
 }
 
@@ -53,6 +60,8 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
     pokemon.favorableFreezes != null ||
     pokemon.favorableBurns != null ||
     pokemon.favorableSleep != null ||
+    pokemon.favorableConfusions != null ||
+    pokemon.favorableConfusionSelfHits != null ||
     pokemon.hpRestored !== null;
 
   return (
@@ -120,7 +129,9 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
           (pokemon.favorableParalysis ?? 0) +
           (pokemon.favorableFreezes ?? 0) +
           (pokemon.favorableBurns ?? 0) +
-          (pokemon.favorableSleep ?? 0);
+          (pokemon.favorableSleep ?? 0) +
+          (pokemon.favorableConfusions ?? 0) +
+          (pokemon.favorableConfusionSelfHits ?? 0);
         const hasFavorableData =
           pokemon.favorableCrits != null ||
           pokemon.favorableMisses != null ||
@@ -128,7 +139,9 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
           pokemon.favorableParalysis != null ||
           pokemon.favorableFreezes != null ||
           pokemon.favorableBurns != null ||
-          pokemon.favorableSleep != null;
+          pokemon.favorableSleep != null ||
+          pokemon.favorableConfusions != null ||
+          pokemon.favorableConfusionSelfHits != null;
         const hpRestored = pokemon.hpRestored ?? 0;
 
         return (
@@ -225,7 +238,24 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
                     <span className="text-[var(--foreground-muted)]">Freeze {pokemon.favorableFreezes ?? "x"}</span>
                     <span className="text-[var(--foreground-muted)]">Burn {pokemon.favorableBurns ?? "x"}</span>
                     <span className="text-[var(--foreground-muted)]">Sleep {pokemon.favorableSleep ?? "x"}</span>
+                    <span className="text-[var(--foreground-muted)]">Confusion {pokemon.favorableConfusions ?? "x"}</span>
+                    <span className="text-[var(--foreground-muted)]">Self-hit {pokemon.favorableConfusionSelfHits ?? "x"}</span>
                   </div>
+                  {pokemon.favorableEvents && pokemon.favorableEvents.length > 0 && (
+                    <details className="mt-2 rounded border border-white/10 bg-black/20">
+                      <summary className="cursor-pointer px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white/60">
+                        Event context ({pokemon.favorableEvents.length})
+                      </summary>
+                      <ol className="space-y-1 border-t border-white/10 px-2 py-1.5 text-[10px] text-white/55">
+                        {pokemon.favorableEvents.map((event, index) => (
+                          <li key={`${event.turn}-${event.type}-${index}`}>
+                            <span className="mr-1 font-mono font-bold text-[var(--accent)]">T{event.turn}</span>
+                            {event.description}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  )}
                 </div>
               )}
             </div>
