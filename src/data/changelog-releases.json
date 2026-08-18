@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-08-18-coach-milestone-cache-follow-up",
+    "title": "Coach Milestone Cache Follow-Up",
+    "summary": "Coach record milestones now reuse their large shared source dataset without exceeding the framework cache-item limit.",
+    "publishedAt": "2026-08-18",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "The shared coach-milestone dataset now uses a bounded 60-second server-process cache, avoiding repeated record queries and oversized framework-cache warnings."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-18-divisional-records-move-sources",
     "title": "Divisional Records & Move Sources",
     "summary": "Season 6+ divisional record books, linked coach achievements, richer Move Usage sources, and faster record pages.",

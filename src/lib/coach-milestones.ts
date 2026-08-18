@@ -423,11 +423,33 @@ async function getCoachMilestoneSourceData() {
   };
 }
 
-const getCachedCoachMilestoneSourceData = unstable_cache(
-  getCoachMilestoneSourceData,
-  ["coach-profile-milestone-source-v1"],
-  { revalidate: 60, tags: ["coach-profile-milestones"] },
-);
+type CoachMilestoneSourceData = Awaited<ReturnType<typeof getCoachMilestoneSourceData>>;
+
+const COACH_MILESTONE_SOURCE_CACHE_MS = 60_000;
+let coachMilestoneSourceCache: { data: CoachMilestoneSourceData; expiresAt: number } | null = null;
+let coachMilestoneSourcePromise: Promise<CoachMilestoneSourceData> | null = null;
+
+async function getCachedCoachMilestoneSourceData(): Promise<CoachMilestoneSourceData> {
+  const now = Date.now();
+  if (coachMilestoneSourceCache && coachMilestoneSourceCache.expiresAt > now) {
+    return coachMilestoneSourceCache.data;
+  }
+  if (coachMilestoneSourcePromise) return coachMilestoneSourcePromise;
+
+  coachMilestoneSourcePromise = getCoachMilestoneSourceData()
+    .then((data) => {
+      coachMilestoneSourceCache = {
+        data,
+        expiresAt: Date.now() + COACH_MILESTONE_SOURCE_CACHE_MS,
+      };
+      return data;
+    })
+    .finally(() => {
+      coachMilestoneSourcePromise = null;
+    });
+
+  return coachMilestoneSourcePromise;
+}
 
 async function buildCoachProfileMilestones(
   coachId: number,
