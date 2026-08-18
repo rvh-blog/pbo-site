@@ -13,21 +13,21 @@ export type FavorableHaxEvent = {
 
 const EXPANDED_HAX_EVENT_OVERRIDES: Record<number, Record<string, FavorableHaxEvent[]>> = {
   3586: {
-    Aegislash: [
+    aegislash: [
       { type: "crit", turn: 31, description: "Musashi landed a critical hit with Iron Head on Goodra." },
       { type: "flinch", turn: 38, description: "Goodra flinched." },
       { type: "crit", turn: 40, description: "Musashi landed a critical hit with Iron Head on Goodra." },
       { type: "flinch", turn: 41, description: "Goodra flinched." },
       { type: "crit", turn: 47, description: "Musashi landed a critical hit with Iron Head on Goodra." },
     ],
-    "Rotom-Wash": [
+    "rotom-wash": [
       { type: "miss", turn: 5, description: "Floette missed with Light of Ruin against Briggs." },
     ],
-    "Samurott-Hisui": [
+    "samurott-hisui": [
       { type: "miss", turn: 11, description: "Musashi missed with Poltergeist against Samurott." },
       { type: "crit", turn: 13, description: "Samurott landed a critical hit with Ceaseless Edge on Emerson." },
     ],
-    "Goodra-Hisui": [
+    "goodra-hisui": [
       { type: "crit", turn: 45, description: "Goodra landed a critical hit with Heavy Slam on Irwin." },
     ],
   },
@@ -49,5 +49,5 @@ export function getExpandedHaxEventOverride(
   pokemonName: string | null | undefined,
 ): FavorableHaxEvent[] {
   if (!pokemonName) return [];
-  return EXPANDED_HAX_EVENT_OVERRIDES[matchId]?.[pokemonName] ?? [];
+  return EXPANDED_HAX_EVENT_OVERRIDES[matchId]?.[pokemonName.trim().toLowerCase()] ?? [];
 }
