@@ -1,5 +1,33 @@
 [
   {
+    "sourceKey": "2026-08-18-divisional-records-move-sources",
+    "title": "Divisional Records & Move Sources",
+    "summary": "Season 6+ divisional record books, linked coach achievements, richer Move Usage sources, and faster record pages.",
+    "publishedAt": "2026-08-18",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Battle Record now has official-color record pages for Infinity, Stargazer, Sunset, Crystal, and Neon with Overall, Regular Season, and Playoffs scopes covering Season 6 onward."
+      },
+      {
+        "type": "added",
+        "text": "Top-three PBO and divisional record holders receive coach milestone titles that link directly to the applicable record page."
+      },
+      {
+        "type": "added",
+        "text": "Move Usage rows can lazily load game sources with matchup, coach, move-count, match, and replay context."
+      },
+      {
+        "type": "improved",
+        "text": "Short-lived caches and targeted database indexes speed up Battle Record, coach milestones, and Move Usage sources while keeping recent results fresh."
+      },
+      {
+        "type": "fixed",
+        "text": "Move Usage appearance totals retain games with an empty saved move map and clearly identify them as having no recorded move commands."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-12-stats-data-quality-performance",
     "title": "Current Stats & Faster Public Pages",
     "summary": "Current-season leaderboards, match data-quality tools, and faster public page data paths.",

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
-import { and, eq, gt, gte, isNotNull, lte, or } from "drizzle-orm";
-import { divisions, matches, matchPokemon, pokemon, seasons } from "@/lib/schema";
+import { unstable_cache } from "next/cache";
+import { and, eq, isNotNull, or } from "drizzle-orm";
+import { matches, matchPokemon } from "@/lib/schema";
 import { compareDivisionNames } from "@/lib/division-order";
 import type { BattleRecordRow } from "./battle-record-table";
 import { BattleRecordView, type BattleRecordTab, type PboRecordCategory, type PboRecordEntry } from "./battle-record-tabs";
@@ -14,6 +15,23 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Battle Record",
+};
+
+const divisionRecordNames = ["Infinity", "Stargazer", "Sunset", "Crystal", "Neon"] as const;
+type DivisionRecordName = (typeof divisionRecordNames)[number];
+
+type CoachRecordStats = {
+  games: number;
+  wins: number;
+  differential: number;
+  winDifferential: number;
+  winCount: number;
+  lossDifferential: number;
+  lossCount: number;
+  closeGames: number;
+  closeWins: number;
+  bigWins: number;
+  recentResults: Array<{ won: boolean; sortValue: number }>;
 };
 
 async function getBattleRecords(): Promise<BattleRecordRow[]> {
@@ -91,22 +109,10 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
     }
   }
 
-  const stats = new Map<number, {
-    games: number;
-    wins: number;
-    differential: number;
-    winDifferential: number;
-    winCount: number;
-    lossDifferential: number;
-    lossCount: number;
-    closeGames: number;
-    closeWins: number;
-    bigWins: number;
-    recentResults: Array<{ won: boolean; sortValue: number }>;
-  }>();
+  const stats = new Map<number, CoachRecordStats>();
 
-  function getStats(coachId: number) {
-    const existing = stats.get(coachId);
+  function getStats(statsMap: Map<number, CoachRecordStats>, coachId: number) {
+    const existing = statsMap.get(coachId);
     if (existing) return existing;
 
     const created = {
@@ -122,7 +128,7 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
       bigWins: 0,
       recentResults: [],
     };
-    stats.set(coachId, created);
+    statsMap.set(coachId, created);
     return created;
   }
 
@@ -138,7 +144,6 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
       const coachId = coachBySeasonCoachId.get(participant.seasonCoachId);
       if (!coachId) continue;
 
-      const coachStats = getStats(coachId);
       const won = match.winnerId === participant.seasonCoachId;
       const absDifferential = Math.abs(participant.differential);
       const playedTime = Date.parse(match.endedAt ?? match.playedAt ?? match.scheduledAt ?? "");
@@ -147,6 +152,7 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
         ? seasonNumber * 100000 + match.week * 100 + match.id
         : playedTime;
 
+      const coachStats = getStats(stats, coachId);
       coachStats.games += 1;
       coachStats.differential += participant.differential;
       coachStats.recentResults.push({ won, sortValue });
@@ -172,7 +178,8 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
     }
   }
 
-  return [...stats.entries()]
+  function buildRecordRows(statsMap: Map<number, CoachRecordStats>): BattleRecordRow[] {
+    return [...statsMap.entries()]
     .map(([coachId, row]) => {
       const last15Results = row.recentResults
         .sort((a, b) => b.sortValue - a.sortValue)
@@ -206,67 +213,75 @@ async function getBattleRecords(): Promise<BattleRecordRow[]> {
       b.averageDifferential - a.averageDifferential ||
       a.coachName.localeCompare(b.coachName)
     );
+  }
+
+  return buildRecordRows(stats);
 }
 
 async function getPokemonMoveRecords(): Promise<{
-  records: PokemonMoveRecord[];
   divisions: PokemonMoveDivision[];
 }> {
-  const rows = await db
-    .select({
-      pokemonId: matchPokemon.pokemonId,
-      movesUsed: matchPokemon.movesUsed,
-      pokemonName: pokemon.name,
-      pokemonDisplayName: pokemon.displayName,
-      spriteUrl: pokemon.spriteUrl,
-      divisionId: matches.divisionId,
-      divisionName: divisions.name,
-      seasonNumber: seasons.seasonNumber,
-    })
-    .from(matchPokemon)
-    .innerJoin(matches, eq(matchPokemon.matchId, matches.id))
-    .innerJoin(pokemon, eq(matchPokemon.pokemonId, pokemon.id))
-    .innerJoin(divisions, eq(matches.divisionId, divisions.id))
-    .innerJoin(seasons, eq(matches.seasonId, seasons.id))
-    .where(and(
-      isNotNull(matches.winnerId),
-      eq(matches.isForfeit, false),
-      or(
-        eq(matches.winnerId, matches.coach1SeasonId),
-        eq(matches.winnerId, matches.coach2SeasonId)
-      ),
-      gte(seasons.seasonNumber, 9),
-      isNotNull(matchPokemon.movesUsed),
-    ));
+  const rows = await db.query.matchPokemon.findMany({
+    columns: {
+      pokemonId: true,
+      movesUsed: true,
+    },
+    with: {
+      pokemon: {
+        columns: { id: true, name: true, displayName: true, spriteUrl: true },
+      },
+      match: {
+        columns: {
+          id: true,
+          divisionId: true,
+          week: true,
+          winnerId: true,
+          coach1SeasonId: true,
+          coach2SeasonId: true,
+          isForfeit: true,
+        },
+        with: {
+          season: { columns: { seasonNumber: true } },
+          division: { columns: { name: true } },
+        },
+      },
+    },
+    where: isNotNull(matchPokemon.movesUsed),
+  });
 
   type MoveUsageRow = (typeof rows)[number];
   const aggregateRecords = (sourceRows: MoveUsageRow[]): PokemonMoveRecord[] => {
     const records = new Map<number, {
-    pokemonId: number;
-    pokemonName: string;
-    spriteUrl: string | null;
-    games: number;
-    moves: Map<string, { name: string; uses: number }>;
+      pokemonId: number;
+      pokemonName: string;
+      spriteUrl: string | null;
+      games: number;
+      moves: Map<string, { name: string; uses: number }>;
     }>();
 
     for (const row of sourceRows) {
-      if (!row.movesUsed) continue;
+      if (!row.movesUsed || !row.pokemon || !row.match?.season || !row.match.division) continue;
+      const normalizedMoves = Object.entries(row.movesUsed)
+        .map(([rawName, rawUses]) => ({
+          name: rawName.trim().replace(/\s+/g, " "),
+          uses: Number(rawUses),
+        }))
+        .filter((move) => move.name && Number.isFinite(move.uses) && move.uses > 0)
+        .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name));
 
       const record = records.get(row.pokemonId) ?? {
         pokemonId: row.pokemonId,
-        pokemonName: row.pokemonDisplayName || row.pokemonName || "Unknown",
-        spriteUrl: row.spriteUrl || null,
+        pokemonName: row.pokemon.displayName || row.pokemon.name || "Unknown",
+        spriteUrl: row.pokemon.spriteUrl || null,
         games: 0,
         moves: new Map<string, { name: string; uses: number }>(),
       };
       record.games += 1;
 
-      for (const [rawName, rawUses] of Object.entries(row.movesUsed)) {
-        const uses = Number(rawUses);
-        if (!rawName.trim() || !Number.isFinite(uses) || uses <= 0) continue;
-        const key = rawName.trim().replace(/\s+/g, " ").toLowerCase();
-        const move = record.moves.get(key) ?? { name: rawName.trim().replace(/\s+/g, " "), uses: 0 };
-        move.uses += uses;
+      for (const usedMove of normalizedMoves) {
+        const key = usedMove.name.toLowerCase();
+        const move = record.moves.get(key) ?? { name: usedMove.name, uses: 0 };
+        move.uses += usedMove.uses;
         record.moves.set(key, move);
       }
 
@@ -288,17 +303,24 @@ async function getPokemonMoveRecords(): Promise<{
 
   const divisionRows = new Map<number, { seasonNumber: number; divisionName: string; rows: MoveUsageRow[] }>();
   for (const row of rows) {
-    const existing = divisionRows.get(row.divisionId) ?? {
-      seasonNumber: row.seasonNumber,
-      divisionName: row.divisionName,
+    if (
+      !row.match?.season
+      || !row.match.division
+      || row.match.season.seasonNumber < 9
+      || row.match.winnerId === null
+      || row.match.isForfeit
+      || (row.match.winnerId !== row.match.coach1SeasonId && row.match.winnerId !== row.match.coach2SeasonId)
+    ) continue;
+    const existing = divisionRows.get(row.match.divisionId) ?? {
+      seasonNumber: row.match.season.seasonNumber,
+      divisionName: row.match.division.name,
       rows: [],
     };
     existing.rows.push(row);
-    divisionRows.set(row.divisionId, existing);
+    divisionRows.set(row.match.divisionId, existing);
   }
 
   return {
-    records: aggregateRecords(rows),
     divisions: [...divisionRows.entries()]
       .map(([divisionId, division]) => ({
         divisionId,
@@ -383,7 +405,7 @@ type ChampionshipRow = {
   winnerId: number | null;
 };
 
-async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]> {
+async function getPboRecordSourceData() {
   const [allCoaches, allSeasonCoaches, allMatches, allSeasons, allDivisions, allMatchPokemon, allEloHistory, championshipFinals] = await Promise.all([
     db.query.coaches.findMany({
       columns: {
@@ -424,12 +446,7 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
         or(
           eq(matches.winnerId, matches.coach1SeasonId),
           eq(matches.winnerId, matches.coach2SeasonId)
-        ),
-        scope === "regular-season"
-          ? lte(matches.week, 100)
-          : scope === "playoffs"
-            ? gt(matches.week, 100)
-            : undefined
+        )
       ),
     }),
     db.query.seasons.findMany({
@@ -462,26 +479,65 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
         },
       },
     }),
-    scope === "overall"
-      ? db.query.eloHistory.findMany({
-          columns: {
-            coachId: true,
-            eloRating: true,
-            matchId: true,
-          },
-        })
-      : Promise.resolve([] as PeakEloRow[]),
-    scope === "regular-season"
-      ? Promise.resolve([] as ChampionshipRow[])
-      : db.query.playoffMatches.findMany({
-          columns: {
-            seasonId: true,
-            divisionId: true,
-            winnerId: true,
-            round: true,
-          },
-        }).then((rows) => rows.filter((row) => row.round === 3 && row.winnerId !== null)),
+    db.query.eloHistory.findMany({
+      columns: {
+        coachId: true,
+        eloRating: true,
+        matchId: true,
+      },
+    }),
+    db.query.playoffMatches.findMany({
+      columns: {
+        seasonId: true,
+        divisionId: true,
+        winnerId: true,
+        round: true,
+      },
+    }).then((rows) => rows.filter((row) => row.round === 3 && row.winnerId !== null)),
   ]);
+
+  return { allCoaches, allSeasonCoaches, allMatches, allSeasons, allDivisions, allMatchPokemon, allEloHistory, championshipFinals };
+}
+
+type PboRecordSourceData = Awaited<ReturnType<typeof getPboRecordSourceData>>;
+
+function getPboRecords(
+  sourceData: PboRecordSourceData,
+  scope: PboRecordScope,
+  divisionRecordName?: DivisionRecordName,
+): PboRecordCategory[] {
+  const {
+    allCoaches,
+    allSeasonCoaches,
+    allMatches: sourceMatches,
+    allSeasons,
+    allDivisions,
+    allMatchPokemon,
+    allEloHistory: sourceEloHistory,
+    championshipFinals: sourceChampionshipFinals,
+  } = sourceData;
+  const sourceSeasonNumberById = new Map(allSeasons.map((season) => [season.id, season.seasonNumber]));
+  const divisionIds = divisionRecordName
+    ? new Set(
+        allDivisions
+          .filter((division) =>
+            (sourceSeasonNumberById.get(division.seasonId) ?? 0) >= 6 &&
+            division.name.trim().toLowerCase() === divisionRecordName.toLowerCase()
+          )
+          .map((division) => division.id)
+      )
+    : null;
+  const allMatches = sourceMatches.filter((match) =>
+    (scope === "regular-season" ? match.week <= 100 : scope === "playoffs" ? match.week > 100 : true) &&
+    (!divisionIds || divisionIds.has(match.divisionId))
+  );
+  const completedMatchIds = new Set(allMatches.map((match) => match.id));
+  const allEloHistory = scope === "overall"
+    ? sourceEloHistory.filter((entry) => !divisionIds || (entry.matchId !== null && completedMatchIds.has(entry.matchId)))
+    : [] as PeakEloRow[];
+  const championshipFinals = scope === "regular-season"
+    ? [] as ChampionshipRow[]
+    : sourceChampionshipFinals.filter((final) => !divisionIds || divisionIds.has(final.divisionId));
 
   const coachById = new Map(allCoaches.map((coach) => [coach.id, coach]));
   const seasonCoachById = new Map(allSeasonCoaches.map((seasonCoach) => [seasonCoach.id, seasonCoach]));
@@ -538,11 +594,13 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
     }
   }
 
-  const scopeName = scope === "regular-season"
-    ? "regular-season"
-    : scope === "playoffs"
-      ? "playoff"
-      : "all-time";
+  const scopeName = divisionRecordName
+    ? `Season 6+ ${divisionRecordName}${scope === "regular-season" ? " regular-season" : scope === "playoffs" ? " playoff" : ""}`
+    : scope === "regular-season"
+      ? "regular-season"
+      : scope === "playoffs"
+        ? "playoff"
+        : "all-time";
   const formatCareerRecord = (
     row: { coachId: number; wins: number; losses: number; games: number },
     value: string,
@@ -754,11 +812,11 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
   });
 
   const mostWinsInRow = topThree(
-    streaks.filter((streak) => streak.type === "win").sort((a, b) => b.count - a.count)
+    streaks.filter((streak) => streak.type === "win").sort((a, b) => b.count - a.count || a.coachId - b.coachId)
   ).map(formatStreak);
 
   const mostLossesInRow = topThree(
-    streaks.filter((streak) => streak.type === "loss").sort((a, b) => b.count - a.count)
+    streaks.filter((streak) => streak.type === "loss").sort((a, b) => b.count - a.count || a.coachId - b.coachId)
   ).map(formatStreak);
 
   const playoffSeasonsByCoach = new Map<number, Map<number, string>>();
@@ -915,22 +973,24 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
     href: `/pokemon/${row.pokemonId}`,
   }));
 
-  const scopedRecordLabel = scope === "regular-season"
-    ? "Regular-Season"
-    : scope === "playoffs"
-      ? "Playoff"
-      : "All-Time";
+  const scopedRecordLabel = divisionRecordName
+    ? `${divisionRecordName}${scope === "regular-season" ? " Regular-Season" : scope === "playoffs" ? " Playoff" : ""}`
+    : scope === "regular-season"
+      ? "Regular-Season"
+      : scope === "playoffs"
+        ? "Playoff"
+        : "All-Time";
   const categories: PboRecordCategory[] = [
     { title: `Most ${scopedRecordLabel} Wins`, entries: mostCareerWins },
     { title: `Most ${scopedRecordLabel} Losses`, entries: mostCareerLosses },
     { title: scope === "overall" ? "Most Matches Played" : `Most ${scopedRecordLabel} Matches`, entries: mostMatchesPlayed },
   ];
 
-  if (scope !== "regular-season") {
+  if (scope !== "regular-season" && !divisionRecordName) {
     categories.push({ title: "Most Championships", entries: mostChampionships });
   }
 
-  if (scope === "overall") {
+  if (scope === "overall" && !divisionRecordName) {
     categories.push(
       { title: "Highest Peak Elo", entries: highestPeakElo },
       { title: "Most Consecutive Seasons Played", entries: mostConsecutiveSeasons },
@@ -965,45 +1025,88 @@ async function getPboRecords(scope: PboRecordScope): Promise<PboRecordCategory[]
   return categories;
 }
 
+const getCachedBattleRecords = unstable_cache(
+  getBattleRecords,
+  ["battle-record-coach-records-v1"],
+  { revalidate: 60, tags: ["battle-record-public-data"] },
+);
+
+const getCachedPokemonMoveRecords = unstable_cache(
+  getPokemonMoveRecords,
+  ["battle-record-pokemon-moves-v1"],
+  { revalidate: 60, tags: ["battle-record-public-data"] },
+);
+
+const getCachedPboRecordData = unstable_cache(
+  async () => {
+    const sourceData = await getPboRecordSourceData();
+    return {
+      regularSeasonRecords: getPboRecords(sourceData, "regular-season"),
+      playoffRecords: getPboRecords(sourceData, "playoffs"),
+      overallRecords: getPboRecords(sourceData, "overall"),
+      divisionalRecords: divisionRecordNames.map((divisionName) => ({
+        divisionName,
+        regularSeasonRecords: getPboRecords(sourceData, "regular-season", divisionName),
+        playoffRecords: getPboRecords(sourceData, "playoffs", divisionName),
+        overallRecords: getPboRecords(sourceData, "overall", divisionName),
+      })),
+    };
+  },
+  ["battle-record-pbo-and-divisional-records-v1"],
+  { revalidate: 60, tags: ["battle-record-public-data"] },
+);
+
 type BattleRecordPageProps = {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; scope?: string; division?: string }>;
 };
 
 export default async function BattleRecordPage({ searchParams }: BattleRecordPageProps) {
-  const { tab } = await searchParams;
+  const { tab, scope, division } = await searchParams;
   const initialTab: BattleRecordTab = tab === "move-usage"
     ? "pokemon-moves"
+    : tab === "divisional-records"
+      ? "divisional-records"
     : tab === "pbo-records"
       ? "pbo-records"
       : "coach-records";
-  const [battleRecords, calculatedRegularSeasonRecords, calculatedPlayoffRecords, overallPboRecords, manualOverrides, pokemonMoveRecords] = await Promise.all([
-    getBattleRecords(),
-    getPboRecords("regular-season"),
-    getPboRecords("playoffs"),
-    getPboRecords("overall"),
+  const requestedScope: PboRecordScope | null = scope === "regular-season"
+    ? "regular-season"
+    : scope === "playoffs"
+      ? "playoffs"
+      : scope === "overall"
+        ? "overall"
+        : null;
+  const initialPboScope = requestedScope ?? "regular-season";
+  const initialDivisionScope = requestedScope ?? "overall";
+  const [battleRecordData, pboRecordData, manualOverrides, pokemonMoveRecords] = await Promise.all([
+    getCachedBattleRecords(),
+    getCachedPboRecordData(),
     getBattleRecordOverrides(true),
-    getPokemonMoveRecords(),
+    getCachedPokemonMoveRecords(),
   ]);
   const regularSeasonPboRecords = applyBattleRecordOverrides(
-    calculatedRegularSeasonRecords,
+    pboRecordData.regularSeasonRecords,
     "regular-season",
     manualOverrides
   );
   const playoffPboRecords = applyBattleRecordOverrides(
-    calculatedPlayoffRecords,
+    pboRecordData.playoffRecords,
     "playoffs",
     manualOverrides
   );
 
   return (
     <BattleRecordView
-      key={initialTab}
+      key={`${initialTab}-${requestedScope ?? "default"}-${division ?? "all"}`}
       initialTab={initialTab}
-      records={battleRecords}
+      initialPboRecordScope={initialPboScope}
+      initialDivisionRecordScope={initialDivisionScope}
+      initialDivisionRecordName={division}
+      records={battleRecordData}
+      divisionalPboRecords={pboRecordData.divisionalRecords}
       regularSeasonPboRecords={regularSeasonPboRecords}
       playoffPboRecords={playoffPboRecords}
-      overallPboRecords={overallPboRecords}
-      pokemonMoveRecords={pokemonMoveRecords.records}
+      overallPboRecords={pboRecordData.overallRecords}
       pokemonMoveDivisions={pokemonMoveRecords.divisions}
     />
   );

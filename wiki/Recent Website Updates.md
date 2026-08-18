@@ -19,6 +19,59 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 18, 2026
+
+Battle Record:
+
+- Added a Divisional Records section beside PBO Records for Infinity,
+  Stargazer, Sunset, Crystal, and Neon. Divisional records cover completed,
+  non-forfeit matches from Season 6 onward.
+- Added Overall, Regular Season, and Playoffs scopes to every division, with
+  direct links that preserve the selected division and scope.
+- Applied each division's official color to its selector, active tab, icon, and
+  record-card headings.
+- Divisional pages use the PBO record-card format and intentionally omit Most
+  Championships, Highest Peak Elo, and Most Consecutive Seasons Played.
+- Added a Season 6+ notice to every divisional view.
+
+Coach milestones:
+
+- Coaches who hold a top-three PBO or divisional record now receive a live
+  milestone title linking to the exact record scope and division.
+- Record milestones use persistent `coaches.id` ownership while match and team
+  results continue to resolve through `season_coaches.id`.
+- Championship titles use playoff-finals results, and tied streak and
+  consecutive-season rankings use deterministic ordering.
+
+Move Usage:
+
+- Added a lazy-loaded View Game Sources section for each Pokemon, including the
+  season, division, week, matchup, coach, per-game move counts, match page, and
+  replay link.
+- Games with an empty saved move map still count as appearances and are labeled
+  as having no recorded move commands.
+- Increased and bolded the Move Usage tracking-context text.
+
+Performance:
+
+- Battle Record aggregates, shared milestone source data, per-coach milestone
+  results, and move-source API results use 60-second caches.
+- Move-source responses are cacheable by the edge for 60 seconds with a
+  five-minute stale-while-revalidate window.
+- Added read indexes for completed record matches, Pokemon move-source joins,
+  and playoff championship lookups. Existing databases receive the indexes at
+  startup; the matching migration is
+  `migrations/add-battle-record-performance-indexes.sql`.
+- Local warm-request observations improved from roughly 690 ms to 148 ms for a
+  divisional record page, 1195 ms to 276 ms for a coach profile, and 352 ms to
+  14 ms for a move-source request. These are development-machine observations,
+  not production guarantees.
+
+Verification:
+
+- `npx tsc --noEmit`, targeted ESLint, `git diff --check`, the production build,
+  route/API smoke tests, and SQLite query-plan validation pass.
+
 ## August 17, 2026
 
 Draft planner:

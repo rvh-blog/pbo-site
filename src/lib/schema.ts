@@ -251,6 +251,7 @@ export const matches = sqliteTable("matches", {
   index("idx_matches_season_winner_scheduled").on(table.seasonId, table.winnerId, table.scheduledAt),
   index("idx_matches_is_forfeit_winner_id").on(table.isForfeit, table.winnerId),
   index("idx_matches_season_winner_id").on(table.seasonId, table.winnerId),
+  index("idx_matches_completed_records").on(table.isForfeit, table.winnerId, table.divisionId, table.week),
 ]);
 
 // Playoff Matches - bracket structure for playoffs
@@ -279,6 +280,7 @@ export const playoffMatches = sqliteTable("playoff_matches", {
   index("idx_playoff_matches_round_winner_id").on(table.round, table.winnerId),
   index("idx_playoff_matches_season_winner_id").on(table.seasonId, table.winnerId),
   index("idx_playoff_matches_season_round_winner_id").on(table.seasonId, table.round, table.winnerId),
+  index("idx_playoff_matches_round_division_winner").on(table.round, table.divisionId, table.winnerId),
 ]);
 
 // Match Pokemon - tracks each pokemon brought to a match
@@ -329,6 +331,7 @@ export const matchPokemon = sqliteTable("match_pokemon", {
   index("idx_match_pokemon_pokemon_id").on(table.pokemonId),
   index("idx_match_pokemon_season_coach_id").on(table.seasonCoachId),
   index("idx_match_pokemon_season_coach_pokemon").on(table.seasonCoachId, table.pokemonId),
+  index("idx_match_pokemon_pokemon_match").on(table.pokemonId, table.matchId),
 ]);
 
 // Kill Events - normalized table for individual kills

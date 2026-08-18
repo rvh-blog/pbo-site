@@ -3207,7 +3207,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                     {liveMilestoneTitles.map((milestone) => (
                       <Link
                         key={milestone.key}
-                        href={milestone.pokemonId ? `/pokemon/${milestone.pokemonId}` : "#"}
+                        href={milestone.href ?? (milestone.pokemonId ? `/pokemon/${milestone.pokemonId}` : "#")}
                         className="group rounded-xl border border-yellow-300/30 bg-[var(--background-secondary)]/75 p-4 transition-all hover:-translate-y-0.5 hover:border-yellow-200/60 hover:shadow-[0_8px_24px_rgba(250,204,21,0.12)]"
                       >
                         <div className="mb-2 flex items-center justify-between gap-2">

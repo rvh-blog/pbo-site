@@ -26,8 +26,10 @@ See also:
 - Division page: `src/app/seasons/[id]/divisions/[divId]/page.tsx`
 - Match details: `src/app/matches/[id]/page.tsx`
 - Coaches: `src/app/coaches`
-- Battle Record: `src/app/battle-record` (Coach Records, PBO Records, and direct
-  Move Usage/PBO Records query links; available from the PBO Stats menu)
+- Battle Record: `src/app/battle-record` (Coach Records, PBO Records,
+  Season 6+ Divisional Records, Move Usage with lazy game sources, and direct
+  query links that preserve record scope/division; available from the PBO Stats
+  menu)
 - PBO Stats: `src/app/leaderboards`
 - Item Usage: `src/app/leaderboards/items` (Season 5+ replay-revealed item,
   Pokemon, and persistent-coach aggregates)
@@ -70,6 +72,9 @@ See also:
 - Browser performance samples are collected by `src/components/performance-monitor.tsx` and exposed through `src/app/api/performance/route.ts` and the health endpoint.
 - Query diagnostics aggregate slow-query fingerprints in `src/lib/db.ts`.
 - Additional read indexes are declared in `src/lib/schema.ts` and documented in `migrations/add-query-performance-indexes.sql`.
+- Battle Record, divisional records, Move Usage aggregates, move-source rows,
+  and coach milestone datasets use 60-second caches. Battle Record query indexes
+  are documented in `migrations/add-battle-record-performance-indexes.sql`.
 
 Feature notes:
 

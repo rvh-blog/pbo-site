@@ -1,4 +1,5 @@
 import { rawClient } from "@/lib/db";
+import { unstable_cache } from "next/cache";
 
 export interface CoachProfileMilestone {
   key: string;
@@ -8,6 +9,7 @@ export interface CoachProfileMilestone {
   seasonNumber: number;
   matchId?: number;
   pokemonId?: number;
+  href?: string;
   isLiveTitle?: boolean;
 }
 
@@ -45,6 +47,15 @@ interface PokemonRow extends Record<string, unknown> {
   deaths: number;
 }
 
+interface EloRow extends Record<string, unknown> {
+  coach_id: number;
+  elo_rating: number;
+}
+
+interface ChampionshipWinnerRow extends Record<string, unknown> {
+  coach_id: number;
+}
+
 function resultRows<T extends Record<string, unknown>>(
   result: Awaited<ReturnType<typeof rawClient.execute>>,
 ): T[] {
@@ -63,10 +74,303 @@ function addMilestone(
   if (!milestones.has(milestone.key)) milestones.set(milestone.key, milestone);
 }
 
-export async function getCoachProfileMilestones(
+type RecordScope = "regular-season" | "playoffs" | "overall";
+
+const RECORD_DIVISIONS = ["Infinity", "Stargazer", "Sunset", "Crystal", "Neon"] as const;
+
+function recordScopeLabel(scope: RecordScope, divisionName?: string) {
+  const scopeLabel = scope === "regular-season"
+    ? "Regular-Season"
+    : scope === "playoffs"
+      ? "Playoff"
+      : "All-Time";
+  return divisionName ? `${divisionName} ${scopeLabel}` : scopeLabel;
+}
+
+function recordPageHref(scope: RecordScope, divisionName?: string) {
+  const params = new URLSearchParams({
+    tab: divisionName ? "divisional-records" : "pbo-records",
+    scope,
+  });
+  if (divisionName) params.set("division", divisionName);
+  return `/battle-record?${params.toString()}`;
+}
+
+function addRankedCoachRecord<T extends { coachId: number }>(
+  milestones: Map<string, CoachProfileMilestone>,
+  rows: T[],
   coachId: number,
-): Promise<CoachProfileMilestone[]> {
-  const [matchResult, pokemonResult] = await Promise.all([
+  key: string,
+  title: string,
+  detail: (row: T) => string,
+  seasonNumber: number,
+  href: string,
+) {
+  rows.slice(0, 3).forEach((row, index) => {
+    if (row.coachId !== coachId) return;
+    addMilestone(milestones, {
+      key: `record:${key}:${index + 1}`,
+      category: "coach",
+      title: `🏅 #${index + 1} ${title}`,
+      detail: detail(row),
+      seasonNumber,
+      href,
+      isLiveTitle: true,
+    });
+  });
+}
+
+function addCoachRecordMilestones(
+  milestones: Map<string, CoachProfileMilestone>,
+  matches: MatchRow[],
+  eloRows: EloRow[],
+  championshipWinnerRows: ChampionshipWinnerRow[],
+  coachId: number,
+) {
+  const eligibleMatches = matches.filter((match) =>
+    match.winner_id !== null
+    && !Boolean(match.is_forfeit)
+    && (match.winner_id === match.coach1_season_id || match.winner_id === match.coach2_season_id)
+  );
+  const latestSeasonNumber = Math.max(0, ...eligibleMatches.map((match) => match.season_number));
+  const configs: Array<{ scope: RecordScope; divisionName?: string }> = [
+    { scope: "regular-season" },
+    { scope: "playoffs" },
+    { scope: "overall" },
+    ...RECORD_DIVISIONS.flatMap((divisionName) => ([
+      { scope: "regular-season" as const, divisionName },
+      { scope: "playoffs" as const, divisionName },
+      { scope: "overall" as const, divisionName },
+    ])),
+  ];
+
+  for (const { scope, divisionName } of configs) {
+    const scopedMatches = eligibleMatches.filter((match) => {
+      if (scope === "regular-season" && match.week > 100) return false;
+      if (scope === "playoffs" && match.week <= 100) return false;
+      if (!divisionName) return true;
+      return match.season_number >= 6
+        && match.division_name.trim().toLowerCase() === divisionName.toLowerCase();
+    });
+    if (scopedMatches.length === 0) continue;
+
+    const label = recordScopeLabel(scope, divisionName);
+    const href = recordPageHref(scope, divisionName);
+    const keyPrefix = `${divisionName?.toLowerCase() ?? "pbo"}:${scope}`;
+    const careerStats = new Map<number, { coachId: number; wins: number; losses: number; games: number }>();
+    const teamStats = new Map<number, {
+      coachId: number;
+      teamName: string;
+      wins: number;
+      losses: number;
+      differential: number;
+      lastSort: number;
+    }>();
+    const resultsByCoach = new Map<number, Array<{ won: boolean; match: MatchRow; teamName: string }>>();
+    const seasonsByCoach = new Map<number, Set<number>>();
+
+    for (const match of scopedMatches) {
+      const participants = [
+        {
+          coachId: match.coach1_id,
+          seasonCoachId: match.coach1_season_id,
+          teamName: match.coach1_team,
+          differential: Number(match.coach1_differential),
+        },
+        {
+          coachId: match.coach2_id,
+          seasonCoachId: match.coach2_season_id,
+          teamName: match.coach2_team,
+          differential: Number(match.coach2_differential),
+        },
+      ];
+
+      for (const participant of participants) {
+        const won = match.winner_id === participant.seasonCoachId;
+        const career = careerStats.get(participant.coachId) ?? {
+          coachId: participant.coachId, wins: 0, losses: 0, games: 0,
+        };
+        career.games++;
+        career.wins += won ? 1 : 0;
+        career.losses += won ? 0 : 1;
+        careerStats.set(participant.coachId, career);
+
+        const team = teamStats.get(participant.seasonCoachId) ?? {
+          coachId: participant.coachId,
+          teamName: participant.teamName,
+          wins: 0,
+          losses: 0,
+          differential: 0,
+          lastSort: 0,
+        };
+        team.wins += won ? 1 : 0;
+        team.losses += won ? 0 : 1;
+        team.differential += participant.differential;
+        team.lastSort = Math.max(team.lastSort, match.season_number * 100000 + match.week * 100 + match.id);
+        teamStats.set(participant.seasonCoachId, team);
+
+        const results = resultsByCoach.get(participant.coachId) ?? [];
+        results.push({ won, match, teamName: participant.teamName });
+        resultsByCoach.set(participant.coachId, results);
+
+        const seasons = seasonsByCoach.get(participant.coachId) ?? new Set<number>();
+        seasons.add(match.season_number);
+        seasonsByCoach.set(participant.coachId, seasons);
+      }
+    }
+
+    const careerRows = [...careerStats.values()];
+    addRankedCoachRecord(
+      milestones,
+      [...careerRows].sort((a, b) => b.wins - a.wins || a.losses - b.losses || b.games - a.games),
+      coachId, `${keyPrefix}:wins`, `Most ${label} Wins`,
+      (row) => `${row.wins}-${row.losses} across ${row.games} matches`, latestSeasonNumber, href,
+    );
+    addRankedCoachRecord(
+      milestones,
+      [...careerRows].sort((a, b) => b.losses - a.losses || b.games - a.games || b.wins - a.wins),
+      coachId, `${keyPrefix}:losses`, `Most ${label} Losses`,
+      (row) => `${row.wins}-${row.losses} across ${row.games} matches`, latestSeasonNumber, href,
+    );
+    addRankedCoachRecord(
+      milestones,
+      [...careerRows].sort((a, b) => b.games - a.games || b.wins - a.wins || a.losses - b.losses),
+      coachId, `${keyPrefix}:matches`, scope === "overall" ? `Most ${divisionName ?? "PBO"} Matches Played` : `Most ${label} Matches`,
+      (row) => `${row.games} matches (${row.wins}-${row.losses})`, latestSeasonNumber, href,
+    );
+
+    const teamRows = [...teamStats.values()];
+    addRankedCoachRecord(
+      milestones,
+      [...teamRows].sort((a, b) => b.differential - a.differential || b.wins - a.wins || a.losses - b.losses || b.lastSort - a.lastSort),
+      coachId, `${keyPrefix}:best-differential`, `Best ${label} Differential`,
+      (row) => `${row.teamName} · ${row.wins}-${row.losses}, ${row.differential >= 0 ? "+" : ""}${row.differential}`,
+      latestSeasonNumber, href,
+    );
+    if (scope !== "playoffs") {
+      addRankedCoachRecord(
+        milestones,
+        [...teamRows].sort((a, b) => a.differential - b.differential || b.losses - a.losses || a.wins - b.wins || b.lastSort - a.lastSort),
+        coachId, `${keyPrefix}:worst-differential`, `Worst ${label} Differential`,
+        (row) => `${row.teamName} · ${row.wins}-${row.losses}, ${row.differential >= 0 ? "+" : ""}${row.differential}`,
+        latestSeasonNumber, href,
+      );
+    }
+
+    const streaks: Array<{ coachId: number; type: "win" | "loss"; count: number; teamName: string }> = [];
+    for (const [recordCoachId, results] of resultsByCoach) {
+      const ordered = results.sort((a, b) =>
+        a.match.season_number - b.match.season_number || a.match.week - b.match.week || a.match.id - b.match.id
+      );
+      let current: (typeof streaks)[number] | null = null;
+      for (const result of ordered) {
+        const type = result.won ? "win" : "loss";
+        if (!current || current.type !== type) {
+          current = { coachId: recordCoachId, type, count: 1, teamName: result.teamName };
+          streaks.push(current);
+        } else {
+          current.count++;
+          current.teamName = result.teamName;
+        }
+      }
+    }
+    addRankedCoachRecord(
+      milestones,
+      streaks.filter((row) => row.type === "win").sort((a, b) => b.count - a.count || a.coachId - b.coachId),
+      coachId, `${keyPrefix}:win-streak`, `Most ${label} Wins in a Row`,
+      (row) => `${row.teamName} · ${row.count} consecutive wins`, latestSeasonNumber, href,
+    );
+    addRankedCoachRecord(
+      milestones,
+      streaks.filter((row) => row.type === "loss").sort((a, b) => b.count - a.count || a.coachId - b.coachId),
+      coachId, `${keyPrefix}:loss-streak`, `Most ${label} Losses in a Row`,
+      (row) => `${row.teamName} · ${row.count} consecutive losses`, latestSeasonNumber, href,
+    );
+
+    if (scope === "playoffs") {
+      const appearanceRows = [...seasonsByCoach.entries()].map(([recordCoachId, seasons]) => {
+        const ordered = [...seasons].sort((a, b) => a - b);
+        let best = 0;
+        let current = 0;
+        let previous: number | null = null;
+        let bestEndSeason = 0;
+        for (const season of ordered) {
+          current = previous !== null && season === previous + 1 ? current + 1 : 1;
+          if (current >= best) {
+            best = current;
+            bestEndSeason = season;
+          }
+          previous = season;
+        }
+        return { coachId: recordCoachId, count: best, endSeason: bestEndSeason };
+      });
+      addRankedCoachRecord(
+        milestones,
+        appearanceRows.sort((a, b) => b.count - a.count || b.endSeason - a.endSeason || a.coachId - b.coachId),
+        coachId, `${keyPrefix}:playoff-appearances`, `Most Consecutive ${label} Appearances`,
+        (row) => `${row.count} consecutive ${row.count === 1 ? "appearance" : "appearances"}`,
+        latestSeasonNumber, href,
+      );
+    }
+
+    if (!divisionName && scope !== "regular-season") {
+      const championshipCounts = new Map<number, number>();
+      for (const row of championshipWinnerRows) {
+        championshipCounts.set(row.coach_id, (championshipCounts.get(row.coach_id) ?? 0) + 1);
+      }
+      const championshipRows = [...championshipCounts].map(([recordCoachId, count]) => ({
+        coachId: recordCoachId,
+        count,
+      }));
+      addRankedCoachRecord(
+        milestones,
+        championshipRows.sort((a, b) => b.count - a.count || a.coachId - b.coachId),
+        coachId, `${keyPrefix}:championships`, "Most Championships",
+        (row) => `${row.count} ${row.count === 1 ? "championship" : "championships"}`,
+        latestSeasonNumber, href,
+      );
+    }
+
+    if (!divisionName && scope === "overall") {
+      const consecutiveRows = [...seasonsByCoach.entries()].map(([recordCoachId, seasons]) => {
+        const ordered = [...seasons].sort((a, b) => a - b);
+        let best = 0;
+        let current = 0;
+        let previous: number | null = null;
+        let bestEndSeason = 0;
+        for (const season of ordered) {
+          current = previous !== null && season === previous + 1 ? current + 1 : 1;
+          if (current >= best) {
+            best = current;
+            bestEndSeason = season;
+          }
+          previous = season;
+        }
+        return { coachId: recordCoachId, count: best, endSeason: bestEndSeason };
+      });
+      addRankedCoachRecord(
+        milestones,
+        consecutiveRows.sort((a, b) => b.count - a.count || b.endSeason - a.endSeason || a.coachId - b.coachId),
+        coachId, `${keyPrefix}:consecutive-seasons`, "Most Consecutive Seasons Played",
+        (row) => `${row.count} consecutive ${row.count === 1 ? "season" : "seasons"}`,
+        latestSeasonNumber, href,
+      );
+      const peakEloRows = new Map<number, number>();
+      for (const row of eloRows) {
+        peakEloRows.set(row.coach_id, Math.max(peakEloRows.get(row.coach_id) ?? 0, Number(row.elo_rating)));
+      }
+      addRankedCoachRecord(
+        milestones,
+        [...peakEloRows].map(([recordCoachId, elo]) => ({ coachId: recordCoachId, elo })).sort((a, b) => b.elo - a.elo || a.coachId - b.coachId),
+        coachId, `${keyPrefix}:peak-elo`, "Highest Peak Elo",
+        (row) => `${Math.round(row.elo)} Elo`, latestSeasonNumber, href,
+      );
+    }
+  }
+}
+
+async function getCoachMilestoneSourceData() {
+  const [matchResult, pokemonResult, eloResult, championshipResult] = await Promise.all([
     rawClient.execute({
       sql: `SELECT m.id, m.season_id, s.season_number, s.name AS season_name,
         d.name AS division_name, m.week, m.winner_id,
@@ -98,10 +402,37 @@ export async function getCoachProfileMilestones(
       ORDER BY s.season_number, m.week, COALESCE(m.played_at, ''), m.id, mp.id`,
       args: [],
     }),
+    rawClient.execute({
+      sql: `SELECT coach_id, elo_rating FROM elo_history`,
+      args: [],
+    }),
+    rawClient.execute({
+      sql: `SELECT sc.coach_id
+        FROM playoff_matches pm
+        JOIN season_coaches sc ON sc.id = pm.winner_id
+        WHERE pm.round = 3 AND pm.winner_id IS NOT NULL`,
+      args: [],
+    }),
   ]);
 
-  const matches = resultRows<MatchRow>(matchResult);
-  const pokemonRows = resultRows<PokemonRow>(pokemonResult);
+  return {
+    matches: resultRows<MatchRow>(matchResult),
+    pokemonRows: resultRows<PokemonRow>(pokemonResult),
+    eloRows: resultRows<EloRow>(eloResult),
+    championshipWinnerRows: resultRows<ChampionshipWinnerRow>(championshipResult),
+  };
+}
+
+const getCachedCoachMilestoneSourceData = unstable_cache(
+  getCoachMilestoneSourceData,
+  ["coach-profile-milestone-source-v1"],
+  { revalidate: 60, tags: ["coach-profile-milestones"] },
+);
+
+async function buildCoachProfileMilestones(
+  coachId: number,
+): Promise<CoachProfileMilestone[]> {
+  const { matches, pokemonRows, eloRows, championshipWinnerRows } = await getCachedCoachMilestoneSourceData();
   const milestones = new Map<string, CoachProfileMilestone>();
   const completedMatches = matches.filter(isCompleted);
 
@@ -354,7 +685,27 @@ export async function getCoachProfileMilestones(
     }
   }
 
+  addCoachRecordMilestones(
+    milestones,
+    matches,
+    eloRows,
+    championshipWinnerRows,
+    coachId,
+  );
+
   return [...milestones.values()].sort(
     (left, right) => right.seasonNumber - left.seasonNumber || left.title.localeCompare(right.title),
   );
+}
+
+const getCachedCoachProfileMilestones = unstable_cache(
+  buildCoachProfileMilestones,
+  ["coach-profile-milestones-v1"],
+  { revalidate: 60, tags: ["coach-profile-milestones"] },
+);
+
+export async function getCoachProfileMilestones(
+  coachId: number,
+): Promise<CoachProfileMilestone[]> {
+  return getCachedCoachProfileMilestones(coachId);
 }
