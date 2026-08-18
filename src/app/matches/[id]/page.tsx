@@ -295,7 +295,7 @@ function BattleSummaryTeam({
       const savedEvents = pokemon.favorableEvents || [];
       const events = savedEvents.length > 0
         ? savedEvents
-        : getExpandedHaxEventOverride(matchId, pokemon.pokemon?.name);
+        : getExpandedHaxEventOverride(matchId, getPokemonLabel(pokemon));
 
       return events.map((event) => ({
         ...event,
