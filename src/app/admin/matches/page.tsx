@@ -1123,6 +1123,7 @@ export default function AdminMatchesPage() {
           expandedHaxRules: usesExpandedHaxRules(
             selectedSeason?.seasonNumber,
             currentMatch?.week ?? (playoffMatch ? 100 + playoffMatch.round : null),
+            currentMatch?.id,
           ),
         }),
       });

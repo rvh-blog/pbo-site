@@ -19,7 +19,7 @@ import {
 } from "@/lib/site-settings";
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
 import type { TimeSyncTransaction } from "@/lib/roster-utils";
-import { usesExpandedHaxRules } from "@/lib/hax-rules";
+import { getExpandedHaxEventOverride, usesExpandedHaxRules } from "@/lib/hax-rules";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -264,12 +264,14 @@ function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[], expandedHaxR
 }
 
 function BattleSummaryTeam({
+  matchId,
   teamName,
   logoUrl,
   pokemonRows,
   align,
   expandedHaxRules,
 }: {
+  matchId: number;
   teamName: string;
   logoUrl?: string | null;
   pokemonRows: BattleSummaryPokemon[];
@@ -289,10 +291,17 @@ function BattleSummaryTeam({
     ["HAX COUNT", stats.haxCount],
   ];
   const haxEvents = pokemonRows
-    .flatMap((pokemon) => (pokemon.favorableEvents || []).map((event) => ({
-      ...event,
-      pokemon: getPokemonLabel(pokemon),
-    })))
+    .flatMap((pokemon) => {
+      const savedEvents = pokemon.favorableEvents || [];
+      const events = savedEvents.length > 0
+        ? savedEvents
+        : getExpandedHaxEventOverride(matchId, pokemon.pokemon?.name);
+
+      return events.map((event) => ({
+        ...event,
+        pokemon: getPokemonLabel(pokemon),
+      }));
+    })
     .sort((a, b) => a.turn - b.turn);
 
   return (
@@ -464,6 +473,7 @@ function BattleSummaryPanel({
         >
           <div className="order-1 xl:order-none">
             <BattleSummaryTeam
+              matchId={matchId}
               teamName={coach1Name}
               logoUrl={coach1LogoUrl}
               pokemonRows={coach1Pokemon}
@@ -487,6 +497,7 @@ function BattleSummaryPanel({
 
           <div className="order-2 xl:order-none">
             <BattleSummaryTeam
+              matchId={matchId}
               teamName={coach2Name}
               logoUrl={coach2LogoUrl}
               pokemonRows={coach2Pokemon}
@@ -499,7 +510,7 @@ function BattleSummaryPanel({
           <p className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-center text-[9px] leading-relaxed text-[var(--foreground-muted)] sm:text-[10px]">
             <span className="font-bold text-white/70">{expandedHaxRules ? "Expanded HAX rules" : "Legacy HAX rules"}</span>
             {expandedHaxRules
-              ? " · Active since Season 11 Week 6: crits, misses, flinches, paralysis, freezes, burns, sleep, confusion, and confusion self-hits. Guaranteed crits from Wicked Blow, Surging Strikes, and Flower Trick are excluded."
+              ? " · Includes crits, misses, flinches, paralysis, freezes, burns, sleep, confusion, and confusion self-hits. Guaranteed crits from Wicked Blow, Surging Strikes, and Flower Trick are excluded."
               : " · Used through Season 11 Week 5: paralysis, freezes, burns, and sleep only."}
           </p>
         </div>
@@ -967,7 +978,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 canEditDecidingTurns={canEditDecidingTurns}
                 canManageDecidingTurnsEditorVisibility={Boolean(session?.isMod)}
                 matchId={match.id}
-                expandedHaxRules={usesExpandedHaxRules(match.season.seasonNumber, match.week)}
+                expandedHaxRules={usesExpandedHaxRules(match.season.seasonNumber, match.week, match.id)}
               />
             );
           })()}
