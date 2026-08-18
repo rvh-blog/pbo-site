@@ -10,8 +10,10 @@
 - Added a match-report dropdown with the turn and description for each saved
   HAX event.
 - Added a visible legacy/expanded rules label. Season 11 Weeks 1-5 keep the
-  legacy definition and are not backfilled; later seasons use the expanded
-  definition from Week 1.
+  legacy definition except for match 3586 (Los Angeles Annihilapes vs
+  Charleston Chesnaughts), which uses the expanded formula and includes its
+  replay-derived HAX event dropdown. Later seasons use the expanded definition
+  from Week 1.
 
 Parent index: [[Home|PBO Site Wiki]]
 
