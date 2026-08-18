@@ -65,6 +65,23 @@ playoff-specific consecutive-appearance category remains exclusive to the
 Playoffs scope. Worst Differential appears in Regular Season and Overall but is
 intentionally omitted from Playoffs.
 
+Divisional Records provides the same three scopes for Infinity, Stargazer,
+Sunset, Crystal, and Neon, using completed non-forfeit matches from Season 6
+onward. Each division uses its official color. Divisional views intentionally
+omit Most Championships, Highest Peak Elo, and Most Consecutive Seasons Played.
+Record URLs preserve the tab, division, and scope so coach milestone titles can
+link directly to the applicable record card set.
+
+Move Usage covers completed non-forfeit matches from Season 9 onward. Each
+Pokemon row has a lazy-loaded View Game Sources section with the matchup, coach,
+per-game move counts, match page, and replay. Empty saved move maps remain in
+the appearance count and are identified as having no recorded move commands.
+
+Battle Record aggregates and coach milestone datasets use 60-second server
+caches. Move-source rows load only when expanded and use both a 60-second data
+cache and short edge caching. The supporting indexes are declared in the schema
+and in `migrations/add-battle-record-performance-indexes.sql`.
+
 Pokemon Battle Stats lives at `/pokemon/stats` and is linked from the
 Leaderboards `More Stats` button. It provides Kills, Deaths, Damage Dealt,
 Damage Taken, and HP Recovered leaderboards. Each category supports Total and
@@ -108,6 +125,10 @@ Relevant files:
 - `src/app/pokemon/stats/pokemon-stats-client.tsx`
 - `src/app/battle-record/page.tsx`
 - `src/app/battle-record/battle-record-table.tsx`
+- `src/app/battle-record/battle-record-tabs.tsx`
+- `src/app/battle-record/pokemon-move-records.tsx`
+- `src/app/api/battle-record/move-sources/route.ts`
+- `src/lib/coach-milestones.ts`
 - `src/app/admin/battle-records/page.tsx`
 - `src/app/api/admin/battle-record-overrides/route.ts`
 - `src/lib/battle-record-overrides.ts`
