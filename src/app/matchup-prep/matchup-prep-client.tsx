@@ -153,6 +153,7 @@ interface TeamSidePurchases {
 interface Props {
   seasons: Season[];
   initialMatch: MatchData | null;
+  initialWeeks: number[];
   initialMatches: MatchOption[];
   coach1Roster: RosterEntry[];
   coach2Roster: RosterEntry[];
@@ -232,6 +233,7 @@ function formatMultiplier(m: number): string {
 export function MatchupPrepClient({
   seasons,
   initialMatch,
+  initialWeeks,
   initialMatches,
   coach1Roster,
   coach2Roster,
@@ -387,12 +389,16 @@ export function MatchupPrepClient({
 
   // Match data (from initial props or fetched)
   const [matchData, setMatchData] = useState<MatchData | null>(initialMatch);
+  const [availableWeeks, setAvailableWeeks] = useState<number[]>(initialWeeks);
   const [availableMatches, setAvailableMatches] = useState<MatchOption[]>(initialMatches);
   const [roster1, setRoster1] = useState(coach1Roster);
   const [roster2, setRoster2] = useState(coach2Roster);
   const [dropped1, setDropped1] = useState(coach1DroppedPokemon);
   const [dropped2, setDropped2] = useState(coach2DroppedPokemon);
-  const [loading, setLoading] = useState(false);
+  const [loadingWeeks, setLoadingWeeks] = useState(false);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const weeksRequestId = useRef(0);
+  const matchesRequestId = useRef(0);
 
   // Get divisions for selected season
   const divisions = useMemo(() => {
@@ -404,17 +410,6 @@ export function MatchupPrepClient({
     () => seasons.find((season) => season.id === selectedSeason)?.seasonNumber === 11,
     [seasons, selectedSeason]
   );
-
-  // Get unique weeks from available matches
-  const weeks = useMemo(() => {
-    const weekSet = new Set(availableMatches.map((m) => m.week));
-    return Array.from(weekSet).sort((a, b) => a - b);
-  }, [availableMatches]);
-
-  // Get matches for selected week
-  const matchesForWeek = useMemo(() => {
-    return availableMatches.filter((m) => m.week === selectedWeek);
-  }, [availableMatches, selectedWeek]);
 
   // Combine roster with dropped Pokemon for display
   const team1Pokemon = useMemo(() => {
@@ -630,12 +625,17 @@ export function MatchupPrepClient({
   }, [allPokemonByBaseSpeed, speedCalc2, usesStatPoints]);
 
   // Handle season change
-  const handleSeasonChange = async (seasonId: number) => {
+  const handleSeasonChange = (seasonId: number) => {
+    weeksRequestId.current += 1;
+    matchesRequestId.current += 1;
     setSelectedSeason(seasonId);
     setSelectedDivision(null);
     setSelectedWeek(null);
     setSelectedMatch(null);
+    setAvailableWeeks([]);
     setAvailableMatches([]);
+    setLoadingWeeks(false);
+    setLoadingMatches(false);
     setMatchData(null);
     setRoster1([]);
     setRoster2([]);
@@ -643,11 +643,16 @@ export function MatchupPrepClient({
     setDropped2([]);
   };
 
-  // Handle division change - fetch matches for division (only if schedule is visible)
+  // Handle division change - fetch only its week numbers.
   const handleDivisionChange = async (divisionId: number) => {
+    const requestId = ++weeksRequestId.current;
+    matchesRequestId.current += 1;
     setSelectedDivision(divisionId);
     setSelectedWeek(null);
     setSelectedMatch(null);
+    setAvailableWeeks([]);
+    setAvailableMatches([]);
+    setLoadingMatches(false);
     setMatchData(null);
     setRoster1([]);
     setRoster2([]);
@@ -657,30 +662,52 @@ export function MatchupPrepClient({
     // Check if schedule is visible for selected season
     const season = seasons.find((s) => s.id === selectedSeason);
     if (!season?.isSchedulePublic) {
-      setAvailableMatches([]);
       return;
     }
 
-    setLoading(true);
+    setLoadingWeeks(true);
 
     try {
-      const res = await fetch(`/api/matches?divisionId=${divisionId}`);
-      const matches = await res.json();
-      setAvailableMatches(
-        matches.map((m: any) => ({
-          id: m.id,
-          week: m.week,
-          coach1Name: m.coach1?.coach?.name || "Unknown",
-          coach2Name: m.coach2?.coach?.name || "Unknown",
-          coach1TeamName: m.coach1?.teamName || "Unknown",
-          coach2TeamName: m.coach2?.teamName || "Unknown",
-          winnerId: m.winnerId,
-        }))
-      );
+      const res = await fetch(`/api/matchup-prep/options?divisionId=${divisionId}`);
+      if (!res.ok) throw new Error(`Week request failed with ${res.status}`);
+      const data: { weeks: number[] } = await res.json();
+      if (requestId === weeksRequestId.current) {
+        setAvailableWeeks(data.weeks);
+      }
     } catch (err) {
-      console.error("Failed to fetch matches:", err);
+      console.error("Failed to fetch matchup weeks:", err);
     } finally {
-      setLoading(false);
+      if (requestId === weeksRequestId.current) {
+        setLoadingWeeks(false);
+      }
+    }
+  };
+
+  // Handle week change - fetch only the matches in that week.
+  const handleWeekChange = async (week: number) => {
+    const requestId = ++matchesRequestId.current;
+    setSelectedWeek(week);
+    setSelectedMatch(null);
+    setAvailableMatches([]);
+
+    if (!selectedDivision) return;
+
+    setLoadingMatches(true);
+    try {
+      const res = await fetch(
+        `/api/matchup-prep/options?divisionId=${selectedDivision}&week=${week}`
+      );
+      if (!res.ok) throw new Error(`Match request failed with ${res.status}`);
+      const data: { matches: MatchOption[] } = await res.json();
+      if (requestId === matchesRequestId.current) {
+        setAvailableMatches(data.matches);
+      }
+    } catch (err) {
+      console.error("Failed to fetch matchup matches:", err);
+    } finally {
+      if (requestId === matchesRequestId.current) {
+        setLoadingMatches(false);
+      }
     }
   };
 
@@ -789,15 +816,12 @@ export function MatchupPrepClient({
             </label>
             <select
               value={selectedWeek || ""}
-              onChange={(e) => {
-                setSelectedWeek(parseInt(e.target.value));
-                setSelectedMatch(null);
-              }}
-              disabled={!selectedDivision || loading}
+              onChange={(e) => handleWeekChange(parseInt(e.target.value))}
+              disabled={!selectedDivision || loadingWeeks}
               className="w-full px-3 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] text-sm disabled:opacity-50"
             >
-              <option value="">Select week...</option>
-              {weeks.map((w) => (
+              <option value="">{loadingWeeks ? "Loading weeks..." : "Select week..."}</option>
+              {availableWeeks.map((w) => (
                 <option key={w} value={w}>
                   {getWeekLabel(w)}
                 </option>
@@ -813,11 +837,11 @@ export function MatchupPrepClient({
             <select
               value={selectedMatch || ""}
               onChange={(e) => handleMatchSelect(parseInt(e.target.value))}
-              disabled={!selectedWeek}
+              disabled={!selectedWeek || loadingMatches}
               className="w-full px-3 py-2 rounded-lg bg-[var(--background-secondary)] border-2 border-[var(--background-tertiary)] text-sm disabled:opacity-50"
             >
-              <option value="">Select match...</option>
-              {matchesForWeek.map((m) => (
+              <option value="">{loadingMatches ? "Loading matches..." : "Select match..."}</option>
+              {availableMatches.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.coach1TeamName} vs {m.coach2TeamName}
                 </option>
@@ -826,13 +850,13 @@ export function MatchupPrepClient({
           </div>
         </div>
 
-        {loading && (
+        {(loadingWeeks || loadingMatches) && (
           <div className="mt-4 text-center text-[var(--foreground-muted)]">
-            Loading matches...
+            {loadingWeeks ? "Loading weeks..." : "Loading matches..."}
           </div>
         )}
 
-        {!isScheduleVisible && selectedSeason && !loading && (
+        {!isScheduleVisible && selectedSeason && !loadingWeeks && !loadingMatches && (
           <div className="mt-4 p-3 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/30 text-center">
             <p className="text-sm text-[var(--accent)]">
               Schedule is currently hidden for this season. Matchups will be available once the schedule is published.
