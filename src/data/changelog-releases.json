@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-08-18-matchup-prep-week-loading",
+    "title": "Faster Matchup Selection",
+    "summary": "Matchup Prep now loads schedule choices in smaller, faster steps.",
+    "publishedAt": "2026-08-18",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "Selecting a division now loads only its week numbers, and selecting a week loads only that week's matchups instead of the full division schedule."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-18-coach-milestone-cache-follow-up",
     "title": "Coach Milestone Cache Follow-Up",
     "summary": "Coach record milestones now reuse their large shared source dataset without exceeding the framework cache-item limit.",

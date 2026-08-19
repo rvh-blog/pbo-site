@@ -122,6 +122,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
   let coach1DroppedPokemon: any[] = [];
   let coach2DroppedPokemon: any[] = [];
   let divisionMatches: any[] = [];
+  let initialWeeks: number[] = [];
   let revealedItemScouting: Record<"coach1" | "coach2", Array<{
     pokemonId: number;
     pokemonName: string;
@@ -141,19 +142,36 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
     const coach2Id = match.coach2?.coach?.id;
     const coachIds = [coach1Id, coach2Id].filter((id): id is number => id !== undefined);
 
-    // Fetch transactions, division matches, and coach purchases in parallel
-    const [seasonTxs, divMatches, purchases, itemRows] = await Promise.all([
+    // Fetch matchup data in parallel. Only the selected week's matches need
+    // coach details for the selector; division-wide rows stay lightweight.
+    const [seasonTxs, divisionRecordMatches, weekMatches, weekRows, purchases, itemRows] = await Promise.all([
       db.query.transactions.findMany({
         where: eq(transactions.seasonId, match.seasonId),
       }),
       db.query.matches.findMany({
         where: eq(matches.divisionId, match.divisionId),
+        columns: {
+          coach1SeasonId: true,
+          coach2SeasonId: true,
+          winnerId: true,
+        },
+      }),
+      db.query.matches.findMany({
+        where: and(
+          eq(matches.divisionId, match.divisionId),
+          eq(matches.week, match.week)
+        ),
         with: {
           coach1: { with: { coach: true } },
           coach2: { with: { coach: true } },
         },
-        orderBy: [matches.week, matches.id],
+        orderBy: [matches.id],
       }),
+      db
+        .selectDistinct({ week: matches.week })
+        .from(matches)
+        .where(eq(matches.divisionId, match.divisionId))
+        .orderBy(matches.week),
       // Fetch blue-team and red-team purchases for both coaches
       coachIds.length > 0
         ? db.query.coachPurchases.findMany({
@@ -278,9 +296,10 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
     coach2Roster = coach2Result.filteredRosters;
     coach1DroppedPokemon = coach1Result.droppedPokemonDetails;
     coach2DroppedPokemon = coach2Result.droppedPokemonDetails;
-    divisionMatches = divMatches;
+    divisionMatches = weekMatches;
+    initialWeeks = weekRows.map((row) => row.week);
 
-    const getTeamRecord = (seasonCoachId: number) => divMatches.reduce(
+    const getTeamRecord = (seasonCoachId: number) => divisionRecordMatches.reduce(
       (record, divisionMatch) => {
         if (
           divisionMatch.winnerId !== null &&
@@ -420,6 +439,7 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
     <MatchupPrepClient
       seasons={seasonsData}
       initialMatch={matchData}
+      initialWeeks={initialWeeks}
       initialMatches={matchesData}
       coach1Roster={matchData ? formatRoster(coach1Roster, matchData.seasonId) : []}
       coach2Roster={matchData ? formatRoster(coach2Roster, matchData.seasonId) : []}
