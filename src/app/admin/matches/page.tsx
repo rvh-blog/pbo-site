@@ -194,6 +194,7 @@ export default function AdminMatchesPage() {
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<Division | null>(null);
   const [seasonCoaches, setSeasonCoaches] = useState<SeasonCoach[]>([]);
+  const [historicalPokemonPool, setHistoricalPokemonPool] = useState<Pokemon[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [playoffMatches, setPlayoffMatches] = useState<PlayoffMatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -265,6 +266,31 @@ export default function AdminMatchesPage() {
       fetchPlayoffMatches();
     }
   }, [selectedSeason, selectedDivision]);
+
+  useEffect(() => {
+    if (!selectedSeason || selectedSeason.seasonNumber < 5 || selectedSeason.seasonNumber > 9) {
+      setHistoricalPokemonPool([]);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function fetchHistoricalPokemonPool() {
+      try {
+        const res = await fetch("/api/pokemon?view=admin", { signal: controller.signal });
+        if (!res.ok) throw new Error("Failed to load Pokemon options");
+        const data = await res.json();
+        setHistoricalPokemonPool(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error("Failed to fetch historical Pokemon pool:", err);
+        setHistoricalPokemonPool([]);
+      }
+    }
+
+    fetchHistoricalPokemonPool();
+    return () => controller.abort();
+  }, [selectedSeason]);
 
   // Auto-select next available bracket position
   useEffect(() => {
@@ -665,10 +691,27 @@ export default function AdminMatchesPage() {
     );
   }
 
-  function getPokemonName(rosters: RosterEntry[] | undefined, pokemonId: string): string {
-    if (!pokemonId || !rosters) return "";
-    const entry = rosters.find((r) => r.pokemonId.toString() === pokemonId);
-    return entry?.pokemon?.name || "";
+  function getSelectablePokemon(rosters: RosterEntry[] | undefined): Pokemon[] {
+    const rosterPokemon = (rosters || []).map((entry) => entry.pokemon);
+    const isHistoricalBackfillSeason = selectedSeason
+      && selectedSeason.seasonNumber >= 5
+      && selectedSeason.seasonNumber <= 9;
+
+    if (!isHistoricalBackfillSeason) return rosterPokemon;
+
+    const pokemonById = new Map<number, Pokemon>();
+    for (const entry of historicalPokemonPool) pokemonById.set(entry.id, entry);
+    for (const entry of rosterPokemon) pokemonById.set(entry.id, entry);
+
+    return Array.from(pokemonById.values()).sort((a, b) =>
+      (a.displayName || a.name).localeCompare(b.displayName || b.name)
+    );
+  }
+
+  function getPokemonName(options: Pokemon[], pokemonId: string): string {
+    if (!pokemonId) return "";
+    const entry = options.find((pokemon) => pokemon.id.toString() === pokemonId);
+    return entry?.displayName || entry?.name || "";
   }
 
   async function handleSaveMatchResult() {
@@ -1855,6 +1898,8 @@ export default function AdminMatchesPage() {
                               seasonCoaches.find((sc) => sc.id === selectedPlayoffFixture?.higherSeedId)?.rosters;
                             const team2Rosters = timeSyncedRosters2 || currentMatch?.coach2?.rosters ||
                               seasonCoaches.find((sc) => sc.id === selectedPlayoffFixture?.lowerSeedId)?.rosters;
+                            const team1PokemonOptions = getSelectablePokemon(team1Rosters);
+                            const team2PokemonOptions = getSelectablePokemon(team2Rosters);
                             const team1Name = currentMatch?.coach1?.teamName || selectedPlayoffFixture?.higherSeed?.teamName;
                             const team2Name = currentMatch?.coach2?.teamName || selectedPlayoffFixture?.lowerSeed?.teamName;
 
@@ -1870,9 +1915,14 @@ export default function AdminMatchesPage() {
                                       <span className="w-16 text-center">Deaths</span>
                                     </div>
                                   </div>
+                                  {selectedSeason && selectedSeason.seasonNumber >= 5 && selectedSeason.seasonNumber <= 9 && (
+                                    <p className="mb-2 text-xs text-[var(--foreground-muted)]">
+                                      Full Pokemon pool enabled for historical stat corrections.
+                                    </p>
+                                  )}
                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                     {team1Pokemon.map((p, i) => {
-                                      const selectedName = getPokemonName(team1Rosters, p.pokemonId);
+                                      const selectedName = getPokemonName(team1PokemonOptions, p.pokemonId);
                                       return (
                                         <div key={i} className="flex items-center gap-2 p-2 rounded bg-[var(--background-secondary)]">
                                           <Select
@@ -1885,9 +1935,9 @@ export default function AdminMatchesPage() {
                                             className="flex-1"
                                           >
                                             <option value="">{selectedName || `Select Pokemon ${i + 1}`}</option>
-                                            {team1Rosters?.map((r) => (
-                                              <option key={r.pokemonId} value={r.pokemonId}>
-                                                {r.pokemon?.displayName || r.pokemon?.name}
+                                            {team1PokemonOptions.map((pokemon) => (
+                                              <option key={pokemon.id} value={pokemon.id}>
+                                                {pokemon.displayName || pokemon.name}
                                               </option>
                                             ))}
                                           </Select>
@@ -1941,9 +1991,14 @@ export default function AdminMatchesPage() {
                                       <span className="w-16 text-center">Deaths</span>
                                     </div>
                                   </div>
+                                  {selectedSeason && selectedSeason.seasonNumber >= 5 && selectedSeason.seasonNumber <= 9 && (
+                                    <p className="mb-2 text-xs text-[var(--foreground-muted)]">
+                                      Full Pokemon pool enabled for historical stat corrections.
+                                    </p>
+                                  )}
                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                     {team2Pokemon.map((p, i) => {
-                                      const selectedName = getPokemonName(team2Rosters, p.pokemonId);
+                                      const selectedName = getPokemonName(team2PokemonOptions, p.pokemonId);
                                       return (
                                         <div key={i} className="flex items-center gap-2 p-2 rounded bg-[var(--background-secondary)]">
                                           <Select
@@ -1956,9 +2011,9 @@ export default function AdminMatchesPage() {
                                             className="flex-1"
                                           >
                                             <option value="">{selectedName || `Select Pokemon ${i + 1}`}</option>
-                                            {team2Rosters?.map((r) => (
-                                              <option key={r.pokemonId} value={r.pokemonId}>
-                                                {r.pokemon?.displayName || r.pokemon?.name}
+                                            {team2PokemonOptions.map((pokemon) => (
+                                              <option key={pokemon.id} value={pokemon.id}>
+                                                {pokemon.displayName || pokemon.name}
                                               </option>
                                             ))}
                                           </Select>

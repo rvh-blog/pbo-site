@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-08-21-historical-match-pokemon-corrections",
+    "title": "Historical Match Stat Corrections",
+    "summary": "Admins can accurately correct Pokemon appearances and K/D records for historical matches.",
+    "publishedAt": "2026-08-21",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "Season 5-9 match result editors can select any Pokemon in the database when correcting historical stats, while other seasons remain restricted to team rosters."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-18-matchup-prep-week-loading",
     "title": "Faster Matchup Selection",
     "summary": "Matchup Prep now loads schedule choices in smaller, faster steps.",
