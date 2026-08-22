@@ -40,6 +40,12 @@ commit to update that file and prevents a release when the dated entry is
 missing. The deployed app syncs new bundled entries into the changelog
 automatically.
 
+GitHub pull requests run `.github/workflows/ci.yml`. Keep changed-file lint,
+TypeScript, build, asset-budget, and changelog-manifest checks green before
+merging. Run data-backed visual checks locally with a current copied database;
+the database is intentionally not stored in GitHub. Production database indexes belong in the tracked startup
+migration runner, not in application-module import paths.
+
 ## Safe Data Changes
 
 If changing tables or fields:

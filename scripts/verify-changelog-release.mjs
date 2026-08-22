@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 
 const manifestPath = fileURLToPath(new URL("../src/data/changelog-releases.json", import.meta.url));
 const releases = JSON.parse(readFileSync(manifestPath, "utf8"));
+const manifestOnly = process.argv.includes("--manifest-only");
 
 function pacificDate() {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -36,11 +37,11 @@ for (const [index, release] of releases.entries()) {
 }
 
 const requiredDate = process.env.CHANGELOG_RELEASE_DATE || pacificDate();
-if (!releases.some((release) => release.publishedAt === requiredDate)) {
+if (!manifestOnly && !releases.some((release) => release.publishedAt === requiredDate)) {
   fail(`No release entry exists for ${requiredDate}. Add one before deploying.`);
 }
 
-if (process.env.CHANGELOG_SKIP_GIT_CHECK !== "true") {
+if (!manifestOnly && process.env.CHANGELOG_SKIP_GIT_CHECK !== "true") {
   let changedFiles;
   try {
     changedFiles = execFileSync(
@@ -57,4 +58,8 @@ if (process.env.CHANGELOG_SKIP_GIT_CHECK !== "true") {
   }
 }
 
-console.log(`[Changelog] Release manifest is valid and includes ${requiredDate}.`);
+console.log(
+  manifestOnly
+    ? "[Changelog] Release manifest structure is valid."
+    : `[Changelog] Release manifest is valid and includes ${requiredDate}.`
+);

@@ -72,6 +72,8 @@ primary_region = "iad"
 DATABASE_PATH = "/data/pbo.db"
 volume mount = pbo_data -> /data
 internal_port = 3000
+one machine remains warm in iad
+/api/health gates traffic on app and database readiness
 ```
 
 Deploy:
@@ -86,6 +88,10 @@ The Docker build:
 2. Runs `npm run build`.
 3. Runs `node scripts/build-bot.js`.
 4. Starts `/app/start.sh`.
+
+`start.sh` runs `scripts/run-startup-migrations.mjs` before either service. The
+tracked migration is fail-fast and idempotent, so index creation happens once
+instead of during website and bot database imports.
 
 `start.sh` starts the Discord bot only when `DISCORD_BOT_TOKEN` is set. Bot failure does not kill the web app. If Next.js exits, the container shuts down.
 

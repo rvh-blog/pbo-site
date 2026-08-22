@@ -1,22 +1,23 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const esbuild = require('esbuild');
 const path = require('path');
 
+const repoRoot = path.resolve(__dirname, '..');
+const portablePath = (value) => value.split(path.sep).join('/');
+
 esbuild.build({
-  entryPoints: ['src/bot/index.ts'],
+  entryPoints: [portablePath(path.join(repoRoot, 'src/bot/index.ts'))],
   bundle: true,
   platform: 'node',
   target: 'node20',
-  outfile: 'dist/bot/index.js',
+  outfile: portablePath(path.join(repoRoot, 'dist/bot/index.js')),
   format: 'cjs',
-  external: [
-    'discord.js',
-    'better-sqlite3',
-  ],
   alias: {
-    '@': path.resolve(__dirname, '../src'),
+    '@': portablePath(path.join(repoRoot, 'src')),
   },
   sourcemap: false,
-  minify: false,
+  minify: true,
+  keepNames: true,
 }).then(() => {
   console.log('[Build] Bot compiled successfully');
 }).catch((error) => {

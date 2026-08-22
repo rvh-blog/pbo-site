@@ -9,6 +9,12 @@ npx eslint <changed files>
 
 Use targeted ESLint because whole-project `npm run lint` currently reports pre-existing unrelated errors.
 
+Pull requests run the same baseline automatically in `.github/workflows/ci.yml`,
+including changed-file lint, manifest validation, the production build, the
+public-image budget, and TypeScript. Desktop/mobile visual snapshots require a
+current copied database and run locally because production data is not stored in
+GitHub.
+
 ## Build Check
 
 For broader changes:
@@ -18,6 +24,12 @@ npm run build
 ```
 
 This also catches Next.js route/build issues.
+
+Asset changes should also pass:
+
+```bash
+npm run assets:check
+```
 
 ## UI Check
 

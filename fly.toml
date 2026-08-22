@@ -14,8 +14,18 @@ primary_region = "iad"
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "15s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+    [http_service.checks.headers]
+      X-Forwarded-Proto = "https"
 
 [mounts]
   source = "pbo_data"
