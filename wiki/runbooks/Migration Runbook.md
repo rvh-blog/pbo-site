@@ -55,6 +55,25 @@ There is a standalone migration:
 sqlite3 pbo.db < migrations/add-division-sheet-sync.sql
 ```
 
+## Startup Migrations
+
+Production-safe, idempotent startup migrations live in:
+
+```text
+scripts/run-startup-migrations.mjs
+```
+
+Run them locally with:
+
+```bash
+npm run db:migrate:startup
+```
+
+The runner records completed migration IDs in `app_startup_migrations` and
+applies each migration atomically. The Fly startup script runs it before the
+website or Discord bot starts and stops startup if a migration fails. Test any
+new migration against a copied local `pbo.db` before deployment.
+
 ## Checklist
 
 - Update `src/lib/schema.ts`.

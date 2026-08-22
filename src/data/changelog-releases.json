@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-08-22-reliability-ci-assets",
+    "title": "Faster, Safer Website Releases",
+    "summary": "Health checks, controlled database migrations, automated release checks, and smaller assets make the website more dependable.",
+    "publishedAt": "2026-08-22",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "The production website now stays warm, verifies database health before receiving traffic, applies tracked indexes once before startup, and ships through automated code, build, asset, and visual checks."
+      },
+      {
+        "type": "improved",
+        "text": "Oversized team and division logos and the production container are optimized for faster deployments without changing their public URLs."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-22-store-cosmetic-refresh",
     "title": "Instant Store Cosmetics",
     "summary": "Purchased cosmetics now appear immediately and color cosmetics always have a visible default.",

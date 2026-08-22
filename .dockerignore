@@ -7,6 +7,10 @@ npm-debug.log
 *.tsbuildinfo
 *.csv
 .next
+tests/
+test-results/
+playwright-report/
+.github/
 _release_power_rankings/
 .worktrees/
 .tools/

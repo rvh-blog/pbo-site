@@ -4,9 +4,11 @@ import { validateConfig } from "./config";
 import { handleMessage } from "./handlers";
 import { commands } from "./commands";
 import { startMilestoneDelivery } from "./services/milestone-delivery";
+import { databaseReady } from "@/lib/db";
 
 async function main() {
   console.log("[Bot] Starting PBO Discord Bot...");
+  await databaseReady;
 
   // Validate configuration
   const { valid, errors } = validateConfig();

@@ -41,11 +41,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Copy Discord bot and all node_modules (bot needs many transitive deps)
+# The bot bundle includes Discord.js and its JavaScript dependencies.
 COPY --from=builder /app/dist/bot ./dist/bot
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/scripts/backfill-replay-move-usage.mjs ./scripts/backfill-replay-move-usage.mjs
-COPY --from=builder /app/scripts/backfill-revealed-items.mjs ./scripts/backfill-revealed-items.mjs
+COPY --from=builder /app/scripts/run-startup-migrations.mjs ./scripts/run-startup-migrations.mjs
 
 # Copy startup script and ensure it's executable
 COPY --from=builder --chmod=755 /app/scripts/start.sh ./start.sh
@@ -55,6 +53,7 @@ RUN sed -i 's/\r$//' ./start.sh
 RUN mkdir -p /data && chown nextjs:nodejs /data
 RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app/.next
 RUN chown -R nextjs:nodejs /app/dist
+RUN chown -R nextjs:nodejs /app/scripts
 
 USER nextjs
 

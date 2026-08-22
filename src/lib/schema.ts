@@ -1,6 +1,12 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
+// Operational migration history applied before production services start.
+export const appStartupMigrations = sqliteTable("app_startup_migrations", {
+  id: text("id").primaryKey().notNull(),
+  appliedAt: text("applied_at").notNull(),
+});
+
 // Coaches table - persistent identity across seasons
 export const coaches = sqliteTable("coaches", {
   id: integer("id").primaryKey({ autoIncrement: true }),

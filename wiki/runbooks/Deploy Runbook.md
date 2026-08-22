@@ -32,7 +32,9 @@ flyctl releases
 
 The Docker context excludes local `backups/` and other development-only files.
 The tracked `public/images` assets remain part of the image because the site
-serves them at runtime.
+serves them at runtime. Team and division PNGs can be safely recompressed in
+place with `npm run assets:optimize`; `npm run assets:check` enforces the image
+budget without changing public URLs.
 
 In the shared GitHub flow, deploy from merged `main`, not from an unreviewed local branch:
 
@@ -71,8 +73,11 @@ npm run build
 1. Installs dependencies with `npm ci`.
 2. Runs `npm run build`.
 3. Runs `node scripts/build-bot.js`.
-4. Copies Next standalone output, bot bundle, node_modules, and startup script.
-5. Starts `/app/start.sh`.
+4. Copies Next standalone output, the self-contained bot bundle, public assets,
+   the migration runner, and the startup script. It does not copy the complete
+   build-time `node_modules` tree.
+5. Starts `/app/start.sh`, which applies tracked startup migrations before
+   launching the website and bot.
 
 ## Runtime
 
@@ -82,6 +87,8 @@ npm run build
 DATABASE_PATH=/data/pbo.db
 internal_port=3000
 volume=pbo_data mounted at /data
+minimum running machines=1
+HTTP health check=/api/health
 ```
 
 ## After Deploy
@@ -89,6 +96,7 @@ volume=pbo_data mounted at /data
 Check:
 
 - Site loads.
+- `/api/health` returns `status: ok` and Fly reports its service check passing.
 - Admin route loads if auth is relevant.
 - Recent changed route works.
 - Bot behavior if bot code changed.

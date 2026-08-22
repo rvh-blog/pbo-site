@@ -4,6 +4,13 @@
 
 echo "[Startup] Starting PBO services..."
 
+echo "[Startup] Running database migrations..."
+if ! node /app/scripts/run-startup-migrations.mjs; then
+  echo "[Startup] Database migration failed; services will not start"
+  exit 1
+fi
+echo "[Startup] Database migrations complete"
+
 BOT_PID_FILE="${DISCORD_BOT_PID_FILE:-/tmp/pbo-discord-bot.pid}"
 BOT_SUPERVISOR_PID=""
 
