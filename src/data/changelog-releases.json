@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-08-22-on-demand-fly-scaling",
+    "title": "On-Demand Website Hosting",
+    "summary": "The website can sleep during quiet periods again while retaining the new health and deployment safeguards.",
+    "publishedAt": "2026-08-22",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "Fly can stop the production machine when it is unused and automatically wake it for the next visitor, reducing always-on hosting costs while preserving database-backed health checks."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-22-reliability-ci-assets",
     "title": "Faster, Safer Website Releases",
     "summary": "Health checks, controlled database migrations, automated release checks, and smaller assets make the website more dependable.",
@@ -7,7 +19,7 @@
     "changes": [
       {
         "type": "improved",
-        "text": "The production website now stays warm, verifies database health before receiving traffic, applies tracked indexes once before startup, and ships through automated code, build, asset, and visual checks."
+        "text": "The production website verifies database health before receiving traffic, applies tracked indexes once before startup, and ships through automated code, build, and asset checks."
       },
       {
         "type": "improved",

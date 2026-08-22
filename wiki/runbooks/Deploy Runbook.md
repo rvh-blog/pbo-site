@@ -87,7 +87,7 @@ npm run build
 DATABASE_PATH=/data/pbo.db
 internal_port=3000
 volume=pbo_data mounted at /data
-minimum running machines=1
+minimum running machines=0 (idle autostop enabled)
 HTTP health check=/api/health
 ```
 
