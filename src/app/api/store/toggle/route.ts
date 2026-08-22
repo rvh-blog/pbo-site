@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { coachPurchases, storeItems } from "@/lib/schema";
 import { getSession } from "@/lib/session";
+import { revalidateStoreCosmetics } from "@/lib/store-cache";
 
 // POST /api/store/toggle - toggle an owned item on/off
 export async function POST(request: NextRequest) {
@@ -116,6 +117,8 @@ export async function POST(request: NextRequest) {
       .update(coachPurchases)
       .set({ isActive })
       .where(eq(coachPurchases.id, purchaseId));
+
+    revalidateStoreCosmetics();
 
     return NextResponse.json({
       success: true,

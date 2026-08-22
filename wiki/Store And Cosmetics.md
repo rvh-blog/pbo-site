@@ -18,6 +18,18 @@ The following cosmetics support custom color options:
 
 Custom colors should be validated as hex colors before saving.
 
+New Team Name Glow, Row Background, and Row Border purchases are immediately
+active with the Stargazer preset. Existing active purchases that predate this
+default also render with Stargazer until the coach chooses another preset or a
+custom hex color. A purchase must never deduct coins while remaining invisible
+only because its saved color is blank.
+
+Successful purchases, activation toggles, and color changes refresh the current
+page and invalidate the public surfaces that render store cosmetics. This keeps
+coach profiles, coach lists, standings, leaderboards, match pages, Matchup Prep,
+Pokemon pages, and the cached homepage showcase synchronized without requiring
+a manual browser refresh.
+
 Relevant files:
 
 - `src/components/store-modal.tsx`
@@ -25,6 +37,7 @@ Relevant files:
 - `src/app/api/store/bg-color/route.ts`
 - `src/app/api/store/border-color/route.ts`
 - `src/lib/glow-utils.ts`
+- `src/lib/store-cache.ts`
 
 ## Coach List Rendering
 

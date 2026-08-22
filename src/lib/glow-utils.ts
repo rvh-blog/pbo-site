@@ -20,6 +20,8 @@ export const GLOW_COLORS: Record<string, { name: string; color: string; glow: st
 
 export type GlowColorKey = keyof typeof GLOW_COLORS;
 
+export const DEFAULT_COSMETIC_COLOR: GlowColorKey = "stargazer";
+
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 export function isValidCustomColor(color: string): boolean {
@@ -67,14 +69,15 @@ export async function getCoachGlow(coachId: number): Promise<GlowData | null> {
     ),
   });
 
-  if (!purchase || !purchase.glowColor) return null;
+  if (!purchase) return null;
 
-  const colorData = getCosmeticColorData(purchase.glowColor);
+  const glowColor = purchase.glowColor || DEFAULT_COSMETIC_COLOR;
+  const colorData = getCosmeticColorData(glowColor);
   if (!colorData) return null;
 
   return {
     coachId,
-    glowColor: purchase.glowColor,
+    glowColor,
     colorData,
   };
 }
@@ -102,15 +105,14 @@ export async function getCoachesGlow(coachIds: number[]): Promise<Map<number, Gl
   });
 
   for (const purchase of purchases) {
-    if (purchase.glowColor) {
-      const colorData = getCosmeticColorData(purchase.glowColor);
-      if (colorData) {
-        result.set(purchase.coachId, {
-          coachId: purchase.coachId,
-          glowColor: purchase.glowColor,
-          colorData,
-        });
-      }
+    const glowColor = purchase.glowColor || DEFAULT_COSMETIC_COLOR;
+    const colorData = getCosmeticColorData(glowColor);
+    if (colorData) {
+      result.set(purchase.coachId, {
+        coachId: purchase.coachId,
+        glowColor,
+        colorData,
+      });
     }
   }
 
@@ -147,15 +149,14 @@ export async function getCoachesRowBg(coachIds: number[]): Promise<Map<number, R
   });
 
   for (const purchase of purchases) {
-    if (purchase.bgColor) {
-      const colorData = getCosmeticColorData(purchase.bgColor);
-      if (colorData) {
-        result.set(purchase.coachId, {
-          coachId: purchase.coachId,
-          bgColor: purchase.bgColor,
-          colorData,
-        });
-      }
+    const bgColor = purchase.bgColor || DEFAULT_COSMETIC_COLOR;
+    const colorData = getCosmeticColorData(bgColor);
+    if (colorData) {
+      result.set(purchase.coachId, {
+        coachId: purchase.coachId,
+        bgColor,
+        colorData,
+      });
     }
   }
 
@@ -203,15 +204,14 @@ export async function getCoachesRowBorder(coachIds: number[]): Promise<Map<numbe
   });
 
   for (const purchase of purchases) {
-    if (purchase.borderColor) {
-      const colorData = getCosmeticColorData(purchase.borderColor);
-      if (colorData) {
-        result.set(purchase.coachId, {
-          coachId: purchase.coachId,
-          borderColor: purchase.borderColor,
-          colorData,
-        });
-      }
+    const borderColor = purchase.borderColor || DEFAULT_COSMETIC_COLOR;
+    const colorData = getCosmeticColorData(borderColor);
+    if (colorData) {
+      result.set(purchase.coachId, {
+        coachId: purchase.coachId,
+        borderColor,
+        colorData,
+      });
     }
   }
 
@@ -328,30 +328,33 @@ export async function getAllCoachCosmetics(coachIds: number[]): Promise<AllCosme
   const idToSlug = new Map(storeItemsList.map((item) => [item.id, item.slug]));
 
   for (const purchase of purchases) {
-    if (purchase.itemId === glowItemId && purchase.glowColor) {
-      const colorData = getCosmeticColorData(purchase.glowColor);
+    if (purchase.itemId === glowItemId) {
+      const glowColor = purchase.glowColor || DEFAULT_COSMETIC_COLOR;
+      const colorData = getCosmeticColorData(glowColor);
       if (colorData) {
         result.glow.set(purchase.coachId, {
           coachId: purchase.coachId,
-          glowColor: purchase.glowColor,
+          glowColor,
           colorData,
         });
       }
-    } else if (purchase.itemId === rowBgItemId && purchase.bgColor) {
-      const colorData = getCosmeticColorData(purchase.bgColor);
+    } else if (purchase.itemId === rowBgItemId) {
+      const bgColor = purchase.bgColor || DEFAULT_COSMETIC_COLOR;
+      const colorData = getCosmeticColorData(bgColor);
       if (colorData) {
         result.rowBg.set(purchase.coachId, {
           coachId: purchase.coachId,
-          bgColor: purchase.bgColor,
+          bgColor,
           colorData,
         });
       }
-    } else if (purchase.itemId === rowBorderItemId && purchase.borderColor) {
-      const colorData = getCosmeticColorData(purchase.borderColor);
+    } else if (purchase.itemId === rowBorderItemId) {
+      const borderColor = purchase.borderColor || DEFAULT_COSMETIC_COLOR;
+      const colorData = getCosmeticColorData(borderColor);
       if (colorData) {
         result.rowBorder.set(purchase.coachId, {
           coachId: purchase.coachId,
-          borderColor: purchase.borderColor,
+          borderColor,
           colorData,
         });
       }

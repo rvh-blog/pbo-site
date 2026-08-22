@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { coachPurchases, storeItems } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { getCosmeticColorData } from "@/lib/glow-utils";
+import { revalidateStoreCosmetics } from "@/lib/store-cache";
 
 // Available glow colors
 export const GLOW_COLORS = {
@@ -79,6 +80,8 @@ export async function POST(request: NextRequest) {
       .update(coachPurchases)
       .set({ glowColor: color })
       .where(eq(coachPurchases.id, purchase.id));
+
+    revalidateStoreCosmetics();
 
     return NextResponse.json({
       success: true,
