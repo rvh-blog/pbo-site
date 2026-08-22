@@ -1,9 +1,9 @@
 [
   {
-    "sourceKey": "2026-08-21-store-cosmetic-refresh",
+    "sourceKey": "2026-08-22-store-cosmetic-refresh",
     "title": "Instant Store Cosmetics",
     "summary": "Purchased cosmetics now appear immediately and color cosmetics always have a visible default.",
-    "publishedAt": "2026-08-21",
+    "publishedAt": "2026-08-22",
     "changes": [
       {
         "type": "fixed",
