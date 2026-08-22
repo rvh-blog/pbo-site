@@ -72,7 +72,7 @@ primary_region = "iad"
 DATABASE_PATH = "/data/pbo.db"
 volume mount = pbo_data -> /data
 internal_port = 3000
-one machine remains warm in iad
+machines may stop while idle and automatically restart for incoming traffic
 /api/health gates traffic on app and database readiness
 ```
 
