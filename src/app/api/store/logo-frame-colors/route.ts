@@ -7,6 +7,7 @@ import {
   getDefaultLogoFrameColors,
   isCustomizableLogoFrameSlug,
 } from "@/lib/logo-frame-items";
+import { revalidateStoreCosmetics } from "@/lib/store-cache";
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
@@ -76,6 +77,8 @@ export async function POST(request: NextRequest) {
       .update(coachPurchases)
       .set({ borderColor: JSON.stringify(colors) })
       .where(eq(coachPurchases.id, purchase.id));
+
+    revalidateStoreCosmetics();
 
     return NextResponse.json({
       success: true,

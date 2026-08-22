@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { storeItems, coachPurchases, coaches, bets } from "@/lib/schema";
 import { getSession } from "@/lib/session";
+import { DEFAULT_COSMETIC_COLOR } from "@/lib/glow-utils";
+import { revalidateStoreCosmetics } from "@/lib/store-cache";
 
 // POST /api/store/purchase - buy an item
 export async function POST(request: NextRequest) {
@@ -170,8 +172,13 @@ export async function POST(request: NextRequest) {
         itemId: item.id,
         purchasedAt: new Date().toISOString(),
         isActive: true,
+        glowColor: item.slug === "team-name-glow" ? DEFAULT_COSMETIC_COLOR : null,
+        bgColor: item.slug === "row-background" ? DEFAULT_COSMETIC_COLOR : null,
+        borderColor: item.slug === "row-border" ? DEFAULT_COSMETIC_COLOR : null,
       })
       .returning();
+
+    revalidateStoreCosmetics();
 
     return NextResponse.json({
       success: true,

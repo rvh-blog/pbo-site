@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-08-21-store-cosmetic-refresh",
+    "title": "Instant Store Cosmetics",
+    "summary": "Purchased cosmetics now appear immediately and color cosmetics always have a visible default.",
+    "publishedAt": "2026-08-21",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Store purchases, activation changes, and color updates now refresh cosmetic displays immediately, while color cosmetics use the Stargazer preset until a coach chooses another color."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-21-historical-match-pokemon-corrections",
     "title": "Historical Match Stat Corrections",
     "summary": "Admins can accurately correct Pokemon appearances and K/D records for historical matches.",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,6 +85,7 @@ function PboCoinIcon({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreModalProps) {
+  const router = useRouter();
   const [items, setItems] = useState<StoreItem[]>([]);
   const [inventory, setInventory] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,6 +196,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           ...updated,
         ];
       });
+      router.refresh();
     } catch {
       setError("Purchase failed. Please try again.");
     } finally {
@@ -225,6 +228,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           p.itemSlug === "row-background" ? { ...p, bgColor: color } : p
         )
       );
+      router.refresh();
     } catch {
       setError("Failed to save color. Please try again.");
     } finally {
@@ -256,6 +260,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           p.itemSlug === "row-border" ? { ...p, borderColor: color } : p
         )
       );
+      router.refresh();
     } catch {
       setError("Failed to save color. Please try again.");
     } finally {
@@ -294,6 +299,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           return p;
         })
       );
+      router.refresh();
     } catch {
       setError("Failed to toggle item. Please try again.");
     } finally {
@@ -325,6 +331,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
           p.itemSlug === "team-name-glow" ? { ...p, glowColor: color } : p
         )
       );
+      router.refresh();
     } catch {
       setError("Failed to save color. Please try again.");
     } finally {
@@ -373,6 +380,7 @@ export function StoreModal({ isOpen, onClose, balance, onBalanceChange }: StoreM
             : p
         )
       );
+      router.refresh();
     } catch {
       setError("Failed to save logo frame colors. Please try again.");
     } finally {
