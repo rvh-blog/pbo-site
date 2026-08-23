@@ -19,6 +19,28 @@ Parent index: [[Home|PBO Site Wiki]]
 
 This page summarizes recent user-facing behavior changes so future work starts from the current site behavior instead of older assumptions.
 
+## August 23, 2026
+
+Broadcast overlays:
+
+- Overlay V1 and V2 now wait for Showdown's live-edge seek to finish before
+  restoring animation playback. This prevents transient move and damage
+  messages from remaining hidden after a tab, capture source, or reviewed turn
+  returns to live play.
+- The overlay synchronization check now rejects the unsafe seek-then-play
+  sequence in both visual variants.
+
+Replay item usage:
+
+- Berries revealed because Knock Off removed them no longer count as
+  successful berry uses.
+- Berries that activate or are consumed continue to count, and Knock Off still
+  reveals and counts non-berry held items.
+- The centralized rule applies to Item Usage, coach item tendencies, Matchup
+  Prep, and Pokemon battle statistics, including previously saved replay data.
+- Added focused regression coverage for berry activation, Knock Off, non-berry
+  item reveals, and Trick transfers.
+
 ## August 18, 2026
 
 Battle Record:

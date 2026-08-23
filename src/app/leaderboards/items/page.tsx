@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { seasons } from "@/lib/schema";
 import { desc } from "drizzle-orm";
 import { ItemUsageFilters } from "./item-usage-filters";
-import { isTransferredItemReveal } from "@/lib/revealed-items";
+import { shouldCountHeldItemReveal } from "@/lib/revealed-items";
 
 export const dynamic = "force-dynamic";
 
@@ -126,7 +126,7 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
       { item: string; reveals: Array<{ turn: number; source: string }> }
     >();
     for (const reveal of row.revealedItems || []) {
-      if (isTransferredItemReveal(reveal.source)) continue;
+      if (!shouldCountHeldItemReveal(reveal)) continue;
 
       const key = reveal.item.toLowerCase();
       const existing = distinctItems.get(key);
@@ -258,8 +258,9 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
             <p className="mt-2 max-w-2xl text-sm text-[var(--foreground-muted)]">
               Most-used held items observed in saved PBO replays. Unrevealed items remain unknown
               and are not included. Items revealed only after being received through Trick or
-              Switcheroo are also excluded. Historical tracking currently goes back to Season 5
-              because earlier seasons do not have saved replay links.
+              Switcheroo are excluded, as are berries removed by Knock Off before they activate.
+              Historical tracking currently goes back to Season 5 because earlier seasons do not
+              have saved replay links.
             </p>
           </div>
           <ItemUsageFilters

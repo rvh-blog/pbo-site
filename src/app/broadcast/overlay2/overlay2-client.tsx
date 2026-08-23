@@ -189,9 +189,12 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
   const [battleMaxTurn, setBattleMaxTurn] = useState(0);
   const effectiveMaxTurn = Math.max(hookMaxTurn, battleMaxTurn);
   const effectiveMaxTurnRef = useRef(effectiveMaxTurn);
-  effectiveMaxTurnRef.current = effectiveMaxTurn;
   const battleEndedRef = useRef(!!battle.winner);
-  battleEndedRef.current = !!battle.winner;
+
+  useEffect(() => {
+    effectiveMaxTurnRef.current = effectiveMaxTurn;
+    battleEndedRef.current = !!battle.winner;
+  }, [effectiveMaxTurn, battle.winner]);
 
   // Keepalive: ping the server every 30s to prevent Fly.io from idling the machine
   useEffect(() => {
@@ -207,9 +210,10 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
       if (document.visibilityState !== "visible") return;
       // Only re-sync in live mode (not reviewing a past turn)
       if (reviewingTurn !== null) return;
-      // Fast-forward the BattleScene to catch up with everything it received
-      battleSceneRef.current?.seekTurn(Infinity);
-      battleSceneRef.current?.play();
+      // Fast-forward only after Showdown's animation-disabled seek settles.
+      // Playing during the seek can leave transient UI such as the move and
+      // damage message bar disabled for the rest of the live session.
+      void battleSceneRef.current?.catchUpToLive();
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -243,8 +247,7 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
     if (turn >= effectiveMaxTurnRef.current) {
       stopPlayback();
       goLive();
-      battleSceneRef.current?.seekTurn(Infinity);
-      battleSceneRef.current?.play();
+      void battleSceneRef.current?.catchUpToLive();
       return;
     }
     stopPlayback();
@@ -258,8 +261,7 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
   const handleGoLive = useCallback(() => {
     stopPlayback();
     goLive();
-    battleSceneRef.current?.seekTurn(Infinity);
-    battleSceneRef.current?.play();
+    void battleSceneRef.current?.catchUpToLive();
   }, [goLive, stopPlayback]);
 
   // Play forward from a reviewed turn — let battle scene animate naturally,
@@ -339,8 +341,7 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
         } else {
           // Still live — go to live edge
           goLive();
-          battleSceneRef.current?.seekTurn(Infinity);
-          battleSceneRef.current?.play();
+          void battleSceneRef.current?.catchUpToLive();
         }
       }
     }, 50);
@@ -486,9 +487,12 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
 
   // Portal mount + hide layout chrome
   useEffect(() => {
-    setMounted(true);
+    const mountTimer = setTimeout(() => setMounted(true), 0);
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      clearTimeout(mountTimer);
+      document.body.style.overflow = "";
+    };
   }, []);
 
   // Viewport scaling — measure container
@@ -881,15 +885,19 @@ function GameClock({ startTime }: { startTime: number | null }) {
   const [mins, setMins] = useState(0);
 
   useEffect(() => {
-    if (!startTime) { setMins(0); return; }
+    if (!startTime) return;
     const tick = () => setMins(Math.floor((Date.now() - startTime) / 60000));
-    tick();
+    const initialTick = setTimeout(tick, 0);
     const interval = setInterval(tick, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialTick);
+      clearInterval(interval);
+    };
   }, [startTime]);
 
-  if (mins < 1) return <>JUST STARTED</>;
-  return <>{mins} MIN{mins !== 1 ? "S" : ""} IN</>;
+  const displayedMins = startTime ? mins : 0;
+  if (displayedMins < 1) return <>JUST STARTED</>;
+  return <>{displayedMins} MIN{displayedMins !== 1 ? "S" : ""} IN</>;
 }
 
 function Scoreboard({
@@ -1266,23 +1274,31 @@ function PokemonCard({
   useEffect(() => {
     if (isReviewing) {
       // During review/playback, show fainted state immediately — no delay
-      setShowFainted(fainted);
-      if (fainted) {
-        freezeSprite();
-      } else {
-        setFrozen(false);
-      }
-      return;
-    }
-    if (fainted && !showFainted) {
-      freezeSprite();
-      // Wait for HP bar transition (500ms) + a small buffer
-      const timer = setTimeout(() => setShowFainted(true), 700);
+      const timer = setTimeout(() => {
+        setShowFainted(fainted);
+        if (fainted) {
+          freezeSprite();
+        } else {
+          setFrozen(false);
+        }
+      }, 0);
       return () => clearTimeout(timer);
     }
+    if (fainted && !showFainted) {
+      const freezeTimer = setTimeout(freezeSprite, 0);
+      // Wait for HP bar transition (500ms) + a small buffer
+      const faintTimer = setTimeout(() => setShowFainted(true), 700);
+      return () => {
+        clearTimeout(freezeTimer);
+        clearTimeout(faintTimer);
+      };
+    }
     if (!fainted) {
-      setShowFainted(false);
-      setFrozen(false);
+      const timer = setTimeout(() => {
+        setShowFainted(false);
+        setFrozen(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [fainted, isReviewing, freezeSprite]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2006,12 +2022,10 @@ function BattleLogPanel({
   const lastHTMLRef = useRef("");
   const lastChatLenRef = useRef(0);
 
-  const usernamesRef = useRef({ p1: p1Username, p2: p2Username });
-  usernamesRef.current = { p1: p1Username, p2: p2Username };
-
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const usernames = { p1: p1Username, p2: p2Username };
 
     function getInner(): HTMLElement | null {
       const logEl = battleSceneRef.current?.getLogElement();
@@ -2021,8 +2035,8 @@ function BattleLogPanel({
 
     function isPlayer(user: string): boolean {
       const clean = user.replace(/^[★☆\s]+/, "");
-      return clean === usernamesRef.current.p1 || clean === usernamesRef.current.p2
-        || user === usernamesRef.current.p1 || user === usernamesRef.current.p2;
+      return clean === usernames.p1 || clean === usernames.p2
+        || user === usernames.p1 || user === usernames.p2;
     }
 
     function escapeHtml(s: string): string {
@@ -2132,7 +2146,7 @@ function BattleLogPanel({
       clearInterval(interval);
       container.removeEventListener("scroll", onScroll);
     };
-  }, [battleSceneRef, divisionColor]);
+  }, [battleSceneRef, divisionColor, p1Username, p2Username]);
 
   return (
     <div

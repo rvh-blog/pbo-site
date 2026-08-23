@@ -49,8 +49,10 @@ as the visible pre-Mega form for Floette-Mega.
 
 Held-item usage is observational. The parser records explicit item events and
 effects, while leaderboard aggregation excludes a Pokemon/item pairing revealed
-only after that Pokemon received the item through Trick or Switcheroo.
-Unrevealed items are never inferred.
+only after that Pokemon received the item through Trick or Switcheroo. A berry
+revealed because Knock Off removed it does not count as a successful berry use;
+the berry counts only when another replay event shows it activating or being
+consumed. Unrevealed items are never inferred.
 
 ## Public Analyzer
 

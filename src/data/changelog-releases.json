@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-08-23-overlay-messages-berry-counting",
+    "title": "Reliable Overlays & Berry Usage",
+    "summary": "Broadcast battle messages recover reliably, and replay statistics count berries only when they are successfully used.",
+    "publishedAt": "2026-08-23",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Broadcast Overlay V1 and V2 now restore Showdown animations safely after returning to live play, preventing move and damage messages from remaining hidden."
+      },
+      {
+        "type": "fixed",
+        "text": "Berries revealed because Knock Off removed them no longer count as successful berry uses; activated and consumed berries continue to count normally."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-22-on-demand-fly-scaling",
     "title": "On-Demand Website Hosting",
     "summary": "The website can sleep during quiet periods again while retaining the new health and deployment safeguards.",
