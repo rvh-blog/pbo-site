@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   resolveIllusionDisguiseIdentity,
@@ -28,6 +28,24 @@ const megaCases = [
   ["Mega Charizard Y", "Charizard"],
   ["Mewtwo-Mega-Y", "Mewtwo"],
 ] as const;
+
+const overlayClientPaths = [
+  "src/app/broadcast/overlay/overlay-v1-client.tsx",
+  "src/app/broadcast/overlay2/overlay2-client.tsx",
+] as const;
+
+for (const clientPath of overlayClientPaths) {
+  const source = readFileSync(resolve(process.cwd(), clientPath), "utf8");
+  assert.doesNotMatch(
+    source,
+    /seekTurn\(Infinity\);\s*battleSceneRef\.current\?\.play\(\)/,
+    `${clientPath} must wait for the live-edge seek before restoring animations`,
+  );
+  assert(
+    source.includes("catchUpToLive()"),
+    `${clientPath} must use the serialized live-edge recovery path`,
+  );
+}
 
 for (const [mega, base] of megaCases) {
   assert(pokemonExactLookupKeys(mega).has(base.toLowerCase()), `${mega} must match ${base}`);
