@@ -1,5 +1,25 @@
 [
   {
+    "sourceKey": "2026-08-23-s5-unova-replay-archive",
+    "title": "Season 5 Unova Replay Archive",
+    "summary": "Season 5 Unova replay history is now attached with guarded review for K/D and Illusion discrepancies.",
+    "publishedAt": "2026-08-23",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added all 60 available replays across the complete 63-game Season 5 Unova regular-season and playoff schedule."
+      },
+      {
+        "type": "improved",
+        "text": "Forty-one clean replay games receive replay-derived details, while 19 uncertain games are highlighted yellow with an exact review reason."
+      },
+      {
+        "type": "fixed",
+        "text": "Official forfeits no longer count as missing-replay issues, and official PBO winners, differentials, forfeit state, and Pokemon K/D remain unchanged."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-23-match-replay-review-workflow",
     "title": "Replay Review Safeguards",
     "summary": "Historical replay imports preserve official PBO results and clearly surface games that need manual review.",

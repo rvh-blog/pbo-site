@@ -1,5 +1,17 @@
 # Recent Website Updates
 
+## August 23, 2026 - Season 5 Unova Replay Archive
+
+- Added all 60 available replay links across the complete 63-game Season 5
+  Unova regular-season schedule and playoff bracket.
+- Forty-one clean replay games receive replay-derived detail. Nineteen games
+  with PBO K/D discrepancies or Zoroark/Illusion uncertainty are held for
+  review and highlighted yellow with a written reason.
+- The three official forfeits intentionally require no replay link and are not
+  treated as missing-replay issues.
+- Official PBO winners, differentials, forfeit state, and per-Pokemon K/D
+  remain authoritative throughout the import.
+
 ## August 23, 2026 - Historical Replay Review Workflow
 
 - Admin match records can be held for review with a written reason. Review
