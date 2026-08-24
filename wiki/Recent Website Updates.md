@@ -4,7 +4,7 @@
 
 - Added all 60 available replay links across the complete 63-game Season 5
   Unova regular-season schedule and playoff bracket.
-- Forty-one clean replay games receive replay-derived detail. Nineteen games
+- Forty-three clean replay games receive replay-derived detail. Seventeen games
   with PBO K/D discrepancies or Zoroark/Illusion uncertainty are held for
   review and highlighted yellow with a written reason.
 - The three official forfeits intentionally require no replay link and are not
