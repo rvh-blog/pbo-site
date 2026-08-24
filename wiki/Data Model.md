@@ -150,6 +150,10 @@ Time-synced roster utilities:
 ## Matches And Result Cascades
 
 `matches` stores schedule, result, replay, HP chart JSON, key event JSON, and Game of the Week flag.
+Matches can also carry `needs_review` and `review_notes`. These fields identify
+replay, format, roster, result, or PBO kill-attribution conflicts that require
+an administrator to review the game. They are workflow metadata and do not
+replace the official winner, differential, or `match_pokemon` K/D values.
 
 `match_pokemon` stores per-match Pokemon brought, kills, deaths, and replay-derived stats.
 Replay detail fields include direct/indirect damage dealt and taken, HP restored,

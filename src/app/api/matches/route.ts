@@ -271,6 +271,8 @@ export async function POST(request: NextRequest) {
     coach2Differential,
     isForfeit,
     replayUrl,
+    needsReview,
+    reviewNotes,
     pokemonData, // Array of replay-derived Pokemon stats
     startedAt, // Match start time from replay (for anti-cheat betting)
     endedAt, // Match end time from replay
@@ -300,6 +302,8 @@ export async function POST(request: NextRequest) {
       coach2Differential: coach2Differential || 0,
       isForfeit: isForfeit || false,
       replayUrl: replayUrl || null,
+      needsReview: needsReview || false,
+      reviewNotes: reviewNotes?.trim() || null,
       playedAt: new Date().toISOString(),
       startedAt: startedAt || null,
       endedAt: endedAt || null,
@@ -424,6 +428,8 @@ export async function PUT(request: NextRequest) {
     coach2Differential,
     isForfeit,
     replayUrl,
+    needsReview,
+    reviewNotes,
     pokemonData,
     startedAt, // Match start time from replay (for anti-cheat betting)
     endedAt, // Match end time from replay
@@ -448,6 +454,8 @@ export async function PUT(request: NextRequest) {
   if (coach2Differential !== undefined) updateData.coach2Differential = coach2Differential;
   if (isForfeit !== undefined) updateData.isForfeit = isForfeit;
   if (replayUrl !== undefined) updateData.replayUrl = replayUrl;
+  if (needsReview !== undefined) updateData.needsReview = Boolean(needsReview);
+  if (reviewNotes !== undefined) updateData.reviewNotes = reviewNotes?.trim() || null;
   if (startedAt !== undefined) updateData.startedAt = startedAt;
   if (endedAt !== undefined) updateData.endedAt = endedAt;
   if (turnSnapshots !== undefined) updateData.turnSnapshots = turnSnapshots ? JSON.stringify(turnSnapshots) : null;

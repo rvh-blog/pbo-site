@@ -5,6 +5,19 @@ const client = createClient({ url: `file:${dbPath}` });
 
 const migrations = [
   {
+    id: "2026-08-24-match-review-state-v1",
+    statements: [
+      {
+        sql: "ALTER TABLE matches ADD COLUMN needs_review INTEGER NOT NULL DEFAULT 0",
+        whenMissingColumn: { table: "matches", column: "needs_review" },
+      },
+      {
+        sql: "ALTER TABLE matches ADD COLUMN review_notes TEXT",
+        whenMissingColumn: { table: "matches", column: "review_notes" },
+      },
+    ],
+  },
+  {
     id: "2026-08-22-read-performance-indexes-v1",
     statements: [
       "CREATE INDEX IF NOT EXISTS idx_seasons_current_public_number ON seasons(is_current, is_public, season_number)",
@@ -59,9 +72,21 @@ async function main() {
     }
 
     console.log(`[Migration] Applying ${migration.id}...`);
+    const statements = [];
+    for (const statement of migration.statements) {
+      if (typeof statement === "string") {
+        statements.push(statement);
+        continue;
+      }
+      const columns = await client.execute(`PRAGMA table_info(${statement.whenMissingColumn.table})`);
+      const columnExists = columns.rows.some(
+        (row) => row.name === statement.whenMissingColumn.column
+      );
+      if (!columnExists) statements.push(statement.sql);
+    }
     await client.batch(
       [
-        ...migration.statements,
+        ...statements,
         {
           sql: "INSERT INTO app_startup_migrations (id, applied_at) VALUES (?, ?)",
           args: [migration.id, new Date().toISOString()],

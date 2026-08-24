@@ -1,5 +1,25 @@
 [
   {
+    "sourceKey": "2026-08-23-match-replay-review-workflow",
+    "title": "Replay Review Safeguards",
+    "summary": "Historical replay imports preserve official PBO results and clearly surface games that need manual review.",
+    "publishedAt": "2026-08-23",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Admins can hold a match for review with a written reason; held games are highlighted yellow in the match list and editor."
+      },
+      {
+        "type": "improved",
+        "text": "The Season 5 Kalos replay import validates historical formats, scheduled teams, winners, differentials, roster mapping, and PBO kill/death attribution before adding replay-derived details."
+      },
+      {
+        "type": "fixed",
+        "text": "Historical imports preserve official PBO winners and Pokemon K/D instead of overwriting discrepancies with raw replay output."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-23-overlay-messages-berry-counting",
     "title": "Reliable Overlays & Berry Usage",
     "summary": "Broadcast battle messages recover reliably, and replay statistics count berries only when they are successfully used.",

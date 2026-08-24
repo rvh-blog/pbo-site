@@ -1,5 +1,20 @@
 # Recent Website Updates
 
+## August 23, 2026 - Historical Replay Review Workflow
+
+- Admin match records can be held for review with a written reason. Review
+  games are highlighted yellow in both the match list and the result editor.
+- The Season 5 Kalos replay importer covers the existing eight-week schedule
+  and playoff bracket without creating duplicate matches.
+- Replay candidates are checked against the historical format, scheduled
+  teams, official winner and differential, roster/Pokemon mapping, Zoroark or
+  Illusion involvement, and the existing official PBO per-Pokemon K/D ledger.
+- Official PBO results and kill totals remain authoritative. A replay mismatch
+  is placed in the yellow review state instead of overwriting those values.
+- Clean replay imports add timestamps, HP snapshots, key events, damage,
+  healing, active-turn, move-usage, and successfully revealed item data. Berry
+  reveals caused only by Knock Off remain excluded from successful berry use.
+
 ## Expanded HAX Context — Season 11 Week 6
 
 - Expanded the match-report HAX count from Season 11 Week 6 onward to include
