@@ -69,6 +69,9 @@ For an existing result:
 - The admin match list and editor highlight held games in yellow.
 - A historical replay import must preserve the official winner, differential,
   and per-Pokemon K/D when parser output conflicts with the recorded PBO ledger.
+- A missing replay link is reviewable only for a non-forfeit game. An official
+  forfeit does not require a replay and must not be held solely because its
+  replay link is empty.
 
 ## Forfeits
 
