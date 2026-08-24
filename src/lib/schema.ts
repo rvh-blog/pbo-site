@@ -234,6 +234,8 @@ export const matches = sqliteTable("matches", {
   isForfeit: integer("is_forfeit", { mode: "boolean" }).default(false),
   playedAt: text("played_at"),
   replayUrl: text("replay_url"),
+  needsReview: integer("needs_review", { mode: "boolean" }).notNull().default(false),
+  reviewNotes: text("review_notes"),
   scheduledAt: text("scheduled_at"), // ISO datetime for when match is scheduled to be played
   // Match timing from replay (for anti-cheat betting)
   startedAt: text("started_at"), // When the match started (first |t:| in replay)

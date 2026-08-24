@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Select } from "@/components/ui/input";
+import { Input, Label, Select, TextArea } from "@/components/ui/input";
 import { computeAndSortStandings } from "@/lib/standings-sort";
 import { getSeasonFormat } from "@/lib/season-format";
 import { findBuiltInPokemonNameMatch } from "@/lib/replay-roster-matching-core";
@@ -98,6 +98,8 @@ interface Match {
   coach2Differential: number;
   isForfeit: boolean;
   replayUrl: string | null;
+  needsReview: boolean;
+  reviewNotes: string | null;
   coach1: SeasonCoach;
   coach2: SeasonCoach;
   division: Division;
@@ -217,6 +219,8 @@ export default function AdminMatchesPage() {
     coach2Differential: "0",
     isForfeit: false,
     replayUrl: "",
+    needsReview: false,
+    reviewNotes: "",
   });
   const [team1Pokemon, setTeam1Pokemon] = useState<PokemonEntry[]>(
     Array(6).fill(null).map(() => ({ pokemonId: "", kills: "0", deaths: "0" }))
@@ -630,6 +634,8 @@ export default function AdminMatchesPage() {
       coach2Differential: match.coach2Differential?.toString() || "0",
       isForfeit: match.isForfeit || false,
       replayUrl: match.replayUrl || "",
+      needsReview: match.needsReview || false,
+      reviewNotes: match.reviewNotes || "",
     });
 
     const coach1Pokemon = match.matchPokemon?.filter((mp) => mp.seasonCoachId === match.coach1SeasonId) || [];
@@ -818,6 +824,8 @@ export default function AdminMatchesPage() {
             coach2Differential: parseInt(matchForm.coach2Differential) || 0,
             isForfeit: matchForm.isForfeit,
             replayUrl: matchForm.replayUrl || null,
+            needsReview: matchForm.needsReview,
+            reviewNotes: matchForm.reviewNotes || null,
             pokemonData,
             startedAt: matchTimingData.startedAt,
             endedAt: matchTimingData.endedAt,
@@ -841,6 +849,8 @@ export default function AdminMatchesPage() {
             coach2Differential: parseInt(matchForm.coach2Differential) || 0,
             isForfeit: matchForm.isForfeit,
             replayUrl: matchForm.replayUrl || null,
+            needsReview: matchForm.needsReview,
+            reviewNotes: matchForm.reviewNotes || null,
             pokemonData,
             startedAt: matchTimingData.startedAt,
             endedAt: matchTimingData.endedAt,
@@ -979,6 +989,8 @@ export default function AdminMatchesPage() {
         coach2Differential: parseInt(matchForm.coach2Differential) || 0,
         isForfeit: matchForm.isForfeit,
         replayUrl: matchForm.replayUrl || null,
+        needsReview: matchForm.needsReview,
+        reviewNotes: matchForm.reviewNotes || null,
         pokemonData,
         startedAt: matchTimingData.startedAt,
         endedAt: matchTimingData.endedAt,
@@ -1044,6 +1056,8 @@ export default function AdminMatchesPage() {
       coach2Differential: "0",
       isForfeit: false,
       replayUrl: "",
+      needsReview: false,
+      reviewNotes: "",
     });
     setTeam1Pokemon(Array(6).fill(null).map(() => ({ pokemonId: "", kills: "0", deaths: "0" })));
     setTeam2Pokemon(Array(6).fill(null).map(() => ({ pokemonId: "", kills: "0", deaths: "0" })));
@@ -1775,6 +1789,7 @@ export default function AdminMatchesPage() {
                             <option value="">Choose fixture</option>
                             {fixturesForWeek.map((m) => (
                               <option key={m.id} value={m.id}>
+                                {m.needsReview ? "⚠ REVIEW — " : ""}
                                 {m.coach1?.teamName} vs {m.coach2?.teamName}
                                 {m.winnerId ? " (completed)" : ""}
                               </option>
@@ -1835,6 +1850,34 @@ export default function AdminMatchesPage() {
                             Match timing captured: {new Date(matchTimingData.startedAt).toLocaleString()}
                           </p>
                         )}
+                      </div>
+
+                      <div className={`rounded-lg border p-4 ${
+                        matchForm.needsReview
+                          ? "border-yellow-400 bg-yellow-400/15"
+                          : "border-[var(--card-border)] bg-[var(--card)]"
+                      }`}>
+                        <label className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                          <input
+                            type="checkbox"
+                            checked={matchForm.needsReview}
+                            onChange={(event) => setMatchForm({
+                              ...matchForm,
+                              needsReview: event.target.checked,
+                            })}
+                          />
+                          Hold for review and highlight this game in yellow
+                        </label>
+                        <Label className="mt-3">Review reason</Label>
+                        <TextArea
+                          value={matchForm.reviewNotes}
+                          onChange={(event) => setMatchForm({
+                            ...matchForm,
+                            reviewNotes: event.target.value,
+                          })}
+                          placeholder="Explain the replay, score, roster, format, or kill-attribution issue."
+                          rows={3}
+                        />
                       </div>
 
                       {/* Result Fields */}
@@ -2119,7 +2162,9 @@ export default function AdminMatchesPage() {
                         <div
                           key={match.id}
                           className={`flex items-center justify-between p-3 rounded-lg ${
-                            match.winnerId
+                            match.needsReview
+                              ? "bg-yellow-400/15 border-2 border-yellow-400"
+                              : match.winnerId
                               ? "bg-[var(--background-secondary)]"
                               : "bg-[var(--warning)]/10 border border-[var(--warning)]/30"
                           }`}
@@ -2152,6 +2197,19 @@ export default function AdminMatchesPage() {
                             </div>
                             {match.isForfeit && (
                               <span className="px-2 py-0.5 text-xs rounded bg-[var(--warning)] text-black">FF</span>
+                            )}
+                            {match.needsReview && (
+                              <span
+                                className="rounded bg-yellow-400 px-2 py-0.5 text-xs font-bold text-black"
+                                title={match.reviewNotes || "This match needs review"}
+                              >
+                                REVIEW
+                              </span>
+                            )}
+                            {match.needsReview && match.reviewNotes && (
+                              <span className="max-w-xl text-xs text-yellow-200">
+                                {match.reviewNotes}
+                              </span>
                             )}
                             {!match.winnerId && (
                               <span className="px-2 py-0.5 text-xs rounded bg-[var(--warning)]/20 text-[var(--warning)]">

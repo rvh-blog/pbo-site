@@ -61,6 +61,15 @@ For an existing result:
 - GOTW bonus is reversed and re-awarded when appropriate.
 - Historical Elo edits may set `needsFullRecalc`.
 
+## Replay Review State
+
+- `matches.needs_review` holds a game for administrator review.
+- `matches.review_notes` records the exact replay, format, roster, result, or
+  PBO kill-attribution reason.
+- The admin match list and editor highlight held games in yellow.
+- A historical replay import must preserve the official winner, differential,
+  and per-Pokemon K/D when parser output conflicts with the recorded PBO ledger.
+
 ## Forfeits
 
 Single forfeit:
