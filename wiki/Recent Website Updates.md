@@ -29,6 +29,16 @@ Broadcast overlays:
   returns to live play.
 - The overlay synchronization check now rejects the unsafe seek-then-play
   sequence in both visual variants.
+- Every live animation phase restores Showdown's visual renderer before
+  processing protocol events. Rapid Spin, Defog, Mortal Spin, and similar
+  hazard-removal effects therefore remove stale battlefield sprites as well as
+  the underlying logical side condition.
+- Returning to a backgrounded overlay while already live now preserves every
+  received protocol line, discards only throttled visual animations, rebuilds
+  the current state, and seeks directly to the newest turn.
+- Intentional turn review remains selected when the tab is backgrounded. The
+  explicit Go Live action jumps directly to the newest state without replaying
+  a background animation backlog, and all earlier turns remain reviewable.
 
 Replay item usage:
 

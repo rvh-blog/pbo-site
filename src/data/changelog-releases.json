@@ -12,6 +12,14 @@
       {
         "type": "fixed",
         "text": "Berries revealed because Knock Off removed them no longer count as successful berry uses; activated and consumed berries continue to count normally."
+      },
+      {
+        "type": "fixed",
+        "text": "Rapid Spin, Defog, and other hazard-removal effects now clear their battlefield sprites reliably instead of leaving stale rocks or spikes visible."
+      },
+      {
+        "type": "improved",
+        "text": "Live overlays now skip throttled background-tab animations when brought back into view or when Go Live is selected, while preserving the complete turn history for review."
       }
     ]
   },

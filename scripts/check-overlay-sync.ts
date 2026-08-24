@@ -45,7 +45,30 @@ for (const clientPath of overlayClientPaths) {
     source.includes("catchUpToLive()"),
     `${clientPath} must use the serialized live-edge recovery path`,
   );
+  const directLiveRecoveries = source.match(
+    /catchUpToLive\(\{ discardPendingAnimations: true \}\)/g,
+  )?.length ?? 0;
+  assert(
+    directLiveRecoveries >= 3,
+    `${clientPath} must discard throttled animations on visibility and explicit live recovery`,
+  );
 }
+
+const battleSceneSource = readFileSync(
+  resolve(process.cwd(), "src/app/broadcast/overlay/battle-scene.tsx"),
+  "utf8",
+);
+const liveAnimationRestore = battleSceneSource.indexOf("battle.scene?.animationOn?.();");
+const phasedBattleAdd = battleSceneSource.indexOf("battle.add(line);", liveAnimationRestore);
+assert(
+  liveAnimationRestore >= 0 && phasedBattleAdd > liveAnimationRestore,
+  "BattleScene must restore live animations before processing side-condition removals",
+);
+assert(
+  battleSceneSource.includes("pendingAnimatedBatchesRef") &&
+    battleSceneSource.includes("discardPendingAnimations"),
+  "BattleScene must preserve queued protocol lines while discarding stale background animations",
+);
 
 for (const [mega, base] of megaCases) {
   assert(pokemonExactLookupKeys(mega).has(base.toLowerCase()), `${mega} must match ${base}`);

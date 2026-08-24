@@ -212,14 +212,14 @@ export function OverlayV1Client({ data, battleUrl, context, multiCast = false }:
       if (document.visibilityState !== "visible") return;
       // Only re-sync in live mode (not reviewing a past turn)
       if (reviewingTurn !== null) return;
-      // Fast-forward only after Showdown's animation-disabled seek settles.
-      // Playing during the seek can leave transient UI such as the move and
-      // damage message bar disabled for the rest of the live session.
-      void battleSceneRef.current?.catchUpToLive();
+      // Rebuild hook state from every stored event, then skip any animations
+      // throttled while hidden and render directly at the newest received turn.
+      goLive();
+      void battleSceneRef.current?.catchUpToLive({ discardPendingAnimations: true });
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [reviewingTurn]);
+  }, [goLive, reviewingTurn]);
 
   const handleBattleTurnUpdate = useCallback((turn: number) => {
     setBattleMaxTurn(turn);
@@ -249,7 +249,7 @@ export function OverlayV1Client({ data, battleUrl, context, multiCast = false }:
     if (turn >= effectiveMaxTurnRef.current) {
       stopPlayback();
       goLive();
-      void battleSceneRef.current?.catchUpToLive();
+      void battleSceneRef.current?.catchUpToLive({ discardPendingAnimations: true });
       return;
     }
     stopPlayback();
@@ -263,7 +263,7 @@ export function OverlayV1Client({ data, battleUrl, context, multiCast = false }:
   const handleGoLive = useCallback(() => {
     stopPlayback();
     goLive();
-    void battleSceneRef.current?.catchUpToLive();
+    void battleSceneRef.current?.catchUpToLive({ discardPendingAnimations: true });
   }, [goLive, stopPlayback]);
 
   // Play forward from a reviewed turn — let battle scene animate naturally,
