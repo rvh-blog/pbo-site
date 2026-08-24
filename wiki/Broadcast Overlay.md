@@ -141,6 +141,19 @@ animation before the next message is processed. Do not call `play()` while a
 seek is still active; that races Showdown's queue and can cause either static or
 overlapping sprites.
 
+Every animated live phase also restores Showdown's scene animation flag before
+adding protocol lines. Showdown skips visual side-condition removal while that
+flag is disabled, so this guard is required for Rapid Spin, Defog, Mortal Spin,
+and similar events to remove hazard sprites reliably.
+
+Background-tab recovery distinguishes live viewing from intentional review. If
+the overlay was live when it became visible again, it preserves all received
+protocol lines, cancels only throttled animation work, rebuilds the shared hook
+state, and seeks directly to the newest turn. If a caster is reviewing an older
+turn, visibility changes do not leave that turn. Selecting Go Live explicitly
+uses the direct recovery path, and the complete stored history remains
+available for later review.
+
 ## Battlefield Sprite Overrides
 
 Missing Showdown battlefield art is handled by a shared, form-specific registry

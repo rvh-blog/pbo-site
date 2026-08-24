@@ -313,12 +313,13 @@ function isResidualLine(line: string): boolean {
  *
  * Returns the number of phases fed.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function feedLinesInPhases(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   battle: any,
   lines: string[],
   isCancelled: () => boolean,
-  onPhaseDone?: () => void
+  onPhaseDone?: () => void,
+  onLineFed?: () => void,
 ): Promise<number> {
   // Split lines into groups at |move| boundaries, drop empty groups
   const movePhases: string[][] = [[]];
@@ -361,9 +362,16 @@ async function feedLinesInPhases(
   for (let i = 0; i < phases.length; i++) {
     if (isCancelled()) return i;
 
+    // Live lines should always render with animations enabled. Showdown's
+    // removeSideCondition() is a no-op while scene.animating is false, which
+    // can otherwise leave stale hazard sprites behind after Rapid Spin/Defog
+    // even though the battle's logical side-condition state was updated.
+    battle.scene?.animationOn?.();
+
     // Feed this phase's lines to the renderer
     for (const line of phases[i]) {
       battle.add(line);
+      onLineFed?.();
     }
 
     // Wait for every phase, including the final one. This keeps later socket
@@ -407,7 +415,7 @@ export interface BattleSceneHandle {
   seekTurn(n: number): void;
   /** Seek initial history without animation, then enter a known-good live
    * animation state before queued socket messages are processed. */
-  catchUpToLive(): Promise<void>;
+  catchUpToLive(options?: { discardPendingAnimations?: boolean }): Promise<void>;
   pause(): void;
   play(): void;
   setSpeed(speed: number): void;
@@ -444,12 +452,17 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
   const chatTurnRef = useRef(0);
   const chatPosRef = useRef(0);
   const onTurnUpdateRef = useRef(onTurnUpdate);
-  onTurnUpdateRef.current = onTurnUpdate;
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
   const cancelledRef = useRef(false);
+  const animationGenerationRef = useRef(0);
+  const pendingAnimatedBatchesRef = useRef(new Set<{ lines: string[]; nextLine: number }>());
   // Serialize addLines calls so concurrent WS messages don't interleave
   const addLinesQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  useEffect(() => {
+    onTurnUpdateRef.current = onTurnUpdate;
+    onReadyRef.current = onReady;
+  }, [onReady, onTurnUpdate]);
 
   /** Extract chat from raw lines, track turns, return battle-only lines */
   const processRawLines = useCallback((allLines: string[], markLive: boolean): string[] => {
@@ -504,18 +517,38 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
         battleObjRef.current.seekTurn(n);
       }
     },
-    catchUpToLive(): Promise<void> {
+    catchUpToLive(options): Promise<void> {
       if (!battleObjRef.current) return Promise.resolve();
       const battle = battleObjRef.current;
-      const prev = addLinesQueueRef.current;
+      const discardPending = options?.discardPendingAnimations === true;
+      const generation = discardPending
+        ? ++animationGenerationRef.current
+        : animationGenerationRef.current;
+
+      if (discardPending) {
+        // Background tabs can leave animated batches waiting behind throttled
+        // timers. Preserve their protocol lines, but discard the stale visual
+        // playback so the scene can rebuild directly at the live edge.
+        battle.pause();
+        for (const batch of pendingAnimatedBatchesRef.current) {
+          for (let i = batch.nextLine; i < batch.lines.length; i++) {
+            battle.add(batch.lines[i]);
+          }
+          batch.nextLine = batch.lines.length;
+        }
+        pendingAnimatedBatchesRef.current.clear();
+      }
+
+      const prev = discardPending ? Promise.resolve() : addLinesQueueRef.current;
       const next = prev.then(async () => {
-        if (cancelledRef.current || battleObjRef.current !== battle) return;
+        const isStale = () =>
+          cancelledRef.current ||
+          battleObjRef.current !== battle ||
+          animationGenerationRef.current !== generation;
+        if (isStale()) return;
         battle.seekTurn(Infinity);
-        await waitForSeekEnd(
-          battle,
-          () => cancelledRef.current || battleObjRef.current !== battle
-        );
-        if (cancelledRef.current || battleObjRef.current !== battle) return;
+        await waitForSeekEnd(battle, isStale);
+        if (isStale()) return;
 
         // seekTurn disables animations while rebuilding current state.
         // Restore both the scene and Battle playback only after seek completion;
@@ -558,13 +591,28 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
     },
     addLines(lines: string[], onPhaseDone?: () => void): Promise<void> {
       if (!battleObjRef.current) return Promise.resolve();
+      const battle = battleObjRef.current;
       const battleLines = processRawLines(lines, true);
       if (battleLines.length === 0) return Promise.resolve();
+      const generation = animationGenerationRef.current;
+      const batch = { lines: battleLines, nextLine: 0 };
+      pendingAnimatedBatchesRef.current.add(batch);
       // Chain onto previous addLines call to prevent concurrent animation interleaving
       const prev = addLinesQueueRef.current;
       const next = prev.then(() =>
-        feedLinesInPhases(battleObjRef.current!, battleLines, () => cancelledRef.current, onPhaseDone).then(() => {})
-      );
+        feedLinesInPhases(
+          battle,
+          battleLines,
+          () =>
+            cancelledRef.current ||
+            battleObjRef.current !== battle ||
+            animationGenerationRef.current !== generation,
+          onPhaseDone,
+          () => { batch.nextLine++; },
+        ).then(() => {})
+      ).finally(() => {
+        pendingAnimatedBatchesRef.current.delete(batch);
+      });
       addLinesQueueRef.current = next;
       return next;
     },
@@ -590,11 +638,15 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
     if (!frameRef.current || !logRef.current || !roomId) return;
 
     cancelledRef.current = false;
+    animationGenerationRef.current++;
+    pendingAnimatedBatchesRef.current.clear();
+    addLinesQueueRef.current = Promise.resolve();
 
     // Last-resort image recovery for a known missing Showdown form. This is
     // scoped to the battle frame and known registry URLs so move effects and
     // unrelated Pokemon are never modified.
     const frame = frameRef.current;
+    const pendingAnimatedBatches = pendingAnimatedBatchesRef.current;
     const handleImageError = (event: Event) => {
       const image = event.target;
       if (!(image instanceof HTMLImageElement) || image.dataset.pboSpriteFallback === "done") return;
@@ -659,12 +711,13 @@ export const BattleScene = forwardRef<BattleSceneHandle, BattleSceneProps>(
 
     return () => {
       cancelledRef.current = true;
+      pendingAnimatedBatches.clear();
       frame.removeEventListener("error", handleImageError, true);
       if (battleObjRef.current) {
         try { battleObjRef.current.destroy?.(); } catch {}
         battleObjRef.current = null;
       }
-      if (frameRef.current) frameRef.current.innerHTML = "";
+      frame.innerHTML = "";
     };
   }, [roomId]);
 
