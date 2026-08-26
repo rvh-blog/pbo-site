@@ -5,6 +5,7 @@ import {
   normalizePokemonNameWithAliases,
   type PokemonAliasMaps,
 } from "@/lib/pokemon-name-aliases";
+import { isGuaranteedHaxOutcome } from "@/lib/hax-rules";
 
 interface PokemonStats {
   name: string;
@@ -150,12 +151,6 @@ const PIVOT_MOVES = new Set([
 ]);
 
 const CHAMPIONS_NATDEX_DRAFT_TIER = "[Gen 9 Champions] NatDex Draft";
-
-const GUARANTEED_CRIT_MOVES_EXCLUDED_FROM_HAX = new Set([
-  "flower trick",
-  "surging strikes",
-  "wicked blow",
-]);
 
 function shouldPreserveMegaFormsForTier(tier: string | null) {
   return tier === CHAMPIONS_NATDEX_DRAFT_TIER;
@@ -412,6 +407,15 @@ export async function POST(request: NextRequest) {
       const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
       const pokemonName = nicknameMap.get(parsed.nickname);
       return pokemonName ? team.find((p) => p.name === pokemonName) || null : null;
+    };
+
+    const getPokemonNameByRef = (
+      parsed: PlayerRef | null | undefined,
+      fallback = "The Pokémon",
+    ) => {
+      if (!parsed) return fallback;
+      const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
+      return nicknameMap.get(parsed.nickname) || fallback;
     };
 
     const revealItem = (
@@ -865,7 +869,7 @@ export async function POST(request: NextRequest) {
           const parsed = extractNicknameOwner(targetRef);
           if (parsed && lastDamageDealer) {
             const moveName = lastMoveInfo?.moveName?.trim() || "Unknown move";
-            if (expandedHaxRules && GUARANTEED_CRIT_MOVES_EXCLUDED_FROM_HAX.has(moveName.toLowerCase())) {
+            if (expandedHaxRules && isGuaranteedHaxOutcome("crit", moveName)) {
               break;
             }
             const targetName = (parsed.player === "p1" ? p1NicknameMap : p2NicknameMap).get(parsed.nickname);
@@ -875,7 +879,7 @@ export async function POST(request: NextRequest) {
               incrementFavorableEvent(lastDamageDealer, "favorableCrits", {
                 type: "crit",
                 turn: currentTurn,
-                description: `${lastDamageDealer.nickname} landed a critical hit with ${moveName} on ${parsed.nickname}.`,
+                description: `${getPokemonNameByRef(lastDamageDealer)} landed a critical hit with ${moveName} on ${getPokemonNameByRef(parsed)}.`,
               });
             }
           }
@@ -899,7 +903,7 @@ export async function POST(request: NextRequest) {
           incrementFavorableEvent(beneficiary, "favorableMisses", {
             type: "miss",
             turn: currentTurn,
-            description: `${attacker?.nickname || "The opponent"} missed${lastMoveInfo?.moveName ? ` with ${lastMoveInfo.moveName}` : ""}${target ? ` against ${target.nickname}` : ""}.`,
+            description: `${getPokemonNameByRef(attacker, "The opponent")} missed${lastMoveInfo?.moveName ? ` with ${lastMoveInfo.moveName}` : ""}${target ? ` against ${getPokemonNameByRef(target)}` : ""}.`,
           });
           break;
         }
@@ -913,13 +917,20 @@ export async function POST(request: NextRequest) {
             incrementFavorableEvent(beneficiary, "favorableParalysis", {
               type: "paralysis",
               turn: currentTurn,
-              description: `${parsed?.nickname || "The opponent"} was fully paralyzed.`,
+              description: `${getPokemonNameByRef(parsed, "The opponent")} was fully paralyzed.`,
             });
           } else if (isFlinchCantMove(effect)) {
+            const flinchMoveName =
+              lastMoveInfo?.turn === currentTurn && lastMoveInfo.player !== parsed?.player
+                ? lastMoveInfo.moveName.trim().toLowerCase()
+                : "";
+            if (isGuaranteedHaxOutcome("flinch", flinchMoveName)) {
+              break;
+            }
             incrementFavorableEvent(beneficiary, "favorableFlinches", {
               type: "flinch",
               turn: currentTurn,
-              description: `${parsed?.nickname || "The opponent"} flinched.`,
+              description: `${getPokemonNameByRef(parsed, "The opponent")} flinched.`,
             });
           }
           break;
@@ -1016,13 +1027,13 @@ export async function POST(request: NextRequest) {
               incrementFavorableEvent(beneficiary, "favorableFreezes", {
                 type: "freeze",
                 turn: currentTurn,
-                description: `${parsed.nickname} was frozen${statusSource ? ` by ${statusSource}` : ""}.`,
+                description: `${getPokemonNameByRef(parsed)} was frozen${statusSource ? ` by ${statusSource}` : ""}.`,
               });
             } else if (statusType === "brn" && hasOpponentInflicter && !isSelfItemStatus && !isWillOWisp(statusSource)) {
               incrementFavorableEvent(beneficiary, "favorableBurns", {
                 type: "burn",
                 turn: currentTurn,
-                description: `${parsed.nickname} was burned${statusSource ? ` by ${statusSource}` : ""}.`,
+                description: `${getPokemonNameByRef(parsed)} was burned${statusSource ? ` by ${statusSource}` : ""}.`,
               });
             } else if (
               statusType === "par" &&
@@ -1036,7 +1047,7 @@ export async function POST(request: NextRequest) {
                 {
                   type: "paralysis",
                   turn: currentTurn,
-                  description: `${parsed.nickname} was paralyzed by Static.`,
+                  description: `${getPokemonNameByRef(parsed)} was paralyzed by Static.`,
                 },
               );
             } else if (
@@ -1047,7 +1058,7 @@ export async function POST(request: NextRequest) {
               incrementFavorableEvent(beneficiary, "favorableSleep", {
                 type: "sleep",
                 turn: currentTurn,
-                description: `${parsed.nickname} was put to sleep by Dire Claw.`,
+                description: `${getPokemonNameByRef(parsed)} was put to sleep by Dire Claw.`,
               });
             }
 
@@ -1119,7 +1130,7 @@ export async function POST(request: NextRequest) {
                   incrementFavorableEvent(source, "favorableConfusions", {
                     type: "confusion",
                     turn: currentTurn,
-                    description: `${parsed.nickname} became confused${lastMoveInfo?.moveName ? ` from ${lastMoveInfo.moveName}` : ""}.`,
+                    description: `${getPokemonNameByRef(parsed)} became confused${lastMoveInfo?.moveName ? ` from ${lastMoveInfo.moveName}` : ""}.`,
                   });
                 }
               } else if (effectName.includes("future sight")) {
@@ -1275,7 +1286,7 @@ export async function POST(request: NextRequest) {
             incrementFavorableEvent(beneficiary, "favorableConfusionSelfHits", {
               type: "confusion-self-hit",
               turn: currentTurn,
-              description: `${parsed.nickname} hurt itself in confusion.`,
+              description: `${getPokemonNameByRef(parsed)} hurt itself in confusion.`,
             });
           }
 

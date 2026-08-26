@@ -1,5 +1,23 @@
 # Recent Website Updates
 
+## August 26, 2026 - Replay HAX & Speed Tiers
+
+- Replay HAX entries now display the actual Pokemon species name instead of a
+  nickname. Fake Out and other guaranteed-outcome events are excluded from the
+  HAX count, including Flower Trick, Frost Breath, Storm Throw, Surging
+  Strikes, Wicked Blow, and Zippy Zap.
+- Added a shared, trigger-aware Speed Tiers engine for rain, sun, sand, snow,
+  Electric Terrain, Unburden, status boosts, Booster Energy, Tailwind, and
+  Slow Start. Matchup Prep applies the active condition to both comparison
+  scenarios while preserving Season 11 stat-point calculations and legacy
+  EV/IV formats.
+- Matchup Prep now has a compact mobile Speed Tiers presentation with dense
+  team rows, grouped calculated tiers, investment/nature labels, and ability
+  trigger pills. Desktop keeps the full comparison view and field selector.
+- Added focused HAX and Speed Tiers validation scripts and backfill tooling for
+  Season 11 and later replay data.
+
+
 ## August 23, 2026 - Season 5 Unova Replay Archive
 
 - Added all 60 available replay links across the complete 63-game Season 5

@@ -4,6 +4,12 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { compareDivisions } from "@/lib/division-order";
+import {
+  applySpeedEffect,
+  getActiveSpeedEffect,
+  SPEED_CONDITION_OPTIONS,
+  type SpeedCondition,
+} from "@/lib/speed-tiers";
 
 // Type effectiveness chart (attacking type -> defending type -> multiplier)
 const TYPE_CHART: Record<string, Record<string, number>> = {
@@ -170,6 +176,48 @@ interface Props {
   }>>;
 }
 
+interface SpeedCalcSettings {
+  level: number;
+  ev: number;
+  iv: number;
+  sp: number;
+  boost: number;
+  nature: "positive" | "neutral" | "negative";
+  condition: SpeedCondition;
+}
+
+function getPokemonAbilityNames(pokemon: Pokemon): string[] {
+  if (!Array.isArray(pokemon.abilities)) return [];
+  return pokemon.abilities.map((ability) => typeof ability === "string" ? ability : ability.name);
+}
+
+function calculatePokemonSpeed(
+  baseSpeed: number,
+  settings: SpeedCalcSettings,
+  usesStatPoints: boolean,
+): number {
+  const natureMultiplier = settings.nature === "positive" ? 1.1 : settings.nature === "negative" ? 0.9 : 1;
+  const boostMultiplier = settings.boost >= 0 ? (2 + settings.boost) / 2 : 2 / (2 - settings.boost);
+  const unboostedSpeed = usesStatPoints
+    ? Math.floor((Math.floor((2 * baseSpeed + 31) * 50 / 100) + 5 + settings.sp) * natureMultiplier)
+    : Math.floor((Math.floor((2 * baseSpeed + settings.iv + Math.floor(settings.ev / 4)) * settings.level / 100) + 5) * natureMultiplier);
+
+  return Math.floor(unboostedSpeed * boostMultiplier);
+}
+
+function groupBySpeedAndTeam<T extends { team: "top" | "bottom" }>(entries: T[], getSpeed: (entry: T) => number): Array<{ speed: number; team: "top" | "bottom"; entries: T[] }> {
+  const groups = new Map<string, { speed: number; team: "top" | "bottom"; entries: T[] }>();
+  for (const entry of entries) {
+    const speed = getSpeed(entry);
+    const key = `${speed}-${entry.team}`;
+    const group = groups.get(key) ?? { speed, team: entry.team, entries: [] };
+    group.entries.push(entry);
+    groups.set(key, group);
+  }
+  return Array.from(groups.values())
+    .sort((a, b) => b.speed - a.speed || (a.team === "top" ? -1 : 1));
+}
+
 function getWeekLabel(week: number): string {
   if (week === 101) return "Quarterfinals";
   if (week === 102) return "Semifinals";
@@ -264,8 +312,10 @@ export function MatchupPrepClient({
   const [statSort, setStatSort] = useState<"hp" | "atk" | "def" | "spa" | "spd" | "spe" | "bst">("spe");
 
   // Speed comparison settings
-  const [speedCalc1, setSpeedCalc1] = useState({ level: 50, ev: 252, iv: 31, sp: 32, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
-  const [speedCalc2, setSpeedCalc2] = useState({ level: 50, ev: 252, iv: 31, sp: 32, boost: 0, nature: "positive" as "positive" | "neutral" | "negative" });
+  const [speedCalc1, setSpeedCalc1] = useState<SpeedCalcSettings>({ level: 50, ev: 252, iv: 31, sp: 32, boost: 0, nature: "positive", condition: "none" });
+  const [speedCalc2, setSpeedCalc2] = useState<SpeedCalcSettings>({ level: 50, ev: 252, iv: 31, sp: 32, boost: 0, nature: "positive", condition: "rain" });
+  const [mobileSpeedCompare, setMobileSpeedCompare] = useState<1 | 2>(2);
+  const [mobileSpeedFiltersOpen, setMobileSpeedFiltersOpen] = useState(false);
 
   // Speed section collapse state (mobile only)
   const [speedSectionOpen, setSpeedSectionOpen] = useState<{ base: boolean; compare1: boolean; compare2: boolean }>({ base: true, compare1: false, compare2: false });
@@ -283,8 +333,12 @@ export function MatchupPrepClient({
           const data = await res.json();
           if (data.preferences) {
             if (data.preferences.statSort) setStatSort(data.preferences.statSort);
-            if (data.preferences.speedCalc1) setSpeedCalc1(data.preferences.speedCalc1);
-            if (data.preferences.speedCalc2) setSpeedCalc2(data.preferences.speedCalc2);
+            if (data.preferences.speedCalc1) {
+              setSpeedCalc1((current) => ({ ...current, ...data.preferences.speedCalc1, condition: data.preferences.speedCalc1.condition ?? "none" }));
+            }
+            if (data.preferences.speedCalc2) {
+              setSpeedCalc2((current) => ({ ...current, ...data.preferences.speedCalc2, condition: data.preferences.speedCalc2.condition ?? "rain" }));
+            }
           }
         }
       } catch (e) {
@@ -587,16 +641,6 @@ export function MatchupPrepClient({
     }));
   }, [topTeamBySpeed, bottomTeamBySpeed]);
 
-  // Speed calculation function
-  const calculateSpeed = (baseSpe: number, level: number, ev: number, iv: number, sp: number, boost: number, nature: "positive" | "neutral" | "negative") => {
-    const natureMult = nature === "positive" ? 1.1 : nature === "negative" ? 0.9 : 1.0;
-    const boostMult = boost >= 0 ? (2 + boost) / 2 : 2 / (2 - boost);
-    const stat = usesStatPoints
-      ? Math.floor((Math.floor((2 * baseSpe + 31) * 50 / 100) + 5 + sp) * natureMult)
-      : Math.floor((Math.floor((2 * baseSpe + iv + Math.floor(ev / 4)) * level / 100) + 5) * natureMult);
-    return Math.floor(stat * boostMult);
-  };
-
   // Combined speed list (all Pokemon from both teams sorted by base speed)
   const allPokemonByBaseSpeed = useMemo(() => {
     const topWithTeam = topTeamPokemon.map(p => ({ ...p, team: "top" as const }));
@@ -607,22 +651,53 @@ export function MatchupPrepClient({
   // Speed Compare #1 sorted list
   const speedCompare1 = useMemo(() => {
     return allPokemonByBaseSpeed
-      .map(p => ({
-        ...p,
-        calculatedSpeed: calculateSpeed(p.speed, speedCalc1.level, speedCalc1.ev, speedCalc1.iv, speedCalc1.sp ?? 32, speedCalc1.boost, speedCalc1.nature)
-      }))
+      .map((pokemon) => {
+        const activeEffect = getActiveSpeedEffect(getPokemonAbilityNames(pokemon), speedCalc1.condition);
+        const trainedSpeed = calculatePokemonSpeed(pokemon.speed, speedCalc1, usesStatPoints);
+        return {
+          ...pokemon,
+          activeEffect,
+          calculatedSpeed: applySpeedEffect(trainedSpeed, activeEffect),
+        };
+      })
       .sort((a, b) => b.calculatedSpeed - a.calculatedSpeed);
   }, [allPokemonByBaseSpeed, speedCalc1, usesStatPoints]);
 
   // Speed Compare #2 sorted list
   const speedCompare2 = useMemo(() => {
     return allPokemonByBaseSpeed
-      .map(p => ({
-        ...p,
-        calculatedSpeed: calculateSpeed(p.speed, speedCalc2.level, speedCalc2.ev, speedCalc2.iv, speedCalc2.sp ?? 32, speedCalc2.boost, speedCalc2.nature)
-      }))
+      .map((pokemon) => {
+        const activeEffect = getActiveSpeedEffect(getPokemonAbilityNames(pokemon), speedCalc2.condition);
+        const trainedSpeed = calculatePokemonSpeed(pokemon.speed, speedCalc2, usesStatPoints);
+        return {
+          ...pokemon,
+          activeEffect,
+          calculatedSpeed: applySpeedEffect(trainedSpeed, activeEffect),
+        };
+      })
       .sort((a, b) => b.calculatedSpeed - a.calculatedSpeed);
   }, [allPokemonByBaseSpeed, speedCalc2, usesStatPoints]);
+
+  const speedCompare1Groups = useMemo(
+    () => groupBySpeedAndTeam(speedCompare1, (pokemon) => pokemon.calculatedSpeed),
+    [speedCompare1],
+  );
+  const speedCompare2Groups = useMemo(
+    () => groupBySpeedAndTeam(speedCompare2, (pokemon) => pokemon.calculatedSpeed),
+    [speedCompare2],
+  );
+  const mobileSpeedSettings = mobileSpeedCompare === 1 ? speedCalc1 : speedCalc2;
+  const mobileSpeedGroups = mobileSpeedCompare === 1 ? speedCompare1Groups : speedCompare2Groups;
+  const mobileNatureMarker = mobileSpeedSettings.nature === "positive" ? "+" : mobileSpeedSettings.nature === "negative" ? "−" : "○";
+  const mobileInvestmentLabel = `${usesStatPoints ? mobileSpeedSettings.sp : mobileSpeedSettings.ev}${mobileNatureMarker}`;
+  const mobileConditionLabel = SPEED_CONDITION_OPTIONS.find((option) => option.value === mobileSpeedSettings.condition)?.label ?? "No field effect";
+  const updateMobileSpeedSettings = (changes: Partial<SpeedCalcSettings>) => {
+    if (mobileSpeedCompare === 1) {
+      setSpeedCalc1((current) => ({ ...current, ...changes }));
+    } else {
+      setSpeedCalc2((current) => ({ ...current, ...changes }));
+    }
+  };
 
   // Handle season change
   const handleSeasonChange = (seasonId: number) => {
@@ -1047,7 +1122,7 @@ export function MatchupPrepClient({
           </div>
 
           {/* Team Rosters - Horizontal Overview */}
-          <div className="poke-card p-4 space-y-4 rounded-lg">
+          <div className="poke-card space-y-4 rounded-lg p-2.5 lg:p-4">
             {/* Mobile Layout - Paired rows for equal card heights */}
             <div className="lg:hidden relative">
               {/* Continuous left accent */}
@@ -1056,22 +1131,23 @@ export function MatchupPrepClient({
               <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-[#ef4444] rounded-full" />
 
               {/* Content */}
-              <div className="pl-3 pr-3 flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 px-2.5">
                 {/* Header row */}
-                <div className="flex gap-6 mb-2">
-                  <div className="flex-1 py-1">
+                <div className="mb-1 grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-center gap-1.5">
+                  <div className="min-w-0 py-1">
                     <div className="flex items-center gap-2">
                       <div className="w-5 h-5 rounded bg-[#2563eb] flex items-center justify-center shadow-[0_2px_0_#1d4ed8]">
                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                       </div>
-                      <h3 className="font-bold text-sm text-[#3b82f6]">{topTeamAbbr || topTeamName}</h3>
+                      <h3 className="truncate text-xs font-bold text-[#3b82f6]">{topTeamAbbr || topTeamName}</h3>
                     </div>
                   </div>
-                  <div className="flex-1 py-1">
+                  <div className="text-center text-[8px] font-black uppercase tracking-wider text-white/30">vs</div>
+                  <div className="min-w-0 py-1">
                     <div className="flex items-center gap-2 justify-end">
-                      <h3 className="font-bold text-sm text-[#ef4444] text-right">{bottomTeamAbbr || bottomTeamName}</h3>
+                      <h3 className="truncate text-right text-xs font-bold text-[#ef4444]">{bottomTeamAbbr || bottomTeamName}</h3>
                       <div className="w-5 h-5 rounded bg-[#dc2626] flex items-center justify-center shadow-[0_2px_0_#991b1b]">
                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -1089,14 +1165,15 @@ export function MatchupPrepClient({
                   const bottomAbilities = bottomP ? (Array.isArray(bottomP.abilities) ? bottomP.abilities : []) : [];
 
                   return (
-                    <div key={idx} className="flex gap-6">
+                    <div key={idx} className="grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-stretch gap-1.5">
                       {/* Left card */}
-                      <div className="flex-1">
+                      <div className="min-w-0">
                       {topP ? (
                         <div
-                          className={`relative flex flex-col bg-[var(--card)] border rounded-lg p-2 h-full ${
+                          className={`relative flex h-full min-h-[58px] items-center gap-1.5 rounded-lg border bg-[var(--card)] px-1.5 py-1 ${
                             topP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                           } ${topP.isDropped ? "opacity-50" : ""}`}
+                          title={topAbilities.map((ability) => typeof ability === "string" ? ability : ability.name).join(", ")}
                         >
                           {topP.isTeraCaptain && (
                             <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
@@ -1110,55 +1187,34 @@ export function MatchupPrepClient({
                               <span className="text-[7px] px-1 py-0.5 rounded font-bold bg-[var(--error)]/20 text-[var(--error)]">Drop</span>
                             </div>
                           )}
-                          <img src={topP.spriteUrl || ""} alt="" className="w-12 h-12 object-contain mx-auto scale-[1.4]" />
-                          <div className="text-[11px] text-white text-center font-medium mt-1 truncate">{topP.displayName || topP.name}</div>
-                          <div className="flex gap-0.5 justify-center mt-1 flex-wrap">
-                            {topP.types.map((t) => (
-                              <span key={t} className={`type-badge type-${t.toLowerCase()} text-[7px] px-1 py-0`}>{t}</span>
-                            ))}
-                          </div>
-                          <div className={`mt-1.5 pt-1.5 border-t flex-1 ${topP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"}`}>
-                            {topAbilities.map((a, abilityIdx) => {
-                              const abilityName = typeof a === "string" ? a : a.name;
-                              const description = abilityDescriptions[abilityName];
-                              const isExpanded = expandedAbility?.team === 1 && expandedAbility?.pokemonIdx === idx && expandedAbility?.abilityIdx === abilityIdx;
-                              return (
-                                <div key={abilityIdx} className="relative overflow-visible">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedAbility(isExpanded ? null : { team: 1, pokemonIdx: idx, abilityIdx });
-                                    }}
-                                    className={`w-full text-[10px] text-gray-400 text-center capitalize py-0.5 truncate ${
-                                      abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
-                                    } ${description ? "active:bg-[var(--background-tertiary)]" : ""}`}
-                                  >
-                                    {abilityName.replace(/-/g, " ")}
-                                  </button>
-                                  {isExpanded && description && (
-                                    <div className="absolute bottom-full left-0 mb-1 z-50">
-                                      <div className="px-2 py-1.5 rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] shadow-lg w-48">
-                                        <p className="text-[10px] font-bold text-white capitalize mb-1">{abilityName.replace(/-/g, " ")}</p>
-                                        <p className="text-[11px] text-[var(--foreground-muted)]">{description}</p>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <img src={topP.spriteUrl || ""} alt="" className="h-10 w-10 shrink-0 scale-110 object-contain" />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[10px] font-bold leading-tight text-white">{topP.displayName || topP.name}</div>
+                            <div className="mt-0.5 flex flex-wrap gap-0.5">
+                              {topP.types.map((t) => (
+                                <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0 text-[6px] leading-3`}>{t}</span>
+                              ))}
+                            </div>
+                            <div className="mt-0.5 truncate text-[7px] capitalize leading-tight text-white/40">
+                              {topAbilities.map((ability) => (typeof ability === "string" ? ability : ability.name).replace(/-/g, " ")).join(" / ") || "No ability data"}
+                            </div>
                           </div>
                         </div>
                       ) : <div />}
                     </div>
 
                       {/* Right card */}
-                      <div className="flex-1">
+                      <div aria-hidden="true" className="flex items-center justify-center">
+                        <div className="h-px w-full bg-white/10" />
+                      </div>
+
+                      <div className="min-w-0">
                       {bottomP ? (
                         <div
-                          className={`relative flex flex-col bg-[var(--card)] border rounded-lg p-2 h-full ${
+                          className={`relative flex h-full min-h-[58px] flex-row-reverse items-center gap-1.5 rounded-lg border bg-[var(--card)] px-1.5 py-1 ${
                             bottomP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"
                           } ${bottomP.isDropped ? "opacity-50" : ""}`}
+                          title={bottomAbilities.map((ability) => typeof ability === "string" ? ability : ability.name).join(", ")}
                         >
                           {bottomP.isTeraCaptain && (
                             <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center z-10" title="Tera Captain">
@@ -1172,43 +1228,17 @@ export function MatchupPrepClient({
                               <span className="text-[7px] px-1 py-0.5 rounded font-bold bg-[var(--error)]/20 text-[var(--error)]">Drop</span>
                             </div>
                           )}
-                          <img src={bottomP.spriteUrl || ""} alt="" className="w-12 h-12 object-contain mx-auto scale-[1.4]" />
-                          <div className="text-[11px] text-white text-center font-medium mt-1 truncate">{bottomP.displayName || bottomP.name}</div>
-                          <div className="flex gap-0.5 justify-center mt-1 flex-wrap">
-                            {bottomP.types.map((t) => (
-                              <span key={t} className={`type-badge type-${t.toLowerCase()} text-[7px] px-1 py-0`}>{t}</span>
-                            ))}
-                          </div>
-                          <div className={`mt-1.5 pt-1.5 border-t flex-1 ${bottomP.isTeraCaptain ? "border-[var(--accent)]" : "border-[var(--background-tertiary)]"}`}>
-                            {bottomAbilities.map((a, abilityIdx) => {
-                              const abilityName = typeof a === "string" ? a : a.name;
-                              const description = abilityDescriptions[abilityName];
-                              const isExpanded = expandedAbility?.team === 2 && expandedAbility?.pokemonIdx === idx && expandedAbility?.abilityIdx === abilityIdx;
-                              return (
-                                <div key={abilityIdx} className="relative overflow-visible">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedAbility(isExpanded ? null : { team: 2, pokemonIdx: idx, abilityIdx });
-                                    }}
-                                    className={`w-full text-[10px] text-gray-400 text-center capitalize py-0.5 truncate ${
-                                      abilityIdx > 0 ? "border-t border-[var(--background-tertiary)]/50" : ""
-                                    } ${description ? "active:bg-[var(--background-tertiary)]" : ""}`}
-                                  >
-                                    {abilityName.replace(/-/g, " ")}
-                                  </button>
-                                  {isExpanded && description && (
-                                    <div className="absolute bottom-full right-0 mb-1 z-50">
-                                      <div className="px-2 py-1.5 rounded-lg bg-[var(--background-secondary)] border border-[var(--background-tertiary)] shadow-lg w-48">
-                                        <p className="text-[10px] font-bold text-white capitalize mb-1">{abilityName.replace(/-/g, " ")}</p>
-                                        <p className="text-[11px] text-[var(--foreground-muted)]">{description}</p>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <img src={bottomP.spriteUrl || ""} alt="" className="h-10 w-10 shrink-0 scale-110 object-contain" />
+                          <div className="min-w-0 flex-1 text-right">
+                            <div className="truncate text-[10px] font-bold leading-tight text-white">{bottomP.displayName || bottomP.name}</div>
+                            <div className="mt-0.5 flex flex-wrap justify-end gap-0.5">
+                              {bottomP.types.map((t) => (
+                                <span key={t} className={`type-badge type-${t.toLowerCase()} px-1 py-0 text-[6px] leading-3`}>{t}</span>
+                              ))}
+                            </div>
+                            <div className="mt-0.5 truncate text-[7px] capitalize leading-tight text-white/40">
+                              {bottomAbilities.map((ability) => (typeof ability === "string" ? ability : ability.name).replace(/-/g, " ")).join(" / ") || "No ability data"}
+                            </div>
                           </div>
                         </div>
                       ) : <div />}
@@ -1904,7 +1934,7 @@ export function MatchupPrepClient({
           </div>
 
           {/* Speed Comparison Center */}
-          <div className={`poke-card p-0 overflow-hidden transition-opacity duration-200 ${prefsLoaded ? "opacity-100" : "opacity-0"}`}>
+          <div id="speed-tiers" className={`poke-card scroll-mt-4 p-0 overflow-hidden transition-opacity duration-200 ${prefsLoaded ? "opacity-100" : "opacity-0"}`}>
             <div className="p-4 border-b-2 border-[var(--background-tertiary)]">
               <div className="section-title !mb-0">
                 <div className="section-title-icon">
@@ -1912,11 +1942,25 @@ export function MatchupPrepClient({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <h3>Speed Comparison Center</h3>
+                <h3>
+                  <span className="lg:hidden">Speed Tiers</span>
+                  <span className="hidden lg:inline">Speed Comparison Center</span>
+                </h3>
+                <button
+                  type="button"
+                  aria-label="Toggle speed tier settings"
+                  aria-expanded={mobileSpeedFiltersOpen}
+                  onClick={() => setMobileSpeedFiltersOpen((open) => !open)}
+                  className={`ml-auto flex h-8 w-8 items-center justify-center rounded-md border transition-colors lg:hidden ${mobileSpeedFiltersOpen ? "border-[#ef4444] bg-[#ef4444]/15 text-[#ff8a8a]" : "border-[var(--background-tertiary)] bg-[var(--background-secondary)] text-[var(--foreground-muted)]"}`}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M4 6h16M7 12h10M10 18h4" />
+                  </svg>
+                </button>
                 <button
                   onClick={savePreferences}
                   disabled={saveStatus === "saving"}
-                  className="ml-auto flex shrink-0 items-center gap-1.5 rounded bg-[var(--background-tertiary)] px-2 py-1.5 text-[11px] text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-secondary)] hover:text-white disabled:opacity-50 sm:px-3 sm:text-xs"
+                  className="ml-auto hidden shrink-0 items-center gap-1.5 rounded bg-[var(--background-tertiary)] px-2 py-1.5 text-[11px] text-[var(--foreground-muted)] transition-colors hover:bg-[var(--background-secondary)] hover:text-white disabled:opacity-50 sm:px-3 sm:text-xs lg:flex"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -1930,13 +1974,141 @@ export function MatchupPrepClient({
                 </button>
               </div>
               {usesStatPoints && (
-                <p className="mt-2 text-xs text-[var(--foreground-muted)]">
+                <p className="mt-2 hidden text-xs text-[var(--foreground-muted)] lg:block">
                   Season 11 uses 0–32 Stat Points per stat and 66 total per Pokemon. Stat Points are added to the level-50 stat before the nature multiplier is applied.
                 </p>
               )}
             </div>
-            <div className="p-4">
-              <div className="flex flex-col lg:flex-row gap-4">
+            <div className="p-2 lg:p-4">
+              {/* Mobile speed ladder: compact PBO-native view inspired by grouped tier tools. */}
+              <div className="rounded-xl border border-white/5 bg-[#151a22] p-2 lg:hidden">
+                {mobileSpeedFiltersOpen && (
+                  <div className="mb-2.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-2.5 shadow-lg">
+                    <div className="mb-2 grid grid-cols-2 gap-1 rounded-md bg-[var(--background-tertiary)] p-1">
+                      {([1, 2] as const).map((comparison) => (
+                        <button
+                          key={comparison}
+                          type="button"
+                          onClick={() => setMobileSpeedCompare(comparison)}
+                          className={`rounded px-2 py-1.5 text-[10px] font-bold uppercase transition-colors ${mobileSpeedCompare === comparison ? "bg-[#ef4444] text-white" : "text-[var(--foreground-muted)]"}`}
+                        >
+                          Scenario {comparison}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Field / trigger</label>
+                    <select
+                      value={mobileSpeedSettings.condition}
+                      onChange={(event) => updateMobileSpeedSettings({ condition: event.target.value as SpeedCondition })}
+                      className="mb-2 w-full rounded-md bg-[var(--background-tertiary)] px-2.5 py-2 text-xs font-bold text-white"
+                    >
+                      {SPEED_CONDITION_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <div className={`grid ${usesStatPoints ? "grid-cols-4" : "grid-cols-5"} gap-1.5`}>
+                      <div>
+                        <label className="mb-1 block text-center text-[8px] font-bold uppercase text-[var(--foreground-muted)]">Level</label>
+                        <input type="number" value={usesStatPoints ? 50 : mobileSpeedSettings.level} disabled={usesStatPoints} onChange={(event) => updateMobileSpeedSettings({ level: Math.min(100, Math.max(1, parseInt(event.target.value) || 1)) })} className="w-full rounded bg-[var(--background-tertiary)] px-1 py-1.5 text-center text-[11px] font-bold text-white disabled:opacity-70 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      </div>
+                      {usesStatPoints ? (
+                        <div>
+                          <label className="mb-1 block text-center text-[8px] font-bold uppercase text-[var(--foreground-muted)]">SPs</label>
+                          <input type="number" value={mobileSpeedSettings.sp} onChange={(event) => updateMobileSpeedSettings({ sp: Math.min(32, Math.max(0, parseInt(event.target.value) || 0)) })} className="w-full rounded bg-[var(--background-tertiary)] px-1 py-1.5 text-center text-[11px] font-bold text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="mb-1 block text-center text-[8px] font-bold uppercase text-[var(--foreground-muted)]">EVs</label>
+                            <input type="number" value={mobileSpeedSettings.ev} onChange={(event) => updateMobileSpeedSettings({ ev: Math.min(252, Math.max(0, parseInt(event.target.value) || 0)) })} className="w-full rounded bg-[var(--background-tertiary)] px-1 py-1.5 text-center text-[11px] font-bold text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-center text-[8px] font-bold uppercase text-[var(--foreground-muted)]">IVs</label>
+                            <input type="number" value={mobileSpeedSettings.iv} onChange={(event) => updateMobileSpeedSettings({ iv: Math.min(31, Math.max(0, parseInt(event.target.value) || 0)) })} className="w-full rounded bg-[var(--background-tertiary)] px-1 py-1.5 text-center text-[11px] font-bold text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                          </div>
+                        </>
+                      )}
+                      <div>
+                        <label className="mb-1 block text-center text-[8px] font-bold uppercase text-[var(--foreground-muted)]">Boost</label>
+                        <select value={mobileSpeedSettings.boost} onChange={(event) => updateMobileSpeedSettings({ boost: parseInt(event.target.value) })} className="w-full appearance-none rounded bg-[var(--background-tertiary)] px-1 py-1.5 text-center text-[11px] font-bold text-white">
+                          {[6,5,4,3,2,1,0,-1,-2,-3,-4,-5,-6].map((value) => <option key={value} value={value}>{value > 0 ? `+${value}` : value}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-center text-[8px] font-bold uppercase text-[var(--foreground-muted)]">Nature</label>
+                        <select value={mobileSpeedSettings.nature} onChange={(event) => updateMobileSpeedSettings({ nature: event.target.value as SpeedCalcSettings["nature"] })} className="w-full appearance-none rounded bg-[var(--background-tertiary)] px-1 py-1.5 text-center text-[11px] font-bold text-white">
+                          <option value="positive">+</option>
+                          <option value="neutral">○</option>
+                          <option value="negative">−</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button type="button" onClick={savePreferences} disabled={saveStatus === "saving"} className="mt-2 w-full rounded-md border border-[var(--background-tertiary)] py-1.5 text-[9px] font-bold uppercase text-[var(--foreground-muted)]">
+                      {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Defaults saved" : "Save scenario defaults"}
+                    </button>
+                  </div>
+                )}
+
+                <div className="mb-1.5 flex items-center justify-between px-1 text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">
+                  <span>Scenario {mobileSpeedCompare}</span>
+                  <span>{mobileConditionLabel} · Lv {usesStatPoints ? 50 : mobileSpeedSettings.level}</span>
+                </div>
+                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-1.5">
+                  <div>
+                    <div className="mb-1 flex h-6 items-center justify-between px-1 text-[9px] font-bold uppercase text-[var(--foreground-muted)]">
+                      <span>Base Speed</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {allPokemonByBaseSpeed.map((pokemon, index) => {
+                        const teamClasses = pokemon.team === "top"
+                          ? "border-[#2468b1] bg-[#092b4d]"
+                          : "border-[#a83a29] bg-[#4a1c16]";
+                        return (
+                          <div key={`mobile-base-${pokemon.team}-${pokemon.id}-${index}`} className={`flex h-8 items-center rounded-md border px-1 ${teamClasses} ${pokemon.isDropped ? "opacity-50" : ""}`}>
+                            <img src={pokemon.spriteUrl || ""} alt={pokemon.displayName || pokemon.name} title={pokemon.displayName || pokemon.name} className="h-7 w-7 shrink-0 object-contain" />
+                            <span className="ml-auto font-mono text-[11px] font-black tabular-nums text-white">{pokemon.speed}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-1 flex h-6 items-center justify-between px-1 text-[9px] font-bold uppercase text-[var(--foreground-muted)]">
+                      <span>Calculated Tiers</span>
+                      <span>{usesStatPoints ? "SP" : "EV"}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {mobileSpeedGroups.map((tier) => {
+                        const effectLabels = Array.from(new Set(tier.entries.flatMap((pokemon) => pokemon.activeEffect ? [pokemon.activeEffect.label] : [])));
+                        const teamClasses = tier.team === "top"
+                          ? "border-[#2468b1] bg-[#092b4d]"
+                          : "border-[#a83a29] bg-[#4a1c16]";
+                        const speedColor = tier.team === "top" ? "text-[#78c7ff]" : "text-[#ff9a80]";
+                        return (
+                          <div key={`mobile-tier-${tier.speed}-${tier.team}`} className={`flex min-h-8 items-center gap-1 rounded-md border px-1.5 py-0.5 ${teamClasses}`}>
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5">
+                              {tier.entries.map((pokemon, index) => (
+                                <img key={`${pokemon.team}-${pokemon.id}-${index}`} src={pokemon.spriteUrl || ""} alt={pokemon.displayName || pokemon.name} title={pokemon.displayName || pokemon.name} className={`h-7 w-7 object-contain ${pokemon.isDropped ? "opacity-50" : ""}`} />
+                              ))}
+                              <span className="rounded-full border border-white/20 bg-black/15 px-1 py-0.5 text-[7px] font-bold leading-none text-white/80">{mobileInvestmentLabel}</span>
+                              {effectLabels.map((label) => (
+                                <span key={label} className="max-w-full truncate rounded-full border border-amber-300/40 bg-amber-300/10 px-1 py-0.5 text-[7px] font-bold leading-none text-amber-100">{label}</span>
+                              ))}
+                            </div>
+                            <span className={`font-mono text-[13px] font-black tabular-nums ${speedColor}`}>{tier.speed}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-2 px-1 text-[8px] leading-relaxed text-[var(--foreground-subtle)]">
+                  Ability pills appear only when their trigger is selected. Protosynthesis and Quark Drive assume Speed is boosted.
+                </p>
+              </div>
+
+              <div className="hidden lg:flex lg:flex-row gap-4">
                 {/* BASE SPEED Section - narrower since no controls */}
                 <div className="w-full lg:w-60 lg:shrink-0 bg-[var(--background-secondary)] rounded-lg p-3">
                   <button
@@ -2003,13 +2175,22 @@ export function MatchupPrepClient({
                           <option value="negative">−</option>
                         </select>
                       </div>
+                      <div>
+                        <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">Field / Trigger</label>
+                        <select value={speedCalc1.condition} onChange={(e) => setSpeedCalc1({...speedCalc1, condition: e.target.value as SpeedCondition})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-[11px] font-medium cursor-pointer">
+                          {SPEED_CONDITION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                      </div>
                     </div>
                     {/* Table */}
                     <div className="flex-1 space-y-1">
                       {speedCompare1.map((p, idx) => (
                         <div key={`c1-${p.id}-${idx}`} className={`flex items-center gap-2 px-2 py-1 rounded bg-[var(--background-tertiary)] ${p.team === "top" ? "border-l-2 border-[#3b82f6]" : "border-l-2 border-[#ef4444]"} ${p.isDropped ? "opacity-50" : ""}`}>
                           <img src={p.spriteUrl || ""} alt="" className="w-5 h-5 object-contain" />
-                          <span className="text-xs font-medium truncate flex-1 text-white">{p.displayName || p.name}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-medium text-white">{p.displayName || p.name}</span>
+                            {p.activeEffect && <span className="mt-0.5 block truncate text-[8px] font-bold text-amber-300">{p.activeEffect.label}</span>}
+                          </span>
                           <span className="text-xs font-bold font-mono tabular-nums text-white">{p.calculatedSpeed}</span>
                         </div>
                       ))}
@@ -2061,13 +2242,22 @@ export function MatchupPrepClient({
                           <option value="negative">−</option>
                         </select>
                       </div>
+                      <div>
+                        <label className="text-[var(--foreground-muted)] block mb-1 font-medium text-[10px] lg:text-[11px]">Field / Trigger</label>
+                        <select value={speedCalc2.condition} onChange={(e) => setSpeedCalc2({...speedCalc2, condition: e.target.value as SpeedCondition})} className="w-full px-1 lg:px-2 py-1.5 bg-[var(--background-tertiary)] rounded text-white text-[11px] font-medium cursor-pointer">
+                          {SPEED_CONDITION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                      </div>
                     </div>
                     {/* Table */}
                     <div className="flex-1 space-y-1">
                       {speedCompare2.map((p, idx) => (
                         <div key={`c2-${p.id}-${idx}`} className={`flex items-center gap-2 px-2 py-1 rounded bg-[var(--background-tertiary)] ${p.team === "top" ? "border-l-2 border-[#3b82f6]" : "border-l-2 border-[#ef4444]"} ${p.isDropped ? "opacity-50" : ""}`}>
                           <img src={p.spriteUrl || ""} alt="" className="w-5 h-5 object-contain" />
-                          <span className="text-xs font-medium truncate flex-1 text-white">{p.displayName || p.name}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-medium text-white">{p.displayName || p.name}</span>
+                            {p.activeEffect && <span className="mt-0.5 block truncate text-[8px] font-bold text-amber-300">{p.activeEffect.label}</span>}
+                          </span>
                           <span className="text-xs font-bold font-mono tabular-nums text-white">{p.calculatedSpeed}</span>
                         </div>
                       ))}
