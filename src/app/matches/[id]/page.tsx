@@ -510,7 +510,7 @@ function BattleSummaryPanel({
           <p className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-center text-[9px] leading-relaxed text-[var(--foreground-muted)] sm:text-[10px]">
             <span className="font-bold text-white/70">{expandedHaxRules ? "Expanded HAX rules" : "Legacy HAX rules"}</span>
             {expandedHaxRules
-              ? " · Includes crits, misses, flinches, paralysis, freezes, burns, sleep, confusion, and confusion self-hits. Guaranteed crits from Wicked Blow, Surging Strikes, and Flower Trick are excluded."
+              ? " · Includes crits, misses, flinches, paralysis, freezes, burns, sleep, confusion, and confusion self-hits. Guaranteed critical hits and Fake Out's guaranteed flinch are excluded."
               : " · Used through Season 11 Week 5: paralysis, freezes, burns, and sleep only."}
           </p>
         </div>

@@ -20,6 +20,26 @@
     ]
   },
   {
+    "sourceKey": "2026-08-26-hax-speed-tiers",
+    "title": "Replay HAX & Speed Tiers",
+    "summary": "Clearer replay HAX context and trigger-aware Speed Tiers for current and legacy PBO formats.",
+    "publishedAt": "2026-08-26",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "Replay HAX events now show actual Pokemon species names, exclude guaranteed Fake Out flinches and guaranteed-critical-hit moves, and apply the expanded Season 11 Week 6+ rules through later seasons."
+      },
+      {
+        "type": "added",
+        "text": "Matchup Prep Speed Tiers now compare grouped calculated speeds against individual base speeds with Rain, Sun, Sand, Snow/Hail, Electric Terrain, Unburden, Quick Feet, Booster Energy, Tailwind, Protosynthesis, Quark Drive, and Slow Start triggers."
+      },
+      {
+        "type": "improved",
+        "text": "Mobile Matchup Prep keeps both rosters visible in compact paired rows and presents a dense PBO-styled tier ladder; desktop retains the wider two-scenario comparison."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-08-23-match-replay-review-workflow",
     "title": "Replay Review Safeguards",
     "summary": "Historical replay imports preserve official PBO results and clearly surface games that need manual review.",

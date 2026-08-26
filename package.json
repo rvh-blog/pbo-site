@@ -20,6 +20,9 @@
     "db:push": "drizzle-kit push",
     "db:seed": "npx tsx src/lib/seed.ts",
     "elo:recalculate": "npx tsx src/lib/recalculate-elo.ts",
+    "hax:backfill": "node scripts/backfill-season11-hax.mjs",
+    "hax:check": "node --experimental-strip-types scripts/check-hax-rules.mjs",
+    "speed-tiers:check": "node --experimental-strip-types scripts/check-speed-tiers.mjs",
     "bot": "npx tsx src/bot/index.ts",
     "bot:build": "node scripts/build-bot.js",
     "bot:deploy-commands": "npx tsx src/bot/deploy-commands.ts"
