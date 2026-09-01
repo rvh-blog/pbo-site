@@ -2,6 +2,7 @@ import { desc, eq, and } from "drizzle-orm";
 import { db, rawClient } from "@/lib/db";
 import { polls, pollVotes } from "@/lib/schema";
 import type { SessionUser } from "@/lib/session";
+import { getSiteSetting, SITE_SETTING_KEYS } from "@/lib/site-settings";
 
 export interface PollOptionResult {
   index: number;
@@ -72,6 +73,9 @@ function parseOptions(value: unknown): string[] {
 
 export async function getActivePoll(session?: SessionUser | null): Promise<ActivePollData | null> {
   await ensurePollTables();
+
+  const pollsSetting = await getSiteSetting(SITE_SETTING_KEYS.pollsEnabled);
+  if (pollsSetting?.value === "false") return null;
 
   const poll = await db.query.polls.findFirst({
     where: eq(polls.isActive, true),

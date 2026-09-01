@@ -1,4 +1,23 @@
-[
+[{
+    "sourceKey": "2026-09-01-homepage-poll-controls",
+    "title": "Homepage & Poll Controls",
+    "summary": "A clearer homepage dashboard and an admin switch for public league polls.",
+    "publishedAt": "2026-09-01",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "Refreshed the homepage hero, season metrics, Quick Actions cards, personalized dashboard styling, and content order for a clearer desktop and mobile experience."
+      },
+      {
+        "type": "added",
+        "text": "Added separate Admin Poll Controls with a persisted toggle that hides public poll cards without deleting poll questions or vote history."
+      },
+      {
+        "type": "improved",
+        "text": "Quick Actions now prioritize Current Season, Match Prep, Pick-Ems, Fantasy Scout, Free Agency, and PBO Stats, with the hero copy referring to game prep."
+      }
+    ]
+  },
   {
     "sourceKey": "2026-08-23-s5-unova-replay-archive",
     "title": "Season 5 Unova Replay Archive",

@@ -138,8 +138,7 @@ Relevant files:
 
 ## League Poll
 
-The active league poll appears in the PBO home page Your League box and on coach
-profile pages. Admins edit it from the admin home page.
+When public poll visibility is enabled, the active league poll appears in the PBO home page Your League box and on coach profile pages. Admins edit it from the admin home page.
 
 Expected behavior:
 

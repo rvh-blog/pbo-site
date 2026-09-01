@@ -78,9 +78,9 @@ Relevant files:
 
 ## League Poll Admin
 
-Admins can edit the active league poll from the admin home page. Changes are
-served to the home page Your League box and all coach profile pages through the
-shared poll service.
+Admins can manage the active league poll from the admin home page. The separate
+Poll Controls section controls whether polls are visible on public pages, while
+the League Poll section edits the question and options.
 
 Current behavior:
 
@@ -88,6 +88,7 @@ Current behavior:
 - Admins can start a new poll, which deactivates previous polls and resets voting for the new question.
 - Admins can update the current poll for typo fixes or visibility changes.
 - Admins can end the active poll, hiding it from the public home page and coach profile pages.
+- Admins can hide all public poll cards with the Poll Controls toggle without deleting the current poll or its votes.
 - Coach users can vote once per poll.
 - Results are hidden until the current coach has voted.
 - Poll visibility can be hidden locally by each viewer; this does not edit the poll.

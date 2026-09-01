@@ -29,7 +29,6 @@ const DIVISION_COLORS: Record<string, string> = {
 
 const DIVISION_ORDER = DIVISION_HIERARCHY;
 const DRAFT_DIVISION_ORDER = DIVISION_HIERARCHY;
-const RULEBOOK_URL = "https://docs.google.com/document/d/1BG35hVyaiSETTEmSNRON6ASE6ctepZf2yXCIxw2MAvM/edit?pli=1&tab=t.0#heading=h.ygaa1qaijmal";
 
 function normalizeDivisionName(name: string) {
   const normalized = name.trim().toLowerCase();
@@ -1258,61 +1257,80 @@ export default async function Home() {
     : currentSeason
       ? `/seasons/${currentSeason.id}`
       : "/seasons";
-  const currentSeasonTransactionsHref = personalizedHome?.activeTeam
-    ? `/seasons/${personalizedHome.activeTeam.division!.season!.id}/divisions/${personalizedHome.activeTeam.divisionId}/transactions`
-    : currentSeason?.divisions[0]
-      ? `/seasons/${currentSeason.id}/divisions/${currentSeason.divisions[0].id}/transactions`
-    : "/seasons";
-  const leagueHubLinks = [
-    { href: "/fantasy", label: "Open Fantasy", iconPath: "M12 3l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9L12 3z" },
-    { href: "/draft-planner", label: "Free Agency", iconPath: "M9 5H7a2 2 0 00-2 2v12h14V7a2 2 0 00-2-2h-2m-6 0a3 3 0 006 0m-6 0a3 3 0 016 0" },
-    { href: currentSeasonTransactionsHref, label: "Transactions", iconPath: "M7 7h11m0 0l-3-3m3 3l-3 3M17 17H6m0 0l3 3m-3-3l3-3" },
-    { href: "/leaderboards", label: "PBO Stats", iconPath: "M4 19V9m5 10V5m5 14v-7m5 7V3" },
+  const quickActionLinks = [
     {
-      href: RULEBOOK_URL,
-      label: "Rulebook",
-      iconPath: "M4 5a2 2 0 012-2h5v16H6a2 2 0 00-2 2V5zm16 0a2 2 0 00-2-2h-5v16h5a2 2 0 012 2V5z",
-      external: true,
+      href: currentSeason ? `/seasons/${currentSeason.id}` : "/seasons",
+      label: currentSeason ? "Current Season" : "Past Seasons",
+      iconPath: "M4 5h16v14H4zM8 3v4m8-4v4M4 10h16",
+      accent: "border-cyan-400/25 bg-cyan-400/[0.06] hover:border-cyan-300/60",
     },
+    { href: "/matchup-prep", label: "Match Prep", iconPath: "M4 6h16M4 12h16M4 18h10", accent: "border-rose-400/25 bg-rose-400/[0.06] hover:border-rose-300/60" },
+    { href: "/pick-ems", label: "Pick-Ems", iconPath: "M5 5h14v14H5zM8 9h8M8 13h5", accent: "border-amber-400/25 bg-amber-400/[0.06] hover:border-amber-300/60" },
+    { href: "/fantasy", label: "Fantasy Scout", iconPath: "M12 3l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9L12 3z", accent: "border-fuchsia-400/25 bg-fuchsia-400/[0.06] hover:border-fuchsia-300/60" },
+    { href: "/draft-planner", label: "Free Agency", iconPath: "M9 5H7a2 2 0 00-2 2v12h14V7a2 2 0 00-2-2h-2m-6 0a3 3 0 006 0m-6 0a3 3 0 016 0", accent: "border-emerald-400/25 bg-emerald-400/[0.06] hover:border-emerald-300/60" },
+    { href: "/leaderboards", label: "PBO Stats", iconPath: "M4 19V9m5 10V5m5 14v-7m5 7V3", accent: "border-violet-400/25 bg-violet-400/[0.06] hover:border-violet-300/60" },
   ];
 
   return (
-    <div className="readable-content flex flex-col gap-10 sm:gap-12 lg:gap-16">
+    <div className="readable-content flex flex-col gap-8 sm:gap-10 lg:gap-12">
       <TwitchLiveStream />
-      <section className="order-1 overflow-hidden rounded-xl border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-5 sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+      <section aria-labelledby="current-season-title" className="order-1 relative isolate overflow-hidden rounded-2xl border border-[var(--primary)]/35 bg-gradient-to-br from-[var(--background-secondary)] via-[var(--background-secondary)] to-[var(--primary)]/15 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.28)] sm:p-8">
+        <div className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full bg-[var(--primary)]/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="relative flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-[10px] text-[var(--foreground-subtle)] font-bold uppercase tracking-widest">
-              {currentSeason ? "Current Season" : "Offseason"}
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--foreground-muted)]">
+              <span className={`h-2 w-2 rounded-full ${currentSeason ? "bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.9)]" : "bg-amber-300"}`} />
+              {currentSeason ? "Live league dashboard" : "Offseason hub"}
+            </div>
+            <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--primary-light)]">
+              {currentSeason ? `Season ${currentSeason.seasonNumber}` : "PBO"}
             </p>
-            <h1 className="mt-2 text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl">
+            <h1 id="current-season-title" className="mt-2 text-3xl font-black uppercase tracking-[-0.04em] text-white sm:text-5xl">
               {currentSeason ? currentSeason.name : "PBO Offseason Hub"}
             </h1>
-            <p className="mt-2 text-sm leading-6 text-[var(--foreground-muted)] sm:text-base">
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--foreground-muted)] sm:text-base">
               {currentSeason
-                ? `${currentSeason.divisions.length} divisions · ${stats.currentSeasonMatches} battles recorded`
+                ? `${currentSeason.divisions.length} divisions · ${stats.currentSeasonMatches} battles recorded · standings, schedules, and game prep in one place`
                 : "Review the latest champions, browse past seasons, and keep up with league history before the next draft."}
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[330px]">
-            <Link
-              href={currentSeason ? currentSeasonPrimaryHref : "/seasons"}
-              className="btn-retro inline-flex min-h-11 items-center justify-center !bg-[#dc143c] hover:!bg-[#b01030]"
-            >
-              {currentSeason ? "View Standings" : "Past Seasons"}
-            </Link>
-            <Link
-              href={currentSeason ? `/seasons/${currentSeason.id}` : previousSeasonPlayoffHref}
-              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/55 px-4 text-xs font-bold uppercase tracking-wider text-[var(--foreground-muted)] transition-colors hover:border-[var(--primary)] hover:text-white"
-            >
-              {currentSeason ? "View Schedule" : "Latest Playoffs"}
-            </Link>
+
+          <div className="relative grid gap-4 lg:w-[340px] lg:grid-cols-[1fr_auto] lg:items-center lg:border-l lg:border-white/10 lg:pl-7">
+            <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+              <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 lg:flex lg:items-center lg:justify-between lg:gap-5">
+                <span className="block text-[9px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">Divisions</span>
+                <span className="mt-1 block font-mono text-lg font-bold text-white lg:mt-0">{currentSeason?.divisions.length ?? "--"}</span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 lg:flex lg:items-center lg:justify-between lg:gap-5">
+                <span className="block text-[9px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">Battles</span>
+                <span className="mt-1 block font-mono text-lg font-bold text-white lg:mt-0">{stats.currentSeasonMatches}</span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 lg:flex lg:items-center lg:justify-between lg:gap-5">
+                <span className="block text-[9px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">Status</span>
+                <span className="mt-1 block font-mono text-lg font-bold text-emerald-300 lg:mt-0">{currentSeason ? "LIVE" : "REST"}</span>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+              <Link
+                href={currentSeason ? currentSeasonPrimaryHref : "/seasons"}
+                className="btn-retro inline-flex min-h-11 items-center justify-center !bg-[#dc143c] px-5 shadow-[0_10px_24px_rgba(220,20,60,0.24)] hover:!bg-[#b01030]"
+              >
+                {currentSeason ? "View Standings" : "Past Seasons"}
+              </Link>
+              <Link
+                href={currentSeason ? `/seasons/${currentSeason.id}` : previousSeasonPlayoffHref}
+                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-white/10 bg-black/15 px-4 text-xs font-bold uppercase tracking-wider text-[var(--foreground-muted)] transition-all hover:border-white/30 hover:bg-white/5 hover:text-white"
+              >
+                {currentSeason ? "View Schedule" : "Latest Playoffs"}
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {personalizedHome && (
-        <section aria-labelledby="your-week-title" className="order-2 poke-card p-5 sm:p-6">
+        <section aria-labelledby="your-week-title" className="order-2 poke-card border-[var(--primary)]/20 bg-gradient-to-br from-[var(--card)] to-[var(--primary)]/[0.06] p-5 sm:p-6">
           <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="section-kicker">Personalized dashboard</p>
@@ -1403,38 +1421,45 @@ export default async function Home() {
         <RecentDraftPicksPanel divisions={recentDraftPicksByDivision} />
       )}
 
-      <section aria-labelledby="league-hub-title" className="order-3 poke-card flex flex-col p-5 sm:p-6">
+      <section aria-labelledby="league-hub-title" className="order-3 poke-card flex flex-col border-white/10 bg-[var(--background-secondary)]/80 p-5 sm:p-6">
         <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="section-kicker">{currentSeason ? currentSeason.name : "League tools"}</p>
-            <h2 id="league-hub-title" className="section-heading">League Hub</h2>
+            <p className="section-kicker">Start here</p>
+            <h2 id="league-hub-title" className="section-heading">Quick Actions</h2>
           </div>
-          <p className="section-description">Your team context and fastest actions for the current week.</p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {leagueHubLinks.map((item) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {quickActionLinks.map((item) => (
             <Link
               key={item.label}
               href={item.href}
               title={item.label}
-              target={item.external ? "_blank" : undefined}
-              rel={item.external ? "noopener noreferrer" : undefined}
-              className="inline-flex min-h-12 min-w-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/55 px-3 py-2 text-xs font-bold uppercase tracking-wide text-[var(--foreground-muted)] transition-colors hover:border-[var(--primary)] hover:text-white"
+              className={`group relative flex min-h-[112px] min-w-0 cursor-pointer flex-col items-start justify-between overflow-hidden rounded-xl border px-3.5 py-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${item.accent}`}
             >
-              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={item.iconPath} />
-              </svg>
-              <span className="truncate">{item.label}</span>
+              <div className="flex w-full items-start justify-between gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/15 text-white/90">
+                  <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={item.iconPath} />
+                  </svg>
+                </span>
+                <svg className="mt-1 h-3.5 w-3.5 text-white/35 transition-all group-hover:translate-x-0.5 group-hover:text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14m-6-6 6 6-6 6" />
+                </svg>
+              </div>
+              <span className="w-full truncate text-xs font-bold uppercase tracking-wide text-white/90 group-hover:text-white">{item.label}</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-white/35">Open tool</span>
             </Link>
           ))}
         </div>
 
       </section>
 
-      <section aria-labelledby="discovery-history-title" className="order-7">
+      <section aria-labelledby="discovery-history-title" className="order-7 border-b border-white/10 pb-3">
         <p className="section-kicker">Across the league</p>
-        <h2 id="discovery-history-title" className="section-heading">Discovery &amp; History</h2>
-        <p className="section-description mt-1">Trainer rankings, league totals, and the most recent division champions.</p>
+        <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <h2 id="discovery-history-title" className="section-heading">Discovery &amp; History</h2>
+          <p className="section-description">Trainer rankings, league totals, and the most recent division champions.</p>
+        </div>
       </section>
 
       <PreviousChampionsPanel champions={previousSeasonChampions} />
@@ -1456,7 +1481,8 @@ export default async function Home() {
       </section>
 
       {/* Main Content Grid */}
-      <SyncedHeightGrid
+      <div className="order-5">
+        <SyncedHeightGrid
         leftContent={
           <div className="poke-card p-4 sm:p-6">
             {/* Section Title */}
@@ -1709,7 +1735,8 @@ export default async function Home() {
             battles={upcomingBattles}
           />
         }
-      />
+        />
+      </div>
 
     </div>
   );

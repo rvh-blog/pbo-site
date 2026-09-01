@@ -323,6 +323,10 @@ poll and see results after voting. Users who have not voted should not see
 results. Spectators and logged-out visitors can see the poll prompt but cannot
 vote.
 
+Public poll visibility is controlled separately by the `polls_enabled` site
+setting. Turning it off hides active poll cards without changing poll records or
+vote history.
+
 Poll cards can be hidden client-side by the viewer through local storage. The
 hide preference is per poll and is not league data.
 
