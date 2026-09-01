@@ -40,6 +40,12 @@ Google Sheets sync mirrors PBO division data into configured spreadsheets.
 7. Syncs transactions if enabled.
 8. Updates sync status.
 
+For completed matches, match stats sync writes the official W/L into the
+fixture result cells. This is authoritative when the website records a winner
+with a `0` differential on both sides; the sheet's normal result formulas leave
+both sides blank for `0-0` because they infer W/L from the differential. When
+a result is cleared, sync restores the template formulas for that fixture.
+
 `syncAllDivisions()` only syncs configured divisions from current seasons.
 
 ## Risks
@@ -53,6 +59,8 @@ Google Sheets sync mirrors PBO division data into configured spreadsheets.
 - Season 11+ lookup includes friendly Mega names and common form spellings, such
   as `Mega Staraptor` <-> `Staraptor-Mega` and Urshifu Single/Rapid Strike.
 - Template changes can silently skip or misplace data.
+- Result cells must preserve the official website winner for valid `0-0`
+  results; differential-only W/L formulas cannot represent that case.
 - Roster sync uses time-synced roster logic.
 - Roster sync writes each team's Pokemon in descending price order. Ties fall
   back to draft order, then Pokemon name. The admin roster page uses the same
@@ -64,6 +72,8 @@ Google Sheets sync mirrors PBO division data into configured spreadsheets.
 - Verify sync toggles.
 - Verify `Config!B2`.
 - Check roster, transaction, and match result sections separately.
+- Test a completed `0-0` match and confirm the selected winner remains visible
+  as W/L in the sheet-driven schedule.
 - Avoid extra API calls; prefer batched reads/writes.
 
 ## See Also

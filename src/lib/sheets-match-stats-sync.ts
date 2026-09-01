@@ -43,11 +43,19 @@ const T2_POKEMON_OFFSET = 6;
 // Pokemon data rows are 2-7 (0-indexed from fixture start, so +2 to +7)
 const POKEMON_ROW_START = 2;
 const POKEMON_ROW_COUNT = 6;
+const RESULT_ROW_OFFSET = 8;
 const REPLAY_ROW_OFFSET = 9;
+
+// Result cells normally contain formulas that infer W/L from the differential.
+// A selected website winner is authoritative even when both differentials are
+// zero, so completed fixtures receive explicit W/L values during sync.
+const T1_RESULT_OFFSET = 0;
+const T2_RESULT_OFFSET = 6;
 
 interface MatchData {
   matchId: number;
   week: number;
+  winnerId: number | null;
   replayUrl: string | null;
   team1Name: string;
   team2Name: string;
@@ -215,6 +223,7 @@ async function getDivisionMatches(divisionId: number): Promise<MatchData[]> {
     matchDataList.push({
       matchId: match.id,
       week: match.week,
+      winnerId: match.winnerId,
       replayUrl: match.replayUrl,
       team1Name: coach1.teamName,
       team2Name: coach2.teamName,
@@ -292,8 +301,10 @@ export async function syncMatchStatsToSheet(
       const key1 = `${match.week}:${[match.team1SheetName, match.team2SheetName].sort().join("|")}`;
       const position = fixturePositions.get(key1);
 
-      // Skip matches that have no pokemon data (not played yet)
-      if (match.team1Pokemon.length === 0 && match.team2Pokemon.length === 0) {
+      // A winner marks the fixture as completed even when no Pokemon rows were
+      // supplied. This is important for valid 0-0 results, where the sheet
+      // cannot infer the winner from the differential.
+      if (match.winnerId === null && match.team1Pokemon.length === 0 && match.team2Pokemon.length === 0) {
         continue;
       }
 
@@ -319,6 +330,26 @@ export async function syncMatchStatsToSheet(
       const sheetTeam2Pokemon = teamsReversed
         ? match.team1Pokemon
         : match.team2Pokemon;
+
+      // The normal sheet formulas infer W/L from a non-zero differential.
+      // Replace those two result cells with the official website winner so a
+      // completed 0-0 fixture still propagates its result to Schedule Cutout.
+      const resultRowNum = position.row + RESULT_ROW_OFFSET;
+      const t1ResultCol = colIdxToLetter(position.col + T1_RESULT_OFFSET);
+      const t2ResultCol = colIdxToLetter(position.col + T2_RESULT_OFFSET);
+      if (match.winnerId !== null) {
+        const sheetTeam1Won = teamsReversed
+          ? match.winnerId === match.team2SeasonCoachId
+          : match.winnerId === match.team1SeasonCoachId;
+        updates.push({
+          range: `'Match Stats'!${t1ResultCol}${resultRowNum}`,
+          values: [[sheetTeam1Won ? "W" : "L"]],
+        });
+        updates.push({
+          range: `'Match Stats'!${t2ResultCol}${resultRowNum}`,
+          values: [[sheetTeam1Won ? "L" : "W"]],
+        });
+      }
 
       // Write Team 1 Pokemon data (cols C, D, E for Pokemon, Kills, Deaths)
       for (let i = 0; i < POKEMON_ROW_COUNT; i++) {
@@ -456,6 +487,22 @@ export async function syncMatchStatsToSheet(
       const replayRowNum = position.row + REPLAY_ROW_OFFSET;
       const replayCol = colIdxToLetter(position.col);
       updates.push({ range: `'Match Stats'!${replayCol}${replayRowNum}`, values: [[""]] });
+
+      // Restore the template result formulas when a result is removed. This
+      // keeps the fixture ready for a future result and avoids stale W/L text.
+      const resultRowNum = position.row + RESULT_ROW_OFFSET;
+      const t1ResultCol = colIdxToLetter(position.col + T1_RESULT_OFFSET);
+      const t1DiffCol = colIdxToLetter(position.col + T1_KILLS_OFFSET);
+      const t2ResultCol = colIdxToLetter(position.col + T2_POKEMON_OFFSET);
+      const t2DiffCol = colIdxToLetter(position.col + T2_DEATHS_OFFSET);
+      updates.push({
+        range: `'Match Stats'!${t1ResultCol}${resultRowNum}`,
+        values: [[`=IFS(${t1DiffCol}${resultRowNum}=0, "", ${t1DiffCol}${resultRowNum}="", "", ${t1DiffCol}${resultRowNum}>0, "W", ${t1DiffCol}${resultRowNum}<0, "L")`]],
+      });
+      updates.push({
+        range: `'Match Stats'!${t2ResultCol}${resultRowNum}`,
+        values: [[`=IFS(${t2DiffCol}${resultRowNum}=0, "", ${t2DiffCol}${resultRowNum}="", "", ${t2DiffCol}${resultRowNum}>0, "W", ${t2DiffCol}${resultRowNum}<0, "L")`]],
+      });
     }
 
     // 6. Execute batch update
