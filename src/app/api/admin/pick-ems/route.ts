@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       bettingUiHidden,
       fantasyUiHidden,
       blogUiHidden,
+      pollsEnabled,
       recentDraftPicksHidden,
       playoffCalculatorSearchEnabled,
     } = body;
@@ -54,6 +55,10 @@ export async function POST(request: NextRequest) {
 
     if (blogUiHidden !== undefined) {
       updates.push({ key: SITE_SETTING_KEYS.blogUiHidden, value: String(blogUiHidden) });
+    }
+
+    if (pollsEnabled !== undefined) {
+      updates.push({ key: SITE_SETTING_KEYS.pollsEnabled, value: String(pollsEnabled) });
     }
 
     if (recentDraftPicksHidden !== undefined) {

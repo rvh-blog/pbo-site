@@ -15,6 +15,7 @@ import { getPublicVisibilityState } from "@/lib/public-visibility";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HomepageVisibilityCard } from "@/components/admin/homepage-visibility-card";
+import { PollControlsCard } from "@/components/admin/poll-controls-card";
 import { PollAdminCard } from "@/components/admin/poll-admin-card";
 import { SeasonSetupChecklist } from "@/components/admin/season-setup-checklist";
 import { ensureAdminAuditLogsTable } from "@/lib/admin-audit";
@@ -251,6 +252,17 @@ export default async function AdminDashboard() {
             <Link href="/admin/seasons">
               <Button size="sm">Manage Seasons</Button>
             </Link>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Poll Controls</CardTitle>
+            <p className="text-sm text-[var(--foreground-muted)]">
+              Turn public league polls on or off without deleting the current poll or its vote history.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <PollControlsCard initialPollsEnabled={dashboard.featureSettings.pollsEnabled} />
           </CardContent>
         </Card>
         <Card>
@@ -556,6 +568,18 @@ export default async function AdminDashboard() {
             initialRecentDraftPicksHidden={featureSettings.recentDraftPicksHidden}
             initialPlayoffCalculatorSearchEnabled={featureSettings.playoffCalculatorSearchEnabled}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Poll Controls</CardTitle>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Turn public league polls on or off without deleting the current poll or its vote history.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <PollControlsCard initialPollsEnabled={featureSettings.pollsEnabled} />
         </CardContent>
       </Card>
 

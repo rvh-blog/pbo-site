@@ -1,5 +1,17 @@
 # Recent Website Updates
 
+## September 1, 2026 - Homepage & Poll Controls
+
+- Refreshed the homepage hero with stronger season branding, current-season
+  metrics, clearer calls to action, and a more intentional content order across
+  desktop and mobile layouts.
+- Quick Actions now use visual tool cards for Current Season, Match Prep,
+  Pick-Ems, Fantasy Scout, Free Agency, and PBO Stats. Homepage copy refers to
+  the league's game prep tools.
+- Added a separate Admin Poll Controls section with a persisted public-visibility
+  toggle. Hiding polls removes public poll cards without deleting the current
+  poll or its vote history.
+
 ## August 26, 2026 - Replay HAX & Speed Tiers
 
 - Replay HAX entries now display the actual Pokemon species name instead of a
