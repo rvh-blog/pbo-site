@@ -20,6 +20,7 @@ import {
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
 import type { TimeSyncTransaction } from "@/lib/roster-utils";
 import { getExpandedHaxEventOverride, usesExpandedHaxRules } from "@/lib/hax-rules";
+import { getMegaStoneName } from "@/lib/mega-stones";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -205,6 +206,26 @@ function getPokemonLabel(mp: BattleSummaryPokemon) {
   return mp.pokemon?.displayName || mp.pokemon?.name || "Pokemon";
 }
 
+function getDisplayedItem(mp: BattleSummaryPokemon) {
+  const revealedItems = mp.revealedItems?.map((entry) => entry.item).join(" → ");
+  if (revealedItems) {
+    return {
+      label: revealedItems,
+      title: mp.revealedItems?.map((entry) => `${entry.item}, turn ${entry.turn}, ${entry.source}`).join(" → ") || revealedItems,
+    };
+  }
+
+  const megaStone = getMegaStoneName(getPokemonLabel(mp));
+  if (megaStone) {
+    return {
+      label: megaStone,
+      title: `${megaStone} (assumed from Mega Evolution)`,
+    };
+  }
+
+  return { label: "Unknown item", title: "Unknown item" };
+}
+
 function formatKnownNumber(value: number | null | undefined, suffix = "") {
   return value === null || value === undefined ? "x" : `${value}${suffix}`;
 }
@@ -382,6 +403,7 @@ function BattleSummaryTeam({
             const kills = mp.kills || 0;
             const deaths = mp.deaths || 0;
             const totalDamage = Math.round((mp.damageDealt || 0) + (mp.damageDealtIndirect || 0));
+            const displayedItem = getDisplayedItem(mp);
             const rowTone = mp.turnsActive === 0
               ? "bg-slate-400/[0.035] border-slate-400/30"
               : deaths > 0
@@ -406,9 +428,9 @@ function BattleSummaryTeam({
                     <span className="block truncate text-xs sm:text-sm font-black text-white">{getPokemonLabel(mp)}</span>
                     <span
                       className="block truncate text-[8px] font-bold text-amber-300/80 sm:text-[9px]"
-                      title={mp.revealedItems?.map((entry) => `${entry.item}, turn ${entry.turn}, ${entry.source}`).join(" → ") || "Unknown item"}
+                      title={displayedItem.title}
                     >
-                      {mp.revealedItems?.map((entry) => entry.item).join(" → ") || "Unknown item"}
+                      {displayedItem.label}
                     </span>
                   </span>
                 </div>

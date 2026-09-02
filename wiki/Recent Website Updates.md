@@ -11,6 +11,13 @@
 - Added a separate Admin Poll Controls section with a persisted public-visibility
   toggle. Hiding polls removes public poll cards without deleting the current
   poll or its vote history.
+- Broadcast overlay review/playback now treats faint-event KO attribution as
+  idempotent. Returning to an earlier turn, replaying forward, or rebuilding the
+  live state cannot award the same kill to a Pokemon twice.
+- Mega Pokemon with no explicitly recorded item now display the corresponding
+  Mega Stone by assumption. For example, `Scizor-Mega` displays `Scizorite` in
+  the live overlay and match summaries; explicitly revealed items still take
+  priority.
 
 ## August 26, 2026 - Replay HAX & Speed Tiers
 
@@ -443,9 +450,9 @@ Mega Stone verification:
 - Champions Mega Evolution protocol events continue to populate the revealed
   held item with the reported Mega Stone; verification confirmed Pinsirite and
   Lopunnite through the shared replay parser.
-- A reported Delphox-Mega `Unknown` item display still requires its exact replay
-  URL before the event can be reproduced. Do not infer a stone from the form
-  name alone when the replay evidence has not been inspected.
+- The former replay-only verification rule was superseded on September 1:
+  when a Mega form has no recorded item, the overlay and match summary infer its
+  corresponding Mega Stone from the form name.
 
 Verification:
 

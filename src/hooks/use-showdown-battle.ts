@@ -9,6 +9,7 @@ import {
   rosterPokemonMatchesKeys,
 } from "@/lib/broadcast-pokemon-matching";
 import { normalizePokemonName } from "@/lib/pokemon-name-utils";
+import { getMegaBaseSpecies, getMegaStoneName } from "@/lib/mega-stones";
 import { extractShowdownRoomId } from "@/lib/showdown-room";
 import type { SerializedPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 
@@ -91,6 +92,8 @@ export interface BattleState {
   p2Pokemon: Map<string, PokemonBattleState>;
   p1Kills: number;
   p2Kills: number;
+  /** Faint events already used for individual KO attribution. */
+  countedFaintEvents: Set<string>;
   p1IsTeam1: boolean | null;
   /** Whether p1 has used their terastallization */
   p1TeraUsed: boolean;
@@ -178,6 +181,7 @@ function createInitialState(): BattleState {
     p2Pokemon: new Map(),
     p1Kills: 0,
     p2Kills: 0,
+    countedFaintEvents: new Set(),
     p1IsTeam1: null,
     p1TeraUsed: false,
     p2TeraUsed: false,
@@ -214,11 +218,6 @@ function createPokemonState(species: string, nickname: string, battleForm?: stri
     terastallized: false,
     teraType: null,
   };
-}
-
-function getMegaBaseSpecies(species: string): string | null {
-  const match = species.match(/^(.*)-Mega(?:-[A-Z])?$/i);
-  return match?.[1] || null;
 }
 
 /**
@@ -264,6 +263,10 @@ function promoteStateToBattleForm(
 
   state.nickname = nickname;
   state.battleForm = battleForm || species;
+  const megaStone = getMegaStoneName(battleForm || species);
+  if (megaStone && !state.item && !state.itemConsumed) {
+    state.item = megaStone;
+  }
   if (isShiny !== undefined) state.isShiny = isShiny;
   if (hp !== undefined) state.hp = hp;
   if (maxHp !== undefined) state.maxHp = maxHp;
@@ -472,6 +475,7 @@ export function useShowdownBattle(
         // (React strict mode double-invokes updaters; shared refs cause double-counting)
         next.p1Pokemon = new Map([...prev.p1Pokemon].map(([k, v]) => [k, { ...v }]));
         next.p2Pokemon = new Map([...prev.p2Pokemon].map(([k, v]) => [k, { ...v }]));
+        next.countedFaintEvents = new Set(prev.countedFaintEvents);
         next.chat = [...prev.chat];
         next.p1Side = { ...prev.p1Side };
         next.p2Side = { ...prev.p2Side };
@@ -762,6 +766,9 @@ export function useShowdownBattle(
               }
 
               // ── Kill attribution (ported from replay-scrape) ──
+              const faintEventKey = `${event.player}:${event.nickname}:${event.raw}`;
+              const shouldCountKill = !next.countedFaintEvents.has(faintEventKey);
+              next.countedFaintEvents.add(faintEventKey);
               let killer: KillTracker | null = null;
 
               if (kt.lastFaintSource) {
@@ -837,7 +844,7 @@ export function useShowdownBattle(
               }
 
               // Credit the kill to the specific Pokemon
-              if (killer && killer.player !== event.player) {
+              if (shouldCountKill && killer && killer.player !== event.player) {
                 const killerNickMap = killer.player === "p1" ? nicknameMapRef.current.p1 : nicknameMapRef.current.p2;
                 const killerPokeMap = killer.player === "p1" ? next.p1Pokemon : next.p2Pokemon;
                 const killerSpecies = killerNickMap.get(killer.nickname);
