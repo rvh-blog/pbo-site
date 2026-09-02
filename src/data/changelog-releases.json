@@ -1,4 +1,20 @@
 [{
+    "sourceKey": "2026-09-01-overlay-health-mega-backfill",
+    "title": "Overlay Health Bars & Mega Backfill",
+    "summary": "Health bars align cleanly at every HP value, and Season 11 Mega Stone stats have a guarded roster-aware backfill command.",
+    "publishedAt": "2026-09-01",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Broadcast overlay health bars now fill flush inside their tracks with consistent borders across the standard, V1, and V2 layouts."
+      },
+      {
+        "type": "added",
+        "text": "Added a Season 11-only, dry-run-by-default Mega Stone backfill that checks each team roster and transaction history at the match week before inferring a stone."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-01-homepage-poll-controls",
     "title": "Homepage & Poll Controls",
     "summary": "A clearer homepage dashboard and an admin switch for public league polls.",
