@@ -598,10 +598,11 @@ function SlideStyleCard({ poke, stateMap, teraUsed, color, flipSprite, shadowLef
             {state?.battleForm || poke.displayName || poke.name}
           </span>
         </div>
-        <div className="w-full h-1.5 bg-slate-800 border border-slate-700 relative overflow-hidden">
+        <div className="relative w-full h-1.5 bg-slate-800 overflow-hidden">
           {!isFainted && (
-            <div className="h-full transition-all duration-300" style={{ width: `${hpPercent}%`, background: hpColor }} />
+            <div className="absolute inset-y-0 left-0 transition-all duration-300" style={{ width: `${hpPercent}%`, background: hpColor }} />
           )}
+          <div className="pointer-events-none absolute inset-0 border border-slate-700" />
         </div>
       </div>
     </div>
