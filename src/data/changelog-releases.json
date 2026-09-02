@@ -15,6 +15,14 @@
       {
         "type": "improved",
         "text": "Quick Actions now prioritize Current Season, Match Prep, Pick-Ems, Fantasy Scout, Free Agency, and PBO Stats, with the hero copy referring to game prep."
+      },
+      {
+        "type": "fixed",
+        "text": "Broadcast overlay review and live-state recovery no longer recount the same faint event as an additional Pokemon KO."
+      },
+      {
+        "type": "improved",
+        "text": "Mega Pokemon without an explicitly recorded item now display the corresponding Mega Stone in overlays and match summaries."
       }
     ]
   },
