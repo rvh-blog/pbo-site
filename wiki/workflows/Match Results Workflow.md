@@ -69,6 +69,10 @@ For an existing result:
 - The admin match list and editor highlight held games in yellow.
 - A historical replay import must preserve the official winner, differential,
   and per-Pokemon K/D when parser output conflicts with the recorded PBO ledger.
+- The controlled Season 6 archive backfill is an explicit exception: it writes
+  the current parser K/D and kill-event attribution, while preserving every
+  historical conflict in the yellow review state. Do not apply that exception
+  to ordinary historical edits without explicit approval.
 - A missing replay link is reviewable only for a non-forfeit game. An official
   forfeit does not require a replay and must not be held solely because its
   replay link is empty.

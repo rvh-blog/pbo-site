@@ -54,6 +54,23 @@ revealed because Knock Off removed it does not count as a successful berry use;
 the berry counts only when another replay event shows it activating or being
 consumed. Unrevealed items are never inferred.
 
+## Historical Season 6 Backfill
+
+`scripts/backfill-s6-replays.mjs` is the controlled importer for the Season 6
+Neon, Sunset, and Stargazer replay archives. It matches each supplied replay to
+an existing Season 6 fixture by both teams' stored rosters before writing replay
+details. It is dry-run by default and requires `--apply` for database writes.
+
+The importer uses the parser's current K/D attribution and rebuilds the
+fixture's `kill_events` from the parser's faint events. A replay with an
+unmatched roster, conflicting result or differential, incomplete roster
+mapping, Zoroark/Illusion involvement, or historical K/D disagreement receives
+`matches.needs_review = 1` and a reason in `matches.review_notes`. Missing
+replay links are flagged only for non-forfeit fixtures.
+
+Production execution must use a fresh WAL-aware backup and a controlled quiet
+window. Never upload a stale local `pbo.db` over the Fly volume.
+
 ## Public Analyzer
 
 The public analyzer can opt into display-focused behavior, such as preserving Mega forms, because it does not write to the database.
