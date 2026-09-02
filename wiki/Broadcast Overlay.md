@@ -70,6 +70,19 @@ friendly names such as `Charizard-Mega-Y` and `Mega Charizard Y` resolve to
 Keep this conversion in `src/lib/showdown-sprites.ts` so animated and static
 sidebar paths share the same behavior.
 
+When a Pokemon Mega Evolves and no item was explicitly revealed in the battle
+protocol, the shared `src/lib/mega-stones.ts` helper assumes the corresponding
+Mega Stone. Standard stone names and X/Y variants are mapped explicitly, while
+new/custom Mega forms use a form-name fallback. An explicitly revealed item
+always takes priority. The assumption is shown in both live overlay state and
+public match summaries.
+
+Faint-event KO attribution is idempotent across playback. The shared battle
+state records the faint-event keys already used for individual KO attribution,
+so seeking backward, replaying a reviewed turn, or rebuilding state at the live
+edge cannot award the same kill twice. A deliberate full battle rebuild starts
+with a new event set and replays the stored history once.
+
 If a Pokemon appears during preview or battle, its matching roster entry belongs
 in the brought list and must not remain under Bench.
 
