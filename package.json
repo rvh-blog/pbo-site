@@ -21,6 +21,7 @@
     "db:seed": "npx tsx src/lib/seed.ts",
     "elo:recalculate": "npx tsx src/lib/recalculate-elo.ts",
     "hax:backfill": "node scripts/backfill-season11-hax.mjs",
+    "mega:backfill:s11": "npx tsx scripts/backfill-season11-mega-stones.mjs",
     "hax:check": "node --experimental-strip-types scripts/check-hax-rules.mjs",
     "speed-tiers:check": "node --experimental-strip-types scripts/check-speed-tiers.mjs",
     "bot": "npx tsx src/bot/index.ts",

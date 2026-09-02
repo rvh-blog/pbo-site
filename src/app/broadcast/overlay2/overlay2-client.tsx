@@ -1406,11 +1406,12 @@ function PokemonCard({
             <span>HP</span>
             <span className={hp <= 20 && !showFainted ? "text-red-400" : ""}>{hp}%</span>
           </div>
-          <div className="h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800 shadow-inner">
+          <div className="relative h-2 bg-slate-900 rounded-full overflow-hidden shadow-inner">
             <div
-              className={`h-full transition-all duration-500 ease-out ${getHPColor(hp)}`}
+              className={`absolute inset-y-0 left-0 transition-all duration-500 ease-out ${getHPColor(hp)}`}
               style={{ width: `${hp}%` }}
             />
+            <div className="pointer-events-none absolute inset-0 rounded-full border border-slate-800" />
           </div>
         </div>
       </div>
