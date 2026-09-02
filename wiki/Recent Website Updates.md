@@ -19,6 +19,25 @@
   the live overlay and match summaries; explicitly revealed items still take
   priority.
 
+## September 1, 2026 - Season 6 Replay Archive
+
+- Completed the Season 6 replay backfill for the Neon, Sunset, and Stargazer
+  divisions from the supplied Showdown replay archives.
+- Replay-backed match Pokemon now include parsed move usage, explicitly
+  revealed items, damage and healing totals, active turns, HP snapshots, key
+  events, replay timestamps, and Zoroark/Illusion warnings where available.
+- Pokemon K/D and `kill_events` are rebuilt from the current replay kill logic,
+  with one event per faint and the killer, victim, move, and cause retained when
+  the replay identifies them. Hazard, status, weather, recoil, contact, and
+  other uncredited faint causes remain visible without inventing a killer.
+- Replay roster, winner, differential, format, and historical K/D conflicts
+  are held in the yellow review state with an explanation in
+  `matches.review_notes`; missing replay links are also flagged for review.
+- The reusable, dry-run-by-default importer is
+  `scripts/backfill-s6-replays.mjs`. It must be run against a fresh database
+  backup during a controlled production maintenance window and never against a
+  stale local database copy.
+
 ## August 26, 2026 - Replay HAX & Speed Tiers
 
 - Replay HAX entries now display the actual Pokemon species name instead of a

@@ -1,4 +1,20 @@
 [{
+    "sourceKey": "2026-09-01-season6-replay-archive",
+    "title": "Season 6 Replay Archive",
+    "summary": "Neon, Sunset, and Stargazer Season 6 replay data is backfilled with current kill attribution and review safeguards.",
+    "publishedAt": "2026-09-01",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Backfilled supplied Season 6 Neon, Sunset, and Stargazer replays with move usage, explicitly revealed items, battle metrics, replay events, and timestamps."
+      },
+      {
+        "type": "fixed",
+        "text": "Season 6 replay K/D and kill-event records now use the current faint-event attribution logic, while roster, result, differential, format, and K/D conflicts are highlighted for review."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-01-overlay-health-mega-backfill",
     "title": "Overlay Health Bars & Mega Backfill",
     "summary": "Health bars align cleanly at every HP value, and Season 11 Mega Stone stats have a guarded roster-aware backfill command.",
