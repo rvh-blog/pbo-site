@@ -21,6 +21,7 @@ import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-uti
 import type { TimeSyncTransaction } from "@/lib/roster-utils";
 import { getExpandedHaxEventOverride, usesExpandedHaxRules } from "@/lib/hax-rules";
 import { getMegaStoneName } from "@/lib/mega-stones";
+import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -581,7 +582,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const isPlayed = match.winnerId !== null;
+  const isPlayed = isCompletedMatchResult(match.winnerId, match.isForfeit);
+  const isDoubleLoss = isDoubleForfeitResult(match.winnerId, match.isForfeit);
   const ONE_HOUR = 60 * 60 * 1000;
   const now = new Date().getTime();
   const isUnderway = !isPlayed && !!match.scheduledAt &&
@@ -845,11 +847,11 @@ export default async function MatchDetailPage({ params }: PageProps) {
               {isPlayed ? (
                 <div className="flex items-center justify-center gap-1.5 sm:gap-3">
                   <span className={`font-pixel text-2xl sm:text-3xl md:text-4xl ${coach1Won ? "text-[var(--success)]" : "text-[var(--foreground-muted)]"}`}>
-                    {coach1Won ? Math.abs(match.coach1Differential || 0) : 0}
+                    {isDoubleLoss ? (match.coach1Differential || 0) : coach1Won ? Math.abs(match.coach1Differential || 0) : 0}
                   </span>
                   <span className="text-base sm:text-xl text-[var(--foreground-subtle)]">-</span>
                   <span className={`font-pixel text-2xl sm:text-3xl md:text-4xl ${coach2Won ? "text-[var(--success)]" : "text-[var(--foreground-muted)]"}`}>
-                    {coach2Won ? Math.abs(match.coach2Differential || 0) : 0}
+                    {isDoubleLoss ? (match.coach2Differential || 0) : coach2Won ? Math.abs(match.coach2Differential || 0) : 0}
                   </span>
                 </div>
               ) : (

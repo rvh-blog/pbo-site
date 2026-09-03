@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Split into upcoming and completed for different purposes
-    const upcomingMatches = allSeasonMatches.filter(m => m.winnerId === null);
+    const upcomingMatches = allSeasonMatches.filter(m => m.winnerId === null && !m.isForfeit);
 
     // Calculate standings per division
     const standingsMap = new Map<number, { wins: number; losses: number; diff: number }>();
@@ -124,11 +124,14 @@ export async function GET(request: NextRequest) {
       }
 
       // Only count completed matches
-      if (match.winnerId !== null) {
+      if (match.winnerId !== null || match.isForfeit) {
         const coach1Stats = standingsMap.get(match.coach1SeasonId)!;
         const coach2Stats = standingsMap.get(match.coach2SeasonId)!;
 
-        if (match.winnerId === match.coach1SeasonId) {
+        if (match.winnerId === null) {
+          coach1Stats.losses++;
+          coach2Stats.losses++;
+        } else if (match.winnerId === match.coach1SeasonId) {
           coach1Stats.wins++;
           coach2Stats.losses++;
         } else {
@@ -169,7 +172,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch completed matches for pick scoring
-    const completedMatches = allSeasonMatches.filter(m => m.winnerId !== null);
+    const completedMatches = allSeasonMatches.filter(m => m.winnerId !== null || m.isForfeit);
 
   const completedMap = new Map(
     completedMatches.map((m) => [m.id, m.winnerId])
@@ -182,12 +185,13 @@ export async function GET(request: NextRequest) {
   }));
 
   // Build match metadata map for client-side filtering
-  const matchMetadata: Record<number, { week: number; divisionId: number; winnerId: number | null }> = {};
+  const matchMetadata: Record<number, { week: number; divisionId: number; winnerId: number | null; isForfeit: boolean }> = {};
   for (const match of allSeasonMatches) {
     matchMetadata[match.id] = {
       week: match.week,
       divisionId: match.divisionId,
       winnerId: match.winnerId,
+      isForfeit: match.isForfeit === true,
     };
   }
 
@@ -213,8 +217,7 @@ export async function GET(request: NextRequest) {
           // Match not in completed list
           pending++;
         } else if (winnerId === null) {
-          // Match not played yet
-          pending++;
+          // Double-loss match: completed, but there is no correct winner pick.
         } else {
           total++;
           if (pick.predictedWinnerId === winnerId) {
@@ -667,7 +670,7 @@ export async function POST(request: NextRequest) {
 
   const now = Date.now();
   const completedMatchIds = matchRecords
-    .filter((m) => m.winnerId !== null)
+    .filter((m) => m.winnerId !== null || m.isForfeit)
     .map((m) => m.id);
 
   const underwayMatchIds = matchRecords

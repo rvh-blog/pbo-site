@@ -7,6 +7,7 @@ import { AuthModal } from "@/components/auth-modal";
 import { StoreModal } from "@/components/store-modal";
 import { MobileTooltip } from "@/components/mobile-tooltip";
 import { compareDivisions } from "@/lib/division-order";
+import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 import type { CoachOption } from "./page";
 
 interface Season {
@@ -46,6 +47,7 @@ interface Match {
   id: number;
   week: number;
   winnerId: number | null;
+  isForfeit: boolean;
   scheduledAt: string | null;
   isGameOfTheWeek: boolean;
   division: { id: number; name: string; displayOrder?: number };
@@ -226,6 +228,7 @@ interface MatchMetadata {
   week: number;
   divisionId: number;
   winnerId: number | null;
+  isForfeit: boolean;
 }
 
 interface ParticipantPick {
@@ -531,7 +534,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
     for (const week of weeks) {
       for (const match of week.matches) {
         const isUnderway = match.winnerId === null && match.scheduledAt && new Date(match.scheduledAt).getTime() <= now;
-        if (match.winnerId === null && !isUnderway) {
+        if (!isCompletedMatchResult(match.winnerId, match.isForfeit) && !isUnderway) {
           pickableMatchIds.add(match.id);
         }
       }
@@ -866,7 +869,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
     for (const week of weeks) {
       for (const match of week.matches) {
         const isUnderway = match.winnerId === null && match.scheduledAt && new Date(match.scheduledAt).getTime() <= now;
-        if (match.winnerId === null && !isUnderway) {
+        if (!isCompletedMatchResult(match.winnerId, match.isForfeit) && !isUnderway) {
           pickableMatchIds.add(match.id);
         }
       }
@@ -911,14 +914,14 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
         const lastRegularWeek = weekNumbers.filter(w => w <= 100).pop();
         if (lastRegularWeek) {
           const lastWeekData = weeks.find(w => w.week === lastRegularWeek);
-          if (lastWeekData?.matches.some(m => m.winnerId !== null)) {
+          if (lastWeekData?.matches.some(m => isCompletedMatchResult(m.winnerId, m.isForfeit))) {
             unlocked.add(weekNum);
           }
         }
       } else {
         // Regular weeks (2+) - unlock if previous week has at least one result
         const prevWeekData = weeks.find(w => w.week === weekNum - 1);
-        if (prevWeekData?.matches.some(m => m.winnerId !== null)) {
+        if (prevWeekData?.matches.some(m => isCompletedMatchResult(m.winnerId, m.isForfeit))) {
           unlocked.add(weekNum);
         }
       }
@@ -935,7 +938,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
     if (selectedWeek === null && weeks.length > 0 && unlockedWeeks.size > 0) {
       // Find first unlocked week with at least one unplayed match
       const weekWithUnplayed = weeks.find((w) =>
-        unlockedWeeks.has(w.week) && w.matches.some((m) => m.winnerId === null)
+        unlockedWeeks.has(w.week) && w.matches.some((m) => !isCompletedMatchResult(m.winnerId, m.isForfeit))
       );
       // Fall back to first unlocked week if all matches are completed
       const firstUnlocked = weeks.find((w) => unlockedWeeks.has(w.week));
@@ -2307,12 +2310,13 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
                           : 0;
 
                         // Check if match is completed or underway
-                        const isCompleted = match.winnerId !== null;
+                        const isCompleted = isCompletedMatchResult(match.winnerId, match.isForfeit);
+                        const isDoubleLoss = isDoubleForfeitResult(match.winnerId, match.isForfeit);
                         const isUnderway = !isCompleted && !!match.scheduledAt && new Date(match.scheduledAt).getTime() <= Date.now();
                         const isLocked = isCompleted || isUnderway;
-                        const userPickedCorrectly = isCompleted && serverPick && serverPick.predictedWinnerId === match.winnerId;
-                        const userPickedWrong = isCompleted && serverPick && serverPick.predictedWinnerId !== match.winnerId;
-                        const userMissedPick = isCompleted && !serverPick;
+                        const userPickedCorrectly = isCompleted && !isDoubleLoss && serverPick && serverPick.predictedWinnerId === match.winnerId;
+                        const userPickedWrong = isCompleted && !isDoubleLoss && serverPick && serverPick.predictedWinnerId !== match.winnerId;
+                        const userMissedPick = isCompleted && !isDoubleLoss && !serverPick;
 
                         return (
                           <div
@@ -2340,7 +2344,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
                                 )}
                                 {isCompleted && (
                                   <span className="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-[var(--background-tertiary)] text-[var(--foreground-muted)]">
-                                    PLAYED
+                                    {isDoubleLoss ? "DOUBLE LOSS" : "PLAYED"}
                                   </span>
                                 )}
                                 {userPickedCorrectly && (

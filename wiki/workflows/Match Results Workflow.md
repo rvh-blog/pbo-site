@@ -37,6 +37,8 @@ When a result is recorded, the app may update:
 8. `kill_bets`
 9. `death_bets`
 10. `pick_em_rewards`
+11. The configured Google Sheet's `Match Stats` result cells and downstream
+    Schedule Cutout formulas
 
 ## Create Result
 
@@ -93,7 +95,17 @@ Current match participation reward:
 Double forfeit:
 
 - `winnerId` is null and `isForfeit` is true.
+- The admin editor treats this as a completed **Double Loss** result; enter the
+  differential for each team directly (for example, `-3` and `-3`) and leave
+  Winner blank.
+- Standings record one loss and the stored differential for each team.
 - Both coaches receive Elo score `0.25`.
+- Match, kill, and death bets are refunded; neither side receives a winner
+  award or match-completion coins.
+- Pick-em and fantasy weekly completion may proceed, but the double-loss match
+  has no correct winner and does not award a GOTW winner bonus.
+- The result API queues a configured division Google Sheet sync. The sheet
+  receives explicit `L/L` result cells, including when no Pokemon rows exist.
 
 ## Risks
 

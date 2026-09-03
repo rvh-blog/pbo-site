@@ -55,10 +55,10 @@ export async function checkAndAwardPickEmRewards(
       eq(schema.matches.divisionId, divisionId),
       eq(schema.matches.week, week)
     ),
-    columns: { id: true, winnerId: true },
+    columns: { id: true, winnerId: true, isForfeit: true },
   });
 
-  const divisionWeekComplete = divisionWeekMatches.every((m) => m.winnerId !== null);
+  const divisionWeekComplete = divisionWeekMatches.every((m) => m.winnerId !== null || m.isForfeit);
 
   // Check if rewards already exist for this division week
   const existingDivisionRewards = await db.query.pickEmRewards.findFirst({
@@ -81,10 +81,10 @@ export async function checkAndAwardPickEmRewards(
       eq(schema.matches.seasonId, seasonId),
       eq(schema.matches.week, week)
     ),
-    columns: { id: true, winnerId: true },
+    columns: { id: true, winnerId: true, isForfeit: true },
   });
 
-  const weekComplete = allWeekMatches.every((m) => m.winnerId !== null);
+  const weekComplete = allWeekMatches.every((m) => m.winnerId !== null || m.isForfeit);
 
   // Check if overall rewards already exist for this week
   // (exclude GOTW rewards which have divisionId=NULL but matchId set)
@@ -265,10 +265,10 @@ export async function reResolvePickEmRewards(
       eq(schema.matches.divisionId, divisionId),
       eq(schema.matches.week, week)
     ),
-    columns: { id: true, winnerId: true },
+    columns: { id: true, winnerId: true, isForfeit: true },
   });
 
-  const divisionWeekComplete = divisionWeekMatches.every((m) => m.winnerId !== null);
+  const divisionWeekComplete = divisionWeekMatches.every((m) => m.winnerId !== null || m.isForfeit);
 
   if (divisionWeekComplete) {
     const divisionAwarded = await awardDivisionPrize(seasonId, week, divisionId);
@@ -281,10 +281,10 @@ export async function reResolvePickEmRewards(
       eq(schema.matches.seasonId, seasonId),
       eq(schema.matches.week, week)
     ),
-    columns: { id: true, winnerId: true },
+    columns: { id: true, winnerId: true, isForfeit: true },
   });
 
-  const weekComplete = allWeekMatches.every((m) => m.winnerId !== null);
+  const weekComplete = allWeekMatches.every((m) => m.winnerId !== null || m.isForfeit);
 
   if (weekComplete) {
     const overallAwarded = await awardOverallPrizes(seasonId, week);

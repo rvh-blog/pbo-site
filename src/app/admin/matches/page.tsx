@@ -8,6 +8,7 @@ import { computeAndSortStandings } from "@/lib/standings-sort";
 import { getSeasonFormat } from "@/lib/season-format";
 import { findBuiltInPokemonNameMatch } from "@/lib/replay-roster-matching-core";
 import { usesExpandedHaxRules } from "@/lib/hax-rules";
+import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 
 type FavorableEvent = {
   type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
@@ -371,7 +372,7 @@ export default function AdminMatchesPage() {
   }
 
   async function handleRecalculateElo() {
-    const completedMatches = matches.filter((match) => match.winnerId).length;
+    const completedMatches = matches.filter((match) => isCompletedMatchResult(match.winnerId, match.isForfeit)).length;
     if (
       !confirm(
         [
@@ -796,6 +797,10 @@ export default function AdminMatchesPage() {
         seasonCoaches,
         matchForm.winnerId ? parseInt(matchForm.winnerId) : null
       );
+      const resultName = isDoubleForfeitResult(
+        matchForm.winnerId ? parseInt(matchForm.winnerId) : null,
+        matchForm.isForfeit
+      ) ? "Double loss" : winnerName;
       if (
         !confirm(
           [
@@ -803,7 +808,7 @@ export default function AdminMatchesPage() {
             "",
             `Match: ${getSeasonCoachName(seasonCoaches, playoffMatch.higherSeedId)} vs ${getSeasonCoachName(seasonCoaches, playoffMatch.lowerSeedId)}`,
             `Round: ${getRoundName(playoffMatch.round)}`,
-            `Winner: ${winnerName}`,
+            `Result: ${resultName}`,
             `Score differential: ${parseInt(matchForm.coach1Differential) || 0} / ${parseInt(matchForm.coach2Differential) || 0}`,
             `Pokemon stat rows: ${pokemonData.length}`,
             "Affected data: match result, standings, ELO dependencies, playoff advancement, bets, and pick-ems.",
@@ -961,6 +966,10 @@ export default function AdminMatchesPage() {
       seasonCoaches,
       matchForm.winnerId ? parseInt(matchForm.winnerId) : null
     );
+    const resultName = isDoubleForfeitResult(
+      matchForm.winnerId ? parseInt(matchForm.winnerId) : null,
+      matchForm.isForfeit
+    ) ? "Double loss" : winnerName;
     if (
       !confirm(
         [
@@ -968,7 +977,7 @@ export default function AdminMatchesPage() {
           "",
           `Match: ${match.coach1?.teamName || "TBD"} vs ${match.coach2?.teamName || "TBD"}`,
           `Week: ${match.week}`,
-          `Winner: ${winnerName}`,
+          `Result: ${resultName}`,
           `Score differential: ${parseInt(matchForm.coach1Differential) || 0} / ${parseInt(matchForm.coach2Differential) || 0}`,
           `Pokemon stat rows: ${pokemonData.length}`,
           `Replay attached: ${matchForm.replayUrl ? "yes" : "no"}`,
@@ -1925,7 +1934,7 @@ export default function AdminMatchesPage() {
                                   onChange={(e) => setMatchForm({ ...matchForm, isForfeit: e.target.checked })}
                                   className="w-4 h-4 accent-[var(--primary)]"
                                 />
-                                <span>Forfeit</span>
+                                <span>Forfeit (leave Winner blank for a double loss)</span>
                               </label>
                             </div>
                           </div>
@@ -2158,13 +2167,17 @@ export default function AdminMatchesPage() {
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {displayedMatches.map((match) => (
+                      {displayedMatches.map((match) => {
+                        const hasResult = isCompletedMatchResult(match.winnerId, match.isForfeit);
+                        const isDoubleLoss = isDoubleForfeitResult(match.winnerId, match.isForfeit);
+
+                        return (
                         <div
                           key={match.id}
                           className={`flex items-center justify-between p-3 rounded-lg ${
                             match.needsReview
                               ? "bg-yellow-400/15 border-2 border-yellow-400"
-                              : match.winnerId
+                              : hasResult
                               ? "bg-[var(--background-secondary)]"
                               : "bg-[var(--warning)]/10 border border-[var(--warning)]/30"
                           }`}
@@ -2180,7 +2193,7 @@ export default function AdminMatchesPage() {
                               <span className={match.winnerId === match.coach1SeasonId ? "font-semibold text-[var(--success)]" : ""}>
                                 {match.coach1?.teamName}
                               </span>
-                              {match.winnerId && (
+                              {hasResult && (
                                 <span className="text-[var(--foreground-muted)]">
                                   ({match.coach1Differential > 0 ? "+" : ""}{match.coach1Differential})
                                 </span>
@@ -2189,14 +2202,16 @@ export default function AdminMatchesPage() {
                               <span className={match.winnerId === match.coach2SeasonId ? "font-semibold text-[var(--success)]" : ""}>
                                 {match.coach2?.teamName}
                               </span>
-                              {match.winnerId && (
+                              {hasResult && (
                                 <span className="text-[var(--foreground-muted)]">
                                   ({match.coach2Differential > 0 ? "+" : ""}{match.coach2Differential})
                                 </span>
                               )}
                             </div>
                             {match.isForfeit && (
-                              <span className="px-2 py-0.5 text-xs rounded bg-[var(--warning)] text-black">FF</span>
+                              <span className="px-2 py-0.5 text-xs rounded bg-[var(--warning)] text-black">
+                                {isDoubleLoss ? "DOUBLE LOSS" : "FF"}
+                              </span>
                             )}
                             {match.needsReview && (
                               <span
@@ -2211,7 +2226,7 @@ export default function AdminMatchesPage() {
                                 {match.reviewNotes}
                               </span>
                             )}
-                            {!match.winnerId && (
+                            {!hasResult && (
                               <span className="px-2 py-0.5 text-xs rounded bg-[var(--warning)]/20 text-[var(--warning)]">
                                 Pending
                               </span>
@@ -2238,7 +2253,8 @@ export default function AdminMatchesPage() {
                             </Button>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>

@@ -4,6 +4,7 @@ import { matches, transactions } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { getDivisionColor } from "@/lib/division-colors";
 import { getTimeSyncedRoster } from "@/lib/roster-utils";
+import { isCompletedMatchResult } from "@/lib/match-result-utils";
 import {
   customPokemonAliasesForRow,
   getPokemonAliasMaps,
@@ -105,7 +106,7 @@ export async function GET(
     let wins = 0;
     let losses = 0;
     for (const m of divisionMatches) {
-      if (m.winnerId === null) continue;
+      if (!isCompletedMatchResult(m.winnerId, m.isForfeit)) continue;
       if (m.coach1SeasonId === seasonCoachId || m.coach2SeasonId === seasonCoachId) {
         if (m.winnerId === seasonCoachId) wins++;
         else losses++;
