@@ -86,13 +86,13 @@ export async function GET(
       match.coach1SeasonId,
       match.week,
       coach1?.rosters || [],
-      [...coach1Txs[0], ...coach1Txs[1]] as any
+      [...coach1Txs[0], ...coach1Txs[1]] as Parameters<typeof getTimeSyncedRoster>[3]
     ),
     getTimeSyncedRoster(
       match.coach2SeasonId,
       match.week,
       coach2?.rosters || [],
-      [...coach2Txs[0], ...coach2Txs[1]] as any
+      [...coach2Txs[0], ...coach2Txs[1]] as Parameters<typeof getTimeSyncedRoster>[3]
     ),
     getPokemonAliasMaps(),
   ]);
@@ -143,7 +143,7 @@ export async function GET(
         displayName: p.displayName || p.name,
         spriteUrl: p.spriteUrl || null,
         types: p.types || [],
-        isTeraCaptain: (p as any).isTeraCaptain ?? false,
+        isTeraCaptain: p.isTeraCaptain ?? false,
         nameAliases: customPokemonAliasesForRow(p, aliasMaps),
         lookupKeys: Array.from(pokemonLookupKeysForRowWithAliases({
           id: p.id,
