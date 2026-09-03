@@ -46,6 +46,8 @@ const POKEMON_ROW_START = 2;
 const POKEMON_ROW_COUNT = 6;
 const RESULT_ROW_OFFSET = 8;
 const REPLAY_ROW_OFFSET = 9;
+const TEAM_SHEET_SCHEDULE_START_ROW = 23;
+const TEAM_SHEET_RESULT_COL = "M";
 
 // Result cells normally contain formulas that infer W/L from the differential.
 // A selected website winner is authoritative even when both differentials are
@@ -65,6 +67,8 @@ interface MatchData {
   team2Name: string;
   team1SheetName: string; // Name used in sheet (replacement name if coach was replaced)
   team2SheetName: string;
+  team1SheetTab: string;
+  team2SheetTab: string;
   team1SeasonCoachId: number;
   team2SeasonCoachId: number;
   team1ReplacedById: number | null;
@@ -74,6 +78,7 @@ interface MatchData {
 }
 
 interface SheetFixturePosition {
+  week: number;
   row: number; // 1-indexed row of fixture start
   col: number; // 0-indexed column of week start
   team1Name: string;
@@ -128,6 +133,7 @@ async function getFixturePositions(
         // Create key from both team names (sorted to handle order variations)
         const key = `${week}:${[team1Name, team2Name].sort().join("|")}`;
         positions.set(key, {
+          week,
           row: fixtureRowIdx + 1, // Convert back to 1-indexed
           col: weekColIdx,
           team1Name,
@@ -175,6 +181,16 @@ async function getDivisionMatches(divisionId: number): Promise<MatchData[]> {
       if (replacement) return replacement.teamName;
     }
     return coach.teamName;
+  }
+
+  function getSheetTab(coachId: number): string {
+    const coach = coachMap.get(coachId);
+    if (!coach) return "";
+    if (coach.replacedById) {
+      const replacement = coachMap.get(coach.replacedById);
+      if (replacement?.teamAbbreviation) return replacement.teamAbbreviation;
+    }
+    return coach.teamAbbreviation || "";
   }
 
   const matchDataList: MatchData[] = [];
@@ -236,6 +252,8 @@ async function getDivisionMatches(divisionId: number): Promise<MatchData[]> {
       team2Name: coach2.teamName,
       team1SheetName: getSheetName(match.coach1SeasonId),
       team2SheetName: getSheetName(match.coach2SeasonId),
+      team1SheetTab: getSheetTab(match.coach1SeasonId),
+      team2SheetTab: getSheetTab(match.coach2SeasonId),
       team1SeasonCoachId: match.coach1SeasonId,
       team2SeasonCoachId: match.coach2SeasonId,
       team1ReplacedById: coach1.replacedById,
@@ -301,6 +319,35 @@ export async function syncMatchStatsToSheet(
 
     // Track which fixture keys have data in the database
     const fixturesWithData = new Set<string>();
+    const teamSheetTabsByName = new Map<string, string>();
+    for (const match of matchDataList) {
+      if (match.team1SheetTab) {
+        teamSheetTabsByName.set(match.team1SheetName.toLowerCase().trim(), match.team1SheetTab);
+      }
+      if (match.team2SheetTab) {
+        teamSheetTabsByName.set(match.team2SheetName.toLowerCase().trim(), match.team2SheetTab);
+      }
+    }
+
+    const queueTeamSheetResult = (sheetTab: string, result: string, week: number) => {
+      if (!sheetTab || week < 1 || week > regularSeasonWeeks) return;
+      const row = TEAM_SHEET_SCHEDULE_START_ROW + week - 1;
+      const escapedTab = sheetTab.replace(/'/g, "''");
+      updates.push({
+        range: `'${escapedTab}'!${TEAM_SHEET_RESULT_COL}${row}`,
+        values: [[result]],
+      });
+    };
+
+    const queueTeamSheetResultFormula = (sheetTab: string, week: number) => {
+      if (!sheetTab || week < 1 || week > regularSeasonWeeks) return;
+      const row = TEAM_SHEET_SCHEDULE_START_ROW + week - 1;
+      const escapedTab = sheetTab.replace(/'/g, "''");
+      updates.push({
+        range: `'${escapedTab}'!${TEAM_SHEET_RESULT_COL}${row}`,
+        values: [[`=IFS(N${row}="", "", N${row}>0, "W", N${row}<0, "L")`]],
+      });
+    };
 
     for (const match of matchDataList) {
       // Find the fixture position using sheet-facing team names
@@ -374,6 +421,16 @@ export async function syncMatchStatsToSheet(
           range: `'Match Stats'!${t2ResultCol}${resultRowNum}`,
           values: [[sheetTeam1Won ? "L" : "W"]],
         });
+        queueTeamSheetResult(
+          match.team1SheetTab,
+          match.winnerId === match.team1SeasonCoachId ? "W" : "L",
+          match.week
+        );
+        queueTeamSheetResult(
+          match.team2SheetTab,
+          match.winnerId === match.team2SeasonCoachId ? "W" : "L",
+          match.week
+        );
       } else if (isDoubleForfeit) {
         updates.push({
           range: `'Match Stats'!${t1ResultCol}${resultRowNum}`,
@@ -405,6 +462,8 @@ export async function syncMatchStatsToSheet(
           range: `'Match Stats'!${t2DifferentialCol}${resultRowNum}`,
           values: [[sheetTeam2Differential]],
         });
+        queueTeamSheetResult(match.team1SheetTab, "L", match.week);
+        queueTeamSheetResult(match.team2SheetTab, "L", match.week);
       }
 
       // Write Team 1 Pokemon data (cols C, D, E for Pokemon, Kills, Deaths)
@@ -569,6 +628,15 @@ export async function syncMatchStatsToSheet(
         range: `'Match Stats'!${t2ResultCol}${resultRowNum}`,
         values: [[`=IFS(${t2DiffCol}${resultRowNum}=0, "", ${t2DiffCol}${resultRowNum}="", "", ${t2DiffCol}${resultRowNum}>0, "W", ${t2DiffCol}${resultRowNum}<0, "L")`]],
       });
+
+      queueTeamSheetResultFormula(
+        teamSheetTabsByName.get(position.team1Name.toLowerCase().trim()) || "",
+        position.week
+      );
+      queueTeamSheetResultFormula(
+        teamSheetTabsByName.get(position.team2Name.toLowerCase().trim()) || "",
+        position.week
+      );
     }
 
     // 6. Execute batch update
