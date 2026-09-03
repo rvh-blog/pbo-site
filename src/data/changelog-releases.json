@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-09-02-separate-forfeit-controls",
+    "title": "Separate Forfeit Controls",
+    "summary": "Admins can clearly declare a single FF or a double FF, with double losses synced to Google Sheet leaderboards.",
+    "publishedAt": "2026-09-02",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added separate Declare FF and Declare Double FF buttons in the match-result editor."
+      },
+      {
+        "type": "fixed",
+        "text": "Declare Double FF clears the winner, applies -3/-3, removes stale game stats, and uses the existing safe Google Sheet sync path; normal completed 0-0 games remain supported separately."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-02-double-loss-leaderboard-differential",
     "title": "Double-Loss Leaderboard Differential",
     "summary": "Double-loss official differentials now flow through the Google Sheet leaderboards and games-played totals.",
