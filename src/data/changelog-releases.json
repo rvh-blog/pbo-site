@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-02-sheet-tab-mapping",
+    "title": "Sheet Tab Mapping Sync",
+    "summary": "Google Sheet team schedule tabs now receive completed results using the spreadsheet's authoritative tab mapping.",
+    "publishedAt": "2026-09-02",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Match-result sync now resolves team tabs from the Source mapping, preventing abbreviation differences from interrupting normal 0-0 and double-FF updates."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-02-zero-score-team-tab-sync",
     "title": "Normal 0-0 Team Tab Sync",
     "summary": "Normal 0-0 results now update the team schedule tabs and Leaderboards instead of producing a blank result.",
