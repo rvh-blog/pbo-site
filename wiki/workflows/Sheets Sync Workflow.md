@@ -45,11 +45,15 @@ fixture result cells. This is authoritative when the website records a winner
 with a `0` differential on both sides; the sheet's normal result formulas leave
 both sides blank for `0-0` because they infer W/L from the differential. A
 double loss (`winnerId` null and `isForfeit` true) is also completed: sync
-writes explicit `L/L`, clears stale Pokemon rows, and allows Schedule Cutout to
-consume the result. The admin match-result API queues the configured division
-sync after saving, without making the database write depend on Google API
-availability. When a result is cleared, sync restores the template formulas
-for that fixture.
+writes explicit `L/L`, writes each team's official differential (normally
+`-3` / `-3`) into the Match Stats differential cells, clears stale Pokemon
+rows, and allows Schedule Cutout to consume the result. Those differential
+cells are what the team tabs use to calculate wins, losses, differential, and
+GP, so writing them is required for double losses to reach the Leaderboards
+tab. The admin match-result API queues the configured division sync after
+saving, without making the database write depend on Google API availability.
+When a result is cleared, sync restores the template differential and result
+formulas for that fixture.
 
 `syncAllDivisions()` only syncs configured divisions from current seasons.
 
@@ -68,6 +72,8 @@ for that fixture.
   results; differential-only W/L formulas cannot represent that case.
 - Double-loss result cells must be written explicitly as `L/L`; a no-winner
   fixture with no Pokemon rows must not be skipped as an empty schedule slot.
+- Double-loss official differentials must be written to the Match Stats
+  differential cells so downstream team tabs and Leaderboards calculate GP.
 - Roster sync uses time-synced roster logic.
 - Roster sync writes each team's Pokemon in descending price order. Ties fall
   back to draft order, then Pokemon name. The admin roster page uses the same
