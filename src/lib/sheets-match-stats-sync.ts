@@ -340,8 +340,9 @@ export async function syncMatchStatsToSheet(
         : match.team2Pokemon;
 
       // The normal sheet formulas infer W/L from a non-zero differential.
-      // Replace those two result cells with the official website winner so a
-      // completed 0-0 fixture still propagates its result to Schedule Cutout.
+      // Replace result and differential cells with the official website data
+      // so a completed 0-0 fixture can remain 0-0 after a prior double FF was
+      // synced into the same fixture.
       const resultRowNum = position.row + RESULT_ROW_OFFSET;
       const t1ResultCol = colIdxToLetter(position.col + T1_RESULT_OFFSET);
       const t2ResultCol = colIdxToLetter(position.col + T2_RESULT_OFFSET);
@@ -349,6 +350,22 @@ export async function syncMatchStatsToSheet(
         const sheetTeam1Won = teamsReversed
           ? match.winnerId === match.team2SeasonCoachId
           : match.winnerId === match.team1SeasonCoachId;
+        const sheetTeam1Differential = teamsReversed
+          ? match.coach2Differential
+          : match.coach1Differential;
+        const sheetTeam2Differential = teamsReversed
+          ? match.coach1Differential
+          : match.coach2Differential;
+        const t1DifferentialCol = colIdxToLetter(position.col + T1_KILLS_OFFSET);
+        const t2DifferentialCol = colIdxToLetter(position.col + T2_DEATHS_OFFSET);
+        updates.push({
+          range: `'Match Stats'!${t1DifferentialCol}${resultRowNum}`,
+          values: [[sheetTeam1Differential]],
+        });
+        updates.push({
+          range: `'Match Stats'!${t2DifferentialCol}${resultRowNum}`,
+          values: [[sheetTeam2Differential]],
+        });
         updates.push({
           range: `'Match Stats'!${t1ResultCol}${resultRowNum}`,
           values: [[sheetTeam1Won ? "W" : "L"]],

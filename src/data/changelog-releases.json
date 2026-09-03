@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-02-normal-zero-score-sync",
+    "title": "Normal 0-0 Result Sync",
+    "summary": "Normal 0-0 wins now replace stale double-FF differentials in Google Sheet Match Stats and Leaderboards.",
+    "publishedAt": "2026-09-02",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Completed normal results now write their official differentials to Match Stats, so a 0-0 result remains 0-0 after a previous double-FF value was synced to the fixture."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-02-separate-forfeit-controls",
     "title": "Separate Forfeit Controls",
     "summary": "Admins can clearly declare a single FF or a double FF, with double losses synced to Google Sheet leaderboards.",

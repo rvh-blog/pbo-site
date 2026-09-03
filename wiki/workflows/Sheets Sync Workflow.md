@@ -43,17 +43,19 @@ Google Sheets sync mirrors PBO division data into configured spreadsheets.
 For completed matches, match stats sync writes the official W/L into the
 fixture result cells. This is authoritative when the website records a winner
 with a `0` differential on both sides; the sheet's normal result formulas leave
-both sides blank for `0-0` because they infer W/L from the differential. A
-double loss (`winnerId` null and `isForfeit` true) is also completed: sync
-writes explicit `L/L`, writes each team's official differential (normally
-`-3` / `-3`) into the Match Stats differential cells, clears stale Pokemon
-rows, and allows Schedule Cutout to consume the result. Those differential
-cells are what the team tabs use to calculate wins, losses, differential, and
-GP, so writing them is required for double losses to reach the Leaderboards
-tab. The admin match-result API queues the configured division sync after
-saving, without making the database write depend on Google API availability.
-When a result is cleared, sync restores the template differential and result
-formulas for that fixture.
+both sides blank for `0-0` because they infer W/L from the differential. Sync
+therefore writes the official differentials for every completed result, so a
+normal `0-0` overwrites stale values left by an earlier double FF. A double
+loss (`winnerId` null and `isForfeit` true) is also completed: sync writes
+explicit `L/L`, writes each team's official differential (normally `-3` /
+`-3`) into the Match Stats differential cells, clears stale Pokemon rows, and
+allows Schedule Cutout to consume the result. Those differential cells are
+what the team tabs use to calculate wins, losses, differential, and GP, so
+writing them is required for both normal `0-0` results and double losses to
+reach the Leaderboards tab. The admin match-result API queues the configured
+division sync after saving, without making the database write depend on Google
+API availability. When a result is cleared, sync restores the template
+differential and result formulas for that fixture.
 
 `syncAllDivisions()` only syncs configured divisions from current seasons.
 
