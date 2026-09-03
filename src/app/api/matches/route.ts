@@ -18,10 +18,24 @@ import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { logAdminAudit } from "@/lib/admin-audit";
 import { queueMilestoneEvaluation } from "@/lib/milestones";
+import { syncDivision } from "@/lib/sheets-sync-all";
+import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 
 async function refreshFantasyStatsForResult(seasonId: number, week: number) {
   await refreshFantasyWeeklyStatsForWeek(seasonId, week);
   revalidateTag("fantasy-public-data", { expire: 0 });
+}
+
+function queueDivisionSheetSync(divisionId: number) {
+  syncDivision(divisionId)
+    .then((syncResult) => {
+      if (!syncResult.success && syncResult.error && !syncResult.error.includes("No sheet sync configuration")) {
+        console.error(`[Matches API] Sheet sync skipped for division ${divisionId}:`, syncResult.error);
+      }
+    })
+    .catch((syncError) => {
+      console.error(`[Matches API] Sheet sync failed for division ${divisionId}:`, syncError);
+    });
 }
 
 interface KeyEventData {
@@ -297,7 +311,7 @@ export async function POST(request: NextRequest) {
       week: week || 1,
       coach1SeasonId,
       coach2SeasonId,
-      winnerId,
+      winnerId: winnerId ?? null,
       coach1Differential: coach1Differential || 0,
       coach2Differential: coach2Differential || 0,
       isForfeit: isForfeit || false,
@@ -355,51 +369,70 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Update ELO ratings if there's a winner (uses optimized calculation when possible)
+  const isDoubleForfeit = isDoubleForfeitResult(winnerId, isForfeit);
+  const hasCompletedResult = isCompletedMatchResult(winnerId, isForfeit);
+
+  // Update result-dependent systems for normal results and double losses.
   let needsFullRecalc = false;
-  if (winnerId) {
+  if (hasCompletedResult) {
     const eloResult = await updateEloForMatch(match.id);
     needsFullRecalc = eloResult.needsFullRecalc;
 
-    // Award coins to players (+10 each, but loser gets nothing if forfeit)
-    const loserId = winnerId === coach1SeasonId ? coach2SeasonId : coach1SeasonId;
-    await awardMatchCoins(winnerId, loserId, isForfeit || false);
-
-    // Resolve bets - if forfeit, refund; otherwise pay out
-    if (isForfeit) {
+    if (isDoubleForfeit) {
+      // There is no winner for a double loss, so both sides' bets are voided
+      // and neither side receives a match-completion coin award.
       await refundBetsForMatch(match.id);
       await refundKillBetsForMatch(match.id);
       await refundDeathBetsForMatch(match.id);
     } else {
-      await resolveBetsForMatch(match.id, winnerId);
-      await resolveKillBetsForMatch(match.id);
-      await resolveDeathBetsForMatch(match.id);
-    }
-  }
+      // Award coins to players (+10 each, but loser gets nothing if forfeit)
+      const loserId = winnerId === coach1SeasonId ? coach2SeasonId : coach1SeasonId;
+      await awardMatchCoins(winnerId, loserId, isForfeit || false);
 
-  if (winnerId) {
+      // Resolve bets - if forfeit, refund; otherwise pay out
+      if (isForfeit) {
+        await refundBetsForMatch(match.id);
+        await refundKillBetsForMatch(match.id);
+        await refundDeathBetsForMatch(match.id);
+      } else {
+        await resolveBetsForMatch(match.id, winnerId);
+        await resolveKillBetsForMatch(match.id);
+        await resolveDeathBetsForMatch(match.id);
+      }
+    }
+
+    try {
+      await checkAndAwardPickEmRewards(match.id);
+    } catch (pickEmError) {
+      console.error("[Matches API] Error awarding pick-em rewards:", pickEmError);
+    }
+
     try {
       await refreshFantasyStatsForResult(match.seasonId, match.week);
       await resolveFantasyWeeklyRewardForMatch(match.id);
     } catch (fantasyStatsError) {
       console.error("[Matches API] Error refreshing fantasy weekly stats or rewards:", fantasyStatsError);
     }
+
+    if (winnerId !== null && winnerId !== undefined) {
+      try {
+        await queueMilestoneEvaluation(match.id);
+      } catch (milestoneError) {
+        console.error("[Matches API] Error queueing milestones:", milestoneError);
+      }
+    }
   }
 
-  if (winnerId) {
-    try {
-      await queueMilestoneEvaluation(match.id);
-    } catch (milestoneError) {
-      console.error("[Matches API] Error queueing milestones:", milestoneError);
-    }
+  if (hasCompletedResult) {
+    queueDivisionSheetSync(divisionId);
   }
 
   await logAdminAudit({
     session,
-    action: winnerId ? "match_result_create" : "match_schedule_create",
+    action: hasCompletedResult ? "match_result_create" : "match_schedule_create",
     entityType: "match",
     entityId: match.id,
-    summary: winnerId
+    summary: hasCompletedResult
       ? `Created match result for week ${match.week}`
       : `Created scheduled match for week ${match.week}`,
     details: {
@@ -447,6 +480,7 @@ export async function PUT(request: NextRequest) {
     where: eq(matches.id, id),
   });
   const hadPreviousWinner = previousMatch?.winnerId !== null && previousMatch?.winnerId !== undefined;
+  const hadPreviousResult = isCompletedMatchResult(previousMatch?.winnerId, previousMatch?.isForfeit);
 
   const updateData: Record<string, unknown> = {};
   if (winnerId !== undefined) updateData.winnerId = winnerId;
@@ -527,12 +561,43 @@ export async function PUT(request: NextRequest) {
   let needsFullRecalc = false;
   let betsReResolved = false;
 
-  if (winnerId !== undefined && winnerId !== null) {
+  const isDoubleForfeit = isDoubleForfeitResult(winnerId, isForfeit);
+
+  if (isDoubleForfeit) {
+    const eloResult = await updateEloForMatch(id);
+    needsFullRecalc = hadPreviousResult || eloResult.needsFullRecalc;
+
+    if (hadPreviousWinner) {
+      await reResolveBetsForMatch(id, null);
+    }
+    await refundBetsForMatch(id);
+    await refundKillBetsForMatch(id);
+    await refundDeathBetsForMatch(id);
+    betsReResolved = true;
+
+    try {
+      await reverseGotwBonus(id);
+      if (hadPreviousResult) {
+        await reResolvePickEmRewards(id);
+      } else {
+        await checkAndAwardPickEmRewards(id);
+      }
+    } catch (pickEmError) {
+      console.error("[Matches API] Error resolving pick-em rewards for double loss:", pickEmError);
+    }
+
+    try {
+      await refreshFantasyStatsForResult(previousMatch?.seasonId ?? updated.seasonId, previousMatch?.week ?? updated.week);
+      await resolveFantasyWeeklyRewardForMatch(id);
+    } catch (fantasyError) {
+      console.error("[Matches API] Error resolving fantasy rewards for double loss:", fantasyError);
+    }
+  } else if (winnerId !== undefined && winnerId !== null) {
     const eloResult = await updateEloForMatch(id);
     // Always prompt recalc when editing an existing result (not first-time entry)
-    needsFullRecalc = hadPreviousWinner || eloResult.needsFullRecalc;
+    needsFullRecalc = hadPreviousResult || eloResult.needsFullRecalc;
 
-    if (!hadPreviousWinner && previousMatch) {
+    if (!hadPreviousResult && previousMatch) {
       // FIRST time setting a winner: award coins and resolve bets
       const loserId = winnerId === previousMatch.coach1SeasonId
         ? previousMatch.coach2SeasonId
@@ -580,7 +645,7 @@ export async function PUT(request: NextRequest) {
       } catch (gotwError) {
         console.error("[Matches API] Error awarding GOTW bonus:", gotwError);
       }
-    } else if (hadPreviousWinner) {
+    } else if (hadPreviousResult && previousMatch) {
       // EDITING a match that already had results: re-resolve all bets
       // This handles cases where winner changed or Pokemon K/D data was corrected
       const matchIsForfeit = isForfeit !== undefined ? isForfeit : previousMatch?.isForfeit;
@@ -665,6 +730,10 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  if (isCompletedMatchResult(updated.winnerId, updated.isForfeit) || hadPreviousResult) {
+    queueDivisionSheetSync(updated.divisionId);
+  }
+
   await logAdminAudit({
     session,
     action: "match_update",
@@ -703,7 +772,7 @@ export async function DELETE(request: NextRequest) {
     const match = await db.query.matches.findFirst({
       where: eq(matches.id, matchId),
     });
-    const hadEloImpact = match?.winnerId !== null && match?.winnerId !== undefined;
+    const hadEloImpact = isCompletedMatchResult(match?.winnerId, match?.isForfeit);
 
     // Refund any pending bets on this match
     await refundBetsForMatch(matchId);

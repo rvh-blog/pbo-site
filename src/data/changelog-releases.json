@@ -1,4 +1,21 @@
-[{
+[
+  {
+    "sourceKey": "2026-09-02-double-loss-sheet-sync",
+    "title": "Double-Loss Results & Sheet Sync",
+    "summary": "Admins can record a rule-breaking double loss with a -3 differential for both teams, and the result syncs safely to the Google Sheet.",
+    "publishedAt": "2026-09-02",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added double-loss match recording with no winner, a forfeit flag, and independent -3 differentials for both teams."
+      },
+      {
+        "type": "fixed",
+        "text": "Google Sheet Match Stats now receives explicit L/L results for double losses while stale Pokemon rows are cleared and Schedule Cutout formulas remain intact."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-01-season6-replay-archive",
     "title": "Season 6 Replay Archive",
     "summary": "Neon, Sunset, and Stargazer Season 6 replay data is backfilled with current kill attribution and review safeguards.",

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 
 interface MatchPokemon {
   id: number;
@@ -71,7 +72,7 @@ function getInitialWeek(schedule: Record<number, Match[]>, maxWeek: number): num
   // Find the earliest week with at least one unplayed match
   for (const week of allWeeks) {
     const matches = schedule[week] || [];
-    const hasUnplayedMatch = matches.some(m => m.winnerId === null);
+    const hasUnplayedMatch = matches.some(m => !isCompletedMatchResult(m.winnerId, m.isForfeit));
     if (hasUnplayedMatch) {
       return week;
     }
@@ -187,8 +188,9 @@ export function ScheduleSection({
         ) : (
           <div className="space-y-3">
             {matchesForWeek.map((match) => {
-              const hasResult = match.winnerId !== null;
+              const hasResult = isCompletedMatchResult(match.winnerId, match.isForfeit);
               const isForfeit = match.isForfeit;
+              const isDoubleLoss = isDoubleForfeitResult(match.winnerId, match.isForfeit);
               const team1Won = match.winnerId === match.coach1.id;
               const team2Won = match.winnerId === match.coach2.id;
               const isExpanded = expandedMatches.has(match.id);
@@ -279,7 +281,7 @@ export function ScheduleSection({
                         </div>
                         {isForfeit && (
                           <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--error)] opacity-80">
-                            Forfeit
+                            {isDoubleLoss ? "Double Loss" : "Forfeit"}
                           </span>
                         )}
                       </div>

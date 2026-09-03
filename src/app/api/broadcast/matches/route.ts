@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { matches } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
+import { isCompletedMatchResult } from "@/lib/match-result-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     week: m.week,
     coach1TeamName: m.coach1?.teamName || "TBD",
     coach2TeamName: m.coach2?.teamName || "TBD",
-    isPlayed: m.winnerId !== null,
+    isPlayed: isCompletedMatchResult(m.winnerId, m.isForfeit),
   }));
 
   return NextResponse.json(result);

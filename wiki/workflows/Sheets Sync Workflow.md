@@ -43,8 +43,13 @@ Google Sheets sync mirrors PBO division data into configured spreadsheets.
 For completed matches, match stats sync writes the official W/L into the
 fixture result cells. This is authoritative when the website records a winner
 with a `0` differential on both sides; the sheet's normal result formulas leave
-both sides blank for `0-0` because they infer W/L from the differential. When
-a result is cleared, sync restores the template formulas for that fixture.
+both sides blank for `0-0` because they infer W/L from the differential. A
+double loss (`winnerId` null and `isForfeit` true) is also completed: sync
+writes explicit `L/L`, clears stale Pokemon rows, and allows Schedule Cutout to
+consume the result. The admin match-result API queues the configured division
+sync after saving, without making the database write depend on Google API
+availability. When a result is cleared, sync restores the template formulas
+for that fixture.
 
 `syncAllDivisions()` only syncs configured divisions from current seasons.
 
@@ -61,6 +66,8 @@ a result is cleared, sync restores the template formulas for that fixture.
 - Template changes can silently skip or misplace data.
 - Result cells must preserve the official website winner for valid `0-0`
   results; differential-only W/L formulas cannot represent that case.
+- Double-loss result cells must be written explicitly as `L/L`; a no-winner
+  fixture with no Pokemon rows must not be skipped as an empty schedule slot.
 - Roster sync uses time-synced roster logic.
 - Roster sync writes each team's Pokemon in descending price order. Ties fall
   back to draft order, then Pokemon name. The admin roster page uses the same
@@ -74,6 +81,8 @@ a result is cleared, sync restores the template formulas for that fixture.
 - Check roster, transaction, and match result sections separately.
 - Test a completed `0-0` match and confirm the selected winner remains visible
   as W/L in the sheet-driven schedule.
+- Test a double loss with `-3` / `-3` and confirm both `L` cells, cleared Pokemon
+  rows, and Schedule Cutout output on a non-production spreadsheet.
 - Avoid extra API calls; prefer batched reads/writes.
 
 ## See Also

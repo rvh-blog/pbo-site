@@ -1,4 +1,5 @@
 import { readSheetRange, batchWriteToSheet, isSyncEnabled } from "./sheets-sync";
+import { isDoubleForfeitResult } from "./match-result-utils";
 import { db } from "@/lib/db";
 import {
   seasonCoaches,
@@ -56,6 +57,7 @@ interface MatchData {
   matchId: number;
   week: number;
   winnerId: number | null;
+  isForfeit: boolean;
   replayUrl: string | null;
   team1Name: string;
   team2Name: string;
@@ -224,6 +226,7 @@ async function getDivisionMatches(divisionId: number): Promise<MatchData[]> {
       matchId: match.id,
       week: match.week,
       winnerId: match.winnerId,
+      isForfeit: match.isForfeit === true,
       replayUrl: match.replayUrl,
       team1Name: coach1.teamName,
       team2Name: coach2.teamName,
@@ -301,10 +304,11 @@ export async function syncMatchStatsToSheet(
       const key1 = `${match.week}:${[match.team1SheetName, match.team2SheetName].sort().join("|")}`;
       const position = fixturePositions.get(key1);
 
-      // A winner marks the fixture as completed even when no Pokemon rows were
-      // supplied. This is important for valid 0-0 results, where the sheet
-      // cannot infer the winner from the differential.
-      if (match.winnerId === null && match.team1Pokemon.length === 0 && match.team2Pokemon.length === 0) {
+      // A winner or double loss marks the fixture as completed even when no
+      // Pokemon rows were supplied. Double losses must reach Schedule Cutout
+      // as L/L instead of being treated as an empty fixture.
+      const isDoubleForfeit = isDoubleForfeitResult(match.winnerId, match.isForfeit);
+      if (match.winnerId === null && !isDoubleForfeit && match.team1Pokemon.length === 0 && match.team2Pokemon.length === 0) {
         continue;
       }
 
@@ -348,6 +352,15 @@ export async function syncMatchStatsToSheet(
         updates.push({
           range: `'Match Stats'!${t2ResultCol}${resultRowNum}`,
           values: [[sheetTeam1Won ? "L" : "W"]],
+        });
+      } else if (isDoubleForfeit) {
+        updates.push({
+          range: `'Match Stats'!${t1ResultCol}${resultRowNum}`,
+          values: [["L"]],
+        });
+        updates.push({
+          range: `'Match Stats'!${t2ResultCol}${resultRowNum}`,
+          values: [["L"]],
         });
       }
 
