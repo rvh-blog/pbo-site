@@ -47,7 +47,9 @@ both sides blank for `0-0` because they infer W/L from the differential. Sync
 therefore writes the official differentials for every completed result, so a
 normal `0-0` overwrites stale values left by an earlier double FF. It also
 writes the official W/L to each team's schedule row, because team-tab result
-formulas cannot infer a winner from a zero differential. A double
+formulas cannot infer a winner from a zero differential. Team schedule tab
+names are resolved from the spreadsheet's `Source` mapping rather than
+assuming database abbreviations match tab titles. A double
 loss (`winnerId` null and `isForfeit` true) is also completed: sync writes
 explicit `L/L`, writes each team's official differential (normally `-3` /
 `-3`) into the Match Stats differential cells, clears stale Pokemon rows, and
