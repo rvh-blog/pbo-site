@@ -58,6 +58,8 @@ interface MatchData {
   week: number;
   winnerId: number | null;
   isForfeit: boolean;
+  coach1Differential: number;
+  coach2Differential: number;
   replayUrl: string | null;
   team1Name: string;
   team2Name: string;
@@ -227,6 +229,8 @@ async function getDivisionMatches(divisionId: number): Promise<MatchData[]> {
       week: match.week,
       winnerId: match.winnerId,
       isForfeit: match.isForfeit === true,
+      coach1Differential: match.coach1Differential ?? 0,
+      coach2Differential: match.coach2Differential ?? 0,
       replayUrl: match.replayUrl,
       team1Name: coach1.teamName,
       team2Name: coach2.teamName,
@@ -361,6 +365,28 @@ export async function syncMatchStatsToSheet(
         updates.push({
           range: `'Match Stats'!${t2ResultCol}${resultRowNum}`,
           values: [["L"]],
+        });
+
+        // Team sheets derive wins, losses, differential, and GP from these
+        // Match Stats differential cells. Write the official website values
+        // for a double loss because there are no Pokemon rows to calculate
+        // them from. Respect the sheet's displayed team order when a fixture
+        // is reversed relative to the database.
+        const sheetTeam1Differential = teamsReversed
+          ? match.coach2Differential
+          : match.coach1Differential;
+        const sheetTeam2Differential = teamsReversed
+          ? match.coach1Differential
+          : match.coach2Differential;
+        const t1DifferentialCol = colIdxToLetter(position.col + T1_KILLS_OFFSET);
+        const t2DifferentialCol = colIdxToLetter(position.col + T2_DEATHS_OFFSET);
+        updates.push({
+          range: `'Match Stats'!${t1DifferentialCol}${resultRowNum}`,
+          values: [[sheetTeam1Differential]],
+        });
+        updates.push({
+          range: `'Match Stats'!${t2DifferentialCol}${resultRowNum}`,
+          values: [[sheetTeam2Differential]],
         });
       }
 
@@ -506,8 +532,18 @@ export async function syncMatchStatsToSheet(
       const resultRowNum = position.row + RESULT_ROW_OFFSET;
       const t1ResultCol = colIdxToLetter(position.col + T1_RESULT_OFFSET);
       const t1DiffCol = colIdxToLetter(position.col + T1_KILLS_OFFSET);
+      const t1DeathsCol = colIdxToLetter(position.col + T1_DEATHS_OFFSET);
       const t2ResultCol = colIdxToLetter(position.col + T2_POKEMON_OFFSET);
       const t2DiffCol = colIdxToLetter(position.col + T2_DEATHS_OFFSET);
+      const t2PokemonCheckRow = position.row + POKEMON_ROW_START + 1;
+      updates.push({
+        range: `'Match Stats'!${t1DiffCol}${resultRowNum}`,
+        values: [[`=IF(ISBLANK(${t1ResultCol}${t2PokemonCheckRow})=TRUE, "", ${t2DiffCol}${position.row}-${t1DeathsCol}${position.row})`]],
+      });
+      updates.push({
+        range: `'Match Stats'!${t2DiffCol}${resultRowNum}`,
+        values: [[`=IF(ISBLANK(${t2ResultCol}${t2PokemonCheckRow})=TRUE, "", ${t1DeathsCol}${position.row}-${t2DiffCol}${position.row})`]],
+      });
       updates.push({
         range: `'Match Stats'!${t1ResultCol}${resultRowNum}`,
         values: [[`=IFS(${t1DiffCol}${resultRowNum}=0, "", ${t1DiffCol}${resultRowNum}="", "", ${t1DiffCol}${resultRowNum}>0, "W", ${t1DiffCol}${resultRowNum}<0, "L")`]],

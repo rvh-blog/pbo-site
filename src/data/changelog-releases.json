@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-02-double-loss-leaderboard-differential",
+    "title": "Double-Loss Leaderboard Differential",
+    "summary": "Double-loss official differentials now flow through the Google Sheet leaderboards and games-played totals.",
+    "publishedAt": "2026-09-02",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Google Sheets Match Stats now writes the official differential for both teams on a double loss, allowing team tabs and Leaderboards to calculate L/L, differential, and GP correctly."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-02-double-loss-sheet-sync",
     "title": "Double-Loss Results & Sheet Sync",
     "summary": "Admins can record a rule-breaking double loss with a -3 differential for both teams, and the result syncs safely to the Google Sheet.",
