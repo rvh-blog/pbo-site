@@ -191,6 +191,10 @@ function getSeasonCoachName(coaches: SeasonCoach[], id: number | null | undefine
   return coaches.find((coach) => coach.id === id)?.teamName || `Season coach ${id}`;
 }
 
+function createEmptyPokemonEntries(): PokemonEntry[] {
+  return Array.from({ length: 6 }, () => ({ pokemonId: "", kills: "0", deaths: "0" }));
+}
+
 export default function AdminMatchesPage() {
   const [activeTab, setActiveTab] = useState<TabType>("results");
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -223,12 +227,8 @@ export default function AdminMatchesPage() {
     needsReview: false,
     reviewNotes: "",
   });
-  const [team1Pokemon, setTeam1Pokemon] = useState<PokemonEntry[]>(
-    Array(6).fill(null).map(() => ({ pokemonId: "", kills: "0", deaths: "0" }))
-  );
-  const [team2Pokemon, setTeam2Pokemon] = useState<PokemonEntry[]>(
-    Array(6).fill(null).map(() => ({ pokemonId: "", kills: "0", deaths: "0" }))
-  );
+  const [team1Pokemon, setTeam1Pokemon] = useState<PokemonEntry[]>(createEmptyPokemonEntries);
+  const [team2Pokemon, setTeam2Pokemon] = useState<PokemonEntry[]>(createEmptyPokemonEntries);
   const [scraping, setScraping] = useState(false);
   const [scrapeError, setScrapeError] = useState("");
 
@@ -259,6 +259,34 @@ export default function AdminMatchesPage() {
   const [needsFullRecalc, setNeedsFullRecalc] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [recalcMessage, setRecalcMessage] = useState<string | null>(null);
+
+  function clearPokemonResultData() {
+    setTeam1Pokemon(createEmptyPokemonEntries());
+    setTeam2Pokemon(createEmptyPokemonEntries());
+    setZoroarkInvolved(false);
+    setMatchTimingData({ startedAt: null, endedAt: null });
+    setMatchEventData({ turnSnapshots: null, keyEvents: null });
+  }
+
+  function declareForfeit() {
+    if (!matchForm.winnerId) {
+      alert("Select the winning team before declaring an FF. For both teams receiving a loss, use Declare Double FF.");
+      return;
+    }
+    clearPokemonResultData();
+    setMatchForm((current) => ({ ...current, isForfeit: true }));
+  }
+
+  function declareDoubleForfeit() {
+    clearPokemonResultData();
+    setMatchForm((current) => ({
+      ...current,
+      winnerId: "",
+      coach1Differential: "-3",
+      coach2Differential: "-3",
+      isForfeit: true,
+    }));
+  }
 
   useEffect(() => {
     fetchSeasons();
@@ -1926,16 +1954,31 @@ export default function AdminMatchesPage() {
                                 onChange={(e) => setMatchForm({ ...matchForm, coach2Differential: e.target.value })}
                               />
                             </div>
-                            <div className="flex items-end">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={matchForm.isForfeit}
-                                  onChange={(e) => setMatchForm({ ...matchForm, isForfeit: e.target.checked })}
-                                  className="w-4 h-4 accent-[var(--primary)]"
-                                />
-                                <span>Forfeit (leave Winner blank for a double loss)</span>
-                              </label>
+                            <div className="col-span-2 md:col-span-4 rounded-lg border border-[var(--card-border)] bg-[var(--background-secondary)] p-3">
+                              <Label>Forfeit Type</Label>
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <Button type="button" size="sm" variant="outline" onClick={declareForfeit}>
+                                  Declare FF
+                                </Button>
+                                <Button type="button" size="sm" variant="destructive" onClick={declareDoubleForfeit}>
+                                  Declare Double FF
+                                </Button>
+                                <label className="ml-1 flex items-center gap-2 cursor-pointer text-sm text-[var(--foreground-muted)]">
+                                  <input
+                                    type="checkbox"
+                                    checked={matchForm.isForfeit}
+                                    onChange={(e) => setMatchForm({ ...matchForm, isForfeit: e.target.checked })}
+                                    className="h-4 w-4 accent-[var(--primary)]"
+                                  />
+                                  Forfeit flag enabled
+                                </label>
+                              </div>
+                              <p className="mt-2 text-xs text-[var(--foreground-muted)]">
+                                FF keeps one selected winner. Double FF clears the winner, sets both differentials to -3, and syncs both losses to Google Sheets.
+                              </p>
+                              <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                                A normal 0-0 game is separate: leave the forfeit flag off, select the winner, and keep both Diff fields at 0.
+                              </p>
                             </div>
                           </div>
                         );

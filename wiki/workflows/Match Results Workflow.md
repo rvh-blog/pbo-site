@@ -81,6 +81,10 @@ For an existing result:
 
 ## Forfeits
 
+A normal completed game can still end `0-0`: leave the forfeit flag off, select
+the official winner, and enter `0` for both differentials. This is distinct
+from a double FF, which has no winner and uses `-3` / `-3`.
+
 Single forfeit:
 
 - Winner receives forfeit Elo score `0.75`.
@@ -95,9 +99,10 @@ Current match participation reward:
 Double forfeit:
 
 - `winnerId` is null and `isForfeit` is true.
-- The admin editor treats this as a completed **Double Loss** result; enter the
-  differential for each team directly (for example, `-3` and `-3`) and leave
-  Winner blank.
+- The admin editor has separate **Declare FF** and **Declare Double FF**
+  buttons. **Declare FF** requires a selected winner. **Declare Double FF**
+  clears the winner, sets both differentials to `-3`, and marks the match as a
+  completed **Double Loss**.
 - Standings record one loss and the stored differential for each team.
 - Both coaches receive Elo score `0.25`.
 - Match, kill, and death bets are refunded; neither side receives a winner
@@ -105,7 +110,8 @@ Double forfeit:
 - Pick-em and fantasy weekly completion may proceed, but the double-loss match
   has no correct winner and does not award a GOTW winner bonus.
 - The result API queues a configured division Google Sheet sync. The sheet
-  receives explicit `L/L` result cells, including when no Pokemon rows exist.
+  receives explicit `L/L` result cells and official differentials, including
+  when no Pokemon rows exist, so team tabs and Leaderboards update GP.
 
 ## Risks
 
