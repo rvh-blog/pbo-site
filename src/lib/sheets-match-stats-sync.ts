@@ -85,6 +85,27 @@ interface SheetFixturePosition {
   team2Name: string;
 }
 
+async function getTeamSheetTabMapping(
+  spreadsheetId: string
+): Promise<Map<string, string>> {
+  const mapping = new Map<string, string>();
+  const data = await readSheetRange(spreadsheetId, "Source!H21:Q40");
+  if (!data) return mapping;
+
+  for (const row of data) {
+    const teamName = row?.[1];
+    const sheetTab = row?.[6];
+    if (typeof teamName === "string" && typeof sheetTab === "string") {
+      const normalizedName = teamName.trim().toLowerCase();
+      if (normalizedName && teamName !== "Team Name") {
+        mapping.set(normalizedName, sheetTab.trim());
+      }
+    }
+  }
+
+  return mapping;
+}
+
 /**
  * Convert column index to column letter
  */
@@ -149,7 +170,10 @@ async function getFixturePositions(
 /**
  * Get match data with pokemon stats for a division
  */
-async function getDivisionMatches(divisionId: number): Promise<MatchData[]> {
+async function getDivisionMatches(
+  divisionId: number,
+  teamSheetTabMapping: Map<string, string>
+): Promise<MatchData[]> {
   // Fetch matches and coaches in parallel
   const [divisionMatches, allCoaches] = await Promise.all([
     db.query.matches.findMany({
@@ -186,6 +210,9 @@ async function getDivisionMatches(divisionId: number): Promise<MatchData[]> {
   function getSheetTab(coachId: number): string {
     const coach = coachMap.get(coachId);
     if (!coach) return "";
+    const sheetName = getSheetName(coachId).toLowerCase().trim();
+    const mappedSheetTab = teamSheetTabMapping.get(sheetName);
+    if (mappedSheetTab) return mappedSheetTab;
     if (coach.replacedById) {
       const replacement = coachMap.get(coach.replacedById);
       if (replacement?.teamAbbreviation) return replacement.teamAbbreviation;
@@ -303,13 +330,14 @@ export async function syncMatchStatsToSheet(
 
     // 1-3. Fetch data in parallel.
     console.log("Fetching fixture positions and match data...");
-    const [pokemonNameMapping, fixturePositions, matchDataList] = await Promise.all([
+    const [pokemonNameMapping, fixturePositions, teamSheetTabMapping] = await Promise.all([
       options?.pokemonNameMapping
         ? Promise.resolve(options.pokemonNameMapping)
         : buildPokemonNameMapping(spreadsheetId, sheetNameMappingOptionsForSeason(seasonNumber)),
       getFixturePositions(spreadsheetId, fixturesPerWeek, regularSeasonWeeks),
-      getDivisionMatches(divisionId),
+      getTeamSheetTabMapping(spreadsheetId),
     ]);
+    const matchDataList = await getDivisionMatches(divisionId, teamSheetTabMapping);
 
     console.log(`Loaded ${pokemonNameMapping.size} Pokemon mappings, ${fixturePositions.size} fixtures, ${matchDataList.length} matches`);
 
