@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-02-zero-score-team-tab-sync",
+    "title": "Normal 0-0 Team Tab Sync",
+    "summary": "Normal 0-0 results now update the team schedule tabs and Leaderboards instead of producing a blank result.",
+    "publishedAt": "2026-09-02",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Completed match sync now writes official W/L values to team schedule tabs, including zero-differential wins and losses that formulas could not infer."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-02-normal-zero-score-sync",
     "title": "Normal 0-0 Result Sync",
     "summary": "Normal 0-0 wins now replace stale double-FF differentials in Google Sheet Match Stats and Leaderboards.",
