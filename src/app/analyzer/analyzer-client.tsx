@@ -102,7 +102,7 @@ function buildCopyResults(data: ParsedReplay, sourceUrl: string, winnerName: str
 }
 
 const ANALYZER_CHECKS = ["Kills", "Deaths", "Damage", "Recovery", "HP timeline", "Key events"];
-const EXAMPLE_REPLAY_URL = "https://replay.pokemonshowdown.com/gen9ou-";
+const EXAMPLE_REPLAY_URL = "https://replay.pokemonshowdown.com/gen9ou-2377693385";
 
 function validateReplayUrl(value: string) {
   const trimmed = value.trim();
@@ -363,9 +363,9 @@ export function AnalyzerClient() {
                 onClick={() => setReplayUrl(EXAMPLE_REPLAY_URL)}
                 className="font-bold text-[var(--accent)] underline-offset-2 hover:underline"
               >
-                Use an example link format
+                Try an example replay
               </button>
-              <span className="text-[var(--foreground-subtle)]">Paste the replay ID after the final hyphen.</span>
+              <span className="text-[var(--foreground-subtle)]">Loads a public replay you can analyze immediately.</span>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {ANALYZER_CHECKS.map((check) => (
