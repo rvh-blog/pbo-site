@@ -151,6 +151,9 @@ const PIVOT_MOVES = new Set([
 ]);
 
 const CHAMPIONS_NATDEX_DRAFT_TIER = "[Gen 9 Champions] NatDex Draft";
+const MAX_REPLAY_URL_LENGTH = 300;
+const MAX_REPLAY_RESPONSE_BYTES = 2_000_000;
+const REPLAY_FETCH_TIMEOUT_MS = 15_000;
 
 function shouldPreserveMegaFormsForTier(tier: string | null) {
   return tier === CHAMPIONS_NATDEX_DRAFT_TIER;
@@ -267,8 +270,11 @@ export async function POST(request: NextRequest) {
       expandedHaxRules = false,
     } = await request.json();
 
-    if (!replayUrl) {
+    if (typeof replayUrl !== "string" || !replayUrl.trim()) {
       return NextResponse.json({ error: "Replay URL is required" }, { status: 400 });
+    }
+    if (replayUrl.length > MAX_REPLAY_URL_LENGTH) {
+      return NextResponse.json({ error: "Replay URL is too long" }, { status: 400 });
     }
 
     let replayJsonUrl = "";
@@ -276,9 +282,22 @@ export async function POST(request: NextRequest) {
     const replayJsonCandidates = buildReplayJsonCandidates(replayUrl);
 
     for (const candidate of replayJsonCandidates) {
-      const candidateResponse = await fetch(candidate, {
-        headers: { "User-Agent": "PBO-Site/1.0" },
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REPLAY_FETCH_TIMEOUT_MS);
+      let candidateResponse: Response;
+      try {
+        candidateResponse = await fetch(candidate, {
+          headers: { "User-Agent": "PBO-Site/1.0" },
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return NextResponse.json({ error: "The replay server took too long to respond" }, { status: 504 });
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (candidateResponse.ok) {
         replayJsonUrl = candidate;
@@ -294,6 +313,11 @@ export async function POST(request: NextRequest) {
         { error: `Failed to fetch replay: ${response?.status || "invalid URL"}` },
         { status: 400 }
       );
+    }
+
+    const contentLength = Number(response.headers.get("content-length") || 0);
+    if (contentLength > MAX_REPLAY_RESPONSE_BYTES) {
+      return NextResponse.json({ error: "Replay response is too large to analyze" }, { status: 413 });
     }
 
     const data = await response.json();

@@ -8,7 +8,8 @@
       { "type": "improved", "text": "Your Week shows match times, opens the correct matchup, and highlights missing pick-ems and their next scheduled lock time." },
       { "type": "improved", "text": "Carry season, division, week, and team context between schedules, matchup prep, comparisons, and item stats." },
       { "type": "improved", "text": "Schedule actions are easier to tap on mobile, and stats now offers plain-language discovery links." },
-      { "type": "improved", "text": "Homepage queries fetch only the displayed recent battles and scope trainer type usage to displayed coaches." }
+      { "type": "improved", "text": "Homepage queries fetch only the displayed recent battles and scope trainer type usage to displayed coaches." },
+      { "type": "improved", "text": "Replay Analyzer now validates links early, reports loading and timeout states, supports share/download actions, and limits upstream replay requests safely." }
     ]
   },
   {

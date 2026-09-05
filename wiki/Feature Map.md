@@ -56,6 +56,7 @@ See also:
 - Your Week links directly to the next matchup, displays local scheduled time, and reads missing picks through `src/lib/home-pick-ems.ts`. The homepage and pick-em selector share week-unlock rules in `src/lib/pick-em-availability.ts`; no reward or settlement logic changes.
 - The homepage battle log limits its combined regular/playoff query to eight rows in `src/lib/home-recent-battles.ts`. It sorts before limiting, including recently recorded early-week results. Trainer type reads are restricted to displayed coaches and showcase purchases.
 - Stats discovery provides task-based links for scouting, comparisons, league records, and item trends. Schedule actions use 44px minimum touch targets.
+- Replay Analyzer validates public Showdown URLs in the browser, shows explicit loading/error states, supports shareable `?replay=` links, copy/download actions, mobile section jump links, and a summary/timeline/events flow. The scrape route limits URL/response size and aborts upstream fetches after 15 seconds; it does not persist replay data.
 
 - Division selectors use season-grouped options (`<optgroup>`): season headings contain their divisions across public, admin, broadcast, matchup, coach, and Free Agency flows.
 - Game Prep is a dropdown-only navigation group containing Matchup Prep, Free
