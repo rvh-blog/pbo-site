@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { BarChart3, Check, Copy, ExternalLink, Loader2, Search, ShieldAlert, Swords } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { BarChart3, Check, Copy, Download, ExternalLink, Loader2, Search, Share2, ShieldAlert, Swords } from "lucide-react";
 import { HpChart } from "@/components/hp-chart";
 
 interface PokemonStats {
@@ -102,6 +102,27 @@ function buildCopyResults(data: ParsedReplay, sourceUrl: string, winnerName: str
 }
 
 const ANALYZER_CHECKS = ["Kills", "Deaths", "Damage", "Recovery", "HP timeline", "Key events"];
+const EXAMPLE_REPLAY_URL = "https://replay.pokemonshowdown.com/gen9ou-";
+
+function validateReplayUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "Enter a Pokemon Showdown replay link.";
+
+  let url: URL;
+  try {
+    url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+  } catch {
+    return "Enter a valid replay URL, such as replay.pokemonshowdown.com/gen9ou-...";
+  }
+
+  if (url.hostname.toLowerCase() !== "replay.pokemonshowdown.com") {
+    return "Only public replay.pokemonshowdown.com links are supported.";
+  }
+  if (url.pathname.replace(/^\/+|\/+$/g, "").length < 5) {
+    return "Include the replay ID after replay.pokemonshowdown.com.";
+  }
+  return null;
+}
 
 function TeamTable({ title, team }: { title: string; team: PokemonStats[] }) {
   return (
@@ -202,6 +223,13 @@ export function AnalyzerClient() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+
+  useEffect(() => {
+    const sharedReplay = new URLSearchParams(window.location.search).get("replay");
+    if (sharedReplay) setReplayUrl(sharedReplay);
+  }, []);
 
   const winnerName = useMemo(() => {
     if (!data?.winner) return "Unknown";
@@ -211,8 +239,9 @@ export function AnalyzerClient() {
   async function handleAnalyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!replayUrl.trim()) {
-      setError("Enter a Pokemon Showdown replay link.");
+    const validationError = validateReplayUrl(replayUrl);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -221,11 +250,15 @@ export function AnalyzerClient() {
     setData(null);
 
     try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 15_000);
       const res = await fetch("/api/replay-scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ replayUrl, preserveMegas: true }),
+        signal: controller.signal,
       });
+      window.clearTimeout(timeout);
       const payload = await res.json();
 
       if (!res.ok) {
@@ -235,7 +268,9 @@ export function AnalyzerClient() {
       setData(payload);
       setCopied(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to analyze replay.");
+      setError(err instanceof DOMException && err.name === "AbortError"
+        ? "The replay took too long to respond. Check that it is public and try again."
+        : err instanceof Error ? err.message : "Failed to analyze replay.");
     } finally {
       setLoading(false);
     }
@@ -247,6 +282,35 @@ export function AnalyzerClient() {
     await navigator.clipboard.writeText(buildCopyResults(data, replayUrl.trim(), winnerName));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  async function handleShare() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("replay", replayUrl.trim());
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Replay Analyzer", text: `${winnerName} — Replay Analyzer`, url: url.toString() });
+      } else {
+        await navigator.clipboard.writeText(url.toString());
+      }
+      setShared(true);
+      window.setTimeout(() => setShared(false), 1600);
+    } catch {
+      // Sharing can be cancelled by the user; do not show an error for that case.
+    }
+  }
+
+  function handleDownload() {
+    if (!data) return;
+    const blob = new Blob([buildCopyResults(data, replayUrl.trim(), winnerName)], { type: "text/plain;charset=utf-8" });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = `replay-analysis-${(data.p1Username || "player-1").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.txt`;
+    anchor.click();
+    URL.revokeObjectURL(href);
+    setDownloaded(true);
+    window.setTimeout(() => setDownloaded(false), 1600);
   }
 
   return (
@@ -274,7 +338,10 @@ export function AnalyzerClient() {
             <div className="mt-3 flex flex-col gap-3 sm:flex-row">
               <input
                 id="replay-url"
-                type="text"
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                maxLength={300}
                 value={replayUrl}
                 onChange={(event) => setReplayUrl(event.target.value)}
                 placeholder="https://replay.pokemonshowdown.com/gen9..."
@@ -283,11 +350,22 @@ export function AnalyzerClient() {
               <button
                 type="submit"
                 disabled={loading}
+                aria-busy={loading}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow-[4px_4px_0px_var(--primary-dark)] transition-all hover:translate-y-1 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                Analyze
+                {loading ? "Analyzing…" : "Analyze"}
               </button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => setReplayUrl(EXAMPLE_REPLAY_URL)}
+                className="font-bold text-[var(--accent)] underline-offset-2 hover:underline"
+              >
+                Use an example link format
+              </button>
+              <span className="text-[var(--foreground-subtle)]">Paste the replay ID after the final hyphen.</span>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {ANALYZER_CHECKS.map((check) => (
@@ -300,7 +378,7 @@ export function AnalyzerClient() {
               ))}
             </div>
             <p className="mt-3 text-xs font-bold text-[var(--foreground-subtle)]">
-              Public Pokemon Showdown replay links only. Nothing is saved.
+              Public Pokemon Showdown replay links only. Nothing is saved. Large or private replays may be rejected.
             </p>
             {error && (
               <div className="mt-4 flex items-start gap-2 rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-3 py-2 text-sm text-[var(--error)]">
@@ -341,10 +419,34 @@ export function AnalyzerClient() {
                     {copied ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
                     {copied ? "Copied" : "Copy"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-black uppercase tracking-wide text-[var(--foreground-muted)] transition-colors hover:text-white"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    {shared ? "Link copied" : "Share"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-xs font-black uppercase tracking-wide text-[var(--foreground-muted)] transition-colors hover:text-white"
+                  >
+                    {downloaded ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Download className="h-3.5 w-3.5" />}
+                    {downloaded ? "Saved" : "Download"}
+                  </button>
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <nav aria-label="Analysis sections" className="mb-4 flex gap-2 overflow-x-auto pb-1">
+                {[{ id: "analyzer-stats", label: "Stats" }, { id: "analyzer-timeline", label: "Timeline" }, { id: "analyzer-events", label: "Key events" }].map((section) => (
+                  <a key={section.id} href={`#${section.id}`} className="shrink-0 rounded-md border border-[var(--background-tertiary)] bg-[var(--background)]/60 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-[var(--foreground-muted)] hover:border-[var(--primary)] hover:text-white">
+                    {section.label}
+                  </a>
+                ))}
+              </nav>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="rounded-lg border-2 border-[var(--accent)]/50 bg-[var(--background-secondary)] p-4">
                   <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Winner</div>
                   <div className="mt-2 text-xl font-black text-[var(--accent)]">{winnerName}</div>
@@ -361,6 +463,10 @@ export function AnalyzerClient() {
                   <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Started</div>
                   <div className="mt-2 text-xl font-black text-white">{formatDate(data.startedAt)}</div>
                 </div>
+                <div className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-[var(--foreground-muted)]">Ended</div>
+                  <div className="mt-2 text-xl font-black text-white">{formatDate(data.endedAt)}</div>
+                </div>
               </div>
             </section>
 
@@ -370,7 +476,7 @@ export function AnalyzerClient() {
               </div>
             )}
 
-            <section className="space-y-4">
+            <section id="analyzer-stats" className="scroll-mt-24 space-y-4">
               <div>
                 <h2 className="text-sm font-black uppercase tracking-wide text-white">Coach Stats</h2>
                 <p className="mt-1 text-xs font-bold text-[var(--foreground-muted)]">
@@ -389,7 +495,7 @@ export function AnalyzerClient() {
             </section>
 
             {data.turnSnapshots.length > 0 && (
-              <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 sm:p-5">
+              <section id="analyzer-timeline" className="scroll-mt-24 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] p-4 sm:p-5">
                 <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-sm font-black uppercase tracking-wide text-white">Battle Timeline</h2>
@@ -411,7 +517,7 @@ export function AnalyzerClient() {
             )}
 
             {data.keyEvents.length > 0 && (
-              <section className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] overflow-hidden">
+              <section id="analyzer-events" className="scroll-mt-24 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--card)] overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--background-tertiary)]">
                   <Swords className="h-4 w-4 text-[var(--accent)]" />
                   <div>
