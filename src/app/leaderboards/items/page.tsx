@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { LeagueLink as Link, LeagueJourney } from "@/components/league-context";
+import { positiveId } from "@/lib/league-context";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { seasons } from "@/lib/schema";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 type PageProps = {
-  searchParams: Promise<{ season?: string; division?: string }>;
+  searchParams: Promise<{ season?: string; seasonId?: string; division?: string; week?: string; teamId?: string; matchId?: string }>;
 };
 
 type ItemRow = {
@@ -41,7 +42,7 @@ type ItemGame = {
 export default async function ItemUsagePage({ searchParams }: PageProps) {
   const params = await searchParams;
   const requestedSeason = Number(params.season);
-  const selectedSeason = Number.isInteger(requestedSeason) ? requestedSeason : null;
+  let selectedSeason = Number.isInteger(requestedSeason) ? requestedSeason : null;
   const requestedDivision = Number(params.division);
   const selectedDivision = Number.isInteger(requestedDivision) ? requestedDivision : null;
 
@@ -97,6 +98,12 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
       columns: { id: true, name: true, seasonId: true, displayOrder: true },
     }),
   ]);
+
+  if (!params.season && positiveId(params.seasonId)) {
+    selectedSeason = allSeasons.find((season) => season.id === positiveId(params.seasonId))?.seasonNumber ?? null;
+  }
+  const contextSeason = allSeasons.find((season) => season.seasonNumber === selectedSeason && season.isPublic !== false);
+  const contextDivision = allDivisions.find((division) => division.id === selectedDivision && division.seasonId === contextSeason?.id);
 
   const itemMap = new Map<
     string,
@@ -244,6 +251,7 @@ export default async function ItemUsagePage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-6">
+      <LeagueJourney context={{ week: positiveId(params.week), teamId: positiveId(params.teamId), matchId: positiveId(params.matchId), seasonId: contextSeason?.id, seasonName: contextSeason?.name, divisionId: contextDivision?.id, divisionName: contextDivision?.name }} />
       <header className="poke-card p-5 sm:p-6">
         <div className="mb-2 flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
           <Link href="/leaderboards" className="hover:text-[var(--primary)]">

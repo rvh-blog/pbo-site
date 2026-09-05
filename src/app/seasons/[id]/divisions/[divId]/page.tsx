@@ -648,6 +648,7 @@ export default async function DivisionPage({ params }: PageProps) {
       {/* Schedule Section - pass empty schedule if not public */}
       <div id="schedule" className="scroll-mt-32">
         <ScheduleSection
+          context={{ seasonId, divisionId, seasonName: division.season?.name, divisionName: division.name }}
           schedule={division.season?.isSchedulePublic === false ? {} : schedule}
           maxWeek={division.season?.isSchedulePublic === false ? 0 : maxWeek}
           divisionColor={divisionColor}

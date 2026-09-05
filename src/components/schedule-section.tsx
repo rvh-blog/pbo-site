@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { LeagueJourney } from "@/components/league-context";
+import { positiveId, type LeagueContext } from "@/lib/league-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 
@@ -55,6 +58,7 @@ interface ScheduleSectionProps {
   maxWeek: number;
   divisionColor?: string;
   divisionShadow?: string;
+  context?: LeagueContext;
 }
 
 // Helper to get display label for a week number
@@ -98,8 +102,19 @@ export function ScheduleSection({
   maxWeek,
   divisionColor = "var(--accent)",
   divisionShadow = "#b45309",
+  context,
 }: ScheduleSectionProps) {
-  const [selectedWeek, setSelectedWeek] = useState(() => getInitialWeek(schedule, maxWeek));
+  const searchParams = useSearchParams();
+  const requestedWeek = positiveId(searchParams.get("week"));
+  const selectedWeek = requestedWeek && Object.hasOwn(schedule, requestedWeek)
+    ? requestedWeek : getInitialWeek(schedule, maxWeek);
+  const teamId = positiveId(searchParams.get("teamId"));
+  const selectedTeam = teamId && Object.values(schedule).flat().some((match) => match.coach1.id === teamId || match.coach2.id === teamId) ? teamId : undefined;
+  const setSelectedWeek = (week: number) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("week", String(week));
+    window.history.pushState(null, "", url);
+  };
   const [expandedMatches, setExpandedMatches] = useState<Set<number>>(new Set());
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
@@ -130,7 +145,7 @@ export function ScheduleSection({
 
   return (
     <div
-      className="readable-content poke-card p-0 overflow-hidden"
+      className="schedule-readable readable-content poke-card p-0 overflow-hidden"
       style={{
         borderColor: `${divisionColor}44`,
         background: `linear-gradient(180deg, ${divisionColor}0f, transparent 42%)`,
@@ -147,6 +162,10 @@ export function ScheduleSection({
         </div>
       </div>
 
+      {context && <div className="p-3 sm:p-4"><LeagueJourney context={{
+        ...context, week: selectedWeek, teamId: selectedTeam,
+      }} /></div>}
+
       {/* Week Selector */}
       <div className="p-3 sm:p-4 border-b-2" style={{ borderBottomColor: `${divisionColor}33` }}>
         <div
@@ -160,7 +179,7 @@ export function ScheduleSection({
               key={week}
               onClick={() => setSelectedWeek(week)}
               aria-pressed={selectedWeek === week}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${
+              className={`min-h-11 shrink-0 px-3 py-2 rounded-lg text-sm font-bold transition-colors border ${
                 selectedWeek === week
                   ? week > 100
                     ? "text-white"
@@ -338,7 +357,7 @@ export function ScheduleSection({
                     )}
 
                     {/* Action buttons row */}
-                    <div className="flex items-center justify-center gap-3 mt-3 pt-3 border-t-2 border-[var(--background-tertiary)]">
+                    <div className="schedule-actions flex flex-wrap items-center justify-center gap-2 mt-3 pt-3 border-t-2 border-[var(--background-tertiary)]">
                       {match.id > 0 ? (
                         <Link
                           href={`/matches/${match.id}`}
@@ -374,6 +393,12 @@ export function ScheduleSection({
                           </svg>
                           {isExpanded ? "Hide Stats" : "View Stats"}
                         </button>
+                      )}
+                      {!hasResult && match.id > 0 && (
+                        <Link href={`/matchup-prep?matchId=${match.id}${selectedTeam ? `&teamId=${selectedTeam}` : ""}`}
+                          className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--primary)]/15 px-3 text-sm font-semibold text-[var(--primary)]">
+                          Scout matchup
+                        </Link>
                       )}
                       {match.replayUrl && (
                         <a

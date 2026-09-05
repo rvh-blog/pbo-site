@@ -125,7 +125,7 @@ export function StandingsRow({
         </div>
 
         {/* Stats */}
-        <div className="flex items-center shrink-0 text-xs sm:text-sm font-mono">
+        <div className="flex items-center shrink-0 text-xs sm:text-sm font-sans">
           <span className="font-bold text-[var(--success)] w-6 sm:w-8 text-center">{team.wins}</span>
           <span className="font-bold text-[var(--error)] w-6 sm:w-8 text-center">{team.losses}</span>
           <span className="font-bold text-white w-7 sm:w-10 text-center">

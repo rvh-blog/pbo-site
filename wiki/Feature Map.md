@@ -52,6 +52,11 @@ See also:
 
 ## Current UI And Performance Notes
 
+- Weekly navigation uses `src/components/league-context.tsx` and `src/lib/league-context.ts`. Division schedules, prep, comparisons, and item stats preserve season/division/week/team context in links; `teamId` means `season_coaches.id`. Explicit destination filters take precedence. Item stats accepts `seasonId` separately from its legacy season-number `season` parameter.
+- Your Week links directly to the next matchup, displays local scheduled time, and reads missing picks through `src/lib/home-pick-ems.ts`. The homepage and pick-em selector share week-unlock rules in `src/lib/pick-em-availability.ts`; no reward or settlement logic changes.
+- The homepage battle log limits its combined regular/playoff query to eight rows in `src/lib/home-recent-battles.ts`. It sorts before limiting, including recently recorded early-week results. Trainer type reads are restricted to displayed coaches and showcase purchases.
+- Stats discovery provides task-based links for scouting, comparisons, league records, and item trends. Schedule actions use 44px minimum touch targets.
+
 - Division selectors use season-grouped options (`<optgroup>`): season headings contain their divisions across public, admin, broadcast, matchup, coach, and Free Agency flows.
 - Game Prep is a dropdown-only navigation group containing Matchup Prep, Free
   Agency, and Replay Analyzer.

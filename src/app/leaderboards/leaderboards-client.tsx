@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LeagueLink as Link } from "@/components/league-context";
 import { useState, useEffect, useRef } from "react";
 
 interface Coach {
@@ -137,6 +137,7 @@ export function LeaderboardsClient({
   const [pokemonSort, setPokemonSort] = useState<PokemonSortKey>("kills");
   const [coachMinGP, setCoachMinGP] = useState(5);
   const [pokemonMinGP, setPokemonMinGP] = useState(5);
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
 
   const displayedCoachStats = scope === "current" ? currentCoachStats : coachStats;
   const displayedPokemonStats = scope === "current" ? currentPokemonStats : pokemonStats;
@@ -268,6 +269,41 @@ export function LeaderboardsClient({
           </div>
         </div>
       </div>
+
+      <section aria-labelledby="stats-explore-title" className="poke-card p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-4">
+          <h2 id="stats-explore-title" className="text-lg font-bold">What would you like to explore?</h2>
+          <button
+            type="button"
+            aria-expanded={isExploreOpen}
+            aria-controls="stats-explore-content"
+            onClick={() => setIsExploreOpen((open) => !open)}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border-2 border-[var(--accent)]/70 bg-[var(--accent)]/15 px-3 py-2 text-xs font-bold text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/25 hover:text-white"
+          >
+            {isExploreOpen ? "Hide" : "Show"}
+            <svg
+              aria-hidden="true"
+              className={`h-4 w-4 transition-transform ${isExploreOpen ? "rotate-180" : ""}`}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+        {isExploreOpen && <div id="stats-explore-content" className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { href: "/matchup-prep", title: "Scout my opponent", description: "Study rosters, speeds, moves, and revealed items." },
+            { href: "/compare", title: "Compare coaches", description: "Compare records and head-to-head results in your selected division." },
+            { href: "/battle-record?tab=pbo-records", title: "Find league records", description: "Explore record performances across PBO history." },
+            { href: "/leaderboards/items", title: "Explore item trends", description: "See the held items revealed in your season and division." },
+          ].map((item) => <Link key={item.href} href={item.href}
+            className="rounded-xl border border-[var(--card-border)] p-4 transition-colors hover:border-[var(--primary)] hover:bg-[var(--background-tertiary)]">
+            <span className="block text-base font-semibold">{item.title} <span aria-hidden="true">→</span></span>
+            <span className="mt-2 block text-sm leading-relaxed text-[var(--foreground-muted)]">{item.description}</span>
+          </Link>)}
+        </div>}
+      </section>
 
       {/* Top Rated Coach Spotlight */}
       {displayedTopEloCoach && (

@@ -2055,6 +2055,37 @@ html[data-theme="light"] .score-display {
   }
 }
 
+/* Schedule actions remain comfortable to read and tap on narrow screens. */
+.schedule-readable .mobile-scroll-region::before {
+  display: none;
+  content: none;
+}
+.schedule-actions > a,
+.schedule-actions > button {
+  min-height: 44px;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+.schedule-actions > a:focus-visible,
+.schedule-actions > button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+@media (max-width: 639px) {
+  .schedule-readable [class*="text-[8px]"],
+  .schedule-readable [class*="text-[9px]"],
+  .schedule-readable [class*="text-[10px]"] {
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  .schedule-readable .truncate {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

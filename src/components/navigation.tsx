@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LeagueLink as Link } from "./league-context";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -40,10 +40,10 @@ const matchPrepLinks = [
 ];
 
 const pboStatsLinks = [
-  { href: "/leaderboards", label: "Leaderboards" },
-  { href: "/compare", label: "Compare" },
-  { href: "/leaderboards/comprehensive", label: "Comprehensive Leaderboard" },
-  { href: "/battle-record", label: "Battle Record" },
+  { href: "/leaderboards", label: "Rankings & Stats" },
+  { href: "/compare", label: "Compare Coaches & Pokémon" },
+  { href: "/leaderboards/comprehensive", label: "Detailed Rankings" },
+  { href: "/battle-record", label: "Coach & League Records" },
   { href: "/battle-record?tab=move-usage", label: "Move Usage" },
   { href: "/leaderboards/items", label: "Item Usage" },
 ];

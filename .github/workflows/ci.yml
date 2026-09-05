@@ -29,6 +29,7 @@ jobs:
       - run: npm run changelog:validate
       - run: npm run assets:check
       - run: npx tsc --noEmit
+      - run: npm run weekly:check
       - name: Lint changed files
         run: npm run lint:changed
         env:

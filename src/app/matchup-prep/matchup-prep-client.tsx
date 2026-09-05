@@ -1,5 +1,8 @@
 "use client";
 
+import { LeagueJourney } from "@/components/league-context";
+import type { LeagueContext } from "@/lib/league-context";
+
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -157,6 +160,7 @@ interface TeamSidePurchases {
 }
 
 interface Props {
+  initialContext: LeagueContext;
   seasons: Season[];
   initialMatch: MatchData | null;
   initialWeeks: number[];
@@ -279,6 +283,7 @@ function formatMultiplier(m: number): string {
 }
 
 export function MatchupPrepClient({
+  initialContext,
   seasons,
   initialMatch,
   initialWeeks,
@@ -296,13 +301,13 @@ export function MatchupPrepClient({
 
   // Selectors
   const [selectedSeason, setSelectedSeason] = useState<number | null>(
-    initialMatch?.seasonId || seasons[0]?.id || null
+    initialMatch?.seasonId || initialContext.seasonId || seasons[0]?.id || null
   );
   const [selectedDivision, setSelectedDivision] = useState<number | null>(
-    initialMatch?.divisionId || null
+    initialMatch?.divisionId || initialContext.divisionId || null
   );
   const [selectedWeek, setSelectedWeek] = useState<number | null>(
-    initialMatch?.week || null
+    initialMatch?.week || initialContext.week || null
   );
   const [selectedMatch, setSelectedMatch] = useState<number | null>(
     initialMatch?.id || null
@@ -700,7 +705,17 @@ export function MatchupPrepClient({
   };
 
   // Handle season change
+  const updateSelectionUrl = (seasonId: number | null, divisionId?: number, week?: number) => {
+    const params = new URLSearchParams();
+    if (seasonId) params.set("seasonId", String(seasonId));
+    if (divisionId) params.set("divisionId", String(divisionId));
+    if (week) params.set("week", String(week));
+    if (divisionId === initialContext.divisionId && initialContext.teamId) params.set("teamId", String(initialContext.teamId));
+    window.history.replaceState(null, "", `/matchup-prep?${params}`);
+  };
+
   const handleSeasonChange = (seasonId: number) => {
+    updateSelectionUrl(seasonId);
     weeksRequestId.current += 1;
     matchesRequestId.current += 1;
     setSelectedSeason(seasonId);
@@ -720,6 +735,7 @@ export function MatchupPrepClient({
 
   // Handle division change - fetch only its week numbers.
   const handleDivisionChange = async (divisionId: number) => {
+    updateSelectionUrl(selectedSeason, divisionId);
     const requestId = ++weeksRequestId.current;
     matchesRequestId.current += 1;
     setSelectedDivision(divisionId);
@@ -760,6 +776,12 @@ export function MatchupPrepClient({
 
   // Handle week change - fetch only the matches in that week.
   const handleWeekChange = async (week: number) => {
+    updateSelectionUrl(selectedSeason, selectedDivision ?? undefined, week);
+    setMatchData(null);
+    setRoster1([]);
+    setRoster2([]);
+    setDropped1([]);
+    setDropped2([]);
     const requestId = ++matchesRequestId.current;
     setSelectedWeek(week);
     setSelectedMatch(null);
@@ -789,7 +811,7 @@ export function MatchupPrepClient({
   // Handle match selection - navigate to URL with matchId and refresh
   const handleMatchSelect = (matchId: number) => {
     // Use window.location for full page refresh to ensure server component reloads data
-    window.location.href = `/matchup-prep?matchId=${matchId}`;
+    router.push(`/matchup-prep?matchId=${matchId}${initialContext.teamId ? `&teamId=${initialContext.teamId}` : ""}`);
   };
 
   // Check if selected season has schedule visible
@@ -802,6 +824,15 @@ export function MatchupPrepClient({
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
+      <LeagueJourney context={{
+        seasonId: selectedSeason ?? undefined,
+        seasonName: seasons.find((season) => season.id === selectedSeason)?.name,
+        divisionId: selectedDivision ?? undefined,
+        divisionName: divisions.find((division) => division.id === selectedDivision)?.name,
+        week: selectedWeek ?? undefined,
+        teamId: selectedDivision === initialContext.divisionId ? initialContext.teamId : undefined,
+        matchId: selectedMatch ?? undefined,
+      }} />
       {/* Page Header */}
       <div className="poke-card p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

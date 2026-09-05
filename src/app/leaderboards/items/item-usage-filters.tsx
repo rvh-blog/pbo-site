@@ -44,6 +44,7 @@ export function ItemUsageFilters({
       <label className="text-xs font-bold uppercase text-[var(--foreground-muted)]">
         Season
         <select
+          aria-label="Season"
           value={selectedSeason ?? ""}
           disabled={isPending}
           onChange={(event) => {
@@ -57,7 +58,7 @@ export function ItemUsageFilters({
                 ?.seasonNumber === season;
             navigate(season, divisionBelongsToSeason ? selectedDivision : null);
           }}
-          className="mt-1 block rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-sm font-normal normal-case text-white disabled:cursor-wait"
+          className="mt-1 block min-h-11 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-sm font-normal normal-case text-white disabled:cursor-wait"
         >
           <option value="">All tracked seasons</option>
           {seasons.map((season) => (
@@ -71,6 +72,7 @@ export function ItemUsageFilters({
       <label className="text-xs font-bold uppercase text-[var(--foreground-muted)]">
         Division
         <select
+          aria-label="Division"
           value={selectedDivision ?? ""}
           disabled={isPending}
           onChange={(event) => {
@@ -81,7 +83,7 @@ export function ItemUsageFilters({
             )?.seasonNumber;
             navigate(divisionSeason ?? selectedSeason, divisionId);
           }}
-          className="mt-1 block max-w-56 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-sm font-normal normal-case text-white disabled:cursor-wait"
+          className="mt-1 block min-h-11 max-w-56 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 py-2 text-sm font-normal normal-case text-white disabled:cursor-wait"
         >
           <option value="">All divisions</option>
           {seasons.map((season) => (
