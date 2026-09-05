@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LeagueLink as Link } from "@/components/league-context";
 import Image from "next/image";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";

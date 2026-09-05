@@ -1,5 +1,8 @@
 "use client";
 
+import { LeagueJourney } from "@/components/league-context";
+import { positiveId } from "@/lib/league-context";
+
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -129,6 +132,9 @@ export function CompareClient({
   function updateQuery(changes: Record<string, string | number | null>) {
     const params = new URLSearchParams(query);
     params.set("type", mode);
+    if ("season" in changes || "division" in changes) {
+      for (const key of ["week", "teamId", "matchId"]) params.delete(key);
+    }
     for (const [key, value] of Object.entries(changes)) {
       if (value === null || value === "") params.delete(key);
       else params.set(key, String(value));
@@ -163,6 +169,14 @@ export function CompareClient({
 
   return (
     <div className="space-y-5 sm:space-y-6">
+      <LeagueJourney context={{
+        week: positiveId(new URLSearchParams(query).get("week")),
+        teamId: positiveId(new URLSearchParams(query).get("teamId")),
+        matchId: positiveId(new URLSearchParams(query).get("matchId")),
+        seasonId: selectedSeasonId ?? undefined, seasonName: seasons.find((season) => season.id === selectedSeasonId)?.name,
+        divisionId: visibleDivisions.find((division) => division.id === selectedDivisionId)?.id,
+        divisionName: visibleDivisions.find((division) => division.id === selectedDivisionId)?.name,
+      }} />
       <section className="poke-card overflow-hidden p-0">
         <div className="relative border-b border-[var(--background-tertiary)] bg-gradient-to-br from-cyan-400/[0.08] via-transparent to-rose-400/[0.08] p-5 sm:p-7">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">Head-to-head lab</p>

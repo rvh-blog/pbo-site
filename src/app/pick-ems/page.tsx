@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
 import { seasons, seasonCoaches } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
+import { positiveId } from "@/lib/league-context";
 import { PickEmsClient } from "./pick-ems-client";
 
 export const dynamic = "force-dynamic";
@@ -63,9 +64,12 @@ async function getActiveCoachOptions(): Promise<SeasonCoachOption[]> {
   );
 }
 
-export default async function PickEmsPage() {
+export default async function PickEmsPage({ searchParams }: { searchParams: Promise<{ seasonId?: string; divisionId?: string; week?: string }> }) {
+  const params = await searchParams;
   const [season, allCoachOptions] = await Promise.all([
-    getActiveSeason(),
+    positiveId(params.seasonId) ? db.query.seasons.findFirst({
+      where: and(eq(seasons.id, positiveId(params.seasonId)!), eq(seasons.isPublic, true)),
+    }) : getActiveSeason(),
     getActiveCoachOptions(),
   ]);
 
@@ -89,6 +93,9 @@ export default async function PickEmsPage() {
 
   return (
     <PickEmsClient
+      key={season.id}
+      initialWeek={positiveId(params.week)}
+      initialDivision={positiveId(params.divisionId)}
       season={{
         id: season.id,
         name: season.name,

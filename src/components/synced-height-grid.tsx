@@ -15,7 +15,7 @@ export function SyncedHeightGrid({
 }: SyncedHeightGridProps) {
   return (
     <>
-      <div className="synced-home-grid">
+      <div className="synced-home-grid order-5">
       {/* Left Column: Battle Log */}
       <div>
         {leftContent}

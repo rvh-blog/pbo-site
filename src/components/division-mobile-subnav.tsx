@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LeagueLink as Link } from "./league-context";
 
 type DivisionMobileSubnavProps = {
   seasonId: number;

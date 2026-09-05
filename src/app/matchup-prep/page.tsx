@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { positiveId } from "@/lib/league-context";
 import type { Metadata } from "next";
 /* eslint-disable @typescript-eslint/no-explicit-any -- Existing matchup prep data shaping uses broad Drizzle result objects. */
 import {
@@ -57,15 +58,17 @@ interface PageProps {
     matchId?: string;
     seasonId?: string;
     divisionId?: string;
+    week?: string;
+    teamId?: string;
   }>;
 }
 
 export default async function MatchupPrepPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const matchId = params.matchId ? parseInt(params.matchId) : null;
+  const matchId = positiveId(params.matchId);
 
   // Parallel fetch: base data AND match data (if matchId provided)
-  const [allSeasons, allPrices, allAbilities, allMoves, match] = await Promise.all([
+  const [allSeasons, allPrices, allAbilities, allMoves, requestedMatch] = await Promise.all([
     db.query.seasons.findMany({
       where: eq(seasons.isPublic, true),
       with: { divisions: true },
@@ -102,6 +105,34 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
         })
       : Promise.resolve(null),
   ]);
+
+  const selectedSeason = allSeasons.find((season) => season.id === positiveId(params.seasonId))
+    ?? allSeasons.find((season) => season.isCurrent) ?? allSeasons[0];
+  const selectedDivision = selectedSeason?.divisions.find((division) => division.id === positiveId(params.divisionId));
+  let match = requestedMatch && allSeasons.some((season) =>
+    season.id === requestedMatch.seasonId && season.isSchedulePublic !== false
+  ) ? requestedMatch : null;
+  const requestedTeamId = positiveId(params.teamId);
+  const selectedTeam = requestedTeamId && selectedDivision ? await db.query.seasonCoaches.findFirst({
+    where: and(eq(seasonCoaches.id, requestedTeamId), eq(seasonCoaches.divisionId, selectedDivision.id)),
+    columns: { id: true },
+  }) : null;
+  if (!matchId && selectedTeam && selectedSeason?.isSchedulePublic !== false) {
+    match = await db.query.matches.findFirst({
+      where: and(eq(matches.divisionId, selectedDivision!.id),
+        or(eq(matches.coach1SeasonId, selectedTeam.id), eq(matches.coach2SeasonId, selectedTeam.id)),
+        positiveId(params.week) ? eq(matches.week, positiveId(params.week)!) : undefined),
+      with: {
+        division: { with: { season: true } },
+        coach1: { with: { coach: true, rosters: { with: { pokemon: true } } } },
+        coach2: { with: { coach: true, rosters: { with: { pokemon: true } } } },
+      },
+      orderBy: (table, { asc, sql }) => [sql`CASE WHEN ${table.winnerId} IS NULL AND COALESCE(${table.isForfeit}, 0) = 0 THEN 0 ELSE 1 END`, asc(table.week), asc(table.id)],
+    }) ?? null;
+  }
+  const teamId = match
+    ? (requestedTeamId && [match.coach1SeasonId, match.coach2SeasonId].includes(requestedTeamId) ? requestedTeamId : undefined)
+    : selectedTeam?.id;
 
   // Build move type lookup
   const moveTypes: Record<string, string> = {};
@@ -342,6 +373,18 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
     };
   }
 
+  if (!match && selectedDivision && selectedSeason?.isSchedulePublic !== false) {
+    const weekRows = await db.selectDistinct({ week: matches.week }).from(matches)
+      .where(eq(matches.divisionId, selectedDivision.id)).orderBy(matches.week);
+    initialWeeks = weekRows.map((row) => row.week);
+    const week = initialWeeks.includes(positiveId(params.week) ?? -1) ? positiveId(params.week) : undefined;
+    if (week) divisionMatches = await db.query.matches.findMany({
+      where: and(eq(matches.divisionId, selectedDivision.id), eq(matches.week, week)),
+      with: { coach1: { with: { coach: true } }, coach2: { with: { coach: true } } },
+      orderBy: [matches.id],
+    });
+  }
+
   const seasonMoves = matchData
     ? await getSeasonPokemonMovesMap(matchData.seasonId)
     : new Map<number, string[]>();
@@ -437,7 +480,14 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
 
   return (
     <MatchupPrepClient
+      key={`${matchData?.id ?? "none"}-${selectedSeason?.id}-${selectedDivision?.id}-${params.week ?? ""}`}
       seasons={seasonsData}
+      initialContext={{
+        seasonId: matchData?.seasonId ?? selectedSeason?.id,
+        divisionId: matchData?.divisionId ?? selectedDivision?.id,
+        week: matchData?.week ?? (initialWeeks.includes(positiveId(params.week) ?? -1) ? positiveId(params.week) : undefined),
+        teamId,
+      }}
       initialMatch={matchData}
       initialWeeks={initialWeeks}
       initialMatches={matchesData}

@@ -1,5 +1,7 @@
 "use client";
 
+import { getUnlockedPickWeeks } from "@/lib/pick-em-availability";
+
 import { useState, useEffect, useCallback, Fragment, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -20,6 +22,8 @@ interface Season {
 interface PickEmsClientProps {
   season: Season;
   coachOptions: CoachOption[];
+  initialWeek?: number;
+  initialDivision?: number;
 }
 
 interface Participant {
@@ -269,7 +273,7 @@ function TeamLogo({ url, teamName, size = 32 }: { url: string | null; teamName: 
   );
 }
 
-export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
+export function PickEmsClient({ season, coachOptions, initialWeek, initialDivision }: PickEmsClientProps) {
   // Auth state
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -901,34 +905,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
   // Calculate which weeks are unlocked for picks/bets
   // Week N is unlocked if at least one match in week N-1 has a result
   // Week 1 is always unlocked, playoffs unlock when last regular week has a result
-  const unlockedWeeks = useMemo(() => {
-    const unlocked = new Set<number>();
-    const weekNumbers = weeks.map(w => w.week).sort((a, b) => a - b);
-
-    for (const weekNum of weekNumbers) {
-      if (weekNum === 1) {
-        // Week 1 is always unlocked
-        unlocked.add(weekNum);
-      } else if (weekNum >= 101) {
-        // Playoffs - unlock if ANY regular season week (<=100) has a completed match
-        const lastRegularWeek = weekNumbers.filter(w => w <= 100).pop();
-        if (lastRegularWeek) {
-          const lastWeekData = weeks.find(w => w.week === lastRegularWeek);
-          if (lastWeekData?.matches.some(m => isCompletedMatchResult(m.winnerId, m.isForfeit))) {
-            unlocked.add(weekNum);
-          }
-        }
-      } else {
-        // Regular weeks (2+) - unlock if previous week has at least one result
-        const prevWeekData = weeks.find(w => w.week === weekNum - 1);
-        if (prevWeekData?.matches.some(m => isCompletedMatchResult(m.winnerId, m.isForfeit))) {
-          unlocked.add(weekNum);
-        }
-      }
-    }
-
-    return unlocked;
-  }, [weeks]);
+  const unlockedWeeks = useMemo(() => getUnlockedPickWeeks(weeks.flatMap((week) => week.matches)), [weeks]);
 
   // Check if a week is locked
   const isWeekLocked = (weekNum: number) => !unlockedWeeks.has(weekNum);
@@ -942,9 +919,9 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
       );
       // Fall back to first unlocked week if all matches are completed
       const firstUnlocked = weeks.find((w) => unlockedWeeks.has(w.week));
-      setSelectedWeek(weekWithUnplayed?.week || firstUnlocked?.week || weeks[0]?.week || null);
+      setSelectedWeek(initialWeek && unlockedWeeks.has(initialWeek) ? initialWeek : weekWithUnplayed?.week || firstUnlocked?.week || weeks[0]?.week || null);
     }
-  }, [weeks, unlockedWeeks, selectedWeek]);
+  }, [weeks, unlockedWeeks, selectedWeek, initialWeek]);
 
   // Compute filtered leaderboard
   const filteredLeaderboard = (() => {
@@ -2235,7 +2212,7 @@ export function PickEmsClient({ season, coachOptions }: PickEmsClientProps) {
 
                 // Auto-select first division if none selected
                 if (selectedDivision === null && divisions.length > 0) {
-                  setTimeout(() => setSelectedDivision(divisions[0].id), 0);
+                  setTimeout(() => setSelectedDivision(divisions.find((division) => division.id === initialDivision)?.id ?? divisions[0].id), 0);
                 }
 
                 return (
