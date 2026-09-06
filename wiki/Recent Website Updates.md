@@ -1,5 +1,13 @@
 # Recent Website Updates
 
+## September 6, 2026 - Coach YouTube Playlists
+
+- Admins can assign an optional public YouTube playlist URL to an individual coach from Admin → Coaches.
+- Coach profiles render the assigned playlist with a compact 16:9 native YouTube embed when no API key is configured.
+- When `YOUTUBE_API_KEY` is configured server-side, playlist videos are cached for five minutes and shown in a scrollable list with thumbnails, titles, publish dates, and click-to-play behavior.
+- Invalid, private, deleted, or unavailable playlists fall back to a direct YouTube link without exposing credentials in the browser.
+- The playlist ID is stored on `coaches.youtube_playlist_id` through the startup migration `2026-09-06-coach-youtube-playlist-v1`.
+
 ## September 1, 2026 - Homepage & Poll Controls
 
 - Refreshed the homepage hero with stronger season branding, current-season

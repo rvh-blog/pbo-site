@@ -5,6 +5,15 @@ const client = createClient({ url: `file:${dbPath}` });
 
 const migrations = [
   {
+    id: "2026-09-06-coach-youtube-playlist-v1",
+    statements: [
+      {
+        sql: "ALTER TABLE coaches ADD COLUMN youtube_playlist_id TEXT",
+        whenMissingColumn: { table: "coaches", column: "youtube_playlist_id" },
+      },
+    ],
+  },
+  {
     id: "2026-08-24-match-review-state-v1",
     statements: [
       {
