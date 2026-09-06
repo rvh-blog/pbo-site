@@ -8,6 +8,9 @@ const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL = process.env.REPLAY_SCRAPE_URL || "http://127.0.0.1:3000/api/replay-scrape";
 const dryRun = !process.argv.includes("--apply");
 const quiet = process.argv.includes("--quiet");
+const includeAlreadyTracked = process.argv.includes("--all");
+const reportChanges = process.argv.includes("--report-changes");
+const onlyZoroarkReplays = process.argv.includes("--zoroark-only");
 
 function nameKey(value) {
   return String(value || "")
@@ -25,14 +28,37 @@ function generatedReplayKeys(value) {
   const megaBase = key.replace(/mega(?:x|y|z)?$/, "");
   if (megaBase !== key) keys.add(megaBase);
   const battleStateBase = key.replace(
-    /(?:incarnate|average|standard|hero|disguised)$/,
+    /(?:incarnate|average|standard|hero|disguised|busted)$/,
     ""
   );
   if (battleStateBase !== key) keys.add(battleStateBase);
   if (key.startsWith("gourgeist")) keys.add("gourgeist");
   if (key === "floettemega") keys.add("floetteeternal");
-  if (key === "urshifusinglestrike") keys.add("urshifu");
+  if (key === "urshifusinglestrike" || key === "urshifurapidstrike") keys.add("urshifu");
   return [...keys];
+}
+
+function normalizedMoveMap(value) {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+  return Object.fromEntries(
+    Object.entries(parsed)
+      .map(([name, uses]) => [name.trim().replace(/\s+/g, " "), Number(uses)])
+      .filter(([name, uses]) => name && Number.isFinite(uses) && uses > 0)
+      .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
+  );
+}
+
+function moveMapsEqual(current, next) {
+  return JSON.stringify(normalizedMoveMap(current)) === JSON.stringify(normalizedMoveMap(next));
 }
 
 const acceptedNamesByPokemonId = new Map();
@@ -108,17 +134,17 @@ const matches = db.prepare(`
     AND m.replay_url IS NOT NULL
     AND m.replay_url != ''
     AND ${seasonFilter}
-    AND EXISTS (
+    AND (${includeAlreadyTracked ? "1 = 1" : `EXISTS (
       SELECT 1
       FROM match_pokemon pending
       WHERE pending.match_id = m.id
         AND pending.moves_used IS NULL
-    )
+    )`})
   ORDER BY m.id
 `).all(seasonValue);
 
 const rowsByMatch = db.prepare(`
-  SELECT mp.id, mp.season_coach_id, mp.pokemon_id,
+  SELECT mp.id, mp.season_coach_id, mp.pokemon_id, mp.moves_used,
     p.name AS pokemon_name, p.display_name AS pokemon_display_name
   FROM match_pokemon mp
   JOIN pokemon p ON p.id = mp.pokemon_id
@@ -128,12 +154,14 @@ const rowsByMatch = db.prepare(`
 const updateMoveUsage = db.prepare("UPDATE match_pokemon SET moves_used = ? WHERE id = ?");
 let processed = 0;
 let updated = 0;
+let unchanged = 0;
 let failed = 0;
 let unmatched = 0;
 
 for (const match of matches) {
   try {
     const replay = await scrapeReplay(match.replay_url);
+    if (onlyZoroarkReplays && !replay.zoroarkInvolved) continue;
     const p1Team = Array.isArray(replay.p1Team) ? replay.p1Team : [];
     const p2Team = Array.isArray(replay.p2Team) ? replay.p2Team : [];
     const matchRows = rowsByMatch.all(match.id);
@@ -157,7 +185,17 @@ for (const match of matches) {
         continue;
       }
       // An empty object means the Pokemon was selected but never recorded a move.
-      updateRows.push({ rowId: row.id, movesUsed: replayPokemon.movesUsed || {} });
+      const movesUsed = normalizedMoveMap(replayPokemon.movesUsed || {});
+      if (moveMapsEqual(row.moves_used, movesUsed)) {
+        unchanged++;
+        continue;
+      }
+      updateRows.push({
+        rowId: row.id,
+        pokemonName: row.pokemon_display_name || row.pokemon_name,
+        previousMovesUsed: normalizedMoveMap(row.moves_used),
+        movesUsed,
+      });
     }
 
     if (!dryRun) {
@@ -171,8 +209,15 @@ for (const match of matches) {
 
     processed++;
     updated += updateRows.length;
+    if (reportChanges) {
+      for (const update of updateRows) {
+        console.log(
+          `CHANGE match ${match.id} row ${update.rowId} ${update.pokemonName}: ${JSON.stringify(update.previousMovesUsed)} -> ${JSON.stringify(update.movesUsed)}`
+        );
+      }
+    }
     if (!quiet) {
-      console.log(`${dryRun ? "PLAN" : "DONE"} match ${match.id}: ${updateRows.length} Pokemon rows`);
+      console.log(`${dryRun ? "PLAN" : "DONE"} match ${match.id}: ${updateRows.length} changed Pokemon rows`);
     }
   } catch (error) {
     failed++;
@@ -182,6 +227,6 @@ for (const match of matches) {
 
 db.close();
 console.log(
-  `Processed ${processed}/${matches.length} matches; updated ${updated} rows; unmatched ${unmatched}; failed ${failed}.`
+  `Processed ${processed}/${matches.length} matches; ${dryRun ? "would update" : "updated"} ${updated} rows; unchanged ${unchanged}; unmatched ${unmatched}; failed ${failed}.`
 );
 if (failed > 0 || unmatched > 0) process.exitCode = 1;
