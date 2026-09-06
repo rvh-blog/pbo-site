@@ -25,7 +25,7 @@ See also:
 - Seasons: `src/app/seasons`
 - Division page: `src/app/seasons/[id]/divisions/[divId]/page.tsx`
 - Match details: `src/app/matches/[id]/page.tsx`
-- Coaches: `src/app/coaches`
+- Coaches: `src/app/coaches` (optional per-coach YouTube playlist preview; admin assignment is managed from `src/app/admin/coaches/page.tsx`)
 - Battle Record: `src/app/battle-record` (Coach Records, PBO Records,
   Season 6+ Divisional Records, Move Usage with lazy game sources, and direct
   query links that preserve record scope/division; available from the PBO Stats
@@ -41,6 +41,7 @@ See also:
 - Broadcast overlay: `src/app/broadcast`
 - Multi-Cast overlay: `src/app/broadcast/multi-cast`
 - Replay Analyzer: `src/app/analyzer`
+- Coach YouTube playlists: `src/lib/youtube-playlists.ts` and `src/components/youtube-playlist-browser.tsx` (server-cached Data API video lists when configured, native YouTube embed fallback otherwise)
 - Blog: `src/app/blog`
 - Coach and Pokémon comparison: `src/app/compare` (two to four entries,
   season/division/phase filters, pairwise head-to-head records, and shareable

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { coaches, seasonCoaches, eloHistory } from "@/lib/schema";
 import { STARTING_COACH_COINS } from "@/lib/coin-config";
 import { eq } from "drizzle-orm";
+import { extractYouTubePlaylistId } from "@/lib/youtube-playlists";
 
 export async function GET() {
   const allCoaches = await db.query.coaches.findMany({
@@ -29,6 +30,7 @@ export async function GET() {
     isMod: coach.isMod ?? false,
     claimedAt: coach.claimedAt,
     pboCoin: coach.pboCoin,
+    youtubePlaylistId: coach.youtubePlaylistId,
     seasonCoaches: coach.seasonCoaches,
   }));
 
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const body = await request.json();
-  const { id, name, eloRating, mergeFromId } = body;
+  const { id, name, eloRating, mergeFromId, youtubePlaylistId } = body;
 
   if (!id) {
     return NextResponse.json(
@@ -90,12 +92,23 @@ export async function PUT(request: NextRequest) {
   }
 
   // Build update object
-  const updateValues: { name?: string; eloRating?: number } = {};
+  const updateValues: { name?: string; eloRating?: number; youtubePlaylistId?: string | null } = {};
   if (name && typeof name === "string") {
     updateValues.name = name;
   }
   if (eloRating !== undefined && typeof eloRating === "number") {
     updateValues.eloRating = eloRating;
+  }
+  if (youtubePlaylistId !== undefined) {
+    if (youtubePlaylistId === null || youtubePlaylistId === "") {
+      updateValues.youtubePlaylistId = null;
+    } else {
+      const parsedPlaylistId = extractYouTubePlaylistId(youtubePlaylistId);
+      if (!parsedPlaylistId) {
+        return NextResponse.json({ error: "Enter a valid YouTube playlist URL or playlist ID" }, { status: 400 });
+      }
+      updateValues.youtubePlaylistId = parsedPlaylistId;
+    }
   }
 
   if (Object.keys(updateValues).length > 0) {

@@ -21,6 +21,7 @@ export const coaches = sqliteTable("coaches", {
   claimedAt: text("claimed_at"), // when the account was claimed
   projectMewConfirmed: integer("project_mew_confirmed", { mode: "boolean" }).default(false),
   projectMewPromptSeen: integer("project_mew_prompt_seen", { mode: "boolean" }).default(false),
+  youtubePlaylistId: text("youtube_playlist_id"),
   // Currency
   pboCoin: integer("pbo_coin").notNull().default(0),
 });

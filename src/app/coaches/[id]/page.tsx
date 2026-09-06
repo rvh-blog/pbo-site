@@ -24,6 +24,8 @@ import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } 
 import { MATCH_COMPLETION_COINS, STARTING_COACH_COINS } from "@/lib/coin-config";
 import { getCoachProfileMilestones } from "@/lib/coach-milestones";
 import { getDistinctHeldItemNames } from "@/lib/revealed-items";
+import { YouTubePlaylistBrowser } from "@/components/youtube-playlist-browser";
+import { extractYouTubePlaylistId, getYouTubePlaylistVideos, type YouTubePlaylistResult } from "@/lib/youtube-playlists";
 
 const COACH_YOUTUBE_URLS: Record<number, string> = {
   254: "https://www.youtube.com/user/AlmightyArceus",
@@ -518,6 +520,64 @@ async function getCoachMatchPokemon(seasonCoachIds: number[]) {
     },
   });
   return rows.filter((row) => row.match !== null);
+}
+
+function CoachYouTubePlaylist({
+  playlist,
+  result,
+}: {
+  playlist: { playlistId: string; label: string } | undefined;
+  result: YouTubePlaylistResult | null;
+}) {
+  if (!playlist || !playlist.playlistId) return null;
+
+  return (
+    <section className="poke-card overflow-hidden p-0" aria-labelledby="coach-video-playlist-heading">
+      <div className="flex flex-col gap-3 border-b border-[var(--background-tertiary)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-red-300">YouTube playlist preview</div>
+          <h2 id="coach-video-playlist-heading" className="mt-1 text-lg font-bold text-white">{playlist.label}</h2>
+        </div>
+        <a
+          href={`https://www.youtube.com/playlist?list=${playlist.playlistId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center justify-center rounded-lg border border-red-300/40 px-3 py-2 text-xs font-bold uppercase tracking-wider text-red-200 transition-colors hover:bg-red-300/10"
+        >
+          Open on YouTube →
+        </a>
+      </div>
+      {result?.status === "ready" && result.videos.length > 0 ? (
+        <YouTubePlaylistBrowser label={playlist.label} videos={result.videos} />
+      ) : (
+        <div className="p-4 sm:p-5">
+          <div className="aspect-video w-full max-w-[240px] overflow-hidden rounded-lg bg-black">
+            <iframe
+              className="h-full w-full"
+              src={`https://www.youtube-nocookie.com/embed/videoseries?list=${playlist.playlistId}`}
+              title={playlist.label}
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+          <p className="mt-3 text-xs text-[var(--foreground-muted)]">
+            Native YouTube playlist preview. The full playlist controls are provided by YouTube.
+          </p>
+        </div>
+      )}
+      <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+        <a
+          href={`https://www.youtube.com/playlist?list=${playlist.playlistId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--primary-light)] hover:underline"
+        >
+          Browse all playlist videos ↗
+        </a>
+      </div>
+    </section>
+  );
 }
 
 async function getOpponentMatchPokemon(matchIds: number[], seasonCoachIds: number[]) {
@@ -1423,6 +1483,17 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
       }),
     }));
 
+  const youtubePlaylistId = extractYouTubePlaylistId(coach.youtubePlaylistId);
+  const youtubePlaylist = youtubePlaylistId
+    ? {
+        playlistId: youtubePlaylistId,
+        label: `${mostRecentSeasonEntry?.teamName ?? coach.name} playlist`,
+      }
+    : undefined;
+  const youtubePlaylistResult = youtubePlaylist
+    ? await getYouTubePlaylistVideos(youtubePlaylist.playlistId)
+    : null;
+
   return (
     <div className="readable-content space-y-6">
       {activePoll && <PollCard initialPoll={activePoll} />}
@@ -2121,6 +2192,8 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
           ))}
         </div>
       </div>
+
+      <CoachYouTubePlaylist playlist={youtubePlaylist} result={youtubePlaylistResult} />
 
       {/* Season Roster */}
       {selectedSeasonEntry && (

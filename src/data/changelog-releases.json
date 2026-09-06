@@ -1,5 +1,16 @@
 [
   {
+    "sourceKey": "2026-09-06-coach-youtube-playlists",
+    "title": "Coach YouTube Playlists",
+    "summary": "Coach profiles can now show an assigned YouTube playlist, with safe admin assignment and a compact playback experience.",
+    "publishedAt": "2026-09-06",
+    "changes": [
+      { "type": "added", "text": "Admins can assign or clear a YouTube playlist from Admin → Coaches using a playlist URL or ID." },
+      { "type": "added", "text": "Coach profiles provide a compact native YouTube player and direct fallback links when playlist data is unavailable." },
+      { "type": "improved", "text": "When YOUTUBE_API_KEY is configured, playlist videos are cached server-side and presented with thumbnails, titles, dates, and click-to-play behavior." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-05-weekly-experience",
     "title": "Your Week, Connected League Tools",
     "summary": "Match prep, schedules, and stats now stay connected to your league context, with clearer weekly actions and mobile controls.",
