@@ -916,6 +916,24 @@ function getPboRecords(
     href: `/matches/${row.match.id}`,
   }));
 
+  const fastestByTime = topThree(
+    allMatches
+      .map((match) => {
+        const start = Date.parse(match.startedAt ?? "");
+        const end = Date.parse(match.endedAt ?? "");
+        return {
+          match,
+          durationMs: Number.isNaN(start) || Number.isNaN(end) ? 0 : end - start,
+        };
+      })
+      .filter((row) => row.durationMs > 0)
+      .sort((a, b) => a.durationMs - b.durationMs || matchSortValue(b.match) - matchSortValue(a.match))
+  ).map<PboRecordEntry>((row) => ({
+    title: formatDuration(row.durationMs),
+    detail: matchLabel(row.match),
+    href: `/matches/${row.match.id}`,
+  }));
+
   const pokemonSeasonStats = new Map<string, {
     seasonId: number;
     seasonCoachId: number;
@@ -1019,6 +1037,7 @@ function getPboRecords(
     { title: "Longest Game (Turns)", entries: longestByTurns },
     { title: "Longest Game (Duration)", entries: longestByTime },
     { title: "Fastest Game (Turns)", entries: fastestByTurns },
+    { title: "Fastest Game (Duration)", entries: fastestByTime },
     { title: "Best K/D Ratio", entries: bestKd },
   );
 
