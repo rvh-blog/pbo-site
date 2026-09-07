@@ -1,5 +1,45 @@
 # Recent Website Updates
 
+## September 7, 2026 - Season 11 Playoffs, Forfeits, and Overview Layout
+
+Season 11 playoff status:
+
+- Frederick Klefkis in the Stargazer division is marked as playoff
+  disqualified. Coach profiles and standings rows show a high-contrast `DQ`
+  badge and the playoff result displays `DQ` instead of a seed or result.
+
+Homepage playoffs:
+
+- During active playoffs, the homepage Current League Activity panel changes
+  from Games of the Week to Playoff Matchups.
+- The panel shows every matchup in the current playoff round and labels the
+  round as Quarterfinals, Semifinals, or Finals. Regular-season behavior keeps
+  the featured Games of the Week panel.
+
+Double forfeits:
+
+- Double-forfeit matches are no longer shown as upcoming battles.
+- The Discord bot treats a double forfeit as a completed match, so it does not
+  wait for or request a replay. Historical schedule and match records remain
+  available.
+
+Season overview layout:
+
+- Division quick links are centered horizontally on wider screens.
+- The Kill Leaders panel now participates in the same two-column grid as the
+  division standings. In a five-division season such as Season 11, it follows
+  the standings so it appears to the right of Neon and underneath Crystal.
+
+GitHub release references:
+
+- [Season 11 Stargazer playoff disqualification](https://github.com/rvh-blog/pbo-site/pull/144)
+- [Exclude double forfeits from upcoming battles](https://github.com/rvh-blog/pbo-site/pull/145)
+- [Treat double forfeits as completed bot matches](https://github.com/rvh-blog/pbo-site/pull/146)
+- [Show all current playoff matchups on the homepage](https://github.com/rvh-blog/pbo-site/pull/147)
+- [Move and refine season Kill Leaders layout](https://github.com/rvh-blog/pbo-site/pull/148)
+- [Center division links and refine multi-division layout](https://github.com/rvh-blog/pbo-site/pull/149)
+- [Place Kill Leaders in the standings grid](https://github.com/rvh-blog/pbo-site/pull/150)
+
 ## September 6, 2026 - Coach YouTube Playlists
 
 - Admins can assign an optional public YouTube playlist URL to an individual coach from Admin → Coaches.
