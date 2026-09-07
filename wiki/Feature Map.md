@@ -76,7 +76,10 @@ See also:
 - Root Open Graph and Twitter metadata use `public/pbo-social-banner.png`.
 - Fantasy About visibility is persisted by the Fantasy page client and can be hidden per browser.
 - Image delivery uses AVIF/WebP where supported, with high-traffic sprites migrated to `next/image`.
-- Browser performance samples are collected by `src/components/performance-monitor.tsx` and exposed through `src/app/api/performance/route.ts` and the health endpoint.
+- Official CLS, FCP, INP, LCP, and TTFB Web Vitals are collected by
+  `src/components/performance-monitor.tsx`, sent to the existing Google
+  Analytics property, and retained in a bounded in-process summary through
+  `src/app/api/performance/route.ts` and the health endpoint.
 - Query diagnostics aggregate slow-query fingerprints in `src/lib/db.ts`.
 - Additional read indexes are declared in `src/lib/schema.ts` and documented in `migrations/add-query-performance-indexes.sql`.
 - Battle Record, divisional records, Move Usage aggregates, move-source rows,

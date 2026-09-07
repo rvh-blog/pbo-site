@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Chakra_Petch, Geist, Geist_Mono, Press_Start_2P } from "next/font/google";
 import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
@@ -15,6 +15,20 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const chakraPetch = Chakra_Petch({
+  variable: "--font-chakra-petch",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const pressStart2P = Press_Start_2P({
+  variable: "--font-press-start-2p",
+  subsets: ["latin"],
+  weight: "400",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -99,7 +113,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
+        className={`${geistSans.variable} ${geistMono.variable} ${chakraPetch.variable} ${pressStart2P.variable} antialiased min-h-screen`}
         suppressHydrationWarning
       >
         <a href="#main-content" className="skip-link">

@@ -1,5 +1,41 @@
 # Recent Website Updates
 
+## September 7, 2026 - No-Cost Performance Optimizations
+
+Performance measurement and delivery:
+
+- Browser monitoring now records the official CLS, FCP, INP, LCP, and TTFB
+  Web Vitals instead of treating a fixed three-second timer as route duration.
+- Web Vitals are sent to the existing Google Analytics property and remain
+  available as bounded, in-process summaries through `/api/health`.
+- Chakra Petch and Press Start 2P are self-hosted by Next.js. The visual font
+  families and weights are unchanged, but normal pages no longer wait on a
+  Google Fonts stylesheet request.
+
+Assets and caching:
+
+- Pixel-preserving PNG recompression now covers Pokemon artwork and sprites as
+  well as team and division logos. The optimized PNG set fell from about
+  179.1 MB to 174.9 MB, while paths, dimensions, transparency, and appearance
+  remain intact.
+- The asset budget is now 190 MB and the same script checks future additions.
+- Stable Pokemon images now use a 30-day browser cache with a 90-day
+  stale-while-revalidate window. Team and division images retain their shorter
+  cache window so replaced logos do not remain stale for long.
+- Successful match creates, edits, and deletes through the admin match API
+  immediately invalidate homepage, season, leaderboard, and Pokemon-stat
+  caches, so those public views do not wait for their normal refresh window.
+
+Data paths and hosting:
+
+- Leaderboards reuse one roster scan for championship rosters and recurring
+  coach-Pokemon pairings, and latest team lookup is linear instead of repeatedly
+  filtering and sorting all season entries.
+- Pokemon Battle Stats builds battle totals and revealed-item trends from one
+  shared scan instead of reading all match-Pokemon rows twice.
+- Fly remains configured for automatic stop/start with zero minimum running
+  machines. No paid monitoring, CDN, storage, or always-on machine was added.
+
 ## September 7, 2026 - Season 11 Playoffs, Forfeits, and Overview Layout
 
 Season 11 playoff status:
