@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-09-06-coach-strength-of-schedule",
+    "title": "Coach Strength of Schedule",
+    "summary": "Coach match history now shows the current strength of schedule for modern seasons.",
+    "publishedAt": "2026-09-06",
+    "changes": [
+      { "type": "added", "text": "Season 11 and later coach match-history sections now display SOS as the combined win-loss records of scheduled opponents." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-06-replay-coach-records-social-links",
     "title": "Replay Attribution, Coach Records & Social Links",
     "summary": "More reliable Zoroark move usage, clearer Season 11 coach match records, and centered homepage social links.",
