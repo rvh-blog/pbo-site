@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { matches } from "@/lib/schema";
 import { compareDivisionNames } from "@/lib/division-order";
@@ -26,7 +26,8 @@ export async function getUpcomingBattles(
   const allUnplayed = await db.query.matches.findMany({
     where: and(
       eq(matches.seasonId, seasonId),
-      isNull(matches.winnerId)
+      isNull(matches.winnerId),
+      or(eq(matches.isForfeit, false), isNull(matches.isForfeit))
     ),
     with: {
       coach1: true,
