@@ -106,6 +106,39 @@ async function getCoachMatchData(seasonCoachIds: number[]) {
   return { coachMatches, opponentRecords };
 }
 
+type CoachMatch = Awaited<ReturnType<typeof getCoachMatchData>>["coachMatches"][number];
+
+function calculateStrengthOfSchedule(
+  seasonMatches: CoachMatch[],
+  divisionId: number,
+  seasonCoachIds: Set<number>,
+  opponentRecords: Map<number, { wins: number; losses: number }>,
+) {
+  let wins = 0;
+  let losses = 0;
+
+  for (const match of seasonMatches) {
+    const isCoach1 = seasonCoachIds.has(match.coach1SeasonId);
+    const isCoach2 = seasonCoachIds.has(match.coach2SeasonId);
+    const isDoubleForfeit = match.isForfeit && match.winnerId === null;
+    const hasResult = match.winnerId !== null || isDoubleForfeit;
+
+    if (match.divisionId !== divisionId || !hasResult || (!isCoach1 && !isCoach2)) {
+      continue;
+    }
+
+    const opponentId = isCoach1 ? match.coach2SeasonId : match.coach1SeasonId;
+    const opponentRecord = opponentRecords.get(opponentId);
+
+    if (opponentRecord) {
+      wins += opponentRecord.wins;
+      losses += opponentRecord.losses;
+    }
+  }
+
+  return { wins, losses };
+}
+
 export default async function CoachMatchesPage({ params }: PageProps) {
   const resolvedParams = await params;
   const coachId = parseInt(resolvedParams.id);
@@ -292,6 +325,21 @@ export default async function CoachMatchesPage({ params }: PageProps) {
               .map(([seasonNum, seasonMatches], seasonIndex) => {
                 const seasonName = seasonMatches[0]?.division?.season?.name || `Season ${seasonNum}`;
                 const seasonEntry = coachSeasons.find(sc => sc.division?.season?.seasonNumber === seasonNum);
+                const seasonStrengthOfSchedule = seasonNum >= 11 && seasonEntry
+                  ? calculateStrengthOfSchedule(
+                      seasonMatches,
+                      seasonEntry.divisionId,
+                      new Set(
+                        coachSeasons
+                          .filter((sc) =>
+                            sc.divisionId === seasonEntry.divisionId &&
+                            sc.division?.season?.seasonNumber === seasonNum
+                          )
+                          .map((sc) => sc.id)
+                      ),
+                      opponentRecords
+                    )
+                  : null;
 
                 return (
                   <div key={seasonNum}>
@@ -308,22 +356,32 @@ export default async function CoachMatchesPage({ params }: PageProps) {
                           {seasonEntry?.division?.name}
                         </span>
                       </div>
-                      <span className="text-xs font-bold text-[var(--foreground-muted)]">
-                        {seasonMatches.filter(m => {
-                          if (!m.winnerId) return false;
-                          const isCoach1 = seasonCoachIds.includes(m.coach1SeasonId);
-                          const mySeasonCoachId = isCoach1 ? m.coach1SeasonId : m.coach2SeasonId;
-                          return m.winnerId === mySeasonCoachId;
-                        }).length}W-
-                        {seasonMatches.filter(m => {
-                          const isDoubleForfeit = m.isForfeit && m.winnerId === null;
-                          if (!m.winnerId && !isDoubleForfeit) return false;
-                          if (isDoubleForfeit) return true; // Double forfeit = loss
-                          const isCoach1 = seasonCoachIds.includes(m.coach1SeasonId);
-                          const mySeasonCoachId = isCoach1 ? m.coach1SeasonId : m.coach2SeasonId;
-                          return m.winnerId !== mySeasonCoachId;
-                        }).length}L
-                      </span>
+                      <div className="flex items-center gap-2 text-xs font-bold text-[var(--foreground-muted)]">
+                        <span>
+                          {seasonMatches.filter(m => {
+                            if (!m.winnerId) return false;
+                            const isCoach1 = seasonCoachIds.includes(m.coach1SeasonId);
+                            const mySeasonCoachId = isCoach1 ? m.coach1SeasonId : m.coach2SeasonId;
+                            return m.winnerId === mySeasonCoachId;
+                          }).length}W-
+                          {seasonMatches.filter(m => {
+                            const isDoubleForfeit = m.isForfeit && m.winnerId === null;
+                            if (!m.winnerId && !isDoubleForfeit) return false;
+                            if (isDoubleForfeit) return true; // Double forfeit = loss
+                            const isCoach1 = seasonCoachIds.includes(m.coach1SeasonId);
+                            const mySeasonCoachId = isCoach1 ? m.coach1SeasonId : m.coach2SeasonId;
+                            return m.winnerId !== mySeasonCoachId;
+                          }).length}L
+                        </span>
+                        {seasonStrengthOfSchedule && (
+                          <span
+                            className="text-[10px] text-[var(--accent)]"
+                            title="Strength of schedule: combined records of opponents faced this season"
+                          >
+                            SOS {seasonStrengthOfSchedule.wins}-{seasonStrengthOfSchedule.losses}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Matches */}
