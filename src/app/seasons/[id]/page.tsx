@@ -389,7 +389,6 @@ export default async function SeasonPage({ params }: PageProps) {
   ]);
 
   const hasPlayoffs = Object.keys(playoffsByDivision).length > 0;
-  const showKillLeadersBesideStandings = season.divisions.length <= 2;
 
   return (
     <div className="space-y-10">
@@ -552,14 +551,8 @@ export default async function SeasonPage({ params }: PageProps) {
       )}
 
       {/* Standings and Kill Leaders */}
-      <div className="grid items-start gap-6 lg:grid-cols-3">
-        <div className={
-          killLeaderboard.length > 0 && showKillLeadersBesideStandings
-            ? "lg:col-span-2"
-            : "lg:col-span-3"
-        }>
-          <div className="grid gap-4 sm:gap-8 lg:grid-cols-2">
-            {season.divisions.map((div, divIndex) => {
+      <div className="grid gap-4 sm:gap-8 lg:grid-cols-2">
+        {season.divisions.map((div, divIndex) => {
             const standings = allStandings[divIndex];
             const divColor = getDivisionColor(div.name);
             return (
@@ -689,17 +682,13 @@ export default async function SeasonPage({ params }: PageProps) {
                 </div>
               </div>
             );
-            })}
-          </div>
-        </div>
+        })}
 
         {killLeaderboard.length > 0 && (
-          <div className={showKillLeadersBesideStandings ? undefined : "lg:col-span-3 lg:w-1/3"}>
-            <KillLeadersToggle
-              pokemonLeaderboard={killLeaderboard}
-              seasonId={season.id}
-            />
-          </div>
+          <KillLeadersToggle
+            pokemonLeaderboard={killLeaderboard}
+            seasonId={season.id}
+          />
         )}
       </div>
 
