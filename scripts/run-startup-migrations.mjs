@@ -5,6 +5,22 @@ const client = createClient({ url: `file:${dbPath}` });
 
 const migrations = [
   {
+    id: "2026-09-07-playoff-disqualification-frederick-klefkis-v1",
+    statements: [
+      `UPDATE season_coaches
+       SET playoff_disqualified = 1
+       WHERE id IN (
+         SELECT sc.id
+         FROM season_coaches sc
+         JOIN divisions d ON d.id = sc.division_id
+         JOIN seasons s ON s.id = d.season_id
+         WHERE s.season_number = 11
+           AND lower(trim(d.name)) = 'stargazer'
+           AND lower(trim(sc.team_name)) = 'frederick klefkis'
+       )`,
+    ],
+  },
+  {
     id: "2026-09-06-playoff-disqualification-v1",
     statements: [
       {

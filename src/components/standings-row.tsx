@@ -85,7 +85,7 @@ export function StandingsRow({
         {/* Rank Badge */}
         <div className={`rank-badge w-5 h-5 sm:w-8 sm:h-8 text-[10px] sm:text-sm ${
           isPlayoffDisqualified
-            ? 'bg-[var(--error)] text-white border border-[var(--error)]'
+            ? 'bg-red-700 text-white border border-red-500'
             : index === 0 ? 'rank-1' :
               index === 1 ? 'rank-2' :
               index === 2 ? 'rank-3' :
