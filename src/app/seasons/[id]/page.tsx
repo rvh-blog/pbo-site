@@ -550,9 +550,11 @@ export default async function SeasonPage({ params }: PageProps) {
         </Link>
       )}
 
-      {/* Standings by Division */}
-      <div className="grid gap-4 sm:gap-8 lg:grid-cols-2">
-        {season.divisions.map((div, divIndex) => {
+      {/* Standings and Kill Leaders */}
+      <div className="grid items-start gap-6 lg:grid-cols-3">
+        <div className={killLeaderboard.length > 0 ? "lg:col-span-2" : "lg:col-span-3"}>
+          <div className="grid gap-4 sm:gap-8 lg:grid-cols-2">
+            {season.divisions.map((div, divIndex) => {
             const standings = allStandings[divIndex];
             const divColor = getDivisionColor(div.name);
             return (
@@ -682,11 +684,20 @@ export default async function SeasonPage({ params }: PageProps) {
                 </div>
               </div>
             );
-        })}
+            })}
+          </div>
+        </div>
+
+        {killLeaderboard.length > 0 && (
+          <KillLeadersToggle
+            pokemonLeaderboard={killLeaderboard}
+            seasonId={season.id}
+          />
+        )}
       </div>
 
-      {/* Battles & Kill Leaders */}
-      {(upcomingBattles.length > 0 || recentBattles.length > 0 || killLeaderboard.length > 0) && (
+      {/* Battles */}
+      {(upcomingBattles.length > 0 || recentBattles.length > 0) && (
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Upcoming Battles (active season) - 2/3 width */}
           {upcomingBattles.length > 0 && (
@@ -897,13 +908,6 @@ export default async function SeasonPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Kill Leaders - 1/3 width */}
-          {killLeaderboard.length > 0 && (
-            <KillLeadersToggle
-              pokemonLeaderboard={killLeaderboard}
-              seasonId={season.id}
-            />
-          )}
         </div>
       )}
     </div>
