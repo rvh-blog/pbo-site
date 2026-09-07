@@ -69,6 +69,7 @@ export const seasonCoaches = sqliteTable("season_coaches", {
   teamAbbreviation: text("team_abbreviation"),
   teamLogoUrl: text("team_logo_url"),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
+  playoffDisqualified: integer("playoff_disqualified", { mode: "boolean" }).notNull().default(false),
   replacedById: integer("replaced_by_id"),
   remainingBudget: integer("remaining_budget"),
 }, (table) => [

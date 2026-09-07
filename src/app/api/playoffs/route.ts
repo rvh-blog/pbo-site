@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { playoffMatches, matches, divisions, eloHistory, matchPokemon } from "@/lib/schema";
-import { eq, and, or } from "drizzle-orm";
+import { playoffMatches, matches, divisions, eloHistory, matchPokemon, seasonCoaches } from "@/lib/schema";
+import { eq, and, or, inArray } from "drizzle-orm";
 import { updateEloForMatch } from "@/lib/elo-service";
 import { getSession } from "@/lib/session";
 import { getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
@@ -90,6 +90,24 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(filtered);
 }
 
+async function validatePlayoffTeams(teamIds: Array<number | null | undefined>) {
+  const ids = teamIds.filter((id): id is number => typeof id === "number" && id > 0);
+  if (ids.length === 0) return null;
+
+  const disqualifiedTeams = await db.query.seasonCoaches.findMany({
+    where: inArray(seasonCoaches.id, ids),
+  });
+
+  if (disqualifiedTeams.some((team) => team.playoffDisqualified)) {
+    return NextResponse.json(
+      { error: "A playoff-disqualified team cannot be assigned to the bracket." },
+      { status: 400 }
+    );
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   const session = await getSession();
   const body = await request.json();
@@ -111,6 +129,9 @@ export async function POST(request: NextRequest) {
 
   const actualRound = round || 1;
   const actualPosition = bracketPosition || 1;
+
+  const invalidTeamResponse = await validatePlayoffTeams([higherSeedId, lowerSeedId]);
+  if (invalidTeamResponse) return invalidTeamResponse;
 
   // Create the playoff match entry
   let matchId: number | null = null;
@@ -278,6 +299,9 @@ export async function PUT(request: NextRequest) {
   // Determine final team IDs after update
   const finalHigherSeedId = higherSeedId !== undefined ? higherSeedId : currentMatch.higherSeedId;
   const finalLowerSeedId = lowerSeedId !== undefined ? lowerSeedId : currentMatch.lowerSeedId;
+
+  const invalidTeamResponse = await validatePlayoffTeams([finalHigherSeedId, finalLowerSeedId]);
+  if (invalidTeamResponse) return invalidTeamResponse;
 
   // If both teams are now assigned and no match exists yet, create one
   if (finalHigherSeedId && finalLowerSeedId && !currentMatch.matchId) {

@@ -5,6 +5,26 @@ const client = createClient({ url: `file:${dbPath}` });
 
 const migrations = [
   {
+    id: "2026-09-06-playoff-disqualification-v1",
+    statements: [
+      {
+        sql: "ALTER TABLE season_coaches ADD COLUMN playoff_disqualified INTEGER NOT NULL DEFAULT 0",
+        whenMissingColumn: { table: "season_coaches", column: "playoff_disqualified" },
+      },
+      `UPDATE season_coaches
+       SET playoff_disqualified = 1
+       WHERE id IN (
+         SELECT sc.id
+         FROM season_coaches sc
+         JOIN divisions d ON d.id = sc.division_id
+         JOIN seasons s ON s.id = d.season_id
+         WHERE s.season_number = 11
+           AND lower(trim(d.name)) = 'stargazer'
+           AND lower(trim(sc.team_name)) = 'seattle sigilyphs'
+       )`,
+    ],
+  },
+  {
     id: "2026-09-06-coach-youtube-playlist-v1",
     statements: [
       {

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { seasons, divisions, playoffMatches, seasonCoaches, matches } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import { computeAndSortStandings } from "@/lib/standings-sort";
+import { computeAndSortStandings, getPlayoffEligibleStandings } from "@/lib/standings-sort";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { compareDivisions, getDivisionHierarchyIndex } from "@/lib/division-order";
@@ -99,7 +99,9 @@ async function getStandingsByDivision(seasonId: number, visibleDivisionIds?: Set
     }
 
     const activeCoaches = divCoaches.filter((sc) => sc.isActive);
-    const standings = computeAndSortStandings(activeCoaches, replacementMap, divMatches);
+    const standings = getPlayoffEligibleStandings(
+      computeAndSortStandings(activeCoaches, replacementMap, divMatches)
+    );
 
     // Create rank map
     const rankMap = new Map<number, number>();

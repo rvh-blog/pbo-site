@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { computeAndSortStandings } from "@/lib/standings-sort";
+import { computeAndSortStandings, getPlayoffEligibleStandings, orderStandingsForPlayoffs } from "@/lib/standings-sort";
 import { filterPublicDivisions, getPublicVisibilityState, isDivisionPubliclyVisible, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { compareDivisions } from "@/lib/division-order";
 
@@ -98,9 +98,11 @@ export async function GET(request: NextRequest) {
 
   const activeCoaches = divisionCoaches.filter((sc) => sc.isActive);
   const sorted = computeAndSortStandings(activeCoaches, replacementMap, divisionMatches);
+  const eligibleStandings = getPlayoffEligibleStandings(sorted);
+  const displayStandings = orderStandingsForPlayoffs(sorted);
 
-  const standings = sorted.map((s, i) => ({
-    rank: i + 1,
+  const standings = displayStandings.map((s) => ({
+    rank: s.playoffDisqualified ? null : eligibleStandings.indexOf(s) + 1,
     seasonCoachId: s.id,
     coachId: s.coachId,
     coachName: s.coach?.name ?? null,
@@ -111,6 +113,7 @@ export async function GET(request: NextRequest) {
     losses: s.losses,
     differential: s.differential,
     eloRating: s.coach?.eloRating ?? null,
+    playoffDisqualified: !!s.playoffDisqualified,
   }));
 
   const sortedDivisions = [...divs]

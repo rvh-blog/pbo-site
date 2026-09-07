@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, TextArea } from "@/components/ui/input";
-import { computeAndSortStandings } from "@/lib/standings-sort";
+import { computeAndSortStandings, getPlayoffEligibleStandings } from "@/lib/standings-sort";
 import { getSeasonFormat } from "@/lib/season-format";
 import { findBuiltInPokemonNameMatch } from "@/lib/replay-roster-matching-core";
 import { usesExpandedHaxRules } from "@/lib/hax-rules";
@@ -39,6 +39,7 @@ interface SeasonCoach {
   teamName: string;
   coachId: number;
   divisionId: number;
+  playoffDisqualified: boolean;
   coach: Coach;
   rosters: RosterEntry[];
 }
@@ -2365,10 +2366,12 @@ function PlayoffBracketBuilder({
   onSaved: () => Promise<void>;
 }) {
   // Compute standings using shared tiebreaker logic
-  const standings = computeAndSortStandings(
-    coachesInDivision,
-    new Map(),
-    divisionMatches
+  const standings = getPlayoffEligibleStandings(
+    computeAndSortStandings(
+      coachesInDivision,
+      new Map(),
+      divisionMatches
+    )
   );
   const coachRank = new Map(standings.map((sc, i) => [sc.id, i + 1]));
   const coachesSorted = standings.map((s) => coachesInDivision.find((c) => c.id === s.id)!).filter(Boolean);
