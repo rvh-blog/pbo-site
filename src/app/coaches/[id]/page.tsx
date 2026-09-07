@@ -2991,6 +2991,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                   const placement = results?.placement;
                   const playoffResult = results?.playoffResult;
                   const isCurrent = sc.division?.season?.isCurrent;
+                  const isPlayoffDisqualified = !!sc.playoffDisqualified;
                   const isDropout = !sc.isActive && sc.replacedByTeam;
                   const isMSR = !!sc.replacedTeam;
 
@@ -3009,6 +3010,14 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                             <span className="inline-flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 text-[8px] sm:text-[9px] font-bold rounded bg-[var(--success)]/20 text-[var(--success)] border border-[var(--success)]/30">
                               <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-[var(--success)] animate-pulse" />
                               Live
+                            </span>
+                          )}
+                          {isPlayoffDisqualified && (
+                            <span
+                              title="Playoff disqualified"
+                              className="inline-flex items-center px-1 sm:px-1.5 py-0.5 text-[8px] sm:text-[9px] font-bold rounded bg-red-700 text-white border border-red-500"
+                            >
+                              DQ
                             </span>
                           )}
                         </div>
@@ -3087,7 +3096,9 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                             <span className="hidden sm:inline">Playoffs</span>
                             <span className="sm:hidden">PO</span>
                           </p>
-                          {playoffResult ? (
+                          {isPlayoffDisqualified ? (
+                            <p className="text-xs sm:text-sm font-bold text-red-400" title="Playoff disqualified">DQ</p>
+                          ) : playoffResult ? (
                             <p className={`text-xs sm:text-sm font-bold ${
                               playoffResult === "Champion" ? "text-[#ffd700]" :
                               playoffResult === "Finals" ? "text-[#c0c0c0]" :
