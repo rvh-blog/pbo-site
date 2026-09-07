@@ -14,6 +14,7 @@ import { HomeLiveDraftRefresh } from "@/components/home-live-draft-refresh";
 import { LocalTime } from "@/components/local-time";
 import { TwitchLiveStream } from "@/components/twitch-live-stream";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SocialLinks } from "@/components/social-links";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems, matchPokemon } from "@/lib/schema";
 import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
 import { compareDivisionNames, DIVISION_HIERARCHY } from "@/lib/division-order";
@@ -1062,6 +1063,7 @@ export default async function Home() {
 
   return (
     <div className="readable-content flex flex-col gap-8 sm:gap-10 lg:gap-12">
+      <SocialLinks />
       <TwitchLiveStream />
       <section aria-labelledby="current-season-title" className="order-1 relative isolate overflow-hidden rounded-2xl border border-[var(--primary)]/35 bg-gradient-to-br from-[var(--background-secondary)] via-[var(--background-secondary)] to-[var(--primary)]/15 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.28)] sm:p-8">
         <div className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full bg-[var(--primary)]/15 blur-3xl" />

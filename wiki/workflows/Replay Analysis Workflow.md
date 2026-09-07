@@ -83,7 +83,21 @@ Current UI expectations:
 
 ## Zoroark
 
-Zoroark/Illusion can make replay attribution unreliable. The parser flags `zoroarkInvolved`.
+Zoroark/Illusion can make replay attribution unreliable. The parser flags
+`zoroarkInvolved`. Move commands are tracked per switch-in stint; when Illusion
+breaks, commands from that stint are reassigned from the displayed disguise to
+the revealed regular or Hisuian Zoroark. Earlier move usage belonging to the
+real disguise target remains unchanged.
+
+Audit all saved Season 9+ replay move maps without writing:
+
+```bash
+node scripts/backfill-replay-move-usage.mjs --all --quiet --report-changes
+```
+
+Add `--apply` only when running against a copied local database after reviewing
+the reported changes. Add `--zoroark-only` to limit writes to replays where the
+parser detects regular or Hisuian Zoroark.
 
 ## Risks
 

@@ -48,6 +48,7 @@ const pboStatsLinks = [
   { href: "/leaderboards/items", label: "Item Usage" },
 ];
 
+
 export function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

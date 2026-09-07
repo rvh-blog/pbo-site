@@ -6,6 +6,7 @@ import {
   type PokemonAliasMaps,
 } from "@/lib/pokemon-name-aliases";
 import { isGuaranteedHaxOutcome } from "@/lib/hax-rules";
+import { IllusionMoveAttributionTracker } from "@/lib/illusion-move-attribution";
 
 interface PokemonStats {
   name: string;
@@ -358,6 +359,7 @@ export async function POST(request: NextRequest) {
     // Nickname → actual Pokemon name maps
     const p1NicknameMap: Map<string, string> = new Map();
     const p2NicknameMap: Map<string, string> = new Map();
+    const illusionMoveTracker = new IllusionMoveAttributionTracker();
 
     // Active Pokemon tracking
     let lastDamageDealer: PlayerRef | null = null;
@@ -718,6 +720,7 @@ export async function POST(request: NextRequest) {
                 });
               }
             }
+            illusionMoveTracker.beginStint(parsed.player, parsed.nickname, pokemonName, parts[4]);
 
             switchedInThisTurn.add(`${parsed.player}:${parsed.nickname}`);
             switchedInThisBattleTurn.add(`${parsed.player}:${parsed.nickname}`);
@@ -752,6 +755,7 @@ export async function POST(request: NextRequest) {
 
             const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
             const activePokemon = parsed.player === "p1" ? p1ActivePokemon : p2ActivePokemon;
+            const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
 
             // Transfer HP from the disguised Pokemon to the revealed one
             if (activePokemon) {
@@ -770,6 +774,15 @@ export async function POST(request: NextRequest) {
                 activeTurnsByPokemon.set(`${parsed.player}:${pokemonName}`, turns);
               }
             }
+            }
+
+            if (pokemonName === "Zoroark" || pokemonName === "Zoroark-Hisui") {
+              illusionMoveTracker.revealIllusion(
+                parsed.player,
+                parsed.nickname,
+                pokemonName,
+                team,
+              );
             }
 
             if (parsed.player === "p1") {
@@ -876,6 +889,12 @@ export async function POST(request: NextRequest) {
 
             if (pokemon && normalizedMoveName && normalizedMoveName.toLowerCase() !== "unknown move") {
               pokemon.movesUsed[normalizedMoveName] = (pokemon.movesUsed[normalizedMoveName] || 0) + 1;
+              illusionMoveTracker.recordMove(
+                parsed.player,
+                parsed.nickname,
+                normalizedMoveName,
+                SETUP_MOVES.has(normalizedMoveName.toLowerCase()),
+              );
             }
 
             if (SETUP_MOVES.has(moveName.toLowerCase())) {
@@ -1298,6 +1317,7 @@ export async function POST(request: NextRequest) {
                 newHpPercent = max > 0 ? (current / max) * 100 : 0;
               }
             }
+            illusionMoveTracker.recordHealth(parsed.player, parsed.nickname, hpString);
 
             damageAmount = Math.max(0, oldHp - newHpPercent);
             if (hpKey) hpPercentMap.set(hpKey, newHpPercent);
@@ -1454,6 +1474,7 @@ export async function POST(request: NextRequest) {
             const oldHp = hpKey ? (hpPercentMap.get(hpKey) ?? 100) : 100;
 
             const hpMatch = hpString.match(/^(\d+)\/(\d+)/);
+            illusionMoveTracker.recordHealth(parsed.player, parsed.nickname, hpString);
             if (hpMatch) {
               const current = parseInt(hpMatch[1]);
               const max = parseInt(hpMatch[2]);
