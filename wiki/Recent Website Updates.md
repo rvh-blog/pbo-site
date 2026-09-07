@@ -8,6 +8,20 @@
 - Invalid, private, deleted, or unavailable playlists fall back to a direct YouTube link without exposing credentials in the browser.
 - The playlist ID is stored on `coaches.youtube_playlist_id` through the startup migration `2026-09-06-coach-youtube-playlist-v1`.
 
+## September 6, 2026 - Replay Attribution, Coach Records & Social Links
+
+- Fixed Move Usage attribution for Zoroark and Hisuian-Zoroark Illusion turns so
+  the move map follows the revealed disguise and does not create duplicate or
+  missing usage when replay data is reprocessed.
+- Audited all available Season 5 through current replays with the guarded
+  replay tooling; corrections are scoped to the copied local database and do
+  not alter official match results or production data.
+- Coach match history now shows each opponent's win-loss record beside the
+  team name for Season 11 and later. Older-season history keeps its existing
+  layout.
+- Added a centered Connect with PBO social-links row at the top of the
+  homepage while retaining the existing footer links.
+
 ## September 1, 2026 - Homepage & Poll Controls
 
 - Refreshed the homepage hero with stronger season branding, current-season

@@ -1,5 +1,16 @@
 [
   {
+    "sourceKey": "2026-09-06-replay-coach-records-social-links",
+    "title": "Replay Attribution, Coach Records & Social Links",
+    "summary": "More reliable Zoroark move usage, clearer Season 11 coach match records, and centered homepage social links.",
+    "publishedAt": "2026-09-06",
+    "changes": [
+      { "type": "fixed", "text": "Zoroark and Hisuian-Zoroark Illusion replay turns now attribute Move Usage to the correct revealed species without duplicate or missing usage during reprocessing." },
+      { "type": "improved", "text": "Season 11 and later coach match history now shows the opponent's win-loss record beside the team name while earlier seasons retain their existing layout." },
+      { "type": "added", "text": "The homepage now has a centered Connect with PBO social-links row at the top, with the existing footer links preserved." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-06-coach-youtube-playlists",
     "title": "Coach YouTube Playlists",
     "summary": "Coach profiles can now show an assigned YouTube playlist, with safe admin assignment and a compact playback experience.",
