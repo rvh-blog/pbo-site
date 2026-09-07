@@ -26,6 +26,17 @@ async function refreshFantasyStatsForResult(seasonId: number, week: number) {
   revalidateTag("fantasy-public-data", { expire: 0 });
 }
 
+function revalidatePublicMatchData() {
+  for (const tag of [
+    "home-public-data",
+    "season-public-data",
+    "leaderboards-public-data",
+    "pokemon-stats-public-data",
+  ]) {
+    revalidateTag(tag, { expire: 0 });
+  }
+}
+
 function queueDivisionSheetSync(divisionId: number) {
   syncDivision(divisionId)
     .then((syncResult) => {
@@ -448,6 +459,7 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  revalidatePublicMatchData();
   return NextResponse.json({ ...match, needsFullRecalc });
 }
 
@@ -753,6 +765,7 @@ export async function PUT(request: NextRequest) {
     },
   });
 
+  revalidatePublicMatchData();
   return NextResponse.json({ ...updated, needsFullRecalc, betsReResolved });
 }
 
@@ -830,6 +843,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     // Don't auto-recalculate - let UI handle showing recalc prompt
+    revalidatePublicMatchData();
     return NextResponse.json({ success: true, needsFullRecalc: hadEloImpact });
   } catch (error) {
     console.error("Error deleting match:", error);

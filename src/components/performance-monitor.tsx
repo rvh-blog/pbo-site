@@ -1,66 +1,47 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useReportWebVitals } from "next/web-vitals";
 
-type MetricState = {
-  lcpMs?: number;
-  cls?: number;
-  inpMs?: number;
-};
+const REPORTED_METRICS = new Set(["CLS", "FCP", "INP", "LCP", "TTFB"]);
+
+function reportWebVital(metric: {
+  id: string;
+  name: string;
+  value: number;
+  rating?: string;
+  navigationType?: string;
+}) {
+  if (!REPORTED_METRICS.has(metric.name)) return;
+
+  const analyticsWindow = window as Window & {
+    gtag?: (...args: unknown[]) => void;
+  };
+  analyticsWindow.gtag?.("event", metric.name, {
+    value: Math.round(metric.name === "CLS" ? metric.value * 1000 : metric.value),
+    metric_id: metric.id,
+    metric_value: metric.value,
+    metric_rating: metric.rating,
+    non_interaction: true,
+  });
+
+  const payload = JSON.stringify({
+    path: window.location.pathname,
+    id: metric.id,
+    name: metric.name,
+    value: metric.value,
+    rating: metric.rating,
+    navigationType: metric.navigationType,
+  });
+
+  fetch("/api/performance", {
+    method: "POST",
+    body: payload,
+    headers: { "Content-Type": "application/json" },
+    keepalive: true,
+  }).catch(() => {});
+}
 
 export function PerformanceMonitor() {
-  const pathname = usePathname();
-
-  useEffect(() => {
-    const metrics: MetricState = {};
-    const startedAt = performance.now();
-    let sent = false;
-    const observers: PerformanceObserver[] = [];
-
-    const observe = (type: string, callback: (entries: PerformanceEntry[]) => void) => {
-      if (!("PerformanceObserver" in window) || !PerformanceObserver.supportedEntryTypes.includes(type)) return;
-      const observer = new PerformanceObserver((list) => callback(list.getEntries()));
-      observer.observe({ type, buffered: true });
-      observers.push(observer);
-    };
-
-    observe("largest-contentful-paint", (entries) => {
-      const last = entries.at(-1);
-      if (last) metrics.lcpMs = last.startTime;
-    });
-    observe("layout-shift", (entries) => {
-      metrics.cls = (metrics.cls || 0) + entries.reduce((total, entry) => {
-        const shift = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
-        return total + (shift.hadRecentInput ? 0 : shift.value || 0);
-      }, 0);
-    });
-    observe("event", (entries) => {
-      const latest = entries.at(-1) as PerformanceEntry & { duration?: number } | undefined;
-      if (latest?.duration) metrics.inpMs = Math.max(metrics.inpMs || 0, latest.duration);
-    });
-
-    const send = () => {
-      if (sent) return;
-      sent = true;
-      const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-      const payload = JSON.stringify({
-        path: pathname || window.location.pathname,
-        routeDurationMs: performance.now() - startedAt,
-        navigationDurationMs: navigation?.duration,
-        ...metrics,
-      });
-      fetch("/api/performance", { method: "POST", body: payload, headers: { "Content-Type": "application/json" }, keepalive: true }).catch(() => {});
-    };
-
-    const timer = window.setTimeout(send, 3000);
-    window.addEventListener("pagehide", send, { once: true });
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("pagehide", send);
-      observers.forEach((observer) => observer.disconnect());
-    };
-  }, [pathname]);
-
+  useReportWebVitals(reportWebVital);
   return null;
 }

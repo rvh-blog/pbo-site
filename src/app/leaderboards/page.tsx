@@ -92,8 +92,11 @@ function getCoachStats(
 
   // Build lookup: seasonCoachId -> coachId
   const seasonCoachToCoach = new Map<number, number>();
+  const latestSeasonEntryByCoach = new Map<number, SeasonCoachSummary>();
   for (const sc of allSeasonCoaches) {
     seasonCoachToCoach.set(sc.id, sc.coachId);
+    const latest = latestSeasonEntryByCoach.get(sc.coachId);
+    if (!latest || sc.id > latest.id) latestSeasonEntryByCoach.set(sc.coachId, sc);
   }
 
   // Count wins/losses per coach from matches
@@ -123,9 +126,7 @@ function getCoachStats(
 
   // Build final stats
   const coachStats = allCoaches.map((coach) => {
-    const latestEntry = allSeasonCoaches
-      .filter((entry) => entry.coachId === coach.id)
-      .sort((a, b) => b.id - a.id)[0];
+    const latestEntry = latestSeasonEntryByCoach.get(coach.id);
     const wins = coachWins.get(coach.id) || 0;
     const losses = coachLosses.get(coach.id) || 0;
     const gamesPlayed = wins + losses;
@@ -146,9 +147,8 @@ function getCoachStats(
   return coachStats.filter((c) => c.gamesPlayed > 0);
 }
 
-async function getMostLovedPairs() {
-  // Get all roster entries with coach and pokemon data
-  const allRosters = await db.query.rosters.findMany({
+async function loadLeaderboardRosters() {
+  return db.query.rosters.findMany({
     columns: { seasonCoachId: true, pokemonId: true },
     with: {
       pokemon: {
@@ -162,6 +162,11 @@ async function getMostLovedPairs() {
       },
     },
   });
+}
+
+type LeaderboardRoster = Awaited<ReturnType<typeof loadLeaderboardRosters>>[number];
+
+function getMostLovedPairs(allRosters: LeaderboardRoster[]) {
 
   // Group by coach+pokemon to count drafts
   const pairMap = new Map<string, {
@@ -224,7 +229,7 @@ const getCachedLeaderboardData = unstable_cache(
       with: { divisions: { columns: { id: true, name: true } } },
     });
 
-    const [allCoaches, allSeasonCoaches, allMatches, pokemonScopeStats, mostLovedPairs, playoffFinals, allRosters] = await Promise.all([
+    const [allCoaches, allSeasonCoaches, allMatches, pokemonScopeStats, playoffFinals, allRosters] = await Promise.all([
     db.query.coaches.findMany({
       columns: { id: true, name: true, eloRating: true },
     }),
@@ -235,17 +240,16 @@ const getCachedLeaderboardData = unstable_cache(
       columns: { seasonId: true, coach1SeasonId: true, coach2SeasonId: true, winnerId: true },
     }),
     getPokemonLeaderboardStatsForScopes(currentSeason?.id ?? null),
-    getMostLovedPairs(),
     // Get all playoff finals (round 3) for championship counts
     db.query.playoffMatches.findMany({
       columns: { winnerId: true },
       where: eq(playoffMatches.round, 3),
     }),
-    // Get all rosters for championship lookup
-    db.query.rosters.findMany({
-      columns: { seasonCoachId: true, pokemonId: true },
-    }),
+    // One roster scan powers both championships and most-drafted pairings.
+    loadLeaderboardRosters(),
     ]);
+
+    const mostLovedPairs = getMostLovedPairs(allRosters);
 
     return {
       currentSeason,
@@ -259,7 +263,7 @@ const getCachedLeaderboardData = unstable_cache(
       allRosters,
     };
   },
-  ["leaderboards-public-data-v2"],
+  ["leaderboards-public-data-v3"],
   { revalidate: 60, tags: ["leaderboards-public-data"] }
 );
 

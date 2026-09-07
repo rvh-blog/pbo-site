@@ -1,5 +1,16 @@
 [
   {
+    "sourceKey": "2026-09-07-no-cost-performance-optimizations",
+    "title": "Faster Site, Same Experience",
+    "summary": "Lossless image compression, leaner data reads, self-hosted fonts, and smarter cache refreshes improve performance without adding hosting cost.",
+    "publishedAt": "2026-09-07",
+    "changes": [
+      { "type": "improved", "text": "Pokemon artwork, sprites, team logos, and division logos use pixel-preserving recompression, reducing bundled PNGs by about 4 MB without changing their URLs or appearance." },
+      { "type": "improved", "text": "Leaderboards and Pokemon Battle Stats reuse fewer database scans and less repeated in-memory work while preserving the same rankings and totals." },
+      { "type": "improved", "text": "Core Web Vitals now use the framework's official measurements, fonts are served with the site instead of requiring an extra stylesheet request, and public data caches refresh immediately after match-result changes." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-06-playoff-disqualification-seeding",
     "title": "Playoff Eligibility Seeding",
     "summary": "Playoff standings now reflect teams marked as ineligible while preserving their regular-season records.",

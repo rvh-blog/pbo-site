@@ -16,7 +16,7 @@ export const metadata = {
   title: "Pokemon Battle Stats",
 };
 
-async function getPokemonBattleStatsUncached() {
+async function getPokemonStatsPageDataUncached() {
   const allMatchPokemon = await db.query.matchPokemon.findMany({
     columns: {
       pokemonId: true,
@@ -27,6 +27,7 @@ async function getPokemonBattleStatsUncached() {
       damageTaken: true,
       damageTakenIndirect: true,
       hpRestored: true,
+      revealedItems: true,
     },
     with: {
       pokemon: {
@@ -95,7 +96,42 @@ async function getPokemonBattleStatsUncached() {
     groupMap.set(key, existing);
   }
 
-  return Array.from(groupMap.values());
+  const revealedItemTrends = new Map<
+    string,
+    {
+      pokemonId: number;
+      pokemonName: string;
+      spriteUrl: string | null;
+      item: string;
+      reveals: number;
+    }
+  >();
+
+  for (const row of allMatchPokemon) {
+    if (!row.pokemon || !row.revealedItems?.length) continue;
+    for (const item of getDistinctHeldItemNames(row.revealedItems)) {
+      const key = `${row.pokemon.id}:${item.toLowerCase()}`;
+      const existing = revealedItemTrends.get(key);
+      if (existing) {
+        existing.reveals += 1;
+      } else {
+        revealedItemTrends.set(key, {
+          pokemonId: row.pokemon.id,
+          pokemonName: row.pokemon.displayName || row.pokemon.name,
+          spriteUrl: row.pokemon.spriteUrl,
+          item,
+          reveals: 1,
+        });
+      }
+    }
+  }
+
+  return {
+    stats: Array.from(groupMap.values()),
+    revealedItemTrends: Array.from(revealedItemTrends.values())
+      .sort((a, b) => b.reveals - a.reveals || a.pokemonName.localeCompare(b.pokemonName))
+      .slice(0, 12),
+  };
 }
 
 async function getSeasonsAndDivisionsUncached() {
@@ -121,67 +157,16 @@ async function getSeasonsAndDivisionsUncached() {
   };
 }
 
-const getPokemonBattleStats = unstable_cache(
-  getPokemonBattleStatsUncached,
-  ["pokemon-stats-battle-v2"],
-  { revalidate: 300 }
+const getPokemonStatsPageData = unstable_cache(
+  getPokemonStatsPageDataUncached,
+  ["pokemon-stats-page-data-v3"],
+  { revalidate: 300, tags: ["pokemon-stats-public-data"] }
 );
 
 const getSeasonsAndDivisions = unstable_cache(
   getSeasonsAndDivisionsUncached,
   ["pokemon-stats-seasons-divisions"],
-  { revalidate: 300 }
-);
-
-async function getRevealedItemTrendsUncached() {
-  const rows = await db.query.matchPokemon.findMany({
-    columns: { revealedItems: true },
-    with: {
-      pokemon: {
-        columns: { id: true, name: true, displayName: true, spriteUrl: true },
-      },
-    },
-  });
-
-  const trends = new Map<
-    string,
-    {
-      pokemonId: number;
-      pokemonName: string;
-      spriteUrl: string | null;
-      item: string;
-      reveals: number;
-    }
-  >();
-
-  for (const row of rows) {
-    if (!row.pokemon || !row.revealedItems?.length) continue;
-    for (const item of getDistinctHeldItemNames(row.revealedItems)) {
-      const key = `${row.pokemon.id}:${item.toLowerCase()}`;
-      const existing = trends.get(key);
-      if (existing) {
-        existing.reveals += 1;
-      } else {
-        trends.set(key, {
-          pokemonId: row.pokemon.id,
-          pokemonName: row.pokemon.displayName || row.pokemon.name,
-          spriteUrl: row.pokemon.spriteUrl,
-          item,
-          reveals: 1,
-        });
-      }
-    }
-  }
-
-  return Array.from(trends.values())
-    .sort((a, b) => b.reveals - a.reveals || a.pokemonName.localeCompare(b.pokemonName))
-    .slice(0, 12);
-}
-
-const getRevealedItemTrends = unstable_cache(
-  getRevealedItemTrendsUncached,
-  ["pokemon-stats-revealed-items"],
-  { revalidate: 300 }
+  { revalidate: 3600 }
 );
 
 export interface MiscStatEntry {
@@ -789,15 +774,15 @@ async function getPokemonFunFactsUncached(): Promise<MiscStatEntry[]> {
 export const getPokemonFunFacts = unstable_cache(
   getPokemonFunFactsUncached,
   ["pokemon-stats-fun-facts-season-11"],
-  { revalidate: 300 }
+  { revalidate: 300, tags: ["pokemon-stats-public-data"] }
 );
 
 export default async function PokemonStatsPage() {
-  const [stats, filterOptions, revealedItemTrends] = await Promise.all([
-    getPokemonBattleStats(),
+  const [statsPageData, filterOptions] = await Promise.all([
+    getPokemonStatsPageData(),
     getSeasonsAndDivisions(),
-    getRevealedItemTrends(),
   ]);
+  const { stats, revealedItemTrends } = statsPageData;
 
   return (
     <div className="space-y-6">
