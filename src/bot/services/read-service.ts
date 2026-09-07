@@ -1,5 +1,6 @@
-import { and, asc, eq, like, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, like, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { isCompletedMatchResult } from "@/lib/match-result-utils";
 import {
   coaches,
   matchPokemon,
@@ -81,7 +82,7 @@ export async function getTeamProfile(
   ]);
 
   const completed = divisionMatches.filter((match) =>
-    match.winnerId !== null &&
+    isCompletedMatchResult(match.winnerId, match.isForfeit) &&
     (match.coach1SeasonId === seasonCoachId || match.coach2SeasonId === seasonCoachId)
   );
   const wins = completed.filter((match) => match.winnerId === seasonCoachId).length;
@@ -93,7 +94,7 @@ export async function getTeamProfile(
   }, 0);
 
   const next = divisionMatches
-    .filter((match) => match.winnerId === null &&
+    .filter((match) => !isCompletedMatchResult(match.winnerId, match.isForfeit) &&
       (match.coach1SeasonId === seasonCoachId || match.coach2SeasonId === seasonCoachId))
     .sort((a, b) => {
       const aScheduled = a.scheduledAt ? new Date(a.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
@@ -139,7 +140,7 @@ export async function getDivisionStandings(divisionId: number): Promise<Array<{
 
   return teams.map((team) => {
     const completed = divisionMatches.filter((match) =>
-      match.winnerId !== null &&
+      isCompletedMatchResult(match.winnerId, match.isForfeit) &&
       (match.coach1SeasonId === team.id || match.coach2SeasonId === team.id)
     );
     return {
@@ -173,7 +174,8 @@ export async function getUpcomingDivisionMatches(divisionId: number): Promise<Ar
     getDivisionTeams(divisionId),
     db.select().from(matches).where(and(
       eq(matches.divisionId, divisionId),
-      sql`${matches.winnerId} is null`
+      isNull(matches.winnerId),
+      or(eq(matches.isForfeit, false), isNull(matches.isForfeit))
     )),
   ]);
   const names = new Map(teams.map((team) => [team.id, team.teamName]));

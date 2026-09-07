@@ -19,6 +19,7 @@ import { checkAndAwardPickEmRewards, awardGotwBonus } from "@/lib/pick-em-reward
 import { syncDivision } from "@/lib/sheets-sync-all";
 import { queueMilestoneEvaluation } from "@/lib/milestones";
 import { usesExpandedHaxRules } from "@/lib/hax-rules";
+import { isCompletedMatchResult } from "@/lib/match-result-utils";
 import {
   getPokemonAliasMaps,
 } from "@/lib/pokemon-name-aliases";
@@ -144,6 +145,7 @@ export async function getFixturesForWeek(
       coach1SeasonId: matches.coach1SeasonId,
       coach2SeasonId: matches.coach2SeasonId,
       winnerId: matches.winnerId,
+      isForfeit: matches.isForfeit,
       scheduledAt: matches.scheduledAt,
     })
     .from(matches)
@@ -167,7 +169,7 @@ export async function getFixturesForWeek(
       team2Name: team2[0]?.teamName || "Unknown",
       coach1SeasonId: f.coach1SeasonId,
       coach2SeasonId: f.coach2SeasonId,
-      hasResult: f.winnerId !== null,
+      hasResult: isCompletedMatchResult(f.winnerId, f.isForfeit),
       scheduledAt: f.scheduledAt,
     });
   }
