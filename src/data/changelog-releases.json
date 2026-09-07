@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-09-06-playoff-disqualification-seeding",
+    "title": "Playoff Eligibility Seeding",
+    "summary": "Playoff standings now reflect teams marked as ineligible while preserving their regular-season records.",
+    "publishedAt": "2026-09-06",
+    "changes": [
+      { "type": "improved", "text": "Ineligible playoff teams display a red DQ badge, and the next eligible teams move up into the playoff seeds." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-06-coach-strength-of-schedule",
     "title": "Coach Strength of Schedule",
     "summary": "Coach match history now shows the current strength of schedule for modern seasons.",

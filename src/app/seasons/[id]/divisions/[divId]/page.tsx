@@ -12,7 +12,7 @@ import { PlayoffBracket } from "@/components/playoff-bracket";
 import { getAllCoachCosmetics } from "@/lib/glow-utils";
 import { getGlowStyle } from "@/components/team-name-glow";
 import { StandingsRow } from "@/components/standings-row";
-import { computeAndSortStandings } from "@/lib/standings-sort";
+import { computeAndSortStandings, getPlayoffEligibleStandings, orderStandingsForPlayoffs } from "@/lib/standings-sort";
 import { getDivisionColor, getDivisionShadowColor } from "@/lib/division-colors";
 import { KillLeaderboard } from "@/components/kill-leaderboard";
 import { getSession } from "@/lib/session";
@@ -97,11 +97,15 @@ function getStandings(
   const activeCoaches = divisionCoaches.filter((sc) => sc.isActive);
 
   const sorted = computeAndSortStandings(activeCoaches, replacementMap, allDivisionMatches);
+  const eligibleStandings = getPlayoffEligibleStandings(sorted);
+  const displayStandings = orderStandingsForPlayoffs(sorted);
+  const playoffSeedById = new Map(eligibleStandings.map((team, index) => [team.id, index + 1]));
 
   // Add gamesPlayed for display purposes
-  return sorted.map((s) => ({
+  return displayStandings.map((s) => ({
     ...s,
     gamesPlayed: s.wins + s.losses,
+    playoffSeed: playoffSeedById.get(s.id) ?? null,
   }));
 }
 
@@ -585,7 +589,7 @@ export default async function DivisionPage({ params }: PageProps) {
                     const relegationCount = Math.min(movementRule.relegationCount, standings.length);
                     const hasRelegationZone = relegationCount > 0 && standings.length > relegationCount;
                     const relegationStartIndex = standings.length - relegationCount;
-                    const isInRelegationZone = hasRelegationZone && index >= relegationStartIndex;
+                    const isInRelegationZone = !team.playoffDisqualified && hasRelegationZone && index >= relegationStartIndex;
 
                     return (
                       <React.Fragment key={team.id}>
@@ -612,6 +616,7 @@ export default async function DivisionPage({ params }: PageProps) {
                         <StandingsRow
                           team={team}
                           index={index}
+                          isPlayoffDisqualified={!!team.playoffDisqualified}
                           isInRelegationZone={isInRelegationZone}
                           isInPromotionZone={false}
                           hasBg={!!(team.coachId && rowBgDataMap.has(team.coachId))}
