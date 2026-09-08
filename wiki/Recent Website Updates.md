@@ -21,7 +21,8 @@ Assets and caching:
 - The asset budget is now 190 MB and the same script checks future additions.
 - Stable Pokemon images now use a 30-day browser cache with a 90-day
   stale-while-revalidate window. Team and division images retain their shorter
-  cache window so replaced logos do not remain stale for long.
+  cache window so replaced logos do not remain stale for long. A production
+  header check confirmed the Pokemon-specific rule takes precedence.
 - Successful match creates, edits, and deletes through the admin match API
   immediately invalidate homepage, season, leaderboard, and Pokemon-stat
   caches, so those public views do not wait for their normal refresh window.
