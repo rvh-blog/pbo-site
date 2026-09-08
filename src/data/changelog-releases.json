@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-09-07-pokemon-image-cache-precedence",
+    "title": "Pokemon Image Cache Follow-Up",
+    "summary": "Stable Pokemon artwork now receives its intended long-lived cache policy while replaceable team and division logos keep shorter refresh windows.",
+    "publishedAt": "2026-09-07",
+    "changes": [
+      { "type": "fixed", "text": "The Pokemon-specific cache header now takes precedence over the general image header, reducing repeat artwork downloads without making replaceable league logos stale." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-07-no-cost-performance-optimizations",
     "title": "Faster Site, Same Experience",
     "summary": "Lossless image compression, leaner data reads, self-hosted fonts, and smarter cache refreshes improve performance without adding hosting cost.",
