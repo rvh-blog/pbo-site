@@ -1103,7 +1103,6 @@ export default async function Home() {
     topCoaches,
     currentPlayoffsActive,
   } = publicHomeData;
-  const currentPlayoffsActive = homepageMatchups.title === "Playoff Matchups";
   const visibleTopCoaches = topCoaches.filter((coach, index) => index < 5 || coach.isShowcase);
   const previousSeasonPlayoffHref = previousSeasonChampions[0]?.seasonId
     ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs`
