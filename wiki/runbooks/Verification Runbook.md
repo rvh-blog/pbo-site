@@ -45,6 +45,14 @@ For desktop/mobile flows, `node scripts/prepare-weekly-preview.mjs` creates a WA
 4. Check loading/error/empty states if applicable.
 5. Check logged-out/logged-in/mod states if auth is involved.
 
+For Replay Analyzer (`/analyzer`), also verify:
+
+- Invalid hosts, empty URLs, and incomplete replay IDs are rejected before submission.
+- Analyze shows a busy state and returns a readable timeout/error message.
+- A successful result shows summary, coach stats, HP timeline, key events, and mobile jump links.
+- Share preserves the replay in `?replay=` and Download creates a text summary.
+- The API rejects oversized input and upstream responses and times out stalled replay hosts.
+
 ## Data Write Check
 
 Use a copied local DB.

@@ -56,6 +56,22 @@ const migrations = [
   {
     id: "2026-09-07-playoff-disqualification-frederick-klefkis-v1",
     statements: [
+      `UPDATE season_coaches
+       SET playoff_disqualified = 1
+       WHERE id IN (
+         SELECT sc.id
+         FROM season_coaches sc
+         JOIN divisions d ON d.id = sc.division_id
+         JOIN seasons s ON s.id = d.season_id
+         WHERE s.season_number = 11
+           AND lower(trim(d.name)) = 'stargazer'
+           AND lower(trim(sc.team_name)) = 'frederick klefkis'
+       )`,
+    ],
+  },
+  {
+    id: "2026-09-06-playoff-disqualification-v1",
+    statements: [
       {
         sql: "ALTER TABLE season_coaches ADD COLUMN playoff_disqualified INTEGER NOT NULL DEFAULT 0",
         whenMissingColumn: { table: "season_coaches", column: "playoff_disqualified" },
@@ -71,6 +87,15 @@ const migrations = [
            AND lower(trim(d.name)) = 'stargazer'
            AND lower(trim(sc.team_name)) IN ('seattle sigilyphs', 'frederick klefkis')
        )`,
+    ],
+  },
+  {
+    id: "2026-09-06-coach-youtube-playlist-v1",
+    statements: [
+      {
+        sql: "ALTER TABLE coaches ADD COLUMN youtube_playlist_id TEXT",
+        whenMissingColumn: { table: "coaches", column: "youtube_playlist_id" },
+      },
     ],
   },
   {

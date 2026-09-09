@@ -1,5 +1,89 @@
 [
   {
+    "sourceKey": "2026-09-09-playoff-hub-pickems",
+    "title": "Playoff Hub & Full-Bracket Pick-Ems",
+    "summary": "A dedicated postseason hub, full-bracket predictions, spoiler controls, and more responsive playoff pages make the complete playoff experience easier to follow.",
+    "publishedAt": "2026-09-09",
+    "changes": [
+      { "type": "added", "text": "Added a Playoff Hub with postseason-only KO, differential, MVP, and usage leaderboards plus a historical bracket archive." },
+      { "type": "added", "text": "Added persisted full-bracket Pick-Ems alongside weekly round picks, with progression validation, quarterfinal locking, and a separate leaderboard." },
+      { "type": "improved", "text": "Playoff results start hidden on every visit during an active season, while completed seasons remain visible by default." },
+      { "type": "improved", "text": "Playoff brackets and prediction cards use space more efficiently, show full names, expose actions without hover, and stack cleanly on mobile." },
+      { "type": "improved", "text": "Moved Playoff Hub into the Seasons menu and added a homepage shortcut whenever the current playoff matchups are active." },
+      { "type": "fixed", "text": "Historical archives omit unavailable Season 3–5 promotion claims and do not claim Stargazer promotion before Season 11." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-08-playoff-promotion-relegation-rules",
+    "title": "Clear Promotion & Relegation Rules",
+    "summary": "Playoff pages now show the correct division movement rules and promotion paths.",
+    "publishedAt": "2026-09-08",
+    "changes": [
+      { "type": "fixed", "text": "Replaced the blanket finalists-promote badges with the correct two-up or three-up movement for each current PBO division." },
+      { "type": "added", "text": "Added a promotion and relegation guide covering regular-season leaders, playoff qualifiers, relegation counts, and overlapping promotion spots." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-07-pokemon-image-cache-precedence",
+    "title": "Pokemon Image Cache Follow-Up",
+    "summary": "Stable Pokemon artwork now receives its intended long-lived cache policy while replaceable team and division logos keep shorter refresh windows.",
+    "publishedAt": "2026-09-07",
+    "changes": [
+      { "type": "fixed", "text": "The Pokemon-specific cache header now takes precedence over the general image header, reducing repeat artwork downloads without making replaceable league logos stale." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-07-no-cost-performance-optimizations",
+    "title": "Faster Site, Same Experience",
+    "summary": "Lossless image compression, leaner data reads, self-hosted fonts, and smarter cache refreshes improve performance without adding hosting cost.",
+    "publishedAt": "2026-09-07",
+    "changes": [
+      { "type": "improved", "text": "Pokemon artwork, sprites, team logos, and division logos use pixel-preserving recompression, reducing bundled PNGs by about 4 MB without changing their URLs or appearance." },
+      { "type": "improved", "text": "Leaderboards and Pokemon Battle Stats reuse fewer database scans and less repeated in-memory work while preserving the same rankings and totals." },
+      { "type": "improved", "text": "Core Web Vitals now use the framework's official measurements, fonts are served with the site instead of requiring an extra stylesheet request, and public data caches refresh immediately after match-result changes." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-06-playoff-disqualification-seeding",
+    "title": "Playoff Eligibility Seeding",
+    "summary": "Playoff standings now reflect teams marked as ineligible while preserving their regular-season records.",
+    "publishedAt": "2026-09-06",
+    "changes": [
+      { "type": "improved", "text": "Ineligible playoff teams display a red DQ badge, and the next eligible teams move up into the playoff seeds." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-06-coach-strength-of-schedule",
+    "title": "Coach Strength of Schedule",
+    "summary": "Coach match history now shows the current strength of schedule for modern seasons.",
+    "publishedAt": "2026-09-06",
+    "changes": [
+      { "type": "added", "text": "Season 11 and later coach match-history sections now display SOS as the combined win-loss records of scheduled opponents." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-06-replay-coach-records-social-links",
+    "title": "Replay Attribution, Coach Records & Social Links",
+    "summary": "More reliable Zoroark move usage, clearer Season 11 coach match records, and centered homepage social links.",
+    "publishedAt": "2026-09-06",
+    "changes": [
+      { "type": "fixed", "text": "Zoroark and Hisuian-Zoroark Illusion replay turns now attribute Move Usage to the correct revealed species without duplicate or missing usage during reprocessing." },
+      { "type": "improved", "text": "Season 11 and later coach match history now shows the opponent's win-loss record beside the team name while earlier seasons retain their existing layout." },
+      { "type": "added", "text": "The homepage now has a centered Connect with PBO social-links row at the top, with the existing footer links preserved." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-06-coach-youtube-playlists",
+    "title": "Coach YouTube Playlists",
+    "summary": "Coach profiles can now show an assigned YouTube playlist, with safe admin assignment and a compact playback experience.",
+    "publishedAt": "2026-09-06",
+    "changes": [
+      { "type": "added", "text": "Admins can assign or clear a YouTube playlist from Admin → Coaches using a playlist URL or ID." },
+      { "type": "added", "text": "Coach profiles provide a compact native YouTube player and direct fallback links when playlist data is unavailable." },
+      { "type": "improved", "text": "When YOUTUBE_API_KEY is configured, playlist videos are cached server-side and presented with thumbnails, titles, dates, and click-to-play behavior." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-05-weekly-experience",
     "title": "Your Week, Connected League Tools",
     "summary": "Match prep, schedules, and stats now stay connected to your league context, with clearer weekly actions and mobile controls.",
@@ -8,7 +92,8 @@
       { "type": "improved", "text": "Your Week shows match times, opens the correct matchup, and highlights missing pick-ems and their next scheduled lock time." },
       { "type": "improved", "text": "Carry season, division, week, and team context between schedules, matchup prep, comparisons, and item stats." },
       { "type": "improved", "text": "Schedule actions are easier to tap on mobile, and stats now offers plain-language discovery links." },
-      { "type": "improved", "text": "Homepage queries fetch only the displayed recent battles and scope trainer type usage to displayed coaches." }
+      { "type": "improved", "text": "Homepage queries fetch only the displayed recent battles and scope trainer type usage to displayed coaches." },
+      { "type": "improved", "text": "Replay Analyzer now validates links early, reports loading and timeout states, supports share/download actions, and limits upstream replay requests safely." }
     ]
   },
   {

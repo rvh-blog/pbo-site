@@ -57,7 +57,6 @@ function PokemonTable({
     </section>
   );
 }
-
 export default async function PlayoffHubPage({ searchParams }: { searchParams: Promise<{ seasonId?: string }> }) {
   const params = await searchParams;
   const [allSeasons, visibility] = await Promise.all([

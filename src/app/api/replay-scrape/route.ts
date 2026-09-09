@@ -7,6 +7,7 @@ import {
 } from "@/lib/pokemon-name-aliases";
 import { isGuaranteedHaxOutcome } from "@/lib/hax-rules";
 import { buildStoredBattleEvents, type StoredBattleEvent } from "@/lib/replay-events";
+import { IllusionMoveAttributionTracker } from "@/lib/illusion-move-attribution";
 
 interface PokemonStats {
   name: string;
@@ -153,6 +154,9 @@ const PIVOT_MOVES = new Set([
 ]);
 
 const CHAMPIONS_NATDEX_DRAFT_TIER = "[Gen 9 Champions] NatDex Draft";
+const MAX_REPLAY_URL_LENGTH = 300;
+const MAX_REPLAY_RESPONSE_BYTES = 2_000_000;
+const REPLAY_FETCH_TIMEOUT_MS = 15_000;
 
 function shouldPreserveMegaFormsForTier(tier: string | null) {
   return tier === CHAMPIONS_NATDEX_DRAFT_TIER;
@@ -269,8 +273,11 @@ export async function POST(request: NextRequest) {
       expandedHaxRules = false,
     } = await request.json();
 
-    if (!replayUrl) {
+    if (typeof replayUrl !== "string" || !replayUrl.trim()) {
       return NextResponse.json({ error: "Replay URL is required" }, { status: 400 });
+    }
+    if (replayUrl.length > MAX_REPLAY_URL_LENGTH) {
+      return NextResponse.json({ error: "Replay URL is too long" }, { status: 400 });
     }
 
     let replayJsonUrl = "";
@@ -278,9 +285,22 @@ export async function POST(request: NextRequest) {
     const replayJsonCandidates = buildReplayJsonCandidates(replayUrl);
 
     for (const candidate of replayJsonCandidates) {
-      const candidateResponse = await fetch(candidate, {
-        headers: { "User-Agent": "PBO-Site/1.0" },
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REPLAY_FETCH_TIMEOUT_MS);
+      let candidateResponse: Response;
+      try {
+        candidateResponse = await fetch(candidate, {
+          headers: { "User-Agent": "PBO-Site/1.0" },
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return NextResponse.json({ error: "The replay server took too long to respond" }, { status: 504 });
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (candidateResponse.ok) {
         replayJsonUrl = candidate;
@@ -296,6 +316,11 @@ export async function POST(request: NextRequest) {
         { error: `Failed to fetch replay: ${response?.status || "invalid URL"}` },
         { status: 400 }
       );
+    }
+
+    const contentLength = Number(response.headers.get("content-length") || 0);
+    if (contentLength > MAX_REPLAY_RESPONSE_BYTES) {
+      return NextResponse.json({ error: "Replay response is too large to analyze" }, { status: 413 });
     }
 
     const data = await response.json();
@@ -337,6 +362,7 @@ export async function POST(request: NextRequest) {
     // Nickname → actual Pokemon name maps
     const p1NicknameMap: Map<string, string> = new Map();
     const p2NicknameMap: Map<string, string> = new Map();
+    const illusionMoveTracker = new IllusionMoveAttributionTracker();
 
     // Active Pokemon tracking
     let lastDamageDealer: PlayerRef | null = null;
@@ -697,6 +723,7 @@ export async function POST(request: NextRequest) {
                 });
               }
             }
+            illusionMoveTracker.beginStint(parsed.player, parsed.nickname, pokemonName, parts[4]);
 
             switchedInThisTurn.add(`${parsed.player}:${parsed.nickname}`);
             switchedInThisBattleTurn.add(`${parsed.player}:${parsed.nickname}`);
@@ -731,6 +758,7 @@ export async function POST(request: NextRequest) {
 
             const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
             const activePokemon = parsed.player === "p1" ? p1ActivePokemon : p2ActivePokemon;
+            const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
 
             // Transfer HP from the disguised Pokemon to the revealed one
             if (activePokemon) {
@@ -749,6 +777,15 @@ export async function POST(request: NextRequest) {
                 activeTurnsByPokemon.set(`${parsed.player}:${pokemonName}`, turns);
               }
             }
+            }
+
+            if (pokemonName === "Zoroark" || pokemonName === "Zoroark-Hisui") {
+              illusionMoveTracker.revealIllusion(
+                parsed.player,
+                parsed.nickname,
+                pokemonName,
+                team,
+              );
             }
 
             if (parsed.player === "p1") {
@@ -855,6 +892,12 @@ export async function POST(request: NextRequest) {
 
             if (pokemon && normalizedMoveName && normalizedMoveName.toLowerCase() !== "unknown move") {
               pokemon.movesUsed[normalizedMoveName] = (pokemon.movesUsed[normalizedMoveName] || 0) + 1;
+              illusionMoveTracker.recordMove(
+                parsed.player,
+                parsed.nickname,
+                normalizedMoveName,
+                SETUP_MOVES.has(normalizedMoveName.toLowerCase()),
+              );
             }
 
             if (SETUP_MOVES.has(moveName.toLowerCase())) {
@@ -1277,6 +1320,7 @@ export async function POST(request: NextRequest) {
                 newHpPercent = max > 0 ? (current / max) * 100 : 0;
               }
             }
+            illusionMoveTracker.recordHealth(parsed.player, parsed.nickname, hpString);
 
             damageAmount = Math.max(0, oldHp - newHpPercent);
             if (hpKey) hpPercentMap.set(hpKey, newHpPercent);
@@ -1433,6 +1477,7 @@ export async function POST(request: NextRequest) {
             const oldHp = hpKey ? (hpPercentMap.get(hpKey) ?? 100) : 100;
 
             const hpMatch = hpString.match(/^(\d+)\/(\d+)/);
+            illusionMoveTracker.recordHealth(parsed.player, parsed.nickname, hpString);
             if (hpMatch) {
               const current = parseInt(hpMatch[1]);
               const max = parseInt(hpMatch[2]);

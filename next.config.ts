@@ -20,6 +20,15 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/images/pokemon/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=2592000, stale-while-revalidate=7776000",
+          },
+        ],
+      },
     ];
   },
   images: {

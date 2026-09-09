@@ -21,6 +21,7 @@ import { SeasonSetupChecklist } from "@/components/admin/season-setup-checklist"
 import { ensureAdminAuditLogsTable } from "@/lib/admin-audit";
 import { getAdminPoll } from "@/lib/polls";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
+import { isCompletedMatchResult } from "@/lib/match-result-utils";
 
 type Tone = "success" | "warning" | "error" | "muted" | "info";
 
@@ -155,10 +156,10 @@ async function getDashboardData() {
   ]);
 
   const regularMatches = seasonMatches.filter((match) => match.week <= 100);
-  const pendingMatches = regularMatches.filter((match) => !match.winnerId);
-  const completedMatches = regularMatches.filter((match) => match.winnerId);
+  const pendingMatches = regularMatches.filter((match) => !isCompletedMatchResult(match.winnerId, match.isForfeit));
+  const completedMatches = regularMatches.filter((match) => isCompletedMatchResult(match.winnerId, match.isForfeit));
   const completedNonForfeitMatches = completedMatches.filter((match) => !match.isForfeit);
-  const completedMissingPokemon = completedMatches.filter((match) => match.matchPokemon.length === 0);
+  const completedMissingPokemon = completedNonForfeitMatches.filter((match) => match.matchPokemon.length === 0);
   const completedMissingReplays = completedNonForfeitMatches.filter((match) => !match.replayUrl?.trim());
   const completedMissingDecidingTurns = completedNonForfeitMatches.filter((match) => !match.decidingTurnsText?.trim());
   const currentWeek = regularMatches.length > 0

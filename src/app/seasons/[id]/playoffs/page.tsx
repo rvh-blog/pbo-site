@@ -129,6 +129,44 @@ async function getStandingsByDivision(seasonId: number, visibleDivisionIds?: Set
 
 type PlayoffMatch = Awaited<ReturnType<typeof getPlayoffData>>[number][number];
 
+type DivisionMovementRule = {
+  badge: string;
+  promotion: string;
+  relegation: string;
+};
+
+const DIVISION_MOVEMENT_RULES: Record<string, DivisionMovementRule> = {
+  infinity: {
+    badge: "Top division • 2 down",
+    promotion: "No promotion — Infinity is PBO's top division.",
+    relegation: "The bottom two regular-season teams relegate to Stargazer.",
+  },
+  stargazer: {
+    badge: "2 up • 3 down",
+    promotion: "The regular-season #1 and playoff champion promote to Infinity.",
+    relegation: "The bottom three regular-season teams relegate to Sunset.",
+  },
+  sunset: {
+    badge: "3 up • 3 down",
+    promotion: "The regular-season #1 and both playoff finalists promote to Stargazer.",
+    relegation: "The bottom three regular-season teams relegate to Crystal.",
+  },
+  crystal: {
+    badge: "3 up • 3 down",
+    promotion: "The regular-season #1 and both playoff finalists promote to Sunset.",
+    relegation: "The bottom three regular-season teams relegate to Neon.",
+  },
+  neon: {
+    badge: "3 up • No relegation",
+    promotion: "The regular-season #1 and both playoff finalists promote to Crystal.",
+    relegation: "No teams relegate from Neon.",
+  },
+};
+
+function getDivisionMovementRule(divisionName: string) {
+  return DIVISION_MOVEMENT_RULES[divisionName.trim().toLowerCase()];
+}
+
 function PlayoffMatchCard({
   match,
   roundName,
@@ -245,9 +283,7 @@ function PlayoffBracket({
   // Get champion and finalist (runner-up)
   const champion = finals[0]?.winner;
 
-  // Check if this division promotes finalists
-  const divisionTier = getDivisionHierarchyIndex(divisionName) + 1;
-  const canPromote = divisionTier > 1; // Not top division
+  const movementRule = getDivisionMovementRule(divisionName);
 
   return (
     <div className="poke-card p-4 sm:p-6 overflow-x-auto">
@@ -255,9 +291,9 @@ function PlayoffBracket({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div className="flex items-center gap-3 flex-wrap">
           <h2 className="font-pixel text-sm text-white leading-relaxed">{divisionName}</h2>
-          {canPromote && (
+          {movementRule && (
             <span className="text-[10px] px-2 py-1 rounded bg-[var(--success)]/10 text-[var(--success)] border border-[var(--success)]/30 font-bold uppercase">
-              Finalists promote
+              {movementRule.badge}
             </span>
           )}
         </div>
@@ -577,7 +613,7 @@ export default async function PlayoffsPage({ params }: PageProps) {
           </div>
           <h3>How Playoffs Work</h3>
         </div>
-        <div className="grid gap-6 md:grid-cols-3 text-sm text-[var(--foreground-muted)]">
+        <div className="grid gap-6 md:grid-cols-2 text-sm text-[var(--foreground-muted)]">
           <div className="p-4 rounded-lg bg-[var(--background)]/50 border border-[var(--background-tertiary)]">
             <p className="font-bold text-white mb-2 uppercase text-[10px] tracking-wider">Seeding</p>
             <p>The top eight teams from the regular season qualify. Higher seeds choose their opponents.</p>
@@ -586,12 +622,52 @@ export default async function PlayoffsPage({ params }: PageProps) {
             <p className="font-bold text-white mb-2 uppercase text-[10px] tracking-wider">Format</p>
             <p>A single-elimination bracket. Quarterfinals → Semifinals → Finals determine the champion.</p>
           </div>
-          <div className="p-4 rounded-lg bg-[var(--background)]/50 border border-[var(--background-tertiary)]">
-            <p className="font-bold text-white mb-2 uppercase text-[10px] tracking-wider">Promotion</p>
-            <p>Both finalists—the champion and runner-up—are promoted to the next division. Infinity is the top division.</p>
-          </div>
         </div>
-        <div className="mt-6 pt-4 border-t-2 border-[var(--background-tertiary)]">
+      </div>
+
+      {/* Promotion and Relegation */}
+      <div className="poke-card p-6">
+        <div className="section-title mb-4">
+          <div className="section-title-icon">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+            </svg>
+          </div>
+          <h3>Promotion &amp; Relegation</h3>
+        </div>
+
+        <p className="mb-5 text-sm text-[var(--foreground-muted)]">
+          PBO uses three-up, three-down movement between divisions, except between Stargazer and Infinity, which uses two up and two down.
+        </p>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          {season.divisions.map((division) => {
+            const movementRule = getDivisionMovementRule(division.name);
+            if (!movementRule) return null;
+
+            return (
+              <div key={division.id} className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)]/50 p-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <p className="font-bold text-white">{division.name}</p>
+                  <span className="rounded border border-[var(--success)]/30 bg-[var(--success)]/10 px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--success)]">
+                    {movementRule.badge}
+                  </span>
+                </div>
+                <p className="text-sm text-[var(--foreground-muted)]">{movementRule.promotion}</p>
+                <p className="mt-1 text-sm text-[var(--foreground-muted)]">{movementRule.relegation}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 rounded-lg border border-[var(--primary)]/25 bg-[var(--primary)]/5 p-4 text-sm text-[var(--foreground-muted)]">
+          <p>
+            <span className="font-bold text-white">Overlapping qualification:</span>{" "}
+            If a coach earns more than one promotion spot, the next eligible coach in the regular-season standings receives the open spot.
+          </p>
+        </div>
+
+        <div className="mt-6 border-t-2 border-[var(--background-tertiary)] pt-4">
           <p className="text-xs text-[var(--foreground-muted)]">
             <span className="font-bold text-white uppercase">Division Hierarchy:</span>{" "}
             <span className="text-[#E2A3C7]">Infinity</span> (Top) → <span className="text-blue-500">Stargazer</span> → <span className="text-orange-400">Sunset</span> → <span className="text-purple-400">Crystal</span> → <span className="text-green-400">Neon</span> (Bottom)

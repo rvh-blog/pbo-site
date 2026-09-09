@@ -10,10 +10,10 @@ if (!writeChanges && !checkOnly) {
 }
 
 const publicImages = path.resolve("public/images");
-const optimizedDirectories = ["teams", "divisions"].map((name) => path.join(publicImages, name));
+const optimizedDirectories = ["teams", "divisions", "pokemon"].map((name) => path.join(publicImages, name));
 const maxDimension = 1024;
 const maxSingleFileBytes = 2 * 1024 * 1024;
-const maxPublicImagesBytes = 220 * 1024 * 1024;
+const maxPublicImagesBytes = 190 * 1024 * 1024;
 
 async function walk(directory) {
   const results = [];
@@ -41,7 +41,7 @@ async function optimizeImage(file) {
       withoutEnlargement: true,
     });
   }
-  await pipeline.png({ compressionLevel: 9, adaptiveFiltering: true, effort: 10 }).toFile(tempFile);
+  await pipeline.png({ compressionLevel: 9, adaptiveFiltering: true, effort: 10, palette: false }).toFile(tempFile);
   const optimized = await fs.stat(tempFile);
   if (requiresResize || optimized.size < before.size) await fs.rename(tempFile, file);
   else await fs.unlink(tempFile);
@@ -60,7 +60,7 @@ if (writeChanges) {
     before += result.before;
     after += result.after;
   }
-  console.log(`[Assets] Optimized ${candidates.length} logos: ${(before / 1024 / 1024).toFixed(1)} MB -> ${(after / 1024 / 1024).toFixed(1)} MB.`);
+  console.log(`[Assets] Optimized ${candidates.length} images: ${(before / 1024 / 1024).toFixed(1)} MB -> ${(after / 1024 / 1024).toFixed(1)} MB.`);
 }
 
 const allImages = await walk(publicImages);

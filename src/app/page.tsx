@@ -14,10 +14,12 @@ import { HomeLiveDraftRefresh } from "@/components/home-live-draft-refresh";
 import { LocalTime } from "@/components/local-time";
 import { TwitchLiveStream } from "@/components/twitch-live-stream";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SocialLinks } from "@/components/social-links";
 import { seasons, matches, coaches, seasonCoaches, playoffMatches, coachPurchases, storeItems, matchPokemon } from "@/lib/schema";
-import { eq, desc, asc, count, and, or, isNotNull, isNull, inArray } from "drizzle-orm";
+import { eq, desc, asc, count, and, gt, or, isNotNull, isNull, inArray } from "drizzle-orm";
 import { compareDivisionNames, DIVISION_HIERARCHY } from "@/lib/division-order";
 import { getUpcomingBattles, UpcomingBattleItem } from "@/lib/upcoming-battles";
+import { isCompletedMatchResult } from "@/lib/match-result-utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -48,36 +50,81 @@ type OffseasonChampion = {
   coachName: string | null;
 };
 
-async function getCurrentGamesOfTheWeek(
+function getPlayoffRoundLabel(week: number): string {
+  if (week === 101) return "Quarterfinals";
+  if (week === 102) return "Semifinals";
+  if (week === 103) return "Finals";
+  return "Playoffs";
+}
+
+async function getCurrentHomepageMatchups(
   currentSeasonPromise: Promise<Awaited<ReturnType<typeof getCurrentSeason>>>
 ) {
   const currentSeason = await currentSeasonPromise;
-  if (!currentSeason) return [];
+  if (!currentSeason) return { title: "Games of the Week", subtitle: "", games: [] };
 
-  const featuredMatches = await db.query.matches.findMany({
-    where: and(
-      eq(matches.seasonId, currentSeason.id),
-      eq(matches.isGameOfTheWeek, true)
-    ),
-    with: {
-      division: true,
-      coach1: true,
-      coach2: true,
-    },
-  });
+  const [featuredMatches, currentPlayoffMatches] = await Promise.all([
+    db.query.matches.findMany({
+      where: and(
+        eq(matches.seasonId, currentSeason.id),
+        eq(matches.isGameOfTheWeek, true)
+      ),
+      with: {
+        division: true,
+        coach1: true,
+        coach2: true,
+      },
+    }),
+    db.query.matches.findMany({
+      where: and(
+        eq(matches.seasonId, currentSeason.id),
+        gt(matches.week, 100)
+      ),
+      with: {
+        division: true,
+        coach1: true,
+        coach2: true,
+      },
+    }),
+  ]);
 
-  if (featuredMatches.length === 0) return [];
+  const normalizedOrder = DRAFT_DIVISION_ORDER.map(normalizeDivisionName);
+  const sortByDivision = (a: typeof featuredMatches[number], b: typeof featuredMatches[number]) => {
+    const aOrder = normalizedOrder.indexOf(normalizeDivisionName(a.division?.name || ""));
+    const bOrder = normalizedOrder.indexOf(normalizeDivisionName(b.division?.name || ""));
+    return (aOrder === -1 ? 99 : aOrder) - (bOrder === -1 ? 99 : bOrder) || a.id - b.id;
+  };
+
+  if (currentPlayoffMatches.length > 0) {
+    const unfinishedWeeks = currentPlayoffMatches
+      .filter((match) => !isCompletedMatchResult(match.winnerId, match.isForfeit))
+      .map((match) => match.week);
+    const displayWeek = unfinishedWeeks.length > 0
+      ? Math.min(...unfinishedWeeks)
+      : Math.max(...currentPlayoffMatches.map((match) => match.week));
+
+    return {
+      title: "Playoff Matchups",
+      subtitle: getPlayoffRoundLabel(displayWeek),
+      games: currentPlayoffMatches
+        .filter((match) => match.week === displayWeek)
+        .sort(sortByDivision),
+    };
+  }
+
+  if (featuredMatches.length === 0) {
+    return { title: "Games of the Week", subtitle: "", games: [] };
+  }
 
   const displayWeek = Math.max(...featuredMatches.map((match) => match.week));
 
-  return featuredMatches
-    .filter((match) => match.week === displayWeek)
-    .sort((a, b) => {
-      const normalizedOrder = DRAFT_DIVISION_ORDER.map(normalizeDivisionName);
-      const aOrder = normalizedOrder.indexOf(normalizeDivisionName(a.division?.name || ""));
-      const bOrder = normalizedOrder.indexOf(normalizeDivisionName(b.division?.name || ""));
-      return (aOrder === -1 ? 99 : aOrder) - (bOrder === -1 ? 99 : bOrder);
-    });
+  return {
+    title: "Games of the Week",
+    subtitle: `Featured Matchups · Week ${displayWeek}`,
+    games: featuredMatches
+      .filter((match) => match.week === displayWeek)
+      .sort(sortByDivision),
+  };
 }
 
 async function getCurrentSeason() {
@@ -609,23 +656,24 @@ function StatsStrip({
   );
 }
 
-function GamesOfTheWeekPanel({
-  games,
+function HomepageMatchupsPanel({
+  matchupData,
   className = "",
 }: {
-  games: Awaited<ReturnType<typeof getCurrentGamesOfTheWeek>>;
+  matchupData: Awaited<ReturnType<typeof getCurrentHomepageMatchups>>;
   className?: string;
 }) {
+  const { title, subtitle, games } = matchupData;
   if (games.length === 0) return null;
 
   return (
     <section className={`poke-card p-4 ${className}`}>
       <div className="mb-4 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-400">
-          Games of the Week
+          {title}
         </p>
         <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-          Featured Matchups · Week {games[0].week}
+          {subtitle}
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -1006,7 +1054,7 @@ const getCachedPublicHomeData = unstable_cache(
       upcomingBattles,
       recentDraftPicksByDivision,
       stats,
-      gamesOfTheWeek,
+      homepageMatchups,
       topCoaches,
       currentPlayoffsActive,
     ] = await Promise.all([
@@ -1016,7 +1064,7 @@ const getCachedPublicHomeData = unstable_cache(
       upcomingBattlesPromise,
       recentDraftPicksPromise,
       getStats(currentSeasonPromise),
-      getCurrentGamesOfTheWeek(currentSeasonPromise),
+      getCurrentHomepageMatchups(currentSeasonPromise),
       getTopCoaches(),
       hasCurrentSeasonPlayoffs(currentSeasonPromise),
     ]);
@@ -1028,7 +1076,7 @@ const getCachedPublicHomeData = unstable_cache(
       upcomingBattles,
       recentDraftPicksByDivision,
       stats,
-      gamesOfTheWeek,
+      homepageMatchups,
       topCoaches,
       currentPlayoffsActive,
     };
@@ -1051,10 +1099,11 @@ export default async function Home() {
     upcomingBattles,
     recentDraftPicksByDivision,
     stats,
-    gamesOfTheWeek,
+    homepageMatchups,
     topCoaches,
     currentPlayoffsActive,
   } = publicHomeData;
+  const currentPlayoffsActive = homepageMatchups.title === "Playoff Matchups";
   const visibleTopCoaches = topCoaches.filter((coach, index) => index < 5 || coach.isShowcase);
   const previousSeasonPlayoffHref = previousSeasonChampions[0]?.seasonId
     ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs`
@@ -1086,6 +1135,7 @@ export default async function Home() {
 
   return (
     <div className="readable-content flex flex-col gap-8 sm:gap-10 lg:gap-12">
+      <SocialLinks />
       <TwitchLiveStream />
       <section aria-labelledby="current-season-title" className="order-1 relative isolate overflow-hidden rounded-2xl border border-[var(--primary)]/35 bg-gradient-to-br from-[var(--background-secondary)] via-[var(--background-secondary)] to-[var(--primary)]/15 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.28)] sm:p-8">
         <div className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full bg-[var(--primary)]/15 blur-3xl" />
@@ -1326,7 +1376,7 @@ export default async function Home() {
           </div>
           <p className="section-description">Featured matchups, scheduled battles, and the latest results.</p>
         </div>
-        <GamesOfTheWeekPanel games={gamesOfTheWeek} />
+        <HomepageMatchupsPanel matchupData={homepageMatchups} />
       </section>
 
       {/* Main Content Grid */}

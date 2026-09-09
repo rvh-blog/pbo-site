@@ -14,6 +14,128 @@
   navigation filters, route gates, and API availability gates were removed.
 - Experimental Stats remains controlled by its separate admin feature toggle.
 
+## September 9, 2026 - Playoff Hub and Full-Bracket Pick-Ems
+
+- Added `/playoffs` as a postseason hub with season-filtered playoff-only KO,
+  team differential, MVP, and Pokemon usage leaderboards.
+- Added a historical bracket archive with champions, runners-up, applicable
+  promotion results, and direct links to each complete bracket. Seasons 3–5
+  omit promotion claims because that history is unavailable, and Stargazer
+  promotion is not shown before Season 11.
+- Added full-bracket Pick-Ems beside the existing weekly round picks. Entries
+  validate bracket progression, persist separately from reward-bearing weekly
+  picks, lock when quarterfinals begin, and have their own leaderboard.
+- Full-bracket prediction panels start collapsed, link back to weekly Pick-Ems,
+  and use compact round layouts to reduce empty space.
+- Active-season playoff results are hidden on every page entry until the user
+  reveals them for that visit. Completed seasons display their results normally.
+- Playoff matchup cards now use full team and coach names, provide visible match,
+  preparation, and replay actions, fill desktop space more effectively, and
+  stack one matchup per row on narrow screens.
+- Seasons is now a responsive dropdown containing All Seasons and Playoff Hub.
+  The homepage Quick Actions panel also shows Playoff Hub while current playoff
+  matchups are active.
+- Added the idempotent `playoff_bracket_picks` startup migration and documented
+  the new pages and data flow in the feature map.
+
+## September 7, 2026 - No-Cost Performance Optimizations
+
+Performance measurement and delivery:
+
+- Browser monitoring now records the official CLS, FCP, INP, LCP, and TTFB
+  Web Vitals instead of treating a fixed three-second timer as route duration.
+- Web Vitals are sent to the existing Google Analytics property and remain
+  available as bounded, in-process summaries through `/api/health`.
+- Chakra Petch and Press Start 2P are self-hosted by Next.js. The visual font
+  families and weights are unchanged, but normal pages no longer wait on a
+  Google Fonts stylesheet request.
+
+Assets and caching:
+
+- Pixel-preserving PNG recompression now covers Pokemon artwork and sprites as
+  well as team and division logos. The optimized PNG set fell from about
+  179.1 MB to 174.9 MB, while paths, dimensions, transparency, and appearance
+  remain intact.
+- The asset budget is now 190 MB and the same script checks future additions.
+- Stable Pokemon images now use a 30-day browser cache with a 90-day
+  stale-while-revalidate window. Team and division images retain their shorter
+  cache window so replaced logos do not remain stale for long. A production
+  header check confirmed the Pokemon-specific rule takes precedence.
+- Successful match creates, edits, and deletes through the admin match API
+  immediately invalidate homepage, season, leaderboard, and Pokemon-stat
+  caches, so those public views do not wait for their normal refresh window.
+
+Data paths and hosting:
+
+- Leaderboards reuse one roster scan for championship rosters and recurring
+  coach-Pokemon pairings, and latest team lookup is linear instead of repeatedly
+  filtering and sorting all season entries.
+- Pokemon Battle Stats builds battle totals and revealed-item trends from one
+  shared scan instead of reading all match-Pokemon rows twice.
+- Fly remains configured for automatic stop/start with zero minimum running
+  machines. No paid monitoring, CDN, storage, or always-on machine was added.
+
+## September 7, 2026 - Season 11 Playoffs, Forfeits, and Overview Layout
+
+Season 11 playoff status:
+
+- Frederick Klefkis in the Stargazer division is marked as playoff
+  disqualified. Coach profiles and standings rows show a high-contrast `DQ`
+  badge and the playoff result displays `DQ` instead of a seed or result.
+
+Homepage playoffs:
+
+- During active playoffs, the homepage Current League Activity panel changes
+  from Games of the Week to Playoff Matchups.
+- The panel shows every matchup in the current playoff round and labels the
+  round as Quarterfinals, Semifinals, or Finals. Regular-season behavior keeps
+  the featured Games of the Week panel.
+
+Double forfeits:
+
+- Double-forfeit matches are no longer shown as upcoming battles.
+- The Discord bot treats a double forfeit as a completed match, so it does not
+  wait for or request a replay. Historical schedule and match records remain
+  available.
+
+Season overview layout:
+
+- Division quick links are centered horizontally on wider screens.
+- The Kill Leaders panel now participates in the same two-column grid as the
+  division standings. In a five-division season such as Season 11, it follows
+  the standings so it appears to the right of Neon and underneath Crystal.
+
+GitHub release references:
+
+- [Season 11 Stargazer playoff disqualification](https://github.com/rvh-blog/pbo-site/pull/144)
+- [Exclude double forfeits from upcoming battles](https://github.com/rvh-blog/pbo-site/pull/145)
+- [Treat double forfeits as completed bot matches](https://github.com/rvh-blog/pbo-site/pull/146)
+- [Show all current playoff matchups on the homepage](https://github.com/rvh-blog/pbo-site/pull/147)
+- [Move and refine season Kill Leaders layout](https://github.com/rvh-blog/pbo-site/pull/148)
+- [Center division links and refine multi-division layout](https://github.com/rvh-blog/pbo-site/pull/149)
+- [Place Kill Leaders in the standings grid](https://github.com/rvh-blog/pbo-site/pull/150)
+
+## September 6, 2026 - Coach YouTube Playlists
+
+- Admins can assign an optional public YouTube playlist URL to an individual coach from Admin → Coaches.
+- Coach profiles render the assigned playlist with a compact 16:9 native YouTube embed when no API key is configured.
+- When `YOUTUBE_API_KEY` is configured server-side, playlist videos are cached for five minutes and shown in a scrollable list with thumbnails, titles, publish dates, and click-to-play behavior.
+- Invalid, private, deleted, or unavailable playlists fall back to a direct YouTube link without exposing credentials in the browser.
+- The playlist ID is stored on `coaches.youtube_playlist_id` through the startup migration `2026-09-06-coach-youtube-playlist-v1`.
+
+## September 6, 2026 - Replay Attribution, Coach Records & Social Links
+
+- Fixed Move Usage attribution for Zoroark and Hisuian-Zoroark Illusion turns so
+  the move map follows the revealed disguise and does not create duplicate or
+  missing usage when replay data is reprocessed.
+- Audited all available Season 5 through current replays with the guarded
+  replay tooling; corrections are scoped to the copied local database and do
+  not alter official match results or production data.
+- Coach match history now shows each opponent's win-loss record beside the
+  team name for Season 11 and later. Older-season history keeps its existing
+  layout.
+- Added a centered Connect with PBO social-links row at the top of the
+  homepage while retaining the existing footer links.
 
 ## September 1, 2026 - Homepage & Poll Controls
 

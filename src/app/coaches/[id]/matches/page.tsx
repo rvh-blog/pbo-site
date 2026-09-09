@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { coaches, seasonCoaches } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { computeAndSortStandings } from "@/lib/standings-sort";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -42,18 +43,17 @@ async function getCoachSeasons(coachId: number) {
   });
 }
 
-async function getCoachMatches(seasonCoachIds: number[]) {
-  if (seasonCoachIds.length === 0) {
-    return { relevantMatches: [], allMatches: [] };
-  }
-
-  const allMatches = await db.query.matches.findMany({
-    with: {
-      coach1: { with: { coach: true } },
-      coach2: { with: { coach: true } },
-      division: { with: { season: true } },
-    },
-  });
+async function getCoachMatchData(seasonCoachIds: number[]) {
+  const [allMatches, allSeasonCoaches] = await Promise.all([
+    db.query.matches.findMany({
+      with: {
+        coach1: { with: { coach: true } },
+        coach2: { with: { coach: true } },
+        division: { with: { season: true } },
+      },
+    }),
+    db.query.seasonCoaches.findMany(),
+  ]);
 
   const relevantMatches = allMatches.filter(
     (m) =>
@@ -61,57 +61,59 @@ async function getCoachMatches(seasonCoachIds: number[]) {
       seasonCoachIds.includes(m.coach2SeasonId)
   );
 
-  // Sort by season number (highest first), then by week (highest first)
-  relevantMatches.sort((a, b) => {
+  // Sort by season number (highest first), then by week (highest first).
+  const coachMatches = relevantMatches.sort((a, b) => {
     const aSeasonNum = a.division?.season?.seasonNumber || 0;
     const bSeasonNum = b.division?.season?.seasonNumber || 0;
     if (bSeasonNum !== aSeasonNum) return bSeasonNum - aSeasonNum;
     return (b.week || 0) - (a.week || 0);
   });
 
-  return { relevantMatches, allMatches };
-}
+  const opponentRecords = new Map<number, { wins: number; losses: number }>();
+  const modernDivisionIds = new Set(
+    coachMatches
+      .filter((match) => (match.division?.season?.seasonNumber ?? 0) >= 11)
+      .map((match) => match.divisionId)
+  );
 
-type CoachMatch = Awaited<ReturnType<typeof getCoachMatches>>["allMatches"][number];
+  for (const divisionId of modernDivisionIds) {
+    const divisionCoaches = allSeasonCoaches.filter((sc) => sc.divisionId === divisionId);
+    const replacementMap = new Map<number, number[]>();
 
-function calculateStrengthOfSchedule(
-  allMatches: CoachMatch[],
-  seasonMatches: CoachMatch[],
-  divisionId: number,
-  seasonCoachIds: Set<number>,
-) {
-  const completedDivisionMatches = allMatches.filter((match) => {
-    const isDoubleForfeit = match.isForfeit && match.winnerId === null;
-    const hasResult = match.winnerId !== null || isDoubleForfeit;
-    return match.divisionId === divisionId && hasResult;
-  });
-
-  const records = new Map<number, { wins: number; losses: number }>();
-
-  const ensureRecord = (seasonCoachId: number) => {
-    if (!records.has(seasonCoachId)) {
-      records.set(seasonCoachId, { wins: 0, losses: 0 });
+    for (const sc of divisionCoaches) {
+      if (!sc.isActive && sc.replacedById) {
+        const predecessors = replacementMap.get(sc.replacedById) ?? [];
+        predecessors.push(sc.id);
+        replacementMap.set(sc.replacedById, predecessors);
+      }
     }
-    return records.get(seasonCoachId)!;
-  };
 
-  for (const match of completedDivisionMatches) {
-    const coach1Record = ensureRecord(match.coach1SeasonId);
-    const coach2Record = ensureRecord(match.coach2SeasonId);
-    const isDoubleForfeit = match.isForfeit && match.winnerId === null;
+    const standings = computeAndSortStandings(
+      divisionCoaches.filter((sc) => sc.isActive),
+      replacementMap,
+      allMatches.filter((match) => match.divisionId === divisionId)
+    );
 
-    if (isDoubleForfeit) {
-      coach1Record.losses++;
-      coach2Record.losses++;
-    } else if (match.winnerId === match.coach1SeasonId) {
-      coach1Record.wins++;
-      coach2Record.losses++;
-    } else if (match.winnerId === match.coach2SeasonId) {
-      coach2Record.wins++;
-      coach1Record.losses++;
+    for (const standing of standings) {
+      const record = { wins: standing.wins, losses: standing.losses };
+      opponentRecords.set(standing.id, record);
+      for (const predecessorId of replacementMap.get(standing.id) ?? []) {
+        opponentRecords.set(predecessorId, record);
+      }
     }
   }
 
+  return { coachMatches, opponentRecords };
+}
+
+type CoachMatch = Awaited<ReturnType<typeof getCoachMatchData>>["coachMatches"][number];
+
+function calculateStrengthOfSchedule(
+  seasonMatches: CoachMatch[],
+  divisionId: number,
+  seasonCoachIds: Set<number>,
+  opponentRecords: Map<number, { wins: number; losses: number }>,
+) {
   let wins = 0;
   let losses = 0;
 
@@ -126,7 +128,7 @@ function calculateStrengthOfSchedule(
     }
 
     const opponentId = isCoach1 ? match.coach2SeasonId : match.coach1SeasonId;
-    const opponentRecord = records.get(opponentId);
+    const opponentRecord = opponentRecords.get(opponentId);
 
     if (opponentRecord) {
       wins += opponentRecord.wins;
@@ -152,7 +154,7 @@ export default async function CoachMatchesPage({ params }: PageProps) {
   }
 
   const seasonCoachIds = coachSeasons.map((sc) => sc.id);
-  const { relevantMatches: coachMatches, allMatches } = await getCoachMatches(seasonCoachIds);
+  const { coachMatches, opponentRecords } = await getCoachMatchData(seasonCoachIds);
 
   // Get most recent season entry for header
   const mostRecentSeasonEntry = coachSeasons[0];
@@ -325,7 +327,6 @@ export default async function CoachMatchesPage({ params }: PageProps) {
                 const seasonEntry = coachSeasons.find(sc => sc.division?.season?.seasonNumber === seasonNum);
                 const seasonStrengthOfSchedule = seasonNum >= 11 && seasonEntry
                   ? calculateStrengthOfSchedule(
-                      allMatches,
                       seasonMatches,
                       seasonEntry.divisionId,
                       new Set(
@@ -335,7 +336,8 @@ export default async function CoachMatchesPage({ params }: PageProps) {
                             sc.division?.season?.seasonNumber === seasonNum
                           )
                           .map((sc) => sc.id)
-                      )
+                      ),
+                      opponentRecords
                     )
                   : null;
 
@@ -392,6 +394,9 @@ export default async function CoachMatchesPage({ params }: PageProps) {
                         const hasResult = match.winnerId !== null || isDoubleForfeit;
                         const won = !isDoubleForfeit && match.winnerId === mySeasonCoachId;
                         const myDiff = isCoach1 ? (match.coach1Differential || 0) : (match.coach2Differential || 0);
+                        const opponentRecord = seasonNum >= 11 && opponent
+                          ? opponentRecords.get(opponent.id)
+                          : undefined;
 
                         return (
                           <div
@@ -421,9 +426,14 @@ export default async function CoachMatchesPage({ params }: PageProps) {
                             {/* Opponent */}
                             <Link
                               href={`/coaches/${opponent?.coachId}`}
-                              className="flex-1 truncate hover:text-[var(--primary)] transition-colors"
+                              className="flex min-w-0 flex-1 items-center gap-2 hover:text-[var(--primary)] transition-colors"
                             >
-                              {opponent?.teamName}
+                              <span className="truncate">{opponent?.teamName}</span>
+                              {opponentRecord && (
+                                <span className="shrink-0 text-[10px] font-bold text-[var(--foreground-muted)]">
+                                  {opponentRecord.wins}W-{opponentRecord.losses}L
+                                </span>
+                              )}
                             </Link>
 
                             {/* Forfeit indicator */}

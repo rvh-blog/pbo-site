@@ -1,10 +1,10 @@
 type BrowserPerformanceMetric = {
   path: string;
-  routeDurationMs?: number;
-  navigationDurationMs?: number;
-  lcpMs?: number;
-  cls?: number;
-  inpMs?: number;
+  id: string;
+  name: "CLS" | "FCP" | "INP" | "LCP" | "TTFB";
+  value: number;
+  rating?: string;
+  navigationType?: string;
 };
 
 type StoredMetric = BrowserPerformanceMetric & { receivedAt: string };
@@ -12,37 +12,50 @@ type StoredMetric = BrowserPerformanceMetric & { receivedAt: string };
 const MAX_SAMPLES = 500;
 const samples: StoredMetric[] = [];
 
-function finiteNumber(value: unknown, max: number) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= max ? value : undefined;
+const METRIC_LIMITS: Record<BrowserPerformanceMetric["name"], number> = {
+  CLS: 100,
+  FCP: 120_000,
+  INP: 120_000,
+  LCP: 120_000,
+  TTFB: 120_000,
+};
+
+function isMetricName(value: unknown): value is BrowserPerformanceMetric["name"] {
+  return typeof value === "string" && value in METRIC_LIMITS;
 }
 
 export function recordBrowserPerformanceMetric(input: BrowserPerformanceMetric) {
+  if (!isMetricName(input.name)) return false;
+  if (typeof input.value !== "number" || !Number.isFinite(input.value) || input.value < 0 || input.value > METRIC_LIMITS[input.name]) {
+    return false;
+  }
+
   const path = typeof input.path === "string" && input.path.startsWith("/") ? input.path.slice(0, 180) : "/";
   const sample: StoredMetric = {
     path,
-    routeDurationMs: finiteNumber(input.routeDurationMs, 120_000),
-    navigationDurationMs: finiteNumber(input.navigationDurationMs, 120_000),
-    lcpMs: finiteNumber(input.lcpMs, 120_000),
-    cls: finiteNumber(input.cls, 100),
-    inpMs: finiteNumber(input.inpMs, 120_000),
+    id: typeof input.id === "string" ? input.id.slice(0, 100) : "",
+    name: input.name,
+    value: input.value,
+    rating: typeof input.rating === "string" ? input.rating.slice(0, 20) : undefined,
+    navigationType: typeof input.navigationType === "string" ? input.navigationType.slice(0, 30) : undefined,
     receivedAt: new Date().toISOString(),
   };
 
   samples.push(sample);
   if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES);
+  return true;
 }
 
 export function getBrowserPerformanceStats() {
-  const byPath = new Map<string, { count: number; routeDurations: number[]; navigationDurations: number[]; lcp: number[]; cls: number[]; inp: number[] }>();
+  const byPath = new Map<string, { count: number; values: Record<BrowserPerformanceMetric["name"], number[]> }>();
 
   for (const sample of samples) {
-    const current = byPath.get(sample.path) || { count: 0, routeDurations: [], navigationDurations: [], lcp: [], cls: [], inp: [] };
+    const current = byPath.get(sample.path) || {
+      count: 0,
+      values: { CLS: [], FCP: [], INP: [], LCP: [], TTFB: [] },
+    };
     current.count++;
-    if (sample.routeDurationMs !== undefined) current.routeDurations.push(sample.routeDurationMs);
-    if (sample.navigationDurationMs !== undefined) current.navigationDurations.push(sample.navigationDurationMs);
-    if (sample.lcpMs !== undefined) current.lcp.push(sample.lcpMs);
-    if (sample.cls !== undefined) current.cls.push(sample.cls);
-    if (sample.inpMs !== undefined) current.inp.push(sample.inpMs);
+    current.values[sample.name].push(sample.value);
     byPath.set(sample.path, current);
   }
 
@@ -56,12 +69,12 @@ export function getBrowserPerformanceStats() {
     sampleCount: samples.length,
     routes: [...byPath.entries()].map(([path, data]) => ({
       path,
-      count: data.count,
-      p75RouteDurationMs: percentile(data.routeDurations, 0.75),
-      p75NavigationDurationMs: percentile(data.navigationDurations, 0.75),
-      p75LcpMs: percentile(data.lcp, 0.75),
-      p75Cls: percentile(data.cls, 0.75),
-      p75InpMs: percentile(data.inp, 0.75),
-    })).sort((a, b) => (b.p75RouteDurationMs || 0) - (a.p75RouteDurationMs || 0)),
+      metricCount: data.count,
+      p75FcpMs: percentile(data.values.FCP, 0.75),
+      p75LcpMs: percentile(data.values.LCP, 0.75),
+      p75Cls: percentile(data.values.CLS, 0.75),
+      p75InpMs: percentile(data.values.INP, 0.75),
+      p75TtfbMs: percentile(data.values.TTFB, 0.75),
+    })).sort((a, b) => (b.p75LcpMs || 0) - (a.p75LcpMs || 0)),
   };
 }
