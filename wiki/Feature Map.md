@@ -52,6 +52,17 @@ See also:
 - Coach and Pokémon comparison: `src/app/compare` (two to four entries,
   season/division/phase filters, pairwise head-to-head records, and shareable
   URL state)
+- Experimental Stats lab: `src/app/experimental-stats` (replay-evidence
+  profiles, momentum, matchup records, KO conversion, damage share, coach and
+  item tendencies, team cores, replay pace, playoff comparisons, replay
+  comparison, configurable leaderboards, rolling windows, replay search,
+  event-density visualizations, rare-event records, confidence labels, saved
+  browser reports, CSV exports, and the coverage glossary; protected by the
+  admin Experimental Stats feature toggle)
+- Normalized replay events: `src/lib/replay-events.ts`,
+  `src/lib/battle-event-storage.ts`, `migrations/add-battle-events.sql`, and
+  `scripts/backfill-battle-events.ts`; preserves every Showdown protocol line
+  with turn/sequence, structured actor/target fields, raw source, and metadata.
 - Elo tracker: `src/app/elo-tracker`
 - Pokemon stats: `src/app/pokemon/stats` (kills, deaths, damage dealt, damage
   taken, and HP recovered with season/division/minimum-games filters)
@@ -80,7 +91,8 @@ See also:
   represent distinct replay-observed Pokemon/item appearances, not repeated
   activations or unrevealed starting items.
 - Root Open Graph and Twitter metadata use `public/pbo-social-banner.png`.
-- Fantasy About visibility is persisted by the Fantasy page client and can be hidden per browser.
+- Fantasy About visibility is persisted by the Fantasy page client and can be hidden per browser. Fantasy itself is always publicly available.
+- Blog and Fantasy no longer have admin hide toggles or route/API availability gates.
 - Image delivery uses AVIF/WebP where supported, with high-traffic sprites migrated to `next/image`.
 - Official CLS, FCP, INP, LCP, and TTFB Web Vitals are collected by
   `src/components/performance-monitor.tsx`, sent to the existing Google

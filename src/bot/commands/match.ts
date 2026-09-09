@@ -554,7 +554,8 @@ export async function execute(
       replayData.endedAt,
       replayData.turnSnapshots,
       replayData.keyEvents,
-      replayData.zoroarkInvolved
+      replayData.zoroarkInvolved,
+      replayData.battleEvents
     );
 
     if (!result.success) {

@@ -6,9 +6,8 @@ export async function GET() {
     const settings = await getSiteFeatureSettings();
 
     return NextResponse.json({
-      fantasyUiHidden: settings.fantasyUiHidden,
-      blogUiHidden: settings.blogUiHidden,
       recentDraftPicksHidden: settings.recentDraftPicksHidden,
+      experimentalStatsEnabled: settings.experimentalStatsEnabled,
     });
   } catch (error) {
     console.error("Error fetching site feature settings:", error);

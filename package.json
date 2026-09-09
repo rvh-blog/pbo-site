@@ -22,6 +22,7 @@
     "db:seed": "npx tsx src/lib/seed.ts",
     "elo:recalculate": "npx tsx src/lib/recalculate-elo.ts",
     "hax:backfill": "node scripts/backfill-season11-hax.mjs",
+    "events:backfill": "node scripts/backfill-battle-events.mjs",
     "mega:backfill:s11": "npx tsx scripts/backfill-season11-mega-stones.mjs",
     "hax:check": "node --experimental-strip-types scripts/check-hax-rules.mjs",
     "speed-tiers:check": "node --experimental-strip-types scripts/check-speed-tiers.mjs",
@@ -47,6 +48,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.6.0",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {

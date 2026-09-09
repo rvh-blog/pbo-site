@@ -5,11 +5,10 @@ import { siteSettings } from "@/lib/schema";
 export const SITE_SETTING_KEYS = {
   bettingClosed: "betting_closed",
   bettingUiHidden: "betting_ui_hidden",
-  fantasyUiHidden: "fantasy_ui_hidden",
-  blogUiHidden: "blog_ui_hidden",
   pollsEnabled: "polls_enabled",
   recentDraftPicksHidden: "recent_draft_picks_hidden",
   playoffCalculatorSearchEnabled: "playoff_calculator_search_enabled",
+  experimentalStatsEnabled: "experimental_stats_enabled",
   infinityDivisionReleased: "infinity_division_released",
 } as const;
 
@@ -30,11 +29,10 @@ export async function getSiteFeatureSettings() {
   return {
     bettingClosed: settingsMap.get(SITE_SETTING_KEYS.bettingClosed) === "true",
     bettingUiHidden: settingsMap.get(SITE_SETTING_KEYS.bettingUiHidden) === "true",
-    fantasyUiHidden: settingsMap.get(SITE_SETTING_KEYS.fantasyUiHidden) === "true",
-    blogUiHidden: settingsMap.get(SITE_SETTING_KEYS.blogUiHidden) === "true",
     pollsEnabled: settingsMap.get(SITE_SETTING_KEYS.pollsEnabled) !== "false",
     recentDraftPicksHidden: settingsMap.get(SITE_SETTING_KEYS.recentDraftPicksHidden) === "true",
     playoffCalculatorSearchEnabled: settingsMap.get(SITE_SETTING_KEYS.playoffCalculatorSearchEnabled) === "true",
+    experimentalStatsEnabled: settingsMap.get(SITE_SETTING_KEYS.experimentalStatsEnabled) === "true",
   };
 }
 

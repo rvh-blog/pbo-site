@@ -239,9 +239,10 @@ export default function AdminMatchesPage() {
     startedAt: null,
     endedAt: null,
   });
-  const [matchEventData, setMatchEventData] = useState<{ turnSnapshots: unknown[] | null; keyEvents: unknown[] | null }>({
+  const [matchEventData, setMatchEventData] = useState<{ turnSnapshots: unknown[] | null; keyEvents: unknown[] | null; battleEvents: unknown[] | null }>({
     turnSnapshots: null,
     keyEvents: null,
+    battleEvents: null,
   });
 
   // Time-synced rosters for accurate matching
@@ -266,7 +267,7 @@ export default function AdminMatchesPage() {
     setTeam2Pokemon(createEmptyPokemonEntries());
     setZoroarkInvolved(false);
     setMatchTimingData({ startedAt: null, endedAt: null });
-    setMatchEventData({ turnSnapshots: null, keyEvents: null });
+    setMatchEventData({ turnSnapshots: null, keyEvents: null, battleEvents: null });
   }
 
   function declareForfeit() {
@@ -865,6 +866,7 @@ export default function AdminMatchesPage() {
             endedAt: matchTimingData.endedAt,
             turnSnapshots: matchEventData.turnSnapshots,
             keyEvents: matchEventData.keyEvents,
+            battleEvents: matchEventData.battleEvents,
             zoroarkInvolved,
           }),
         });
@@ -890,6 +892,7 @@ export default function AdminMatchesPage() {
             endedAt: matchTimingData.endedAt,
             turnSnapshots: matchEventData.turnSnapshots,
             keyEvents: matchEventData.keyEvents,
+            battleEvents: matchEventData.battleEvents,
             zoroarkInvolved,
           }),
         });
@@ -1034,6 +1037,7 @@ export default function AdminMatchesPage() {
         endedAt: matchTimingData.endedAt,
         turnSnapshots: matchEventData.turnSnapshots,
         keyEvents: matchEventData.keyEvents,
+        battleEvents: matchEventData.battleEvents,
         zoroarkInvolved,
       }),
     });
@@ -1101,7 +1105,7 @@ export default function AdminMatchesPage() {
     setTeam2Pokemon(Array(6).fill(null).map(() => ({ pokemonId: "", kills: "0", deaths: "0" })));
     setScrapeError("");
     setMatchTimingData({ startedAt: null, endedAt: null });
-    setMatchEventData({ turnSnapshots: null, keyEvents: null });
+    setMatchEventData({ turnSnapshots: null, keyEvents: null, battleEvents: null });
     setZoroarkInvolved(false);
     setTimeSyncedRosters1(null);
     setTimeSyncedRosters2(null);
@@ -1353,6 +1357,7 @@ export default function AdminMatchesPage() {
       setMatchEventData({
         turnSnapshots: data.turnSnapshots || null,
         keyEvents: data.keyEvents || null,
+        battleEvents: data.battleEvents || null,
       });
 
       if (data.zoroarkInvolved) setZoroarkInvolved(true);

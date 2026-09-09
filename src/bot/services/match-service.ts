@@ -27,6 +27,8 @@ import {
   findMatchingRosterPokemon,
   type ReplayRosterPokemon,
 } from "@/lib/replay-roster-matching";
+import { replaceBattleEvents } from "@/lib/battle-event-storage";
+import type { StoredBattleEvent } from "@/lib/replay-events";
 
 export interface FixtureOption {
   matchId: number;
@@ -112,6 +114,7 @@ interface ParsedReplay {
   zoroarkInvolved: boolean;
   turnSnapshots: TurnSnapshot[];
   keyEvents: KeyEvent[];
+  battleEvents: StoredBattleEvent[];
 }
 
 /**
@@ -538,7 +541,8 @@ export async function recordMatchResult(
   endedAt?: string | null,
   turnSnapshots?: TurnSnapshot[] | null,
   keyEvents?: KeyEvent[] | null,
-  zoroarkInvolved?: boolean
+  zoroarkInvolved?: boolean,
+  battleEvents?: StoredBattleEvent[] | null
 ): Promise<{ success: boolean; error?: string; needsFullRecalc?: boolean }> {
   try {
     const match = await db.query.matches.findFirst({
@@ -618,6 +622,14 @@ export async function recordMatchResult(
         } catch (err) {
           console.error("[Match Service] Error inserting kill events:", err);
         }
+      }
+    }
+
+    if (Array.isArray(battleEvents)) {
+      try {
+        await replaceBattleEvents(matchId, battleEvents);
+      } catch (error) {
+        console.error("[Match Service] Normalized battle-event storage skipped:", error);
       }
     }
 

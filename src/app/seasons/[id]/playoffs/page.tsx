@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { computeAndSortStandings, getPlayoffEligibleStandings } from "@/lib/standings-sort";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
-import { compareDivisions } from "@/lib/division-order";
+import { compareDivisions, getDivisionHierarchyIndex } from "@/lib/division-order";
 import { PlayoffSpoilerToggle } from "@/components/playoff-spoiler-toggle";
 import { PlayoffBracketPicks } from "@/components/playoff-bracket-picks";
 
@@ -397,19 +397,19 @@ function PlayoffBracket({
           {/* Desktop Layout - Horizontal Bracket */}
           <div className="hidden min-w-[1080px] xl:block">
             {/* Round Headers */}
-            <div className="mb-4 grid grid-cols-[minmax(240px,1.25fr)_48px_minmax(240px,1.1fr)_48px_minmax(240px,1.1fr)_minmax(140px,0.6fr)] items-end gap-4">
-              <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
+            <div className="mb-4 grid grid-cols-[minmax(240px,1.25fr)_48px_minmax(240px,1.1fr)_48px_minmax(240px,1.1fr)_minmax(140px,0.6fr)] items-center gap-4">
+              <div className="flex min-h-4 items-center justify-center text-center text-[10px] font-bold uppercase tracking-wider text-[var(--foreground-muted)]">
                 Quarterfinals
               </div>
               <div />
-              <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
+              <div className="flex min-h-4 items-center justify-center text-center text-[10px] font-bold uppercase tracking-wider text-[var(--foreground-muted)]">
                 Semifinals
               </div>
               <div />
-              <div className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider">
+              <div className="flex min-h-4 items-center justify-center text-center text-[10px] font-bold uppercase tracking-wider text-[var(--primary)]">
                 Finals
               </div>
-              <div className="text-center text-[10px] font-bold uppercase tracking-wider text-yellow-400">
+              <div className="flex min-h-4 items-center justify-center text-center text-[10px] font-bold uppercase tracking-wider text-yellow-400">
                 Champion
               </div>
             </div>

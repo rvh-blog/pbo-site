@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { blogComments, blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { getSiteFeatureSettings } from "@/lib/site-settings";
 import { BlogImage } from "@/components/blog-image";
 import { BlogApprovalButton } from "./blog-approval-button";
 import { BlogDeleteButton } from "./blog-delete-button";
@@ -26,14 +25,7 @@ function formatDate(value: string) {
 }
 
 export default async function BlogPostPage({ params }: PageProps) {
-  const [featureSettings, session, resolvedParams] = await Promise.all([
-    getSiteFeatureSettings(),
-    getSession(),
-    params,
-  ]);
-  if (featureSettings.blogUiHidden) {
-    notFound();
-  }
+  const [session, resolvedParams] = await Promise.all([getSession(), params]);
 
   const { id } = resolvedParams;
   const postId = Number.parseInt(id, 10);

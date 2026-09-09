@@ -19,8 +19,7 @@ interface AuthUser {
 }
 
 interface FeatureSettings {
-  fantasyUiHidden: boolean;
-  blogUiHidden: boolean;
+  experimentalStatsEnabled: boolean;
 }
 
 const navItems = [
@@ -36,6 +35,7 @@ const navItems = [
 const matchPrepLinks = [
   { href: "/matchup-prep", label: "Matchup Prep" },
   { href: "/draft-planner", label: "Free Agency" },
+  { href: "/trade-block", label: "Trade Block" },
   { href: "/analyzer", label: "Replay Analyzer" },
 ];
 
@@ -46,6 +46,7 @@ const seasonsLinks = [
 
 const pboStatsLinks = [
   { href: "/leaderboards", label: "Rankings & Stats" },
+  { href: "/experimental-stats", label: "Experimental Stats" },
   { href: "/compare", label: "Compare Coaches & Pokémon" },
   { href: "/leaderboards/comprehensive", label: "Detailed Rankings" },
   { href: "/battle-record", label: "Coach & League Records" },
@@ -69,8 +70,7 @@ export function Navigation() {
   const [tabletPboStatsOpen, setTabletPboStatsOpen] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
-    fantasyUiHidden: false,
-    blogUiHidden: false,
+    experimentalStatsEnabled: false,
   });
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const projectMewReleased = isProjectMewReleased();
@@ -173,8 +173,7 @@ export function Navigation() {
         if (!res.ok) return;
         const data = await res.json();
         setFeatureSettings({
-          fantasyUiHidden: Boolean(data.fantasyUiHidden),
-          blogUiHidden: Boolean(data.blogUiHidden),
+          experimentalStatsEnabled: Boolean(data.experimentalStatsEnabled),
         });
       } catch {
         // Keep features visible if settings cannot be loaded.
@@ -184,17 +183,16 @@ export function Navigation() {
     fetchFeatureSettings();
   }, []);
 
-  const visibleNavItems = navItems.filter((item) => {
-    if (item.href === "/fantasy") return !featureSettings.fantasyUiHidden;
-    if (item.href === "/blog") return !featureSettings.blogUiHidden;
-    return true;
-  });
+  const visibleNavItems = navItems;
+  const visiblePboStatsLinks = pboStatsLinks.filter(
+    (item) => item.href !== "/experimental-stats" || featureSettings.experimentalStatsEnabled,
+  );
   const matchPrepActive =
     pathname === "/matchup-prep" ||
     pathname.startsWith("/draft-planner") ||
     pathname.startsWith("/analyzer");
   const seasonsActive = pathname === "/seasons" || pathname.startsWith("/seasons/") || pathname === "/playoffs";
-  const pboStatsActive = pathname === "/leaderboards" || pathname.startsWith("/leaderboards/") || pathname === "/battle-record" || pathname.startsWith("/battle-record/") || pathname === "/compare" || pathname.startsWith("/compare/");
+  const pboStatsActive = pathname === "/leaderboards" || pathname.startsWith("/leaderboards/") || pathname === "/battle-record" || pathname.startsWith("/battle-record/") || pathname === "/compare" || pathname.startsWith("/compare/") || pathname === "/experimental-stats" || pathname.startsWith("/experimental-stats/");
   const userInitial = authUser?.name.trim().charAt(0).toUpperCase() ?? "";
 
   async function handleLogout() {
@@ -374,7 +372,7 @@ export function Navigation() {
                   </button>
                   <div className="invisible absolute left-1/2 top-full z-50 w-64 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                     <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
-                      {pboStatsLinks.map((subItem) => (
+                      {visiblePboStatsLinks.map((subItem) => (
                         <Link
                           key={subItem.href}
                           href={subItem.href}
@@ -730,7 +728,7 @@ export function Navigation() {
         )}
         {tabletPboStatsOpen && (
           <div className="container mx-auto flex gap-1 overflow-x-auto border-t border-[var(--background-tertiary)] px-4 py-1.5 sm:px-6" role="menu" aria-label="PBO Stats">
-            {pboStatsLinks.map((subItem) => (
+            {visiblePboStatsLinks.map((subItem) => (
               <Link
                 key={subItem.href}
                 href={subItem.href}
@@ -964,7 +962,7 @@ export function Navigation() {
                     </button>
                     {mobilePboStatsOpen && (
                       <div className="ml-4 space-y-1 border-l-2 border-[var(--background-tertiary)] pl-3">
-                        {pboStatsLinks.map((subItem) => (
+                        {visiblePboStatsLinks.map((subItem) => (
                           <Link
                             key={subItem.href}
                             href={subItem.href}

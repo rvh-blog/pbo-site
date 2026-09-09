@@ -712,6 +712,38 @@ export const pickEmPicks = sqliteTable("pick_em_picks", {
   index("idx_pick_em_picks_predicted_winner_id").on(table.predictedWinnerId),
 ]);
 
+// Auditable, turn-ordered Pokemon Showdown protocol events. Aggregate pages
+// should query indexed summaries from this table rather than reparsing replays.
+export const battleEvents = sqliteTable("battle_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  matchId: integer("match_id").notNull().references(() => matches.id, { onDelete: "cascade" }),
+  turn: integer("turn").notNull().default(0),
+  sequence: integer("sequence").notNull(),
+  eventType: text("event_type").notNull(),
+  player: text("player").$type<"p1" | "p2">(),
+  actorNickname: text("actor_nickname"),
+  targetPlayer: text("target_player").$type<"p1" | "p2">(),
+  targetNickname: text("target_nickname"),
+  pokemonName: text("pokemon_name"),
+  moveName: text("move_name"),
+  itemName: text("item_name"),
+  abilityName: text("ability_name"),
+  statusName: text("status_name"),
+  fieldName: text("field_name"),
+  value: real("value"),
+  source: text("source"),
+  rawLine: text("raw_line").notNull(),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+}, (table) => [
+  uniqueIndex("idx_battle_events_match_sequence").on(table.matchId, table.sequence),
+  index("idx_battle_events_match_turn").on(table.matchId, table.turn, table.sequence),
+  index("idx_battle_events_type_match").on(table.eventType, table.matchId),
+  index("idx_battle_events_move_type").on(table.moveName, table.eventType),
+  index("idx_battle_events_item_type").on(table.itemName, table.eventType),
+  index("idx_battle_events_ability_type").on(table.abilityName, table.eventType),
+  index("idx_battle_events_status_type").on(table.statusName, table.eventType),
+]);
+
 // Full playoff-bracket predictions. These are intentionally separate from
 // round-by-round pick-ems so they can include teams in future, TBD matchups
 // without affecting weekly rewards.

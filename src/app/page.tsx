@@ -583,6 +583,20 @@ async function getHomePersonalization(currentSeasonPromise: Promise<Awaited<Retu
   };
 }
 
+async function hasCurrentSeasonPlayoffs(
+  currentSeasonPromise: Promise<Awaited<ReturnType<typeof getCurrentSeason>>>
+) {
+  const currentSeason = await currentSeasonPromise;
+  if (!currentSeason) return false;
+
+  const playoff = await db.query.playoffMatches.findFirst({
+    where: eq(playoffMatches.seasonId, currentSeason.id),
+    columns: { id: true },
+  });
+
+  return Boolean(playoff);
+}
+
 // Type color map for badges
 const typeColors: Record<string, string> = {
   normal: "bg-gray-400",
@@ -1042,6 +1056,7 @@ const getCachedPublicHomeData = unstable_cache(
       stats,
       homepageMatchups,
       topCoaches,
+      currentPlayoffsActive,
     ] = await Promise.all([
       currentSeasonPromise,
       getPreviousSeasonChampions(),
@@ -1051,6 +1066,7 @@ const getCachedPublicHomeData = unstable_cache(
       getStats(currentSeasonPromise),
       getCurrentHomepageMatchups(currentSeasonPromise),
       getTopCoaches(),
+      hasCurrentSeasonPlayoffs(currentSeasonPromise),
     ]);
 
     return {
@@ -1062,6 +1078,7 @@ const getCachedPublicHomeData = unstable_cache(
       stats,
       homepageMatchups,
       topCoaches,
+      currentPlayoffsActive,
     };
   },
   ["home-public-data-v3"],
@@ -1084,6 +1101,7 @@ export default async function Home() {
     stats,
     homepageMatchups,
     topCoaches,
+    currentPlayoffsActive,
   } = publicHomeData;
   const currentPlayoffsActive = homepageMatchups.title === "Playoff Matchups";
   const visibleTopCoaches = topCoaches.filter((coach, index) => index < 5 || coach.isShowcase);
