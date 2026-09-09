@@ -43,7 +43,7 @@ export default async function ExperimentalModulePage({ params, searchParams }: {
         <p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)] sm:text-sm sm:leading-6">{copy.description}</p>
       </header>
       <ExperimentalModuleNav active={slug} />
-      <ExperimentalStatsClient dataset={dataset} initialModule={copy.clientModule} initialFilters={filters} standalone />
+      <ExperimentalStatsClient key={slug} dataset={dataset} initialModule={copy.clientModule} initialFilters={filters} standalone />
     </div>
   );
 }

@@ -538,8 +538,6 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
             <StatCard label="Protocol events" value={number(protocolEventCount)} detail="Normalized replay lines" />
           </div> : null}
 
-          {module !== "glossary" ? <ExperimentalInsights matches={filteredMatches} appearances={filteredAppearances} /> : null}
-
           {module === "pokemon" && <PokemonProfiles rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} qualificationText={qualificationText} minimumAppearances={filters.minimumAppearances} onSelect={setProfilePokemonId} />}
           {module === "coaches" && <CoachProfiles rows={coachRows} appearances={filteredAppearances} />}
           {module === "compare" && <CompareModule rows={pokemonRows} compareA={compareA} compareB={compareB} setCompareA={setCompareA} setCompareB={setCompareB} />}
@@ -549,6 +547,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           {module === "visualizer" && <><div className="space-y-2"><BattleVisualizer matches={filteredMatches} selectedId={visualMatchId} onSelect={setVisualMatchId} /><div className="poke-card px-4 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Timeline axes: Turn / turn range of first reveal · Item reveals / team HP remaining (%)</div></div><EventAnalytics matches={filteredMatches} selectedId={visualMatchId} /></>}
           {module === "rare" && <><RareEventsModule matches={filteredMatches} appearances={filteredAppearances} /><EventRareRecords matches={filteredMatches} /></>}
           {module === "glossary" && <GlossaryModule search={glossarySearch} setSearch={setGlossarySearch} />}
+          {module !== "glossary" ? <section className="space-y-3"><div><h2 className="font-pixel text-sm text-white">Cross-module evidence</h2><p className="text-xs text-[var(--foreground-muted)]">Additional replay-backed patterns for the active filters.</p></div><ExperimentalInsights matches={filteredMatches} appearances={filteredAppearances} /></section> : null}
         </main>
       </div>
     </div>

@@ -13,6 +13,9 @@
 - Blog and Fantasy are now permanent public pages. Their admin hide toggles,
   navigation filters, route gates, and API availability gates were removed.
 - Experimental Stats remains controlled by its separate admin feature toggle.
+- Experimental Stats module tabs now reset their view on navigation and place
+  the selected module's report before the shared cross-module insights, so each
+  tab visibly changes the page content.
 
 ## September 9, 2026 - Playoff Hub and Full-Bracket Pick-Ems
 
