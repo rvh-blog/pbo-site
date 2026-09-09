@@ -8,6 +8,7 @@ import {
 import { isGuaranteedHaxOutcome } from "@/lib/hax-rules";
 import { buildStoredBattleEvents, type StoredBattleEvent } from "@/lib/replay-events";
 import { IllusionMoveAttributionTracker } from "@/lib/illusion-move-attribution";
+import { getMegaStoneName } from "@/lib/mega-stones";
 
 interface PokemonStats {
   name: string;
@@ -561,6 +562,10 @@ export async function POST(request: NextRequest) {
       }
 
       if (pokemon) {
+        const megaStone = getMegaStoneName(pokemonName);
+        if (megaStone && !pokemon.revealedItems.some((entry) => entry.item.toLowerCase() === megaStone.toLowerCase())) {
+          pokemon.revealedItems.push({ item: megaStone, turn: currentTurn, source: "assumed from Mega Evolution" });
+        }
         const oldHp = previousName ? hpPercentMap.get(`${parsed.player}:${previousName}`) : undefined;
         pokemon.name = pokemonName;
         nicknameMap.set(parsed.nickname, pokemonName);
