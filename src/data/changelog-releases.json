@@ -1,5 +1,16 @@
 [
   {
+    "sourceKey": "2026-09-09-experimental-stats-replay-links",
+    "title": "Experimental Stats Replay Links",
+    "summary": "Experimental stat tables now explain team attribution, connect item usage to source games, and make replay evidence easier to review.",
+    "publishedAt": "2026-09-09",
+    "changes": [
+      { "type": "added", "text": "Item Impact rows now link directly to the season and week of every saved source match, with compact links that remain usable on smaller screens." },
+      { "type": "improved", "text": "KO Conversion and Team Damage Share now credit each Pokémon to the team name that used it instead of aggregating records without team context." },
+      { "type": "improved", "text": "Experimental stats navigation, sortable leaderboards, replay evidence labels, and Mega Evolution item handling are clearer and easier to audit." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-09-playoff-hub-pickems",
     "title": "Playoff Hub & Full-Bracket Pick-Ems",
     "summary": "A dedicated postseason hub, full-bracket predictions, spoiler controls, and more responsive playoff pages make the complete playoff experience easier to follow.",
