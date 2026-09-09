@@ -1,5 +1,15 @@
 [
   {
+    "sourceKey": "2026-09-08-playoff-promotion-relegation-rules",
+    "title": "Clear Promotion & Relegation Rules",
+    "summary": "Playoff pages now show the correct division movement rules and promotion paths.",
+    "publishedAt": "2026-09-08",
+    "changes": [
+      { "type": "fixed", "text": "Replaced the blanket finalists-promote badges with the correct two-up or three-up movement for each current PBO division." },
+      { "type": "added", "text": "Added a promotion and relegation guide covering regular-season leaders, playoff qualifiers, relegation counts, and overlapping promotion spots." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-07-pokemon-image-cache-precedence",
     "title": "Pokemon Image Cache Follow-Up",
     "summary": "Stable Pokemon artwork now receives its intended long-lived cache policy while replaceable team and division logos keep shorter refresh windows.",
