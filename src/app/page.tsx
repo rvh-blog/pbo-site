@@ -1085,6 +1085,7 @@ export default async function Home() {
     homepageMatchups,
     topCoaches,
   } = publicHomeData;
+  const currentPlayoffsActive = homepageMatchups.title === "Playoff Matchups";
   const visibleTopCoaches = topCoaches.filter((coach, index) => index < 5 || coach.isShowcase);
   const previousSeasonPlayoffHref = previousSeasonChampions[0]?.seasonId
     ? `/seasons/${previousSeasonChampions[0].seasonId}/playoffs`
@@ -1101,6 +1102,12 @@ export default async function Home() {
       iconPath: "M4 5h16v14H4zM8 3v4m8-4v4M4 10h16",
       accent: "border-cyan-400/25 bg-cyan-400/[0.06] hover:border-cyan-300/60",
     },
+    ...(currentPlayoffsActive ? [{
+      href: "/playoffs",
+      label: "Playoff Hub",
+      iconPath: "M12 3l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9L12 3z",
+      accent: "border-yellow-400/30 bg-yellow-400/[0.07] hover:border-yellow-300/70",
+    }] : []),
     { href: "/matchup-prep", label: "Match Prep", iconPath: "M4 6h16M4 12h16M4 18h10", accent: "border-rose-400/25 bg-rose-400/[0.06] hover:border-rose-300/60" },
     { href: "/pick-ems", label: "Pick-Ems", iconPath: "M5 5h14v14H5zM8 9h8M8 13h5", accent: "border-amber-400/25 bg-amber-400/[0.06] hover:border-amber-300/60" },
     { href: "/fantasy", label: "Fantasy Scout", iconPath: "M12 3l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9L12 3z", accent: "border-fuchsia-400/25 bg-fuchsia-400/[0.06] hover:border-fuchsia-300/60" },
@@ -1302,7 +1309,7 @@ export default async function Home() {
             <h2 id="league-hub-title" className="section-heading">Quick Actions</h2>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${currentPlayoffsActive ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}>
           {quickActionLinks.map((item) => (
             <Link
               key={item.label}

@@ -1,12 +1,15 @@
 import Link from "next/link";
+import Image from "next/image";
 import { db } from "@/lib/db";
-import { seasons, divisions, playoffMatches, seasonCoaches, matches } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { seasons, divisions, playoffMatches } from "@/lib/schema";
+import { eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { computeAndSortStandings, getPlayoffEligibleStandings } from "@/lib/standings-sort";
 import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { compareDivisions } from "@/lib/division-order";
+import { PlayoffSpoilerToggle } from "@/components/playoff-spoiler-toggle";
+import { PlayoffBracketPicks } from "@/components/playoff-bracket-picks";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -15,6 +18,14 @@ interface PageProps {
 async function getSeason(id: number) {
   const season = await db.query.seasons.findFirst({
     where: eq(seasons.id, id),
+    extras: {
+      hasEnded: sql<number>`case
+        when ${seasons.endDate} is null then not ${seasons.isCurrent}
+        when instr(${seasons.endDate}, 'T') > 0 or instr(${seasons.endDate}, ' ') > 0
+          then datetime(${seasons.endDate}) < datetime('now')
+        else datetime(${seasons.endDate}, '+1 day') <= datetime('now')
+      end`.as("has_ended"),
+    },
     with: {
       divisions: true,
     },
@@ -35,6 +46,7 @@ async function getPlayoffData(seasonId: number, visibleDivisionIds?: Set<number>
       higherSeed: { with: { coach: true } },
       lowerSeed: { with: { coach: true } },
       winner: { with: { coach: true } },
+      match: true,
     },
     orderBy: (p, { asc }) => [asc(p.divisionId), asc(p.round), asc(p.bracketPosition)],
   });
@@ -181,7 +193,7 @@ function PlayoffMatchCard({
       </div>
       <div className="divide-y-2 divide-[var(--background-tertiary)]">
         {/* Higher seed */}
-        <div className={`flex items-center justify-between px-3 py-2 ${
+        <div className={`playoff-result-state flex items-center justify-between px-3 py-2 ${
           hasWinner && match.winnerId === match.higherSeedId
             ? 'bg-[var(--success)]/10'
             : hasWinner && match.winnerId !== match.higherSeedId
@@ -195,20 +207,21 @@ function PlayoffMatchCard({
               </span>
             </div>
             {higherSeedTeam?.teamLogoUrl && (
-              <img src={higherSeedTeam.teamLogoUrl} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
+              <Image src={higherSeedTeam.teamLogoUrl} alt="" width={24} height={24} className="h-6 w-6 flex-shrink-0 object-contain" />
             )}
-            <span className={`font-bold truncate ${compact ? 'text-xs' : 'text-sm'}`}>
-              {higherSeedTeam?.teamAbbreviation || higherSeedTeam?.teamName || 'TBD'}
+            <span className="min-w-0">
+              <span className={`block whitespace-normal font-bold ${compact ? 'text-xs' : 'text-sm'}`}>{higherSeedTeam?.teamName || 'TBD'}</span>
+              {higherSeedTeam?.coach?.name && <span className="block text-[9px] font-normal text-[var(--foreground-subtle)]">{higherSeedTeam.coach.name}</span>}
             </span>
           </div>
           {hasWinner && (
-            <span className={`font-bold w-5 text-center shrink-0 ${match.winnerId === match.higherSeedId ? 'text-[var(--success)]' : 'text-[var(--foreground-muted)]'}`}>
+            <span className={`playoff-result font-bold w-5 text-center shrink-0 ${match.winnerId === match.higherSeedId ? 'text-[var(--success)]' : 'text-[var(--foreground-muted)]'}`}>
               {match.higherSeedWins || 0}
             </span>
           )}
         </div>
         {/* Lower seed */}
-        <div className={`flex items-center justify-between px-3 py-2 ${
+        <div className={`playoff-result-state flex items-center justify-between px-3 py-2 ${
           hasWinner && match.winnerId === match.lowerSeedId
             ? 'bg-[var(--success)]/10'
             : hasWinner && match.winnerId !== match.lowerSeedId
@@ -222,19 +235,33 @@ function PlayoffMatchCard({
               </span>
             </div>
             {lowerSeedTeam?.teamLogoUrl && (
-              <img src={lowerSeedTeam.teamLogoUrl} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
+              <Image src={lowerSeedTeam.teamLogoUrl} alt="" width={24} height={24} className="h-6 w-6 flex-shrink-0 object-contain" />
             )}
-            <span className={`font-bold truncate ${compact ? 'text-xs' : 'text-sm'}`}>
-              {lowerSeedTeam?.teamAbbreviation || lowerSeedTeam?.teamName || 'TBD'}
+            <span className="min-w-0">
+              <span className={`block whitespace-normal font-bold ${compact ? 'text-xs' : 'text-sm'}`}>{lowerSeedTeam?.teamName || 'TBD'}</span>
+              {lowerSeedTeam?.coach?.name && <span className="block text-[9px] font-normal text-[var(--foreground-subtle)]">{lowerSeedTeam.coach.name}</span>}
             </span>
           </div>
           {hasWinner && (
-            <span className={`font-bold w-5 text-center shrink-0 ${match.winnerId === match.lowerSeedId ? 'text-[var(--success)]' : 'text-[var(--foreground-muted)]'}`}>
+            <span className={`playoff-result font-bold w-5 text-center shrink-0 ${match.winnerId === match.lowerSeedId ? 'text-[var(--success)]' : 'text-[var(--foreground-muted)]'}`}>
               {match.lowerSeedWins || 0}
             </span>
           )}
         </div>
       </div>
+      {match.matchId && (
+        <div className="flex flex-wrap items-center gap-3 border-t-2 border-[var(--background-tertiary)] px-3 py-2 text-[10px] font-bold uppercase">
+          <Link href={`/matches/${match.matchId}`} className="min-h-11 inline-flex items-center text-[var(--primary)] hover:text-white">
+            {hasWinner ? "Match details" : "Match preview"}
+          </Link>
+          {!hasWinner && (
+            <Link href={`/matchup-prep?matchId=${match.matchId}`} className="min-h-11 inline-flex items-center text-[var(--foreground-muted)] hover:text-white">Matchup prep</Link>
+          )}
+          {match.match?.replayUrl && (
+            <a href={match.match.replayUrl} target="_blank" rel="noopener noreferrer" className="playoff-result min-h-11 inline-flex items-center text-[var(--accent)] hover:text-white">Replay</a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -275,7 +302,7 @@ function PlayoffBracket({
             <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
             </svg>
-            <span className="font-bold text-yellow-400 text-sm">{champion.teamName}</span>
+            <span className="playoff-result font-bold text-yellow-400 text-sm">{champion.teamName}</span>
           </div>
         )}
       </div>
@@ -291,13 +318,13 @@ function PlayoffBracket({
       ) : (
         <>
           {/* Mobile Layout - Vertical Stacked Rounds */}
-          <div className="lg:hidden space-y-6">
+          <div className="space-y-6 xl:hidden">
             {/* Quarterfinals */}
             <div>
               <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider mb-3">
                 Quarterfinals
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {quarterfinals.map((match) => (
                   <PlayoffMatchCard key={match.id} match={match} roundName={`QF${match.bracketPosition}`} seedingMap={seedingMap} compact />
                 ))}
@@ -316,7 +343,7 @@ function PlayoffBracket({
               <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider mb-3">
                 Semifinals
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {semifinals.map((match) => (
                   <PlayoffMatchCard key={match.id} match={match} roundName={`SF${match.bracketPosition}`} seedingMap={seedingMap} compact />
                 ))}
@@ -347,7 +374,7 @@ function PlayoffBracket({
                 )}
 
                 {/* Champion Badge */}
-                <div className="flex flex-col items-center">
+                <div className="playoff-result flex flex-col items-center">
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center border-4 ${
                     champion
                       ? 'bg-gradient-to-br from-yellow-500 to-amber-600 border-yellow-400'
@@ -368,29 +395,29 @@ function PlayoffBracket({
           </div>
 
           {/* Desktop Layout - Horizontal Bracket */}
-          <div className="hidden lg:block min-w-[900px]">
+          <div className="hidden min-w-[1080px] xl:block">
             {/* Round Headers */}
-            <div className="flex items-end gap-6 mb-4">
-              <div className="w-[220px] text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
+            <div className="mb-4 grid grid-cols-[minmax(240px,1.25fr)_48px_minmax(240px,1.1fr)_48px_minmax(240px,1.1fr)_minmax(140px,0.6fr)] items-end gap-4">
+              <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
                 Quarterfinals
               </div>
-              <div className="w-[40px]"></div>
-              <div className="w-[220px] text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
+              <div />
+              <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
                 Semifinals
               </div>
-              <div className="w-[40px]"></div>
-              <div className="w-[220px] text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider">
+              <div />
+              <div className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider">
                 Finals
               </div>
-              <div className="w-[80px] text-[10px] font-bold text-yellow-400 uppercase tracking-wider text-center">
+              <div className="text-center text-[10px] font-bold uppercase tracking-wider text-yellow-400">
                 Champion
               </div>
             </div>
 
             {/* Bracket Structure */}
-            <div className="flex items-stretch gap-6">
+            <div className="grid grid-cols-[minmax(240px,1.25fr)_48px_minmax(240px,1.1fr)_48px_minmax(240px,1.1fr)_minmax(140px,0.6fr)] items-stretch gap-4">
               {/* Quarterfinals */}
-              <div className="flex flex-col justify-around gap-3 w-[220px]">
+              <div className="flex min-w-0 flex-col justify-around gap-3">
                 <div className="flex flex-col gap-3">
                   {quarterfinals.slice(0, 2).map((match) => (
                     <PlayoffMatchCard key={match.id} match={match} roundName={`QF ${match.bracketPosition}`} seedingMap={seedingMap} />
@@ -404,7 +431,7 @@ function PlayoffBracket({
               </div>
 
               {/* Bracket connector QF -> SF */}
-              <div className="flex flex-col justify-around w-[40px]">
+              <div className="flex w-full flex-col items-center justify-around">
                 <svg width="40" height="100" className="text-[var(--background-tertiary)]">
                   <path d="M0 25 H15 V50 H40" fill="none" stroke="currentColor" strokeWidth="2" />
                   <path d="M0 75 H15 V50 H40" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -416,14 +443,14 @@ function PlayoffBracket({
               </div>
 
               {/* Semifinals */}
-              <div className="flex flex-col justify-around w-[220px]">
+              <div className="flex min-w-0 flex-col justify-around">
                 {semifinals.map((match) => (
                   <PlayoffMatchCard key={match.id} match={match} roundName={`SF ${match.bracketPosition}`} seedingMap={seedingMap} />
                 ))}
               </div>
 
               {/* Bracket connector SF -> Finals */}
-              <div className="flex items-center w-[40px]">
+              <div className="flex w-full items-center justify-center">
                 <svg width="40" height="200" className="text-[var(--background-tertiary)]">
                   <path d="M0 50 H15 V100 H40" fill="none" stroke="currentColor" strokeWidth="2" />
                   <path d="M0 150 H15 V100 H40" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -431,7 +458,7 @@ function PlayoffBracket({
               </div>
 
               {/* Finals */}
-              <div className="flex items-center w-[220px]">
+              <div className="flex min-w-0 items-center">
                 {finals.length > 0 ? (
                   <PlayoffMatchCard match={finals[0]} roundName="Championship" seedingMap={seedingMap} />
                 ) : (
@@ -442,8 +469,8 @@ function PlayoffBracket({
               </div>
 
               {/* Champion */}
-              <div className="flex items-center justify-center w-[80px]">
-                <div className="flex flex-col items-center">
+              <div className="flex min-w-0 items-center justify-center">
+                <div className="playoff-result flex flex-col items-center">
                   <div className={`w-16 h-16 rounded-full flex items-center justify-center border-4 ${
                     champion
                       ? 'bg-gradient-to-br from-yellow-500 to-amber-600 border-yellow-400'
@@ -458,7 +485,7 @@ function PlayoffBracket({
                     )}
                   </div>
                   {champion && (
-                    <span className="mt-2 font-bold text-xs text-center text-yellow-400 max-w-[80px] truncate">{champion.teamName}</span>
+                    <span className="mt-2 max-w-[140px] whitespace-normal text-center text-xs font-bold leading-relaxed text-yellow-400">{champion.teamName}</span>
                   )}
                 </div>
               </div>
@@ -494,9 +521,13 @@ export default async function PlayoffsPage({ params }: PageProps) {
     getPlayoffData(seasonId, visibleDivisionIds),
     getStandingsByDivision(seasonId, visibleDivisionIds),
   ]);
+  const hideResultsByDefault = !season.hasEnded;
 
   return (
     <div className="space-y-8">
+      {hideResultsByDefault && (
+        <script dangerouslySetInnerHTML={{ __html: `document.documentElement.classList.add("playoff-spoilers-hidden")` }} />
+      )}
       {/* Page Header */}
       <div className="poke-card p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
@@ -535,28 +566,41 @@ export default async function PlayoffsPage({ params }: PageProps) {
             </p>
           </div>
 
-          {/* Action Button */}
-          <Link href={`/seasons/${seasonId}`}>
-            <button className="btn-retro-secondary py-2 px-4 text-[10px] flex items-center gap-2">
+          <div className="flex flex-wrap gap-2">
+            <PlayoffSpoilerToggle defaultHidden={hideResultsByDefault} />
+            <Link href="/playoffs" className="btn-retro-secondary inline-flex min-h-11 items-center px-4 py-2 text-[10px]">Archive & Stats</Link>
+            <Link href={`/seasons/${seasonId}`} className="btn-retro-secondary py-2 px-4 text-[10px] flex min-h-11 items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
               Back to Season
-            </button>
-          </Link>
+            </Link>
+          </div>
         </div>
       </div>
 
       {/* Playoff Brackets */}
       <div className="space-y-8">
-        {season.divisions.map((div) => (
-          <PlayoffBracket
-            key={div.id}
-            matches={playoffsByDivision[div.id] || []}
-            divisionName={div.name}
-            seedingMap={standingsByDivision[div.id]}
-          />
-        ))}
+        {season.divisions.map((div) => {
+          const divisionPlayoffs = playoffsByDivision[div.id] || [];
+          return (
+            <div key={div.id} className="space-y-4">
+              <PlayoffBracket matches={divisionPlayoffs} divisionName={div.name} seedingMap={standingsByDivision[div.id]} />
+              <PlayoffBracketPicks
+                seasonId={seasonId}
+                divisionId={div.id}
+                divisionName={div.name}
+                slots={divisionPlayoffs.map((slot) => ({
+                  id: slot.id,
+                  round: slot.round,
+                  bracketPosition: slot.bracketPosition,
+                  higherSeed: slot.higherSeed,
+                  lowerSeed: slot.lowerSeed,
+                }))}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {/* Legend */}

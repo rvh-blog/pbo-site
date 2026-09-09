@@ -712,6 +712,28 @@ export const pickEmPicks = sqliteTable("pick_em_picks", {
   index("idx_pick_em_picks_predicted_winner_id").on(table.predictedWinnerId),
 ]);
 
+// Full playoff-bracket predictions. These are intentionally separate from
+// round-by-round pick-ems so they can include teams in future, TBD matchups
+// without affecting weekly rewards.
+export const playoffBracketPicks = sqliteTable("playoff_bracket_picks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  participantId: integer("participant_id")
+    .notNull()
+    .references(() => pickEmParticipants.id),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  divisionId: integer("division_id")
+    .notNull()
+    .references(() => divisions.id),
+  picks: text("picks", { mode: "json" }).notNull().$type<Record<string, number>>(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_playoff_bracket_picks_participant_division").on(table.participantId, table.divisionId),
+  index("idx_playoff_bracket_picks_season_division").on(table.seasonId, table.divisionId),
+]);
+
 // Fantasy Entries - saved fantasy rosters for signed-in coaches or spectators
 export const fantasyEntries = sqliteTable("fantasy_entries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -933,6 +955,21 @@ export const pickEmPicksRelations = relations(pickEmPicks, ({ one }) => ({
   predictedWinner: one(seasonCoaches, {
     fields: [pickEmPicks.predictedWinnerId],
     references: [seasonCoaches.id],
+  }),
+}));
+
+export const playoffBracketPicksRelations = relations(playoffBracketPicks, ({ one }) => ({
+  participant: one(pickEmParticipants, {
+    fields: [playoffBracketPicks.participantId],
+    references: [pickEmParticipants.id],
+  }),
+  season: one(seasons, {
+    fields: [playoffBracketPicks.seasonId],
+    references: [seasons.id],
+  }),
+  division: one(divisions, {
+    fields: [playoffBracketPicks.divisionId],
+    references: [divisions.id],
   }),
 }));
 
