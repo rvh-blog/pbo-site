@@ -36,6 +36,12 @@ See also:
 - Free Agency: `src/app/draft-planner`
 - Matchup Prep: `src/app/matchup-prep` (available from the Game Prep menu)
 - Pick-ems: `src/app/pick-ems`
+- Playoff Hub: `src/app/playoffs` (season-filtered playoff-only KOs, team
+  differential, fantasy-formula MVP, usage, champions, promotions, and links
+  to historical brackets)
+- Full-bracket pick-ems: `src/components/playoff-bracket-picks.tsx` and
+  `src/app/api/playoff-bracket-picks/route.ts` (persisted separately from
+  weekly reward pick-ems and locked when quarterfinals begin)
 - Fantasy: `src/app/fantasy`
 - Power rankings: `src/app/power-rankings`
 - Broadcast overlay: `src/app/broadcast`

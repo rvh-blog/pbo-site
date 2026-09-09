@@ -39,6 +39,11 @@ const matchPrepLinks = [
   { href: "/analyzer", label: "Replay Analyzer" },
 ];
 
+const seasonsLinks = [
+  { href: "/seasons", label: "All Seasons" },
+  { href: "/playoffs", label: "Playoff Hub" },
+];
+
 const pboStatsLinks = [
   { href: "/leaderboards", label: "Rankings & Stats" },
   { href: "/compare", label: "Compare Coaches & Pokémon" },
@@ -48,7 +53,6 @@ const pboStatsLinks = [
   { href: "/leaderboards/items", label: "Item Usage" },
 ];
 
-
 export function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -57,8 +61,10 @@ export function Navigation() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProjectMewPrompt, setShowProjectMewPrompt] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  const [mobileSeasonsOpen, setMobileSeasonsOpen] = useState(false);
   const [mobileMatchPrepOpen, setMobileMatchPrepOpen] = useState(false);
   const [mobilePboStatsOpen, setMobilePboStatsOpen] = useState(false);
+  const [tabletSeasonsOpen, setTabletSeasonsOpen] = useState(false);
   const [tabletMatchPrepOpen, setTabletMatchPrepOpen] = useState(false);
   const [tabletPboStatsOpen, setTabletPboStatsOpen] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
@@ -187,6 +193,7 @@ export function Navigation() {
     pathname === "/matchup-prep" ||
     pathname.startsWith("/draft-planner") ||
     pathname.startsWith("/analyzer");
+  const seasonsActive = pathname === "/seasons" || pathname.startsWith("/seasons/") || pathname === "/playoffs";
   const pboStatsActive = pathname === "/leaderboards" || pathname.startsWith("/leaderboards/") || pathname === "/battle-record" || pathname.startsWith("/battle-record/") || pathname === "/compare" || pathname.startsWith("/compare/");
   const userInitial = authUser?.name.trim().charAt(0).toUpperCase() ?? "";
 
@@ -263,7 +270,48 @@ export function Navigation() {
           {visibleNavItems.map((item) => {
             const isActive = item.href === "/matchup-prep"
               ? matchPrepActive
+              : item.href === "/seasons"
+                ? seasonsActive
               : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+
+            if (item.href === "/seasons") {
+              return (
+                <div key={item.href} className="group relative">
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    className={`inline-flex items-center gap-1 font-bold uppercase text-sm tracking-wide transition-all ${
+                      seasonsActive
+                        ? "text-[var(--foreground)] underline decoration-yellow-300 decoration-2 underline-offset-4"
+                        : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-yellow-300 hover:decoration-2 hover:underline-offset-4"
+                    }`}
+                  >
+                    {item.label}
+                    <svg className="h-3 w-3 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  <div className="invisible absolute left-1/2 top-full z-50 w-44 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                    <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
+                      {seasonsLinks.map((subItem) => (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href}
+                          role="menuitem"
+                          className={`block rounded px-3 py-2 text-xs font-bold uppercase transition-colors ${
+                            pathname === subItem.href || (subItem.href === "/seasons" && pathname.startsWith("/seasons/"))
+                              ? "bg-[var(--background-tertiary)] text-white"
+                              : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                          }`}
+                        >
+                          {subItem.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
 
             if (item.href === "/matchup-prep") {
               return (
@@ -542,9 +590,37 @@ export function Navigation() {
           {visibleNavItems.map((item) => {
             const isActive = item.href === "/matchup-prep"
               ? matchPrepActive
+              : item.href === "/seasons"
+                ? seasonsActive
               : item.href === "/leaderboards"
                 ? pboStatsActive
                 : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            if (item.href === "/seasons") {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => {
+                    setTabletSeasonsOpen((open) => !open);
+                    setTabletMatchPrepOpen(false);
+                    setTabletPboStatsOpen(false);
+                  }}
+                  aria-haspopup="menu"
+                  aria-expanded={tabletSeasonsOpen}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+                    isActive
+                      ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
+                      : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {item.label}
+                  <svg className={`h-3 w-3 transition-transform ${tabletSeasonsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+              );
+            }
 
             if (item.href === "/matchup-prep") {
               return (
@@ -553,6 +629,7 @@ export function Navigation() {
                   type="button"
                   onClick={() => {
                     setTabletMatchPrepOpen((open) => !open);
+                    setTabletSeasonsOpen(false);
                     setTabletPboStatsOpen(false);
                   }}
                   aria-haspopup="menu"
@@ -578,6 +655,7 @@ export function Navigation() {
                   type="button"
                   onClick={() => {
                     setTabletPboStatsOpen((open) => !open);
+                    setTabletSeasonsOpen(false);
                     setTabletMatchPrepOpen(false);
                   }}
                   aria-haspopup="menu"
@@ -612,6 +690,25 @@ export function Navigation() {
             );
           })}
         </div>
+        {tabletSeasonsOpen && (
+          <div className="container mx-auto flex gap-1 overflow-x-auto border-t border-[var(--background-tertiary)] px-4 py-1.5 sm:px-6" role="menu" aria-label="Seasons">
+            {seasonsLinks.map((subItem) => (
+              <Link
+                key={subItem.href}
+                href={subItem.href}
+                role="menuitem"
+                onClick={() => setTabletSeasonsOpen(false)}
+                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold uppercase transition-colors ${
+                  pathname === subItem.href || (subItem.href === "/seasons" && pathname.startsWith("/seasons/"))
+                    ? "bg-[var(--background-tertiary)] text-white"
+                    : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                }`}
+              >
+                {subItem.label}
+              </Link>
+            ))}
+          </div>
+        )}
         {tabletMatchPrepOpen && (
           <div className="container mx-auto flex gap-1 overflow-x-auto border-t border-[var(--background-tertiary)] px-4 py-1.5 sm:px-6" role="menu" aria-label="Game Prep">
             {matchPrepLinks.map((subItem) => (
@@ -745,14 +842,66 @@ export function Navigation() {
             {visibleNavItems.map((item) => {
               const isActive = item.href === "/matchup-prep"
                 ? matchPrepActive
+                : item.href === "/seasons"
+                  ? seasonsActive
                 : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+
+              if (item.href === "/seasons") {
+                return (
+                  <div key={item.href}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileSeasonsOpen((open) => !open);
+                        setMobileMatchPrepOpen(false);
+                        setMobilePboStatsOpen(false);
+                      }}
+                      aria-haspopup="menu"
+                      aria-label="Toggle Seasons menu"
+                      aria-expanded={mobileSeasonsOpen}
+                      className={`flex w-full items-center justify-between rounded-lg px-4 py-3 font-bold uppercase text-sm tracking-wide transition-all ${
+                        isActive
+                          ? "bg-[var(--background-tertiary)] text-[var(--foreground)]"
+                          : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"
+                      }`}
+                    >
+                      {item.label}
+                      <svg className={`h-4 w-4 transition-transform ${mobileSeasonsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+                    {mobileSeasonsOpen && (
+                      <div className="ml-4 space-y-1 border-l-2 border-[var(--background-tertiary)] pl-3">
+                        {seasonsLinks.map((subItem) => (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={`block rounded-lg px-4 py-2 text-xs font-bold uppercase transition-colors ${
+                              pathname === subItem.href || (subItem.href === "/seasons" && pathname.startsWith("/seasons/"))
+                                ? "bg-[var(--background-tertiary)] text-white"
+                                : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"
+                            }`}
+                          >
+                            {subItem.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
 
               if (item.href === "/matchup-prep") {
                 return (
                   <div key={item.href}>
                     <button
                       type="button"
-                      onClick={() => setMobileMatchPrepOpen((open) => !open)}
+                      onClick={() => {
+                        setMobileMatchPrepOpen((open) => !open);
+                        setMobileSeasonsOpen(false);
+                        setMobilePboStatsOpen(false);
+                      }}
                       aria-haspopup="menu"
                       aria-label="Toggle Game Prep menu"
                       aria-expanded={mobileMatchPrepOpen}
@@ -794,7 +943,11 @@ export function Navigation() {
                   <div key={item.href}>
                     <button
                       type="button"
-                      onClick={() => setMobilePboStatsOpen((open) => !open)}
+                      onClick={() => {
+                        setMobilePboStatsOpen((open) => !open);
+                        setMobileSeasonsOpen(false);
+                        setMobileMatchPrepOpen(false);
+                      }}
                       aria-haspopup="menu"
                       aria-label="Toggle PBO Stats menu"
                       aria-expanded={mobilePboStatsOpen}

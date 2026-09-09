@@ -1,5 +1,29 @@
 # Recent Website Updates
 
+## September 9, 2026 - Playoff Hub and Full-Bracket Pick-Ems
+
+- Added `/playoffs` as a postseason hub with season-filtered playoff-only KO,
+  team differential, MVP, and Pokemon usage leaderboards.
+- Added a historical bracket archive with champions, runners-up, applicable
+  promotion results, and direct links to each complete bracket. Seasons 3–5
+  omit promotion claims because that history is unavailable, and Stargazer
+  promotion is not shown before Season 11.
+- Added full-bracket Pick-Ems beside the existing weekly round picks. Entries
+  validate bracket progression, persist separately from reward-bearing weekly
+  picks, lock when quarterfinals begin, and have their own leaderboard.
+- Full-bracket prediction panels start collapsed, link back to weekly Pick-Ems,
+  and use compact round layouts to reduce empty space.
+- Active-season playoff results are hidden on every page entry until the user
+  reveals them for that visit. Completed seasons display their results normally.
+- Playoff matchup cards now use full team and coach names, provide visible match,
+  preparation, and replay actions, fill desktop space more effectively, and
+  stack one matchup per row on narrow screens.
+- Seasons is now a responsive dropdown containing All Seasons and Playoff Hub.
+  The homepage Quick Actions panel also shows Playoff Hub while current playoff
+  matchups are active.
+- Added the idempotent `playoff_bracket_picks` startup migration and documented
+  the new pages and data flow in the feature map.
+
 ## September 7, 2026 - No-Cost Performance Optimizations
 
 Performance measurement and delivery:

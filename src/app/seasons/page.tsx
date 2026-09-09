@@ -99,6 +99,9 @@ export default async function SeasonsPage() {
         <p className="text-[var(--foreground-muted)] text-lg max-w-xl mx-auto">
           Browse all past and current seasons of PBO
         </p>
+        <Link href="/playoffs" className="btn-retro-secondary inline-flex min-h-11 items-center px-4 text-[10px]">
+          Playoff archive & stats
+        </Link>
       </div>
 
       {modernSeasons.length === 0 ? (

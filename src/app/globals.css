@@ -2052,6 +2052,22 @@ html[data-theme="light"] .score-display {
   }
 }
 
+/* User-controlled playoff spoiler protection. Matchups stay readable while
+   winner emphasis, scores, and champion identities are obscured. */
+.playoff-spoilers-hidden .playoff-result {
+  filter: blur(7px);
+  user-select: none;
+}
+
+.playoff-spoilers-hidden .playoff-result-state {
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+.playoff-spoilers-hidden .playoff-result-state * {
+  color: inherit !important;
+}
+
 /* Schedule actions remain comfortable to read and tap on narrow screens. */
 .schedule-readable .mobile-scroll-region::before {
   display: none;

@@ -1,5 +1,19 @@
 [
   {
+    "sourceKey": "2026-09-09-playoff-hub-pickems",
+    "title": "Playoff Hub & Full-Bracket Pick-Ems",
+    "summary": "A dedicated postseason hub, full-bracket predictions, spoiler controls, and more responsive playoff pages make the complete playoff experience easier to follow.",
+    "publishedAt": "2026-09-09",
+    "changes": [
+      { "type": "added", "text": "Added a Playoff Hub with postseason-only KO, differential, MVP, and usage leaderboards plus a historical bracket archive." },
+      { "type": "added", "text": "Added persisted full-bracket Pick-Ems alongside weekly round picks, with progression validation, quarterfinal locking, and a separate leaderboard." },
+      { "type": "improved", "text": "Playoff results start hidden on every visit during an active season, while completed seasons remain visible by default." },
+      { "type": "improved", "text": "Playoff brackets and prediction cards use space more efficiently, show full names, expose actions without hover, and stack cleanly on mobile." },
+      { "type": "improved", "text": "Moved Playoff Hub into the Seasons menu and added a homepage shortcut whenever the current playoff matchups are active." },
+      { "type": "fixed", "text": "Historical archives omit unavailable Season 3–5 promotion claims and do not claim Stargazer promotion before Season 11." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-08-playoff-promotion-relegation-rules",
     "title": "Clear Promotion & Relegation Rules",
     "summary": "Playoff pages now show the correct division movement rules and promotion paths.",

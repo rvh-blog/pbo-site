@@ -1345,6 +1345,11 @@ export function PickEmsClient({ season, coachOptions, initialWeek, initialDivisi
             </p>
           </div>
         </div>
+        <div className="mt-4 border-t border-[var(--background-tertiary)] pt-4">
+          <Link href={`/seasons/${season.id}/playoffs`} className="btn-retro-secondary inline-flex min-h-11 items-center px-4 text-[10px]">
+            Make full-bracket picks
+          </Link>
+        </div>
       </div>
 
       {/* Show sign in prompt if not authenticated */}

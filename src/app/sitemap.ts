@@ -8,6 +8,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes = [
     "",
     "/seasons",
+    "/playoffs",
     "/coaches",
     "/matchup-prep",
     "/draft-planner",
