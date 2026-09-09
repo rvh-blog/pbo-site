@@ -158,6 +158,24 @@ Standalone SQL migration currently present:
 sqlite3 pbo.db < migrations/add-division-sheet-sync.sql
 ```
 
+Experimental replay-event storage is additive and is applied by startup
+migrations in production. For a local database, use:
+
+```bash
+sqlite3 pbo.db < migrations/add-battle-events.sql
+```
+
+Historical replay events can then be audited/backfilled with:
+
+```bash
+npm run events:backfill -- --limit=25
+npm run events:backfill -- --apply
+```
+
+The first command is a dry run. Backfill downloads only replay URLs that do
+not already have normalized rows, preserves every raw protocol line, and does
+not alter match results or Pokémon aggregates.
+
 ## Elo Recalculation
 
 Recalculate Elo from the command line:

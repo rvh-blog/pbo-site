@@ -17,7 +17,6 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import type { FantasyPokemonOption } from "./fantasy-entry-client";
 import { PokemonBoardClient, type PokemonBoardRow } from "./pokemon-board-client";
 import { ScheduleBoardClient, type FantasyScheduleRow } from "./schedule-board-client";
-import { getSiteFeatureSettings } from "@/lib/site-settings";
 import { getSession } from "@/lib/session";
 import { formatPokemonDisplayName, shouldUseFriendlyMegaNamesForSeason } from "@/lib/pokemon-name-utils";
 import { FantasyAbout } from "./fantasy-about";
@@ -733,16 +732,6 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
 
 export default async function FantasyPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const featureSettings = await getSiteFeatureSettings();
-  if (featureSettings.fantasyUiHidden) {
-    return (
-      <div className="poke-card p-8 text-center">
-        <h1 className="font-pixel text-lg text-white">Fantasy Scout</h1>
-        <p className="mt-3 text-[var(--foreground-muted)]">Fantasy is currently unavailable.</p>
-      </div>
-    );
-  }
-
   const { selected, seasons: seasonOptions } = await getSelectedSeason(searchParams);
 
   if (!selected) {

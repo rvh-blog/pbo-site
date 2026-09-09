@@ -6,6 +6,7 @@ import {
   type PokemonAliasMaps,
 } from "@/lib/pokemon-name-aliases";
 import { isGuaranteedHaxOutcome } from "@/lib/hax-rules";
+import { buildStoredBattleEvents, type StoredBattleEvent } from "@/lib/replay-events";
 
 interface PokemonStats {
   name: string;
@@ -74,6 +75,7 @@ interface ParsedReplay {
   zoroarkInvolved: boolean;
   turnSnapshots: TurnSnapshot[];
   keyEvents: KeyEvent[];
+  battleEvents: StoredBattleEvent[];
 }
 
 interface ActiveTurnCreditEvent {
@@ -325,6 +327,7 @@ export async function POST(request: NextRequest) {
       zoroarkInvolved: false,
       turnSnapshots: [],
       keyEvents: [],
+      battleEvents: buildStoredBattleEvents(log),
     };
 
     // Timestamp tracking

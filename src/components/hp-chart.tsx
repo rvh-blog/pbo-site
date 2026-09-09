@@ -84,7 +84,7 @@ export function HpChart({ turnSnapshots, keyEvents, team1Name, team2Name, team1C
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={chartData}
-          margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
+            margin={{ top: 5, right: 10, left: 20, bottom: 18 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" />
           <XAxis
@@ -103,6 +103,7 @@ export function HpChart({ turnSnapshots, keyEvents, team1Name, team2Name, team1C
             domain={[0, 600]}
             ticks={[0, 100, 200, 300, 400, 500, 600]}
             tickFormatter={(value) => `${value}%`}
+            label={{ value: "Team HP remaining (%)", angle: -90, position: "insideLeft", offset: 4, fill: "var(--foreground-muted)", fontSize: 11 }}
           />
           <Tooltip
             contentStyle={{

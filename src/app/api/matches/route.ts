@@ -20,6 +20,7 @@ import { logAdminAudit } from "@/lib/admin-audit";
 import { queueMilestoneEvaluation } from "@/lib/milestones";
 import { syncDivision } from "@/lib/sheets-sync-all";
 import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
+import { replaceBattleEvents } from "@/lib/battle-event-storage";
 
 async function refreshFantasyStatsForResult(seasonId: number, week: number) {
   await refreshFantasyWeeklyStatsForWeek(seasonId, week);
@@ -292,6 +293,7 @@ export async function POST(request: NextRequest) {
     endedAt, // Match end time from replay
     turnSnapshots, // Array of { turn, p1TotalHp, p2TotalHp } for HP charts
     keyEvents, // Array of { turn, type, description } for key events timeline
+    battleEvents, // Normalized, raw-line-backed replay protocol events
     zoroarkInvolved, // Boolean flag for Zoroark games (inaccurate K/D warning)
   } = body;
 
@@ -423,6 +425,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (Array.isArray(battleEvents)) {
+    try {
+      await replaceBattleEvents(match.id, battleEvents);
+    } catch (error) {
+      console.error("[Matches API] Normalized battle-event storage skipped:", error);
+    }
+  }
+
   if (hasCompletedResult) {
     queueDivisionSheetSync(divisionId);
   }
@@ -468,6 +478,7 @@ export async function PUT(request: NextRequest) {
     endedAt, // Match end time from replay
     turnSnapshots, // Array of { turn, p1TotalHp, p2TotalHp } for HP charts
     keyEvents, // Array of { turn, type, description } for key events timeline
+    battleEvents,
     zoroarkInvolved, // Boolean flag for Zoroark games (inaccurate K/D warning)
   } = body;
 
@@ -727,6 +738,15 @@ export async function PUT(request: NextRequest) {
       await queueMilestoneEvaluation(id);
     } catch (milestoneError) {
       console.error("[Matches API] Error queueing milestones:", milestoneError);
+    }
+  }
+
+
+  if (Array.isArray(battleEvents)) {
+    try {
+      await replaceBattleEvents(id, battleEvents);
+    } catch (error) {
+      console.error("[Matches API] Normalized battle-event storage skipped:", error);
     }
   }
 

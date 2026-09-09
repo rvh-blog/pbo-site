@@ -1,5 +1,20 @@
 # Recent Website Updates
 
+## September 9, 2026 - Playoff Hub, Experimental Stats, and Permanent Community Pages
+
+- Aligned the playoff bracket round headings and columns so Quarterfinals,
+  Semifinals, Finals, and Champion share the same grid tracks and baseline.
+- Expanded Experimental Stats with momentum charts, matchup records, KO
+  conversion, team damage share, move-to-KO signals, team cores, coach and
+  item tendencies, replay pace, playoff-versus-regular comparisons, replay
+  comparison, confidence labels, browser-saved reports, and CSV exports.
+- Centered Experimental Stats summary cards and table values, removed the
+  evidence-based Role Profiles panel, and standardized table heading alignment.
+- Blog and Fantasy are now permanent public pages. Their admin hide toggles,
+  navigation filters, route gates, and API availability gates were removed.
+- Experimental Stats remains controlled by its separate admin feature toggle.
+
+
 ## September 1, 2026 - Homepage & Poll Controls
 
 - Refreshed the homepage hero with stronger season branding, current-season

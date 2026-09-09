@@ -1,10 +1,12 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { SITE_URL } from "@/lib/site-url";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const featureSettings = await getSiteFeatureSettings();
   const staticRoutes = [
     "",
     "/seasons",
@@ -22,6 +24,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/pokemon/combinations",
     "/power-rankings",
   ];
+  if (featureSettings.experimentalStatsEnabled) {
+    staticRoutes.push(
+      "/experimental-stats",
+      "/experimental-stats/pokemon",
+      "/experimental-stats/coaches",
+      "/experimental-stats/compare",
+      "/experimental-stats/trends",
+      "/experimental-stats/leaderboards",
+      "/experimental-stats/replays",
+      "/experimental-stats/battle-visualizer",
+      "/experimental-stats/rare-events",
+      "/experimental-stats/glossary",
+    );
+  }
 
   const [publicSeasons, publicCoaches] = await Promise.all([
     db.query.seasons.findMany({

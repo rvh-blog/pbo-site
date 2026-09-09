@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface BettingSettings {
   bettingClosed: boolean;
   bettingUiHidden: boolean;
-  fantasyUiHidden: boolean;
-  blogUiHidden: boolean;
+  experimentalStatsEnabled: boolean;
 }
 
 interface Division {
@@ -48,8 +47,7 @@ export default function AdminBettingPage() {
   const [settings, setSettings] = useState<BettingSettings>({
     bettingClosed: false,
     bettingUiHidden: false,
-    fantasyUiHidden: false,
-    blogUiHidden: false,
+    experimentalStatsEnabled: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -645,47 +643,22 @@ export default function AdminBettingPage() {
 
           <div className="flex items-center justify-between p-4 bg-[var(--background-secondary)] rounded-lg">
             <div>
-              <h3 className="font-bold text-white">Hide Fantasy</h3>
+              <h3 className="font-bold text-white">Enable Experimental Stats</h3>
               <p className="text-sm text-[var(--foreground-muted)] mt-1">
-                Removes Fantasy from navigation and blocks the public Fantasy page/API.
+                Makes Experimental Stats available in the public PBO Stats menu and allows the public routes to load.
               </p>
             </div>
             <button
-              onClick={() => updateSetting("fantasyUiHidden", !settings.fantasyUiHidden)}
+              onClick={() => updateSetting("experimentalStatsEnabled", !settings.experimentalStatsEnabled)}
               disabled={saving}
+              aria-pressed={settings.experimentalStatsEnabled}
               className={`relative w-14 h-8 rounded-full transition-colors ${
-                settings.fantasyUiHidden
-                  ? "bg-red-600"
-                  : "bg-gray-600"
+                settings.experimentalStatsEnabled ? "bg-green-600" : "bg-gray-600"
               }`}
             >
               <span
                 className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${
-                  settings.fantasyUiHidden ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-[var(--background-secondary)] rounded-lg">
-            <div>
-              <h3 className="font-bold text-white">Hide Blog</h3>
-              <p className="text-sm text-[var(--foreground-muted)] mt-1">
-                Removes Blog from navigation and blocks public blog pages/new posts.
-              </p>
-            </div>
-            <button
-              onClick={() => updateSetting("blogUiHidden", !settings.blogUiHidden)}
-              disabled={saving}
-              className={`relative w-14 h-8 rounded-full transition-colors ${
-                settings.blogUiHidden
-                  ? "bg-red-600"
-                  : "bg-gray-600"
-              }`}
-            >
-              <span
-                className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${
-                  settings.blogUiHidden ? "left-7" : "left-1"
+                  settings.experimentalStatsEnabled ? "left-7" : "left-1"
                 }`}
               />
             </button>
@@ -710,18 +683,11 @@ export default function AdminBettingPage() {
                 Betting UI: {settings.bettingUiHidden ? "HIDDEN" : "VISIBLE"}
               </span>
               <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                settings.fantasyUiHidden
-                  ? "bg-red-600/20 text-red-400"
-                  : "bg-green-600/20 text-green-400"
+                settings.experimentalStatsEnabled
+                  ? "bg-green-600/20 text-green-400"
+                  : "bg-red-600/20 text-red-400"
               }`}>
-                Fantasy: {settings.fantasyUiHidden ? "HIDDEN" : "VISIBLE"}
-              </span>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                settings.blogUiHidden
-                  ? "bg-red-600/20 text-red-400"
-                  : "bg-green-600/20 text-green-400"
-              }`}>
-                Blog: {settings.blogUiHidden ? "HIDDEN" : "VISIBLE"}
+                Experimental Stats: {settings.experimentalStatsEnabled ? "VISIBLE" : "HIDDEN"}
               </span>
             </div>
           </div>

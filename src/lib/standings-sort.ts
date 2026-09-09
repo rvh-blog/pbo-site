@@ -150,6 +150,17 @@ export function computeAndSortStandings<T extends { id: number }>(
   return standings;
 }
 
+export function getPlayoffEligibleStandings<T extends { playoffDisqualified?: boolean | null }>(standings: T[]) {
+  return standings.filter((team) => !team.playoffDisqualified);
+}
+
+export function orderStandingsForPlayoffs<T extends { playoffDisqualified?: boolean | null }>(standings: T[]) {
+  return [
+    ...getPlayoffEligibleStandings(standings),
+    ...standings.filter((team) => team.playoffDisqualified),
+  ];
+}
+
 /**
  * Simple standings sort for contexts without match-level data (client-side).
  * Uses wins → differential → losses only.

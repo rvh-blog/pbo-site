@@ -21,6 +21,7 @@ export const coaches = sqliteTable("coaches", {
   claimedAt: text("claimed_at"), // when the account was claimed
   projectMewConfirmed: integer("project_mew_confirmed", { mode: "boolean" }).default(false),
   projectMewPromptSeen: integer("project_mew_prompt_seen", { mode: "boolean" }).default(false),
+  youtubePlaylistId: text("youtube_playlist_id"),
   // Currency
   pboCoin: integer("pbo_coin").notNull().default(0),
 });
@@ -68,6 +69,7 @@ export const seasonCoaches = sqliteTable("season_coaches", {
   teamAbbreviation: text("team_abbreviation"),
   teamLogoUrl: text("team_logo_url"),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
+  playoffDisqualified: integer("playoff_disqualified", { mode: "boolean" }).notNull().default(false),
   replacedById: integer("replaced_by_id"),
   remainingBudget: integer("remaining_budget"),
 }, (table) => [
@@ -710,6 +712,60 @@ export const pickEmPicks = sqliteTable("pick_em_picks", {
   index("idx_pick_em_picks_predicted_winner_id").on(table.predictedWinnerId),
 ]);
 
+// Auditable, turn-ordered Pokemon Showdown protocol events. Aggregate pages
+// should query indexed summaries from this table rather than reparsing replays.
+export const battleEvents = sqliteTable("battle_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  matchId: integer("match_id").notNull().references(() => matches.id, { onDelete: "cascade" }),
+  turn: integer("turn").notNull().default(0),
+  sequence: integer("sequence").notNull(),
+  eventType: text("event_type").notNull(),
+  player: text("player").$type<"p1" | "p2">(),
+  actorNickname: text("actor_nickname"),
+  targetPlayer: text("target_player").$type<"p1" | "p2">(),
+  targetNickname: text("target_nickname"),
+  pokemonName: text("pokemon_name"),
+  moveName: text("move_name"),
+  itemName: text("item_name"),
+  abilityName: text("ability_name"),
+  statusName: text("status_name"),
+  fieldName: text("field_name"),
+  value: real("value"),
+  source: text("source"),
+  rawLine: text("raw_line").notNull(),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+}, (table) => [
+  uniqueIndex("idx_battle_events_match_sequence").on(table.matchId, table.sequence),
+  index("idx_battle_events_match_turn").on(table.matchId, table.turn, table.sequence),
+  index("idx_battle_events_type_match").on(table.eventType, table.matchId),
+  index("idx_battle_events_move_type").on(table.moveName, table.eventType),
+  index("idx_battle_events_item_type").on(table.itemName, table.eventType),
+  index("idx_battle_events_ability_type").on(table.abilityName, table.eventType),
+  index("idx_battle_events_status_type").on(table.statusName, table.eventType),
+]);
+
+// Full playoff-bracket predictions. These are intentionally separate from
+// round-by-round pick-ems so they can include teams in future, TBD matchups
+// without affecting weekly rewards.
+export const playoffBracketPicks = sqliteTable("playoff_bracket_picks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  participantId: integer("participant_id")
+    .notNull()
+    .references(() => pickEmParticipants.id),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => seasons.id),
+  divisionId: integer("division_id")
+    .notNull()
+    .references(() => divisions.id),
+  picks: text("picks", { mode: "json" }).notNull().$type<Record<string, number>>(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_playoff_bracket_picks_participant_division").on(table.participantId, table.divisionId),
+  index("idx_playoff_bracket_picks_season_division").on(table.seasonId, table.divisionId),
+]);
+
 // Fantasy Entries - saved fantasy rosters for signed-in coaches or spectators
 export const fantasyEntries = sqliteTable("fantasy_entries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -931,6 +987,21 @@ export const pickEmPicksRelations = relations(pickEmPicks, ({ one }) => ({
   predictedWinner: one(seasonCoaches, {
     fields: [pickEmPicks.predictedWinnerId],
     references: [seasonCoaches.id],
+  }),
+}));
+
+export const playoffBracketPicksRelations = relations(playoffBracketPicks, ({ one }) => ({
+  participant: one(pickEmParticipants, {
+    fields: [playoffBracketPicks.participantId],
+    references: [pickEmParticipants.id],
+  }),
+  season: one(seasons, {
+    fields: [playoffBracketPicks.seasonId],
+    references: [seasons.id],
+  }),
+  division: one(divisions, {
+    fields: [playoffBracketPicks.divisionId],
+    references: [divisions.id],
   }),
 }));
 

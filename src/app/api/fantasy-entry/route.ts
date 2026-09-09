@@ -13,7 +13,6 @@ import {
   seasons,
   transactions,
 } from "@/lib/schema";
-import { getSiteFeatureSettings } from "@/lib/site-settings";
 import {
   getFantasyWeeklyStatsForWeek,
   getFantasyWeeklyStatsForWeeks,
@@ -583,11 +582,6 @@ async function getHighestScoringLegalRoster(
 
 export async function GET(request: NextRequest) {
   try {
-    const featureSettings = await getSiteFeatureSettings();
-    if (featureSettings.fantasyUiHidden) {
-      return NextResponse.json({ error: "Fantasy is currently unavailable" }, { status: 404 });
-    }
-
     const { searchParams } = new URL(request.url);
     const seasonId = Number(searchParams.get("seasonId"));
     const requestedWeek = Number(searchParams.get("week"));
@@ -899,11 +893,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const featureSettings = await getSiteFeatureSettings();
-    if (featureSettings.fantasyUiHidden) {
-      return NextResponse.json({ error: "Fantasy is currently unavailable" }, { status: 404 });
-    }
-
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "You must be signed in to play fantasy" }, { status: 401 });

@@ -29,6 +29,7 @@ interface Coach {
   isClaimed?: boolean;
   isMod?: boolean;
   claimedAt?: string | null;
+  youtubePlaylistId?: string | null;
 }
 
 interface Spectator {
@@ -53,6 +54,7 @@ export default function AdminCoachesPage() {
   // Edit coach state
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [editYoutubePlaylist, setEditYoutubePlaylist] = useState("");
   const [mergeFromId, setMergeFromId] = useState("");
 
   // Expanded view
@@ -259,7 +261,7 @@ export default function AdminCoachesPage() {
   }
 
   async function handleUpdateCoach(id: number) {
-    const updateData: { id: number; name?: string; mergeFromId?: number } = { id };
+    const updateData: { id: number; name?: string; mergeFromId?: number; youtubePlaylistId?: string | null } = { id };
 
     if (editName.trim()) {
       updateData.name = editName.trim();
@@ -267,15 +269,23 @@ export default function AdminCoachesPage() {
     if (mergeFromId && parseInt(mergeFromId) !== id) {
       updateData.mergeFromId = parseInt(mergeFromId);
     }
+    updateData.youtubePlaylistId = editYoutubePlaylist.trim() || null;
 
-    await fetch("/api/coaches", {
+    const response = await fetch("/api/coaches", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updateData),
     });
 
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.error || "Failed to update coach");
+      return;
+    }
+
     setEditingId(null);
     setEditName("");
+    setEditYoutubePlaylist("");
     setMergeFromId("");
     fetchCoaches();
   }
@@ -302,6 +312,7 @@ export default function AdminCoachesPage() {
   function startEdit(coach: Coach) {
     setEditingId(coach.id);
     setEditName(coach.name);
+    setEditYoutubePlaylist(coach.youtubePlaylistId || "");
     setMergeFromId("");
   }
 
@@ -405,6 +416,17 @@ export default function AdminCoachesPage() {
                             Transfer all data from another coach to this one
                           </p>
                         </div>
+                        <div className="md:col-span-2">
+                          <Label>YouTube Playlist</Label>
+                          <Input
+                            value={editYoutubePlaylist}
+                            onChange={(e) => setEditYoutubePlaylist(e.target.value)}
+                            placeholder="https://www.youtube.com/playlist?list=..."
+                          />
+                          <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                            Optional. Paste a public playlist URL or playlist ID. Leave blank to remove it from this coach&apos;s page.
+                          </p>
+                        </div>
                       </div>
 
                       {mergeFromId && parseInt(mergeFromId) !== coach.id && (
@@ -471,6 +493,7 @@ export default function AdminCoachesPage() {
                           onClick={() => {
                             setEditingId(null);
                             setEditName("");
+                            setEditYoutubePlaylist("");
                             setMergeFromId("");
                           }}
                         >

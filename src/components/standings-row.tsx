@@ -18,6 +18,7 @@ interface StandingsRowProps {
     gamesPlayed: number;
   };
   index: number;
+  isPlayoffDisqualified?: boolean;
   isInRelegationZone: boolean;
   isInPromotionZone: boolean;
   hasBg: boolean;
@@ -33,6 +34,7 @@ interface StandingsRowProps {
 export function StandingsRow({
   team,
   index,
+  isPlayoffDisqualified = false,
   isInRelegationZone,
   isInPromotionZone,
   hasBg,
@@ -82,12 +84,14 @@ export function StandingsRow({
       >
         {/* Rank Badge */}
         <div className={`rank-badge w-5 h-5 sm:w-8 sm:h-8 text-[10px] sm:text-sm ${
-          index === 0 ? 'rank-1' :
-          index === 1 ? 'rank-2' :
-          index === 2 ? 'rank-3' :
-          'bg-[var(--background)] text-[var(--foreground-subtle)] border border-[var(--background-tertiary)]'
+          isPlayoffDisqualified
+            ? 'bg-red-700 text-white border border-red-500'
+            : index === 0 ? 'rank-1' :
+              index === 1 ? 'rank-2' :
+              index === 2 ? 'rank-3' :
+              'bg-[var(--background)] text-[var(--foreground-subtle)] border border-[var(--background-tertiary)]'
         }`}>
-          {index + 1}
+          {isPlayoffDisqualified ? "DQ" : index + 1}
         </div>
 
         {/* Team Info */}

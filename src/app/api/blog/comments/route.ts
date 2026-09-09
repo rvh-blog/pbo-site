@@ -3,16 +3,10 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { blogComments, blogPosts } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 const MAX_COMMENT_LENGTH = 2000;
 
 export async function POST(request: NextRequest) {
-  const featureSettings = await getSiteFeatureSettings();
-  if (featureSettings.blogUiHidden) {
-    return NextResponse.json({ error: "Blog is currently unavailable" }, { status: 404 });
-  }
-
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -89,11 +83,6 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const featureSettings = await getSiteFeatureSettings();
-  if (featureSettings.blogUiHidden) {
-    return NextResponse.json({ error: "Blog is currently unavailable" }, { status: 404 });
-  }
-
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

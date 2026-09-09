@@ -802,7 +802,8 @@ async function processMatchResult(payload: JsonRecord, divisionId: number) {
     replayData?.endedAt,
     replayData?.turnSnapshots,
     replayData?.keyEvents,
-    replayData?.zoroarkInvolved
+    replayData?.zoroarkInvolved,
+    replayData?.battleEvents
   );
 
   if (!result.success) {

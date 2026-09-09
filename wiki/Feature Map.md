@@ -25,7 +25,7 @@ See also:
 - Seasons: `src/app/seasons`
 - Division page: `src/app/seasons/[id]/divisions/[divId]/page.tsx`
 - Match details: `src/app/matches/[id]/page.tsx`
-- Coaches: `src/app/coaches`
+- Coaches: `src/app/coaches` (optional per-coach YouTube playlist preview; admin assignment is managed from `src/app/admin/coaches/page.tsx`)
 - Battle Record: `src/app/battle-record` (Coach Records, PBO Records,
   Season 6+ Divisional Records, Move Usage with lazy game sources, and direct
   query links that preserve record scope/division; available from the PBO Stats
@@ -36,15 +36,33 @@ See also:
 - Free Agency: `src/app/draft-planner`
 - Matchup Prep: `src/app/matchup-prep` (available from the Game Prep menu)
 - Pick-ems: `src/app/pick-ems`
+- Playoff Hub: `src/app/playoffs` (season-filtered playoff-only KOs, team
+  differential, fantasy-formula MVP, usage, champions, promotions, and links
+  to historical brackets)
+- Full-bracket pick-ems: `src/components/playoff-bracket-picks.tsx` and
+  `src/app/api/playoff-bracket-picks/route.ts` (persisted separately from
+  weekly reward pick-ems and locked when quarterfinals begin)
 - Fantasy: `src/app/fantasy`
 - Power rankings: `src/app/power-rankings`
 - Broadcast overlay: `src/app/broadcast`
 - Multi-Cast overlay: `src/app/broadcast/multi-cast`
 - Replay Analyzer: `src/app/analyzer`
+- Coach YouTube playlists: `src/lib/youtube-playlists.ts` and `src/components/youtube-playlist-browser.tsx` (server-cached Data API video lists when configured, native YouTube embed fallback otherwise)
 - Blog: `src/app/blog`
 - Coach and Pokémon comparison: `src/app/compare` (two to four entries,
   season/division/phase filters, pairwise head-to-head records, and shareable
   URL state)
+- Experimental Stats lab: `src/app/experimental-stats` (replay-evidence
+  profiles, momentum, matchup records, KO conversion, damage share, coach and
+  item tendencies, team cores, replay pace, playoff comparisons, replay
+  comparison, configurable leaderboards, rolling windows, replay search,
+  event-density visualizations, rare-event records, confidence labels, saved
+  browser reports, CSV exports, and the coverage glossary; protected by the
+  admin Experimental Stats feature toggle)
+- Normalized replay events: `src/lib/replay-events.ts`,
+  `src/lib/battle-event-storage.ts`, `migrations/add-battle-events.sql`, and
+  `scripts/backfill-battle-events.ts`; preserves every Showdown protocol line
+  with turn/sequence, structured actor/target fields, raw source, and metadata.
 - Elo tracker: `src/app/elo-tracker`
 - Pokemon stats: `src/app/pokemon/stats` (kills, deaths, damage dealt, damage
   taken, and HP recovered with season/division/minimum-games filters)
@@ -72,7 +90,8 @@ See also:
   represent distinct replay-observed Pokemon/item appearances, not repeated
   activations or unrevealed starting items.
 - Root Open Graph and Twitter metadata use `public/pbo-social-banner.png`.
-- Fantasy About visibility is persisted by the Fantasy page client and can be hidden per browser.
+- Fantasy About visibility is persisted by the Fantasy page client and can be hidden per browser. Fantasy itself is always publicly available.
+- Blog and Fantasy no longer have admin hide toggles or route/API availability gates.
 - Image delivery uses AVIF/WebP where supported, with high-traffic sprites migrated to `next/image`.
 - Browser performance samples are collected by `src/components/performance-monitor.tsx` and exposed through `src/app/api/performance/route.ts` and the health endpoint.
 - Query diagnostics aggregate slow-query fingerprints in `src/lib/db.ts`.

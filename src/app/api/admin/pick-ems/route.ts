@@ -32,11 +32,10 @@ export async function POST(request: NextRequest) {
     const {
       bettingClosed,
       bettingUiHidden,
-      fantasyUiHidden,
-      blogUiHidden,
       pollsEnabled,
       recentDraftPicksHidden,
       playoffCalculatorSearchEnabled,
+      experimentalStatsEnabled,
     } = body;
 
     const updates: { key: string; value: string }[] = [];
@@ -49,14 +48,6 @@ export async function POST(request: NextRequest) {
       updates.push({ key: SITE_SETTING_KEYS.bettingUiHidden, value: String(bettingUiHidden) });
     }
 
-    if (fantasyUiHidden !== undefined) {
-      updates.push({ key: SITE_SETTING_KEYS.fantasyUiHidden, value: String(fantasyUiHidden) });
-    }
-
-    if (blogUiHidden !== undefined) {
-      updates.push({ key: SITE_SETTING_KEYS.blogUiHidden, value: String(blogUiHidden) });
-    }
-
     if (pollsEnabled !== undefined) {
       updates.push({ key: SITE_SETTING_KEYS.pollsEnabled, value: String(pollsEnabled) });
     }
@@ -67,6 +58,10 @@ export async function POST(request: NextRequest) {
 
     if (playoffCalculatorSearchEnabled !== undefined) {
       updates.push({ key: SITE_SETTING_KEYS.playoffCalculatorSearchEnabled, value: String(playoffCalculatorSearchEnabled) });
+    }
+
+    if (experimentalStatsEnabled !== undefined) {
+      updates.push({ key: SITE_SETTING_KEYS.experimentalStatsEnabled, value: String(experimentalStatsEnabled) });
     }
 
     for (const update of updates) {
