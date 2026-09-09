@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { isAuthenticated } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isCompletedMatchResult } from "@/lib/match-result-utils";
 import { matches, seasons } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
@@ -63,17 +64,17 @@ export default async function DataQualityPage() {
   });
 
   const regularMatches = seasonMatches.filter((match) => match.week <= 100);
-  const completedMatches = regularMatches.filter((match) => match.winnerId !== null);
+  const completedMatches = regularMatches.filter((match) => isCompletedMatchResult(match.winnerId, match.isForfeit));
   const completedNonForfeit = completedMatches.filter((match) => !match.isForfeit);
   const missingDecidingTurns = completedNonForfeit.filter((match) => !match.decidingTurnsText?.trim()).length;
   const missingReplays = completedNonForfeit.filter((match) => !match.replayUrl?.trim()).length;
-  const missingPokemon = completedMatches.filter((match) => match.matchPokemon.length === 0).length;
+  const missingPokemon = completedNonForfeit.filter((match) => match.matchPokemon.length === 0).length;
 
   const issues: MatchIssue[] = regularMatches.flatMap((match) => {
     const matchIssues: MatchIssue["issues"] = [];
-    const isCompleted = match.winnerId !== null;
+    const isCompleted = isCompletedMatchResult(match.winnerId, match.isForfeit);
 
-    if (isCompleted && match.winnerId !== match.coach1SeasonId && match.winnerId !== match.coach2SeasonId) {
+    if (match.winnerId !== null && match.winnerId !== match.coach1SeasonId && match.winnerId !== match.coach2SeasonId) {
       matchIssues.push({ label: "Invalid winner", tone: "error" });
     }
     if (isCompleted && !match.isForfeit && !match.decidingTurnsText?.trim()) {
@@ -82,7 +83,7 @@ export default async function DataQualityPage() {
     if (isCompleted && !match.isForfeit && !match.replayUrl?.trim()) {
       matchIssues.push({ label: "Missing replay", tone: "warning" });
     }
-    if (isCompleted && match.matchPokemon.length === 0) {
+    if (isCompleted && !match.isForfeit && match.matchPokemon.length === 0) {
       matchIssues.push({ label: "Missing Pokémon stats", tone: "error" });
     }
     if (matchIssues.length === 0) return [];
@@ -98,7 +99,7 @@ export default async function DataQualityPage() {
 
   const weekSummaries = Array.from(new Set(regularMatches.map((match) => match.week))).map((week) => {
     const weekMatches = regularMatches.filter((match) => match.week === week);
-    const completed = weekMatches.filter((match) => match.winnerId !== null);
+    const completed = weekMatches.filter((match) => isCompletedMatchResult(match.winnerId, match.isForfeit));
     const completeRecords = completed.filter((match) => match.isForfeit || (
       Boolean(match.replayUrl?.trim()) &&
       Boolean(match.decidingTurnsText?.trim()) &&
