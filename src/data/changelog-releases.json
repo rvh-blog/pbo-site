@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-09-10-schedule-stats-overflow",
+    "title": "Schedule Match Stats Fit Their Cards",
+    "summary": "Expanded Pokemon results remain readable without spilling beyond the schedule card.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "fixed", "text": "Long team and Pokemon names now shrink within the expanded schedule view while sprites and K/D totals remain fully visible on both sides." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-10-site-code-optimization-pass",
     "title": "Faster Planning, Search, and Statistics Pages",
     "summary": "Six no-cost code optimizations reduce repeated database work and the amount of data sent to several frequently used pages.",
