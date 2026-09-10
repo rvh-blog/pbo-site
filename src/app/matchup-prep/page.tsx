@@ -68,13 +68,12 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
   const matchId = positiveId(params.matchId);
 
   // Parallel fetch: base data AND match data (if matchId provided)
-  const [allSeasons, allPrices, allAbilities, allMoves, requestedMatch] = await Promise.all([
+  const [allSeasons, allAbilities, allMoves, requestedMatch] = await Promise.all([
     db.query.seasons.findMany({
       where: eq(seasons.isPublic, true),
       with: { divisions: true },
       orderBy: [desc(seasons.seasonNumber)],
     }),
-    db.query.seasonPokemonPrices.findMany(),
     db.query.abilities.findMany({
       columns: { name: true, shortEffect: true },
     }),
@@ -384,6 +383,19 @@ export default async function MatchupPrepPage({ searchParams }: PageProps) {
       orderBy: [matches.id],
     });
   }
+
+  const priceSeasonId = match?.seasonId ?? selectedSeason?.id;
+  const allPrices = priceSeasonId
+    ? await db.query.seasonPokemonPrices.findMany({
+        where: eq(seasonPokemonPrices.seasonId, priceSeasonId),
+        columns: {
+          seasonId: true,
+          pokemonId: true,
+          price: true,
+          teraCaptainCost: true,
+        },
+      })
+    : [];
 
   const seasonMoves = matchData
     ? await getSeasonPokemonMovesMap(matchData.seasonId)

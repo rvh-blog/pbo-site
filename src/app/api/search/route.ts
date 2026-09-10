@@ -1,11 +1,10 @@
 import { db } from "@/lib/db";
-import { coaches, seasons, divisions, seasonCoaches, pokemon, moves } from "@/lib/schema";
+import { coaches, seasons, divisions, seasonCoaches, moves } from "@/lib/schema";
 import { and, like, or, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicVisibilityState } from "@/lib/public-visibility";
-import { customPokemonAliasesForRow, getPokemonAliasMaps, type PokemonAliasMaps } from "@/lib/pokemon-name-aliases";
-import { isHiddenPublicPokemonForm, pokemonSearchAliases } from "@/lib/pokemon-name-utils";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
+import { getPokemonSearchIndex } from "@/lib/search-pokemon-index";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -16,9 +15,10 @@ export async function GET(request: NextRequest) {
   }
 
   const searchPattern = `%${query}%`;
-  const [visibility, featureSettings] = await Promise.all([
+  const [visibility, featureSettings, pokemonIndex] = await Promise.all([
     getPublicVisibilityState(),
     getSiteFeatureSettings(),
+    getPokemonSearchIndex(),
   ]);
   const publicSeasonFilter = sql`${seasons.isPublic} IS NOT 0`;
   const publicDivisionFilter = visibility.hiddenDivisionNames.has("infinity")
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   END`;
 
   // Search coaches by name
-  const coachByNameResults = await db
+  const coachByNamePromise = db
     .select({
       id: coaches.id,
       name: coaches.name,
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     .limit(5);
 
   // Search coaches by team name (find the coach who owns a matching team)
-  const coachByTeamResults = await db
+  const coachByTeamPromise = db
     .selectDistinct({
       id: coaches.id,
       name: coaches.name,
@@ -62,28 +62,8 @@ export async function GET(request: NextRequest) {
     ))
     .orderBy(exactTeamNameRank, currentSeasonRank, sql`${seasons.seasonNumber} DESC`)
     .limit(5);
-
-  // Merge coach results, prioritizing team name matches, then deduping
-  const seenCoachIds = new Set<number>();
-  const coachResults: { id: number; name: string; teamName?: string | null }[] = [];
-
-  // Add coaches found by team name first (more relevant when searching team names)
-  for (const c of coachByTeamResults) {
-    if (!seenCoachIds.has(c.id)) {
-      seenCoachIds.add(c.id);
-      coachResults.push(c);
-    }
-  }
-  // Then add coaches found by name
-  for (const c of coachByNameResults) {
-    if (!seenCoachIds.has(c.id)) {
-      seenCoachIds.add(c.id);
-      coachResults.push({ ...c, teamName: null });
-    }
-  }
-
   // Search teams (season_coaches with team names - for division links)
-  const teamResults = await db
+  const teamResultsPromise = db
     .select({
       id: seasonCoaches.id,
       teamName: seasonCoaches.teamName,
@@ -107,7 +87,7 @@ export async function GET(request: NextRequest) {
     .limit(8);
 
   // Search seasons
-  const seasonResults = await db
+  const seasonResultsPromise = db
     .select({
       id: seasons.id,
       name: seasons.name,
@@ -126,7 +106,7 @@ export async function GET(request: NextRequest) {
     .limit(5);
 
   // Search divisions
-  const divisionResults = await db
+  const divisionResultsPromise = db
     .select({
       id: divisions.id,
       name: divisions.name,
@@ -149,35 +129,7 @@ export async function GET(request: NextRequest) {
     .limit(8);
 
   // Search Pokemon, including admin-configured aliases.
-  const allPokemonForSearch = await db
-    .select({
-      id: pokemon.id,
-      name: pokemon.name,
-      displayName: pokemon.displayName,
-      spriteUrl: pokemon.spriteUrl,
-    })
-    .from(pokemon);
-  let aliasMaps: PokemonAliasMaps;
-  try {
-    aliasMaps = await getPokemonAliasMaps();
-  } catch {
-    // Older local databases may not have the optional custom alias tables yet.
-    aliasMaps = {
-      aliasKeyToCanonicalName: new Map(),
-      pokemonIdToAliases: new Map(),
-      collapseKeyToCanonicalName: new Map(),
-      pokemonIdToCollapseSources: new Map(),
-    };
-  }
-  const pokemonResults = allPokemonForSearch
-    .filter((row) => !isHiddenPublicPokemonForm(row.name, row.displayName))
-    .map((row) => ({
-      ...row,
-      aliases: [
-        ...pokemonSearchAliases(row.name, row.displayName),
-        ...customPokemonAliasesForRow(row, aliasMaps),
-      ].map((alias) => alias.toLowerCase()),
-    }))
+  const pokemonResults = pokemonIndex
     .filter((row) => row.aliases.some((alias) => alias.includes(query)))
     .sort((a, b) => {
       const aExact = a.aliases.some((alias) => alias === query) ? 0 : 1;
@@ -188,9 +140,8 @@ export async function GET(request: NextRequest) {
     .slice(0, 8);
 
   // Search for draft boards if query matches "draft"
-  let draftResults: { id: number; name: string }[] = [];
-  if ("draft".includes(query) || query.includes("draft")) {
-    draftResults = await db
+  const draftResultsPromise = "draft".includes(query) || query.includes("draft")
+    ? db
       .select({
         id: seasons.id,
         name: seasons.name,
@@ -198,13 +149,12 @@ export async function GET(request: NextRequest) {
       .from(seasons)
       .where(publicSeasonFilter)
       .orderBy(sql`${seasons.seasonNumber} DESC`)
-      .limit(10);
-  }
+      .limit(10)
+    : Promise.resolve([]);
 
   // Search for rosters pages if query matches "roster"
-  let rosterResults: { divisionId: number; divisionName: string; seasonId: number; seasonName: string }[] = [];
-  if ("roster".includes(query) || "rosters".includes(query) || query.includes("roster")) {
-    rosterResults = await db
+  const rosterResultsPromise = "roster".includes(query) || "rosters".includes(query) || query.includes("roster")
+    ? db
       .select({
         divisionId: divisions.id,
         divisionName: divisions.name,
@@ -215,13 +165,12 @@ export async function GET(request: NextRequest) {
       .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
       .where(and(publicSeasonFilter, publicDivisionFilter))
       .orderBy(sql`${seasons.seasonNumber} DESC`, divisionHierarchyRank)
-      .limit(12);
-  }
+      .limit(12)
+    : Promise.resolve([]);
 
   // Search for transactions pages if query matches "transaction"
-  let transactionResults: { divisionId: number; divisionName: string; seasonId: number; seasonName: string }[] = [];
-  if ("transaction".includes(query) || "transactions".includes(query) || query.includes("transaction")) {
-    transactionResults = await db
+  const transactionResultsPromise = "transaction".includes(query) || "transactions".includes(query) || query.includes("transaction")
+    ? db
       .select({
         divisionId: divisions.id,
         divisionName: divisions.name,
@@ -232,8 +181,8 @@ export async function GET(request: NextRequest) {
       .innerJoin(seasons, sql`${divisions.seasonId} = ${seasons.id}`)
       .where(and(publicSeasonFilter, publicDivisionFilter))
       .orderBy(sql`${seasons.seasonNumber} DESC`, divisionHierarchyRank)
-      .limit(12);
-  }
+      .limit(12)
+    : Promise.resolve([]);
 
   // Search for power rankings if query matches
   let powerRankingsResult = false;
@@ -257,7 +206,7 @@ export async function GET(request: NextRequest) {
     );
 
   // Search moves (lowest priority, so searched last)
-  const moveResults = await db
+  const moveResultsPromise = db
     .select({
       id: moves.id,
       name: moves.name,
@@ -273,6 +222,44 @@ export async function GET(request: NextRequest) {
     )
     .orderBy(sql`CASE WHEN lower(${moves.name}) = ${query} OR lower(${moves.displayName}) = ${query} THEN 0 ELSE 1 END`)
     .limit(8);
+
+  const [
+    coachByNameResults,
+    coachByTeamResults,
+    teamResults,
+    seasonResults,
+    divisionResults,
+    moveResults,
+    draftResults,
+    rosterResults,
+    transactionResults,
+  ] = await Promise.all([
+    coachByNamePromise,
+    coachByTeamPromise,
+    teamResultsPromise,
+    seasonResultsPromise,
+    divisionResultsPromise,
+    moveResultsPromise,
+    draftResultsPromise,
+    rosterResultsPromise,
+    transactionResultsPromise,
+  ]);
+
+  // Merge coach results, prioritizing team name matches, then deduping.
+  const seenCoachIds = new Set<number>();
+  const coachResults: { id: number; name: string; teamName?: string | null }[] = [];
+  for (const coach of coachByTeamResults) {
+    if (!seenCoachIds.has(coach.id)) {
+      seenCoachIds.add(coach.id);
+      coachResults.push(coach);
+    }
+  }
+  for (const coach of coachByNameResults) {
+    if (!seenCoachIds.has(coach.id)) {
+      seenCoachIds.add(coach.id);
+      coachResults.push({ ...coach, teamName: null });
+    }
+  }
 
   return NextResponse.json({
     results: {

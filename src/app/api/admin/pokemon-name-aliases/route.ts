@@ -6,6 +6,7 @@ import { logAdminAudit } from "@/lib/admin-audit";
 import { db } from "@/lib/db";
 import { pokemon, pokemonNameAliases } from "@/lib/schema";
 import { invalidatePokemonAliasMapsCache } from "@/lib/pokemon-name-aliases";
+import { invalidatePokemonSearchIndex } from "@/lib/search-pokemon-index";
 import {
   getHardcodedPokemonNameAliases,
   normalizePokemonName,
@@ -199,6 +200,7 @@ export async function POST(request: NextRequest) {
       .returning();
 
     invalidatePokemonAliasMapsCache();
+    invalidatePokemonSearchIndex();
 
     await logAdminAudit({
       session: await getSession(),
@@ -245,6 +247,7 @@ export async function DELETE(request: NextRequest) {
 
   await db.delete(pokemonNameAliases).where(eq(pokemonNameAliases.id, aliasId));
   invalidatePokemonAliasMapsCache();
+  invalidatePokemonSearchIndex();
 
   await logAdminAudit({
     session: await getSession(),

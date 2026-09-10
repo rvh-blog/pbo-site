@@ -1,5 +1,22 @@
 # Recent Website Updates
 
+## September 10, 2026 - Site Code Optimization Pass
+
+- Reduced Draft Planner's server response by sending each move name once and
+  referencing it with compact numeric IDs in each Pokemon learnset. The client
+  reconstructs the same data shape, so filters and calculations are unchanged.
+- Added a short-lived, automatically invalidated Pokemon search index, ran the
+  independent search queries concurrently, and cancel stale browser requests
+  when someone continues typing.
+- Limited Matchup Prep's price query to the selected season rather than all
+  historical seasons.
+- Moved Pokemon leaderboard aggregation into SQLite while preserving the prior
+  qualification, win, loss, kill, death, differential, and win-rate rules.
+- Scoped coach placement and playoff reads to the divisions that coach played
+  in and reused the same store-purchase query for balance and inventory data.
+- Added a ten-second shared cache for frequently read site settings, with
+  immediate invalidation after an admin update.
+
 ## September 9, 2026 - Full Experimental Stats Audit
 
 Navigation and report organization:

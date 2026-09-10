@@ -271,6 +271,19 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
     moves: movesForSeasonPokemon(poke.id, poke.moves, seasonMoves),
     }));
 
+  // Move names repeat thousands of times across learnsets. Send each name once
+  // and serialize compact numeric references for each Pokemon.
+  const moveNames = Array.from(new Set(
+    allPokemonForSeason.flatMap((poke) => poke.moves || []),
+  )).sort();
+  const moveIdByName = new Map(moveNames.map((move, index) => [move, index]));
+  const encodedPokemon = allPokemonForSeason.map(({ moves, ...poke }) => ({
+    ...poke,
+    moveIds: (moves || [])
+      .map((move) => moveIdByName.get(move))
+      .filter((moveId): moveId is number => moveId !== undefined),
+  }));
+
   if (rosterData.length > 0) {
     rosterData = rosterData.map((poke) => ({
       ...poke,
@@ -356,7 +369,8 @@ export default async function DraftPlannerPage({ searchParams }: PageProps) {
       teamLogo={teamLogo}
       roster={rosterData}
       draftBudget={draftBudget}
-      allPokemon={allPokemonForSeason}
+      allPokemon={encodedPokemon}
+      moveNames={moveNames}
       moveTypes={moveTypes}
       abilityDescriptions={abilityDescriptions}
       seasonPrices={seasonPrices}

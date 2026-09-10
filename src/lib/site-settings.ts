@@ -12,6 +12,12 @@ export const SITE_SETTING_KEYS = {
   infinityDivisionReleased: "infinity_division_released",
 } as const;
 
+const SETTINGS_CACHE_TTL_MS = 10_000;
+type SiteFeatureSettings = Awaited<ReturnType<typeof loadSiteFeatureSettings>>;
+let featureSettingsCache: { value: SiteFeatureSettings; expiresAt: number } | null = null;
+let featureSettingsPromise: Promise<SiteFeatureSettings> | null = null;
+const settingCache = new Map<string, { value: typeof siteSettings.$inferSelect | undefined; expiresAt: number }>();
+
 export function getMatchDecidingTurnsEditorHiddenKey(matchId: number) {
   return `match_${matchId}_deciding_turns_editor_hidden`;
 }
@@ -20,7 +26,7 @@ export function getMatchDecidingTurnsPublishedKey(matchId: number) {
   return `match_${matchId}_deciding_turns_published`;
 }
 
-export async function getSiteFeatureSettings() {
+async function loadSiteFeatureSettings() {
   const settings = await db.query.siteSettings.findMany({
     where: (s, { inArray }) => inArray(s.key, Object.values(SITE_SETTING_KEYS)),
   });
@@ -36,10 +42,31 @@ export async function getSiteFeatureSettings() {
   };
 }
 
+export async function getSiteFeatureSettings() {
+  if (featureSettingsCache && featureSettingsCache.expiresAt > Date.now()) {
+    return featureSettingsCache.value;
+  }
+  if (featureSettingsPromise) return featureSettingsPromise;
+
+  featureSettingsPromise = loadSiteFeatureSettings();
+  try {
+    const value = await featureSettingsPromise;
+    featureSettingsCache = { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS };
+    return value;
+  } finally {
+    featureSettingsPromise = null;
+  }
+}
+
 export async function getSiteSetting(key: string) {
-  return await db.query.siteSettings.findFirst({
+  const cached = settingCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const value = await db.query.siteSettings.findFirst({
     where: eq(siteSettings.key, key),
   });
+  settingCache.set(key, { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS });
+  return value;
 }
 
 export async function upsertSiteSetting(key: string, value: boolean) {
@@ -60,4 +87,6 @@ export async function upsertSiteSetting(key: string, value: boolean) {
       updatedAt,
     });
   }
+  featureSettingsCache = null;
+  settingCache.delete(key);
 }
