@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-09-10-experimental-stats-payload",
+    "title": "Lean Experimental Stats Reports",
+    "summary": "Experimental Stats now sends large replay timelines only to reports that use them, making common reports lighter to load.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "improved", "text": "Pokemon, Coach, Compare, Trends, Leaderboard, and Replay Search reports skip unused HP timeline and key-event JSON while Insights, Visualizer, Rare Events, and comeback rankings retain the evidence they need." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-10-slideshow-image-navigation",
     "title": "Reliable Power Rankings Slideshow Navigation",
     "summary": "Power Rankings slides now wait for their images and ignore overlapping clicks so every team card renders with the right sprites.",

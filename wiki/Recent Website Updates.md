@@ -1,5 +1,12 @@
 # Recent Website Updates
 
+## September 10, 2026 - Lean Experimental Stats Reports
+
+- Common Experimental Stats reports no longer fetch or parse large HP timeline
+  and key-event JSON when those reports do not use it.
+- Insights, Battle Visualizer, Rare Event Explorer, and comeback leaderboards
+  continue to receive the replay evidence required for their calculations.
+
 ## September 10, 2026 - Reliable Power Rankings Slideshow Navigation
 
 - Power Rankings slides now preload their team artwork and Pokemon sprites before
