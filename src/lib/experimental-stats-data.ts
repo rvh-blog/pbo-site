@@ -6,7 +6,7 @@ import { battleEvents, matches } from "@/lib/schema";
 import type { ExperimentalStatsDataset } from "@/app/experimental-stats/experimental-stats-client";
 import { createExperimentalDemoDataset } from "@/lib/experimental-stats-demo";
 
-export type ExperimentalModuleSlug = "pokemon" | "coaches" | "compare" | "trends" | "leaderboards" | "replays" | "battle-visualizer" | "rare-events" | "glossary";
+export type ExperimentalModuleSlug = "pokemon" | "coaches" | "compare" | "insights" | "trends" | "leaderboards" | "replays" | "battle-visualizer" | "rare-events" | "glossary";
 
 export interface ExperimentalUrlFilters {
   seasonId: number | "all";
@@ -69,7 +69,7 @@ export function parseExperimentalFilters(searchParams: SearchParams, currentSeas
     pokemonId: pokemonValue === "all" || !pokemonValue ? "all" : positiveNumber(pokemonValue, 0) || "all",
     move: first(searchParams.move) || "all",
     item: first(searchParams.item) || "all",
-    minimumAppearances: positiveNumber(first(searchParams.min), 3),
+    minimumAppearances: Math.max(3, positiveNumber(first(searchParams.min), 3)),
     result: resultValue === "wins" || resultValue === "losses" ? resultValue : "all",
     stage: stageValue === "regular" || stageValue === "playoffs" ? stageValue : "all",
     includeForfeits: first(searchParams.forfeits) === "1",
@@ -93,7 +93,8 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   ]);
   const currentSeasonId = seasons.find((season) => season.isCurrent)?.id ?? null;
   const filters = parseExperimentalFilters(searchParams, currentSeasonId);
-  if (!first(searchParams.season) && (module === "pokemon" || module === "coaches")) {
+  const requestedMatchId = positiveNumber(first(searchParams.match), 0);
+  if (!first(searchParams.season) && (module === "pokemon" || module === "coaches" || module === "insights")) {
     filters.seasonId = "all";
   }
   const demoMode = first(searchParams.demo) === "1";
@@ -126,11 +127,10 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   if (filters.stage === "playoffs") conditions.push(gt(matches.week, 100));
   if (!filters.includeForfeits) conditions.push(eq(matches.isForfeit, false));
 
-  // The shared insights panel uses saved turn snapshots and key events on every
-  // stats module. Keep normalized protocol events scoped to the visualizer and
-  // rare-event views, but make the lightweight replay timeline available for
-  // the cross-module first-faint, comeback, and coverage metrics.
-  const includeTimeline = true;
+  // Full timelines are large, so only send them to reports that draw or inspect
+  // them. Other modules still receive a compact final-turn value.
+  const includeTimeline = module === "insights" || module === "battle-visualizer" || module === "rare-events";
+  const includeKeyEvents = includeTimeline || module === "leaderboards";
   const includeProtocolEvents = module === "battle-visualizer" || module === "rare-events";
   if (demoMode) {
     return {
@@ -140,7 +140,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         divisions: divisions.map(({ id, seasonId, name, displayOrder }) => ({ id, seasonId, name, displayOrder: displayOrder ?? 0 })),
         currentSeasonId,
         filters,
-        includeTimeline,
+        includeTimeline: includeTimeline || module === "coaches",
       }),
     };
   }
@@ -207,8 +207,9 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
     },
   });
 
+  const selectedEventMatch = replayMatches.find((match) => match.id === requestedMatchId) ?? replayMatches[0];
   const eventMatchIds = module === "battle-visualizer"
-    ? replayMatches.slice(0, 1).map((match) => match.id)
+    ? selectedEventMatch ? [selectedEventMatch.id] : []
     : replayMatches.map((match) => match.id);
   const eventRows: EventQueryRow[] = includeProtocolEvents && eventMatchIds.length ? await (module === "rare-events"
     ? (async () => {
@@ -252,13 +253,15 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   const divisionNames = new Map(divisions.map((division) => [division.id, division.name]));
   const dataset: ExperimentalStatsDataset = {
     currentSeasonId,
+    selectedMatchId: module === "battle-visualizer" ? selectedEventMatch?.id ?? null : null,
     highestAvailableWeek,
     highestAvailableWeekBySeason,
     seasons: seasons.map(({ id, name, seasonNumber }) => ({ id, name, seasonNumber })).sort((a, b) => b.seasonNumber - a.seasonNumber),
     divisions: divisions.map(({ id, seasonId, name, displayOrder }) => ({ id, seasonId, name, displayOrder: displayOrder ?? 0 })).sort((a, b) => a.seasonId - b.seasonId || a.displayOrder - b.displayOrder),
     matches: replayMatches.map((match) => {
-      const snapshots = includeTimeline ? parseJsonArray<TurnSnapshot>(match.turnSnapshots).sort((a, b) => a.turn - b.turn) : [];
-      const events = includeTimeline ? parseJsonArray<KeyEvent>(match.keyEvents) : [];
+      const parsedSnapshots = parseJsonArray<TurnSnapshot>(match.turnSnapshots).sort((a, b) => a.turn - b.turn);
+      const snapshots = includeTimeline ? parsedSnapshots : [];
+      const events = includeKeyEvents ? parseJsonArray<KeyEvent>(match.keyEvents) : [];
       const winEvent = events.find((event) => event.type === "win");
       const winnerIsCoach1 = match.winnerId === match.coach1.id;
       return {
@@ -274,6 +277,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         replayUrl: match.replayUrl ?? "",
         zoroarkInvolved: Boolean(match.zoroarkInvolved),
         p1IsCoach1: winEvent?.player ? (winEvent.player === "p1") === winnerIsCoach1 : null,
+        totalTurns: parsedSnapshots.length ? parsedSnapshots.reduce((maximum, snapshot) => Math.max(maximum, snapshot.turn), 0) : null,
         turnSnapshots: snapshots,
         keyEvents: events,
         battleEvents: eventsByMatch.get(match.id)?.map((event) => module === "rare-events"
@@ -291,7 +295,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
             abilityName: null,
             statusName: null,
             fieldName: null,
-            value: null,
+            value: event.value ?? null,
             source: null,
             rawLine: "",
             metadata: null,

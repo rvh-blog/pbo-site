@@ -12,7 +12,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, ne, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { matches } from "@/lib/schema";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
@@ -21,16 +21,17 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Experimental Stats",
-  description: "Replay-evidence analytics, percentile reports, rolling trends, and custom PBO leaderboards.",
+  description: "Replay-evidence analytics, percentile reports, rolling trends, and PBO leaderboards.",
 };
 
 const modules = [
   { href: "/experimental-stats/pokemon", title: "Pokémon Profiles", description: "Qualified percentiles, season totals, per-appearance rates, recent matches, moves, items, and survival.", icon: Sparkles, accent: "from-violet-500/25 to-fuchsia-500/5", color: "text-violet-300" },
   { href: "/experimental-stats/coaches", title: "Coach Profiles", description: "Observed usage, replay tendencies, damage composition, healing, items, setup, and favorable events.", icon: Users, accent: "from-cyan-500/20 to-blue-500/5", color: "text-cyan-300" },
   { href: "/experimental-stats/compare", title: "Compare", description: "Compare two Pokémon under the exact same filters using side-by-side metric bars.", icon: GitCompareArrows, accent: "from-fuchsia-500/20 to-cyan-500/5", color: "text-fuchsia-300" },
-  { href: "/experimental-stats/trends", title: "Rolling Trends", description: "Latest five appearances against the immediately preceding five, with sample warnings.", icon: LineChart, accent: "from-emerald-500/20 to-teal-500/5", color: "text-emerald-300" },
-  { href: "/experimental-stats/leaderboards", title: "Custom Leaderboards", description: "Pokémon or coach rankings, totals or rates, shared filters, and downloadable CSV output.", icon: ListFilter, accent: "from-amber-500/20 to-orange-500/5", color: "text-amber-300" },
-  { href: "/experimental-stats/replays", title: "Replay Search", description: "Find qualifying matches and jump directly to the match page or official replay evidence.", icon: Search, accent: "from-blue-500/20 to-indigo-500/5", color: "text-blue-300" },
+  { href: "/experimental-stats/insights", title: "Insights", description: "Momentum, matchups, pace, coverage, and other replay-backed patterns across the active filters.", icon: BarChart3, accent: "from-emerald-500/20 to-teal-500/5", color: "text-emerald-300" },
+  { href: "/experimental-stats/trends", title: "Rolling Trends", description: "Compare a Pokémon's recent 3-, 5-, or 10-game window with the immediately preceding window.", icon: LineChart, accent: "from-emerald-500/20 to-teal-500/5", color: "text-emerald-300" },
+  { href: "/experimental-stats/leaderboards", title: "Leaderboards", description: "Preset Pokémon or coach rankings, totals or rates, report filters, and downloadable CSV output.", icon: ListFilter, accent: "from-amber-500/20 to-orange-500/5", color: "text-amber-300" },
+  { href: "/experimental-stats/replays", title: "Replay Search", description: "Find filtered battles and jump directly to the match page or official replay evidence.", icon: Search, accent: "from-blue-500/20 to-indigo-500/5", color: "text-blue-300" },
   { href: "/experimental-stats/battle-visualizer", title: "Battle Visualizer", description: "Explore saved team HP, faint order, replay length, and explicit held-item reveal timing.", icon: BarChart3, accent: "from-red-500/20 to-pink-500/5", color: "text-red-300" },
   { href: "/experimental-stats/rare-events", title: "Rare Event Explorer", description: "Evidence-linked records for long battles, late reveals, distinct moves, damage, healing, and faints.", icon: FlaskConical, accent: "from-purple-500/20 to-violet-500/5", color: "text-purple-300" },
   { href: "/experimental-stats/glossary", title: "Metric Glossary", description: "Definitions and coverage status for every proposed official replay-only statistic and visual.", icon: BookOpen, accent: "from-slate-500/20 to-slate-500/5", color: "text-slate-300" },
@@ -41,11 +42,25 @@ export default async function ExperimentalStatsPage() {
   if (!featureSettings.experimentalStatsEnabled) notFound();
 
   const replayRows = await db.query.matches.findMany({
-    where: isNotNull(matches.replayUrl),
+    where: and(
+      isNotNull(matches.replayUrl),
+      ne(matches.replayUrl, ""),
+      isNotNull(matches.winnerId),
+      or(eq(matches.winnerId, matches.coach1SeasonId), eq(matches.winnerId, matches.coach2SeasonId)),
+      eq(matches.isForfeit, false),
+    ),
     columns: { id: true, seasonId: true, turnSnapshots: true },
   });
   const seasonCount = new Set(replayRows.map((match) => match.seasonId)).size;
-  const timelineCount = replayRows.filter((match) => match.turnSnapshots).length;
+  const timelineCount = replayRows.filter((match) => {
+    if (!match.turnSnapshots) return false;
+    try {
+      const snapshots: unknown = JSON.parse(match.turnSnapshots);
+      return Array.isArray(snapshots) && snapshots.length > 0;
+    } catch {
+      return false;
+    }
+  }).length;
 
   return (
     <div className="experimental-stats-readable readable-content space-y-6">
@@ -94,7 +109,7 @@ export default async function ExperimentalStatsPage() {
       </section>
 
       <section className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 sm:p-5">
-        <div className="flex gap-3"><BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><h2 className="text-sm font-black text-amber-100">Coverage is part of the statistic</h2><p className="mt-1 text-xs leading-5 text-amber-100/70">Older replays do not contain every saved summary field. Reports show coverage and qualification context; protocol metrics that were never stored remain in the glossary until normalized replay-event storage exists.</p></div></div>
+        <div className="flex gap-3"><BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><h2 className="text-sm font-black text-amber-100">Coverage is part of the statistic</h2><p className="mt-1 text-xs leading-5 text-amber-100/70">Older replays do not contain every saved summary field. Reports show coverage and qualification context; protocol-derived metrics remain glossary-only until their calculations and backfill coverage are validated.</p></div></div>
       </section>
     </div>
   );

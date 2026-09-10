@@ -8,15 +8,16 @@ import { getSiteFeatureSettings } from "@/lib/site-settings";
 export const dynamic = "force-dynamic";
 
 const moduleCopy: Record<ExperimentalModuleSlug, { title: string; description: string; clientModule: ExperimentalClientModule }> = {
+  insights: { title: "Insights", description: "Review replay-backed momentum, matchups, pace, item coverage, and other patterns across the active filters.", clientModule: "insights" },
   pokemon: { title: "Pokémon Profiles", description: "Qualified percentile reports, totals, rates, move usage, item reveals, and recent match evidence.", clientModule: "pokemon" },
   coaches: { title: "Coach Profiles", description: "Observed replay tendencies and usage patterns without assigning strategic intent.", clientModule: "coaches" },
   compare: { title: "Compare", description: "Place two qualified Pokémon under the same replay filters and compare their output directly.", clientModule: "compare" },
-  trends: { title: "Rolling Trends", description: "Compare a Pokémon's latest five appearances with the immediately preceding five.", clientModule: "rolling" },
-  leaderboards: { title: "Custom Leaderboards", description: "Build filtered Pokémon or coach rankings and export the visible evidence as CSV.", clientModule: "leaderboard" },
-  replays: { title: "Replay Search", description: "Find qualifying battles and open the recorded match or official replay source.", clientModule: "replays" },
+  trends: { title: "Rolling Trends", description: "Compare a Pokémon's recent 3-, 5-, or 10-game window with the immediately preceding window.", clientModule: "rolling" },
+  leaderboards: { title: "Leaderboards", description: "Use preset Pokémon or coach rankings and export the visible evidence as CSV.", clientModule: "leaderboard" },
+  replays: { title: "Replay Search", description: "Find filtered battles and open the recorded match or official replay source.", clientModule: "replays" },
   "battle-visualizer": { title: "Battle Visualizer", description: "Explore saved team HP, faint timing, and explicit item-reveal timing for one battle.", clientModule: "visualizer" },
   "rare-events": { title: "Rare Event Explorer", description: "Search unusual records that can be supported by currently saved replay evidence.", clientModule: "rare" },
-  glossary: { title: "Metric Glossary", description: "Definitions and storage coverage for every proposed official replay-only metric and visual.", clientModule: "glossary" },
+  glossary: { title: "Metric Glossary", description: "Definitions and report coverage for every proposed official replay-only metric and visual.", clientModule: "glossary" },
 };
 
 export function generateStaticParams() {
@@ -43,7 +44,7 @@ export default async function ExperimentalModulePage({ params, searchParams }: {
         <p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)] sm:text-sm sm:leading-6">{copy.description}</p>
       </header>
       <ExperimentalModuleNav active={slug} />
-      <ExperimentalStatsClient key={slug} dataset={dataset} initialModule={copy.clientModule} initialFilters={filters} standalone />
+      <ExperimentalStatsClient dataset={dataset} initialModule={copy.clientModule} initialFilters={filters} standalone />
     </div>
   );
 }

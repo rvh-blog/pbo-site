@@ -1,5 +1,19 @@
 [
   {
+    "sourceKey": "2026-09-09-experimental-stats-full-audit",
+    "title": "Experimental Stats Full Audit",
+    "summary": "Experimental Stats reports are better organized, easier to interpret, and synchronized with their filters and replay evidence.",
+    "publishedAt": "2026-09-09",
+    "changes": [
+      { "type": "improved", "text": "Insights is now its own report, each page has a collapsible report filter area, and Pokémon and coach qualification requires at least three appearances." },
+      { "type": "added", "text": "Added KO Differential, KO Differential/Game, and Move Usage leaderboard presets, sortable Career and Splits tables, and Regular Season versus Playoffs controls." },
+      { "type": "improved", "text": "How-to-read guidance now explains first-faint advantage, coach shift, move-to-KO signals, battle momentum, replay pace, evidence coverage, and other unfamiliar metrics." },
+      { "type": "improved", "text": "Replay-backed reports now show clearer matchup, coach, team, item, and source-game context, with alphabetical Pokémon selectors and the full word appearances." },
+      { "type": "fixed", "text": "Corrected coach match counts, damage-per-game and stage comparisons, comeback attribution, survival-rate bounds, held-item evidence, rare-event coverage, and protocol values." },
+      { "type": "improved", "text": "The Battle Visualizer and Event Analytics now stay on the selected match, while replay pace uses a fuller 2-by-2 summary and report payloads avoid unnecessary timeline data." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-09-experimental-stats-replay-links",
     "title": "Experimental Stats Replay Links",
     "summary": "Experimental stat tables now explain team attribution, connect item usage to source games, and make replay evidence easier to review.",
