@@ -1,5 +1,60 @@
 # Recent Website Updates
 
+## September 9, 2026 - Full Experimental Stats Audit
+
+Navigation and report organization:
+
+- Moved cross-report analysis into its own `Insights` module so every
+  Experimental Stats page has one primary report instead of repeating a
+  second report at the bottom.
+- Organized all ten modules under one report navigation bar and preserved
+  active filters between reports without carrying a selected visualizer match
+  into unrelated pages.
+- Replaced abbreviated labels such as `apps` with `appearances`, alphabetized
+  Pokémon selectors, and clarified report names and supporting descriptions.
+
+Filters, qualification, and sorting:
+
+- Replaced the always-open shared filter panel with a collapsible filter area
+  on each report. Season, division, week, coach, Pokémon, move, item, result,
+  stage, and forfeit filters remain shareable in the URL.
+- Enforced a minimum of three appearances for Pokémon and coach qualification.
+  Broader evidence reports such as Insights, Replay Search, and the visualizer
+  retain all filtered matches instead of hiding valid low-sample evidence.
+- Added Regular Season and Playoffs filters and sortable columns to Pokémon
+  Career and Splits reports, along with selectable 3-, 5-, and 10-game rolling
+  trend windows.
+
+Clarity and evidence:
+
+- Added `How to read this` guidance throughout Insights and clearer definitions
+  for first-faint advantage, comeback wins, coach shift, move-to-KO signals,
+  battle momentum, replay pace, coverage, and protocol-derived metrics.
+- Pokémon game logs now identify both teams in every matchup. Item Impact,
+  KO Conversion, Team Damage Share, and replay reports retain their match,
+  coach, and team attribution so aggregated rows can be checked against source
+  evidence.
+- The momentum chart now uses an explicit replay selector whose width adapts to
+  both team names. Battle Pace Records now fills its panel with a 2-by-2 grid
+  for fastest, longest, average, and median replay length plus a distribution
+  summary.
+
+Metrics and data integrity:
+
+- Added preset leaderboard reports for KO Differential, KO
+  Differential/Game, and Move Usage while retaining existing presets and CSV
+  export.
+- Corrected coach match deduplication, damage-per-game and regular-season versus
+  playoff comparisons, comeback attribution across persistent coach records,
+  survival-rate bounds, held-item evidence, rare-event coverage, and normalized
+  protocol values.
+- Kept the Battle Visualizer selection synchronized with Event Analytics and
+  its shareable match URL, reduced unnecessary timeline payloads, and corrected
+  landing-page replay/timeline coverage counts.
+- Removed the misleading global Protocol Events summary card. Glossary entries
+  now distinguish currently reported statistics from normalized-event reports
+  that still require calculation and coverage validation.
+
 ## September 9, 2026 - Playoff Hub, Experimental Stats, and Permanent Community Pages
 
 - Aligned the playoff bracket round headings and columns so Quarterfinals,
