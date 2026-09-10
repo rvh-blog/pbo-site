@@ -1,5 +1,19 @@
 [
   {
+    "sourceKey": "2026-09-10-site-code-optimization-pass",
+    "title": "Faster Planning, Search, and Statistics Pages",
+    "summary": "Six no-cost code optimizations reduce repeated database work and the amount of data sent to several frequently used pages.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "improved", "text": "Draft Planner sends repeated move names once and reconstructs learnsets in the browser, making its initial response substantially smaller." },
+      { "type": "improved", "text": "Site search reuses a short-lived Pokemon index, runs independent lookups together, and cancels obsolete requests while a user keeps typing." },
+      { "type": "improved", "text": "Matchup Prep loads prices only for the selected season instead of retrieving every historical price row." },
+      { "type": "improved", "text": "Pokemon leaderboards now let the database calculate totals instead of loading every appearance into the application." },
+      { "type": "improved", "text": "Coach profiles limit placement and playoff lookups to that coach's divisions and reuse store-purchase data." },
+      { "type": "improved", "text": "Frequently read feature settings use a brief shared cache that is cleared immediately after an admin changes a setting." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-10-directory-data-optimization",
     "title": "Coach and Season Directory Performance",
     "summary": "Coach records and the season archive perform less unnecessary data loading and processing.",

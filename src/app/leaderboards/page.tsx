@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
-import { playoffMatches, seasons } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { matches, playoffMatches, seasons } from "@/lib/schema";
+import { eq, isNotNull } from "drizzle-orm";
 import { LeaderboardsClient } from "./leaderboards-client";
 import { getAllCoachCosmetics } from "@/lib/glow-utils";
 import { getPokemonLeaderboardStatsForScopes } from "@/lib/pokemon-leaderboard";
@@ -237,6 +237,7 @@ const getCachedLeaderboardData = unstable_cache(
       columns: { id: true, coachId: true, divisionId: true, teamName: true, teamLogoUrl: true, isActive: true },
     }),
     db.query.matches.findMany({
+      where: isNotNull(matches.winnerId),
       columns: { seasonId: true, coach1SeasonId: true, coach2SeasonId: true, winnerId: true },
     }),
     getPokemonLeaderboardStatsForScopes(currentSeason?.id ?? null),

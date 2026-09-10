@@ -168,6 +168,10 @@ interface SimplePokemon {
   baseStatTotal?: number | null;
 }
 
+interface EncodedSimplePokemon extends Omit<SimplePokemon, "moves"> {
+  moveIds: number[];
+}
+
 interface RosterSlot {
   pokemonId: number | null;
   pokemonName: string;
@@ -201,7 +205,8 @@ interface Props {
   teamLogo: string | null;
   roster: RosterPokemon[];
   draftBudget: number;
-  allPokemon: SimplePokemon[];
+  allPokemon: EncodedSimplePokemon[];
+  moveNames: string[];
   moveTypes: Record<string, string>;
   abilityDescriptions: Record<string, string>;
   seasonPrices: Record<number, SeasonPriceInfo>;
@@ -599,13 +604,23 @@ export function DraftPlanner({
   teamLogo,
   roster: initialRoster,
   draftBudget,
-  allPokemon,
+  allPokemon: encodedPokemon,
+  moveNames,
   moveTypes,
   abilityDescriptions,
   seasonPrices,
   allSeasons,
   currentSeasonId,
 }: Props) {
+  const allPokemon = useMemo<SimplePokemon[]>(
+    () => encodedPokemon.map(({ moveIds, ...pokemon }) => ({
+      ...pokemon,
+      moves: moveIds
+        .map((moveId) => moveNames[moveId])
+        .filter((move): move is string => Boolean(move)),
+    })),
+    [encodedPokemon, moveNames],
+  );
   const [statSort, setStatSort] = useState<"speed" | "hp" | "attack" | "defense" | "specialAttack" | "specialDefense" | "baseStatTotal">("speed");
   const [statSortAsc, setStatSortAsc] = useState(false);
   const [moveSearch, setMoveSearch] = useState("");

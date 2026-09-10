@@ -689,8 +689,20 @@ async function getCoachTransactions(seasonCoachIds: number[]) {
   return enhancedTxs;
 }
 
+function loadCoachStorePurchases(coachId: number) {
+  return db.query.coachPurchases.findMany({
+    where: eq(coachPurchases.coachId, coachId),
+    with: { item: true },
+  });
+}
+
 // Get coin breakdown for a coach
-async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publicSeasonIds: number[]) {
+async function getCoinBreakdown(
+  coachId: number,
+  seasonCoachIds: number[],
+  publicSeasonIds: number[],
+  purchasesPromise: ReturnType<typeof loadCoachStorePurchases>,
+) {
   const publicSeasonIdSet = new Set(publicSeasonIds);
 
   // Get all bets, store purchases, pick-em rewards, and trivia rewards for this coach in parallel
@@ -704,18 +716,24 @@ async function getCoinBreakdown(coachId: number, seasonCoachIds: number[], publi
     db.query.deathBets.findMany({
       where: eq(deathBets.coachId, coachId),
     }),
-    db.query.coachPurchases.findMany({
-      where: eq(coachPurchases.coachId, coachId),
-      with: {
-        item: true,
-      },
-    }),
-    publicSeasonIds.length > 0
+    purchasesPromise,
+    publicSeasonIds.length > 0 && seasonCoachIds.length > 0
       ? db.query.matches.findMany({
           where: and(
             isNotNull(matches.winnerId),
-            inArray(matches.seasonId, publicSeasonIds)
+            inArray(matches.seasonId, publicSeasonIds),
+            or(
+              inArray(matches.coach1SeasonId, seasonCoachIds),
+              inArray(matches.coach2SeasonId, seasonCoachIds),
+            ),
           ),
+          columns: {
+            id: true,
+            coach1SeasonId: true,
+            coach2SeasonId: true,
+            winnerId: true,
+            isForfeit: true,
+          },
         })
       : Promise.resolve([]),
     db.query.pickEmParticipants.findMany({
@@ -884,7 +902,15 @@ function getRegularSeasonPlacement(
   seasonCoachId: number,
   divisionId: number,
   allCoaches: Awaited<ReturnType<typeof db.query.seasonCoaches.findMany>>,
-  allMatches: Awaited<ReturnType<typeof db.query.matches.findMany>>
+  allMatches: Array<{
+    divisionId: number;
+    week: number;
+    coach1SeasonId: number;
+    coach2SeasonId: number;
+    winnerId: number | null;
+    coach1Differential: number | null;
+    coach2Differential: number | null;
+  }>
 ): number | null {
   // Filter to coaches in this division
   const divisionCoaches = allCoaches.filter(sc => sc.divisionId === divisionId);
@@ -1003,6 +1029,8 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
     (session?.isMod ||
       (session?.type === "coach" && session.id === coachId));
 
+  const coachStorePurchasesPromise = loadCoachStorePurchases(coachId);
+
   // Fetch shared data for placements and playoffs once - include txCounts and pokemonPrices
   const [coachMatches, coachMatchPokemon, coachTransactions, rawSeasonCoaches, rawMatches, rawPlayoffs, coinBreakdown, coachStorePurchases, txCounts, pokemonPrices, activePoll, coachMilestones] = await Promise.all([
     getCoachMatches(seasonCoachIds),
@@ -1013,21 +1041,29 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
           where: inArray(seasonCoaches.divisionId, publicDivisionIds),
         })
       : Promise.resolve([]),
-    publicSeasonIds.length > 0
+    publicDivisionIds.length > 0
       ? db.query.matches.findMany({
-          where: inArray(matches.seasonId, publicSeasonIds),
+          where: inArray(matches.divisionId, publicDivisionIds),
+          columns: {
+            id: true,
+            divisionId: true,
+            week: true,
+            coach1SeasonId: true,
+            coach2SeasonId: true,
+            winnerId: true,
+            coach1Differential: true,
+            coach2Differential: true,
+            isForfeit: true,
+          },
         })
       : Promise.resolve([]),
-    publicSeasonIds.length > 0
+    publicDivisionIds.length > 0
       ? db.query.playoffMatches.findMany({
-          where: inArray(playoffMatches.seasonId, publicSeasonIds),
+          where: inArray(playoffMatches.divisionId, publicDivisionIds),
         })
       : Promise.resolve([]),
-    getCoinBreakdown(coachId, seasonCoachIds, publicSeasonIds),
-    db.query.coachPurchases.findMany({
-      where: eq(coachPurchases.coachId, coachId),
-      with: { item: true },
-    }),
+    getCoinBreakdown(coachId, seasonCoachIds, publicSeasonIds, coachStorePurchasesPromise),
+    coachStorePurchasesPromise,
     selectedSeasonEntry ? getTransactionCounts(selectedSeasonEntry.id) : Promise.resolve(null),
     selectedSeasonId ? getSeasonPokemonPrices(selectedSeasonId) : Promise.resolve([]),
     getActivePoll(session),
