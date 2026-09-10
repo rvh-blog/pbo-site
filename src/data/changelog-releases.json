@@ -1,5 +1,15 @@
 [
   {
+    "sourceKey": "2026-09-10-directory-data-optimization",
+    "title": "Coach and Season Directory Performance",
+    "summary": "Coach records and the season archive perform less unnecessary data loading and processing.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "improved", "text": "Coach record filters reuse their team and match lookups, and the directory skips unfinished games and a redundant season lookup." },
+      { "type": "improved", "text": "The season archive loads a total for each division instead of retrieving every historical team to count them." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-09-experimental-stats-full-audit",
     "title": "Experimental Stats Full Audit",
     "summary": "Experimental Stats reports are better organized, easier to interpret, and synchronized with their filters and replay evidence.",

@@ -93,8 +93,8 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
     setSelectedDivisionId(null);
   };
 
-  // Calculate stats for each coach based on filters
-  const coachesWithStats = useMemo(() => {
+  // These indexes depend only on source data, not the selected record filters.
+  const entriesByCoach = useMemo(() => {
     const entriesByCoach = new Map<number, SeasonCoachEntry[]>();
     for (const entry of seasonCoachEntries) {
       const entries = entriesByCoach.get(entry.coachId) ?? [];
@@ -102,6 +102,10 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
       entriesByCoach.set(entry.coachId, entries);
     }
 
+    return entriesByCoach;
+  }, [seasonCoachEntries]);
+
+  const matchesBySeasonCoach = useMemo(() => {
     const matchesBySeasonCoach = new Map<number, Match[]>();
     for (const match of matches) {
       for (const seasonCoachId of [match.coach1SeasonId, match.coach2SeasonId]) {
@@ -111,6 +115,11 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
       }
     }
 
+    return matchesBySeasonCoach;
+  }, [matches]);
+
+  // Calculate stats for each coach based on filters.
+  const coachesWithStats = useMemo(() => {
     return coaches.map(coach => {
       // Get season coach IDs for this coach
       const relevantEntries = entriesByCoach.get(coach.id) ?? [];
@@ -187,7 +196,7 @@ export function CoachesClient({ coaches, seasonCoachEntries, matches, divisions,
         hasMatchesInFilter,
       };
     });
-  }, [coaches, seasonCoachEntries, matches, includeForfeits, matchPhase, showAllTimeStats, selectedSeasonId, selectedDivisionId]);
+  }, [coaches, entriesByCoach, matchesBySeasonCoach, includeForfeits, matchPhase, showAllTimeStats, selectedSeasonId, selectedDivisionId]);
 
   // Filter out coaches with no games if filtering by season/division
   const displayedCoaches = useMemo(() => {

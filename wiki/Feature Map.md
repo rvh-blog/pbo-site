@@ -70,6 +70,12 @@ See also:
 
 ## Current UI And Performance Notes
 
+- Coach directory record filters reuse memoized team/match indexes. Its server
+  loader excludes games without winners and derives the latest season from the
+  existing sorted season list. The season archive groups team counts in SQL.
+  Run `node scripts/check-directory-optimization.mjs <local-db-path>` for a
+  read-only before/after comparison of archive counts and coach records.
+
 - Weekly navigation uses `src/components/league-context.tsx` and `src/lib/league-context.ts`. Division schedules, prep, comparisons, and item stats preserve season/division/week/team context in links; `teamId` means `season_coaches.id`. Explicit destination filters take precedence. Item stats accepts `seasonId` separately from its legacy season-number `season` parameter.
 - Your Week links directly to the next matchup, displays local scheduled time, and reads missing picks through `src/lib/home-pick-ems.ts`. The homepage and pick-em selector share week-unlock rules in `src/lib/pick-em-availability.ts`; no reward or settlement logic changes.
 - The homepage battle log limits its combined regular/playoff query to eight rows in `src/lib/home-recent-battles.ts`. It sorts before limiting, including recently recorded early-week results. Trainer type reads are restricted to displayed coaches and showcase purchases.

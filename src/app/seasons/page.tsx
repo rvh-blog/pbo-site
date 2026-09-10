@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { seasonCoaches } from "@/lib/schema";
+import { count } from "drizzle-orm";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { compareDivisions } from "@/lib/division-order";
 
@@ -36,7 +38,7 @@ const LEGACY_SEASON_NUMBERS = new Set([1, 2, 3, 4]);
 
 async function getSeasons() {
   // Run all queries in parallel
-  const [allSeasons, allSeasonCoaches, visibility] = await Promise.all([
+  const [allSeasons, divisionCounts, visibility] = await Promise.all([
     db.query.seasons.findMany({
       with: {
         divisions: {
@@ -45,9 +47,9 @@ async function getSeasons() {
       },
       orderBy: (seasons, { desc }) => [desc(seasons.seasonNumber)],
     }),
-    db.query.seasonCoaches.findMany({
-      columns: { divisionId: true },
-    }),
+    db.select({ divisionId: seasonCoaches.divisionId, coachCount: count() })
+      .from(seasonCoaches)
+      .groupBy(seasonCoaches.divisionId),
     getPublicVisibilityState(),
   ]);
 
@@ -58,11 +60,10 @@ async function getSeasons() {
     season.divisions.sort(compareDivisions);
   }
 
-  // Count coaches per division in memory (no N+1 queries!)
-  const coachCountByDivision = new Map<number, number>();
-  for (const sc of allSeasonCoaches) {
-    coachCountByDivision.set(sc.divisionId, (coachCountByDivision.get(sc.divisionId) || 0) + 1);
-  }
+  // Transfer one count per division instead of every historical team row.
+  const coachCountByDivision = new Map(
+    divisionCounts.map((row) => [row.divisionId, row.coachCount]),
+  );
 
   // Build seasons with counts using in-memory data
   const seasonsWithCounts = seasons.map((season) => {
