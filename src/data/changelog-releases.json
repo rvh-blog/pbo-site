@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-09-10-slideshow-image-navigation",
+    "title": "Reliable Power Rankings Slideshow Navigation",
+    "summary": "Power Rankings slides now wait for their images and ignore overlapping clicks so every team card renders with the right sprites.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "fixed", "text": "Preloaded slide artwork, stable slide remounts, and transition locking prevent rapid clicks from showing stale or missing Pokemon images." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-10-schedule-stats-overflow",
     "title": "Schedule Match Stats Fit Their Cards",
     "summary": "Expanded Pokemon results remain readable without spilling beyond the schedule card.",

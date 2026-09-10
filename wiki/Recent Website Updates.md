@@ -1,5 +1,13 @@
 # Recent Website Updates
 
+## September 10, 2026 - Reliable Power Rankings Slideshow Navigation
+
+- Power Rankings slides now preload their team artwork and Pokemon sprites before
+  changing slides.
+- Rapid clicks are ignored while a slide transition is running, and each team
+  slide remounts with stable identity so images cannot carry over from another
+  team.
+
 ## September 10, 2026 - Schedule Match Stats Layout
 
 - Fixed expanded schedule results overflowing on the right when teams or
