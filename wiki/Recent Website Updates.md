@@ -1,5 +1,11 @@
 # Recent Website Updates
 
+## September 10, 2026 - Schedule Match Stats Layout
+
+- Fixed expanded schedule results overflowing on the right when teams or
+  Pokemon had long names. Both team columns now shrink inside the card while
+  keeping sprites and K/D totals visible.
+
 ## September 10, 2026 - Site Code Optimization Pass
 
 - Reduced Draft Planner's server response by sending each move name once and
