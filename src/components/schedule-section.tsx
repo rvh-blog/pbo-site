@@ -245,7 +245,7 @@ export function ScheduleSection({
                     <div className="flex items-center justify-between gap-2 md:gap-4">
                       {/* Team 1 */}
                       <div className={`flex-1 min-w-0 ${hasResult && !team1Won ? "opacity-50" : ""}`}>
-                        <Link href={`/coaches/${match.coach1.coachId}`} className="flex items-center gap-2 group">
+                        <Link href={`/coaches/${match.coach1.coachId}`} className="flex min-w-0 items-center gap-2 group">
                           {team1Won && (
                             <svg className="w-4 h-4 text-[var(--success)] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
@@ -268,7 +268,7 @@ export function ScheduleSection({
                               </span>
                             </div>
                           )}
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <span className={`font-medium text-sm block truncate group-hover:text-[var(--primary)] transition-colors ${team1Won ? "text-[var(--success)]" : ""}`}>
                               {match.coach1.teamName}
                             </span>
@@ -307,8 +307,8 @@ export function ScheduleSection({
 
                       {/* Team 2 */}
                       <div className={`flex-1 min-w-0 ${hasResult && !team2Won ? "opacity-50" : ""}`}>
-                        <Link href={`/coaches/${match.coach2.coachId}`} className="flex items-center justify-end gap-2 group">
-                          <div className="min-w-0 text-right">
+                        <Link href={`/coaches/${match.coach2.coachId}`} className="flex min-w-0 items-center justify-end gap-2 group">
+                          <div className="min-w-0 flex-1 text-right">
                             <span className={`font-medium text-sm block truncate group-hover:text-[var(--primary)] transition-colors ${team2Won ? "text-[var(--success)]" : ""}`}>
                               {match.coach2.teamName}
                             </span>
@@ -419,32 +419,32 @@ export function ScheduleSection({
 
                   {/* Expanded Pokemon Stats */}
                   {isExpanded && hasPokemonStats && (
-                    <div id={`match-stats-${match.id}`} className="border-t-2 border-[var(--background-tertiary)] bg-[var(--background)]/50 p-3">
-                      <div className="grid grid-cols-2 gap-4">
+                    <div id={`match-stats-${match.id}`} className="overflow-hidden border-t-2 border-[var(--background-tertiary)] bg-[var(--background)]/50 p-2 sm:p-3">
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:gap-4">
                         {/* Team 1 Pokemon */}
-                        <div>
-                          <div className="text-xs font-medium text-[var(--foreground-muted)] mb-2 flex items-center gap-1.5">
+                        <div className="min-w-0">
+                          <div className="mb-2 flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[var(--foreground-muted)] sm:text-xs">
                             {match.coach1.teamLogoUrl ? (
                               <Image
                                 src={match.coach1.teamLogoUrl}
                                 alt=""
                                 width={16}
                                 height={16}
-                                className="object-contain rounded"
+                                className="shrink-0 rounded object-contain"
                               />
                             ) : (
-                              <div className="w-4 h-4 rounded bg-gradient-to-br from-[var(--primary)] to-[var(--gradient-end)] flex items-center justify-center">
+                              <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gradient-to-br from-[var(--primary)] to-[var(--gradient-end)]">
                                 <span className="text-white text-[8px] font-bold">
                                   {match.coach1.teamAbbreviation?.charAt(0) || match.coach1.teamName.charAt(0)}
                                 </span>
                               </div>
                             )}
-                            {match.coach1.teamAbbreviation || match.coach1.teamName}
+                            <span className="min-w-0 truncate">{match.coach1.teamAbbreviation || match.coach1.teamName}</span>
                           </div>
                           <div className="space-y-1">
                             {team1Pokemon.map((mp) => (
-                              <div key={mp.id} className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-1.5">
+                              <div key={mp.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 text-[10px] sm:text-xs">
+                                <div className="flex min-w-0 items-center gap-1 sm:gap-1.5">
                                   {mp.pokemon?.spriteUrl ? (
                                     <Image
                                       src={mp.pokemon.spriteUrl}
@@ -452,14 +452,14 @@ export function ScheduleSection({
                                       width={20}
                                       height={20}
                                       sizes="20px"
-                                      className="w-5 h-5 object-contain"
+                                      className="h-4 w-4 shrink-0 object-contain sm:h-5 sm:w-5"
                                     />
                                   ) : (
-                                    <div className="w-5 h-5 bg-[var(--background-tertiary)] rounded" />
+                                    <div className="h-4 w-4 shrink-0 rounded bg-[var(--background-tertiary)] sm:h-5 sm:w-5" />
                                   )}
-                                  <span className="truncate">{mp.pokemon?.displayName || mp.pokemon?.name}</span>
+                                  <span className="min-w-0 truncate">{mp.pokemon?.displayName || mp.pokemon?.name}</span>
                                 </div>
-                                <div className="flex items-center gap-2 font-mono">
+                                <div className="flex shrink-0 items-center gap-1 font-mono sm:gap-2">
                                   <span className="text-[var(--success)]">{mp.kills || 0}K</span>
                                   <span className="text-[var(--error)]">{mp.deaths || 0}D</span>
                                 </div>
@@ -469,19 +469,19 @@ export function ScheduleSection({
                         </div>
 
                         {/* Team 2 Pokemon */}
-                        <div>
-                          <div className="text-xs font-medium text-[var(--foreground-muted)] mb-2 flex items-center justify-end gap-1.5">
-                            {match.coach2.teamAbbreviation || match.coach2.teamName}
+                        <div className="min-w-0">
+                          <div className="mb-2 flex min-w-0 items-center justify-end gap-1.5 text-[10px] font-medium text-[var(--foreground-muted)] sm:text-xs">
+                            <span className="min-w-0 truncate text-right">{match.coach2.teamAbbreviation || match.coach2.teamName}</span>
                             {match.coach2.teamLogoUrl ? (
                               <Image
                                 src={match.coach2.teamLogoUrl}
                                 alt=""
                                 width={16}
                                 height={16}
-                                className="object-contain rounded"
+                                className="shrink-0 rounded object-contain"
                               />
                             ) : (
-                              <div className="w-4 h-4 rounded bg-gradient-to-br from-[var(--primary)] to-[var(--gradient-end)] flex items-center justify-center">
+                              <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gradient-to-br from-[var(--primary)] to-[var(--gradient-end)]">
                                 <span className="text-white text-[8px] font-bold">
                                   {match.coach2.teamAbbreviation?.charAt(0) || match.coach2.teamName.charAt(0)}
                                 </span>
@@ -490,13 +490,13 @@ export function ScheduleSection({
                           </div>
                           <div className="space-y-1">
                             {team2Pokemon.map((mp) => (
-                              <div key={mp.id} className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-2 font-mono">
+                              <div key={mp.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-1 text-[10px] sm:text-xs">
+                                <div className="flex shrink-0 items-center gap-1 font-mono sm:gap-2">
                                   <span className="text-[var(--success)]">{mp.kills || 0}K</span>
                                   <span className="text-[var(--error)]">{mp.deaths || 0}D</span>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="truncate text-right">{mp.pokemon?.displayName || mp.pokemon?.name}</span>
+                                <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-1.5">
+                                  <span className="min-w-0 truncate text-right">{mp.pokemon?.displayName || mp.pokemon?.name}</span>
                                   {mp.pokemon?.spriteUrl ? (
                                     <Image
                                       src={mp.pokemon.spriteUrl}
@@ -504,10 +504,10 @@ export function ScheduleSection({
                                       width={20}
                                       height={20}
                                       sizes="20px"
-                                      className="w-5 h-5 object-contain"
+                                      className="h-4 w-4 shrink-0 object-contain sm:h-5 sm:w-5"
                                     />
                                   ) : (
-                                    <div className="w-5 h-5 bg-[var(--background-tertiary)] rounded" />
+                                    <div className="h-4 w-4 shrink-0 rounded bg-[var(--background-tertiary)] sm:h-5 sm:w-5" />
                                   )}
                                 </div>
                               </div>

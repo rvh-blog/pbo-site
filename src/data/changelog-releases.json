@@ -1,15 +1,90 @@
 [
   {
     "sourceKey": "2026-09-10-experimental-stats-reports",
-    "title": "Experimental Stats Reports",
-    "summary": "Replay-backed Insights, PokéBase-inspired Pokémon usage reports, configurable trends, qualified leaderboards, and clearer evidence coverage make the Experimental Stats lab easier to use and interpret.",
+    "title": "PokéBase-Inspired Usage Reports",
+    "summary": "Experimental Stats now includes a replay-backed Pokémon usage overview, configurable trends, qualified leaderboards, and clearer evidence coverage.",
     "publishedAt": "2026-09-10",
     "changes": [
-      { "type": "added", "text": "Added an Insights module with replay-backed momentum, pace, matchup, KO conversion, damage-share, team-core, coach-tendency, item-coverage, and playoff-versus-regular-season reports." },
       { "type": "added", "text": "Added a Pokémon usage overview with usage rate, win rate, team-appearance samples, weekly trends, common teammates, and supporting match evidence links." },
       { "type": "added", "text": "Added three-, five-, and ten-game rolling windows, preset Pokémon and coach leaderboards, and CSV exports for the visible report." },
-      { "type": "improved", "text": "Replay Search now supports text, minimum-damage, minimum-kill, and survived-battle filters, while Battle Visualizer replay selection can be shared through the match query." },
-      { "type": "improved", "text": "Reports now expose field coverage and require at least three qualifying games for profiles and rankings; missing saved fields remain unknown instead of being treated as zero." }
+      { "type": "improved", "text": "Replay Search now supports text, minimum-damage, minimum-kill, and survived-battle filters, while Battle Visualizer replay selection remains shareable through the match query." },
+      { "type": "improved", "text": "Reports expose field coverage and require at least three qualifying games for profiles and rankings; missing saved fields remain unknown instead of being treated as zero." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-10-experimental-stats-payload",
+    "title": "Lean Experimental Stats Reports",
+    "summary": "Experimental Stats now sends large replay timelines only to reports that use them, making common reports lighter to load.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "improved", "text": "Pokemon, Coach, Compare, Trends, Leaderboard, and Replay Search reports skip unused HP timeline and key-event JSON while Insights, Visualizer, Rare Events, and comeback rankings retain the evidence they need." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-10-slideshow-image-navigation",
+    "title": "Reliable Power Rankings Slideshow Navigation",
+    "summary": "Power Rankings slides now wait for their images and ignore overlapping clicks so every team card renders with the right sprites.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "fixed", "text": "Preloaded slide artwork, stable slide remounts, and transition locking prevent rapid clicks from showing stale or missing Pokemon images." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-10-schedule-stats-overflow",
+    "title": "Schedule Match Stats Fit Their Cards",
+    "summary": "Expanded Pokemon results remain readable without spilling beyond the schedule card.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "fixed", "text": "Long team and Pokemon names now shrink within the expanded schedule view while sprites and K/D totals remain fully visible on both sides." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-10-site-code-optimization-pass",
+    "title": "Faster Planning, Search, and Statistics Pages",
+    "summary": "Six no-cost code optimizations reduce repeated database work and the amount of data sent to several frequently used pages.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "improved", "text": "Draft Planner sends repeated move names once and reconstructs learnsets in the browser, making its initial response substantially smaller." },
+      { "type": "improved", "text": "Site search reuses a short-lived Pokemon index, runs independent lookups together, and cancels obsolete requests while a user keeps typing." },
+      { "type": "improved", "text": "Matchup Prep loads prices only for the selected season instead of retrieving every historical price row." },
+      { "type": "improved", "text": "Pokemon leaderboards now let the database calculate totals instead of loading every appearance into the application." },
+      { "type": "improved", "text": "Coach profiles limit placement and playoff lookups to that coach's divisions and reuse store-purchase data." },
+      { "type": "improved", "text": "Frequently read feature settings use a brief shared cache that is cleared immediately after an admin changes a setting." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-10-directory-data-optimization",
+    "title": "Coach and Season Directory Performance",
+    "summary": "Coach records and the season archive perform less unnecessary data loading and processing.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "improved", "text": "Coach record filters reuse their team and match lookups, and the directory skips unfinished games and a redundant season lookup." },
+      { "type": "improved", "text": "The season archive loads a total for each division instead of retrieving every historical team to count them." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-09-experimental-stats-full-audit",
+    "title": "Experimental Stats Full Audit",
+    "summary": "Experimental Stats reports are better organized, easier to interpret, and synchronized with their filters and replay evidence.",
+    "publishedAt": "2026-09-09",
+    "changes": [
+      { "type": "improved", "text": "Insights is now its own report, each page has a collapsible report filter area, and Pokémon and coach qualification requires at least three appearances." },
+      { "type": "added", "text": "Added KO Differential, KO Differential/Game, and Move Usage leaderboard presets, sortable Career and Splits tables, and Regular Season versus Playoffs controls." },
+      { "type": "improved", "text": "How-to-read guidance now explains first-faint advantage, coach shift, move-to-KO signals, battle momentum, replay pace, evidence coverage, and other unfamiliar metrics." },
+      { "type": "improved", "text": "Replay-backed reports now show clearer matchup, coach, team, item, and source-game context, with alphabetical Pokémon selectors and the full word appearances." },
+      { "type": "fixed", "text": "Corrected coach match counts, damage-per-game and stage comparisons, comeback attribution, survival-rate bounds, held-item evidence, rare-event coverage, and protocol values." },
+      { "type": "improved", "text": "The Battle Visualizer and Event Analytics now stay on the selected match, while replay pace uses a fuller 2-by-2 summary and report payloads avoid unnecessary timeline data." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-09-experimental-stats-replay-links",
+    "title": "Experimental Stats Replay Links",
+    "summary": "Experimental stat tables now explain team attribution, connect item usage to source games, and make replay evidence easier to review.",
+    "publishedAt": "2026-09-09",
+    "changes": [
+      { "type": "added", "text": "Item Impact rows now link directly to the season and week of every saved source match, with compact links that remain usable on smaller screens." },
+      { "type": "improved", "text": "KO Conversion and Team Damage Share now credit each Pokémon to the team name that used it instead of aggregating records without team context." },
+      { "type": "improved", "text": "Experimental stats navigation, sortable leaderboards, replay evidence labels, and Mega Evolution item handling are clearer and easier to audit." }
     ]
   },
   {

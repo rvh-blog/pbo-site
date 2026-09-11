@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { matchPokemon, matches, pokemon } from "@/lib/schema";
+import { and, eq, isNotNull, or, sql } from "drizzle-orm";
 
 export type PokemonLeaderboardStat = {
   id: number;
@@ -236,109 +238,69 @@ export function aggregateSeasonTeamPokemonLeaderboard(
     ));
 }
 
-async function loadPokemonLeaderboardRows() {
-  return db.query.matchPokemon.findMany({
-    columns: {
-      kills: true,
-      deaths: true,
-      seasonCoachId: true,
-    },
-    with: {
-      pokemon: {
-        columns: { id: true, name: true, displayName: true, spriteUrl: true },
-      },
-      match: {
-        columns: {
-          seasonId: true,
-          coach1SeasonId: true,
-          coach2SeasonId: true,
-          winnerId: true,
-        },
-      },
-    },
+async function loadPokemonLeaderboardAggregates(seasonId?: number): Promise<PokemonLeaderboardStat[]> {
+  const rows = await db
+    .select({
+      id: pokemon.id,
+      name: pokemon.name,
+      displayName: pokemon.displayName,
+      spriteUrl: pokemon.spriteUrl,
+      kills: sql<number>`sum(coalesce(${matchPokemon.kills}, 0))`,
+      deaths: sql<number>`sum(coalesce(${matchPokemon.deaths}, 0))`,
+      wins: sql<number>`sum(case when ${matches.winnerId} = ${matchPokemon.seasonCoachId} then 1 else 0 end)`,
+      gamesPlayed: sql<number>`count(*)`,
+    })
+    .from(matchPokemon)
+    .innerJoin(pokemon, eq(matchPokemon.pokemonId, pokemon.id))
+    .innerJoin(matches, eq(matchPokemon.matchId, matches.id))
+    .where(and(
+      isNotNull(matches.winnerId),
+      or(
+        eq(matches.winnerId, matches.coach1SeasonId),
+        eq(matches.winnerId, matches.coach2SeasonId),
+      ),
+      or(
+        eq(matchPokemon.seasonCoachId, matches.coach1SeasonId),
+        eq(matchPokemon.seasonCoachId, matches.coach2SeasonId),
+      ),
+      seasonId === undefined ? undefined : eq(matches.seasonId, seasonId),
+    ))
+    .groupBy(pokemon.id, pokemon.name, pokemon.displayName, pokemon.spriteUrl);
+
+  return rows.map((row) => {
+    const kills = Number(row.kills);
+    const deaths = Number(row.deaths);
+    const wins = Number(row.wins);
+    const gamesPlayed = Number(row.gamesPlayed);
+    const losses = gamesPlayed - wins;
+    return {
+      ...row,
+      kills,
+      deaths,
+      wins,
+      losses,
+      gamesPlayed,
+      differential: kills - deaths,
+      winRate: gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0,
+    };
   });
-
-}
-
-type PokemonLeaderboardRow = Awaited<ReturnType<typeof loadPokemonLeaderboardRows>>[number];
-type PokemonLeaderboardAggregate = Omit<PokemonLeaderboardStat, "differential" | "winRate">;
-
-function addPokemonLeaderboardRow(
-  pokemonMap: Map<number, PokemonLeaderboardAggregate>,
-  mp: PokemonLeaderboardRow
-) {
-  if (
-    !mp.pokemon
-    || !mp.match
-    || mp.match.winnerId === null
-    || (mp.match.winnerId !== mp.match.coach1SeasonId && mp.match.winnerId !== mp.match.coach2SeasonId)
-    || (mp.seasonCoachId !== mp.match.coach1SeasonId && mp.seasonCoachId !== mp.match.coach2SeasonId)
-  ) return;
-
-  const existing = pokemonMap.get(mp.pokemon.id) || {
-    id: mp.pokemon.id,
-    name: mp.pokemon.name,
-    displayName: mp.pokemon.displayName,
-    spriteUrl: mp.pokemon.spriteUrl,
-    kills: 0,
-    deaths: 0,
-    wins: 0,
-    losses: 0,
-    gamesPlayed: 0,
-  };
-
-  existing.kills += mp.kills || 0;
-  existing.deaths += mp.deaths || 0;
-  existing.gamesPlayed += 1;
-
-  if (mp.match.winnerId === mp.seasonCoachId) {
-    existing.wins += 1;
-  } else {
-    existing.losses += 1;
-  }
-
-  pokemonMap.set(mp.pokemon.id, existing);
-}
-
-function finalizePokemonLeaderboard(
-  pokemonMap: Map<number, PokemonLeaderboardAggregate>
-): PokemonLeaderboardStat[] {
-  return Array.from(pokemonMap.values())
-    .filter((pokemon) => pokemon.gamesPlayed > 0)
-    .map((pokemon) => ({
-      ...pokemon,
-      differential: pokemon.kills - pokemon.deaths,
-      winRate: pokemon.gamesPlayed > 0 ? (pokemon.wins / pokemon.gamesPlayed) * 100 : 0,
-    }));
 }
 
 export async function getPokemonLeaderboardStats(seasonId?: number): Promise<PokemonLeaderboardStat[]> {
-  const rows = await loadPokemonLeaderboardRows();
-  const pokemonMap = new Map<number, PokemonLeaderboardAggregate>();
-
-  for (const row of rows) {
-    if (seasonId !== undefined && row.match?.seasonId !== seasonId) continue;
-    addPokemonLeaderboardRow(pokemonMap, row);
-  }
-
-  return finalizePokemonLeaderboard(pokemonMap);
+  return loadPokemonLeaderboardAggregates(seasonId);
 }
 
 export async function getPokemonLeaderboardStatsForScopes(currentSeasonId: number | null) {
-  const rows = await loadPokemonLeaderboardRows();
-  const allTimeMap = new Map<number, PokemonLeaderboardAggregate>();
-  const currentSeasonMap = new Map<number, PokemonLeaderboardAggregate>();
-
-  for (const row of rows) {
-    addPokemonLeaderboardRow(allTimeMap, row);
-    if (currentSeasonId !== null && row.match?.seasonId === currentSeasonId) {
-      addPokemonLeaderboardRow(currentSeasonMap, row);
-    }
-  }
+  const [allTime, currentSeason] = await Promise.all([
+    loadPokemonLeaderboardAggregates(),
+    currentSeasonId === null
+      ? Promise.resolve([])
+      : loadPokemonLeaderboardAggregates(currentSeasonId),
+  ]);
 
   return {
-    allTime: finalizePokemonLeaderboard(allTimeMap),
-    currentSeason: finalizePokemonLeaderboard(currentSeasonMap),
+    allTime,
+    currentSeason,
   };
 }
 

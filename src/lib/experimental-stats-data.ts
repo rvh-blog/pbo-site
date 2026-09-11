@@ -76,7 +76,7 @@ export function parseExperimentalFilters(searchParams: SearchParams, currentSeas
   };
 }
 
-function parseJsonArray<T>(value: string | null): T[] {
+function parseJsonArray<T>(value: string | null | undefined): T[] {
   if (!value) return [];
   try {
     const parsed: unknown = JSON.parse(value);
@@ -171,8 +171,8 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
       isForfeit: true,
       playedAt: true,
       replayUrl: true,
-      turnSnapshots: true,
-      keyEvents: true,
+      ...(includeTimeline ? { turnSnapshots: true } : {}),
+      ...(includeKeyEvents ? { keyEvents: true } : {}),
       zoroarkInvolved: true,
     },
     with: {
@@ -259,9 +259,17 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
     seasons: seasons.map(({ id, name, seasonNumber }) => ({ id, name, seasonNumber })).sort((a, b) => b.seasonNumber - a.seasonNumber),
     divisions: divisions.map(({ id, seasonId, name, displayOrder }) => ({ id, seasonId, name, displayOrder: displayOrder ?? 0 })).sort((a, b) => a.seasonId - b.seasonId || a.displayOrder - b.displayOrder),
     matches: replayMatches.map((match) => {
-      const parsedSnapshots = parseJsonArray<TurnSnapshot>(match.turnSnapshots).sort((a, b) => a.turn - b.turn);
+      const timelineJson = "turnSnapshots" in match && typeof match.turnSnapshots === "string"
+        ? match.turnSnapshots
+        : null;
+      const keyEventsJson = "keyEvents" in match && typeof match.keyEvents === "string"
+        ? match.keyEvents
+        : null;
+      const parsedSnapshots = includeTimeline
+        ? parseJsonArray<TurnSnapshot>(timelineJson).sort((a, b) => a.turn - b.turn)
+        : [];
       const snapshots = includeTimeline ? parsedSnapshots : [];
-      const events = includeKeyEvents ? parseJsonArray<KeyEvent>(match.keyEvents) : [];
+      const events = includeKeyEvents ? parseJsonArray<KeyEvent>(keyEventsJson) : [];
       const winEvent = events.find((event) => event.type === "win");
       const winnerIsCoach1 = match.winnerId === match.coach1.id;
       return {

@@ -1,21 +1,109 @@
 # Recent Website Updates
 
-## September 10, 2026 - Experimental Stats Reports
+## September 10, 2026 - PokéBase-Inspired Usage Reports
 
-- Added a dedicated Insights module with replay-backed momentum, pace, matchup,
-  KO conversion, damage-share, team-core, coach-tendency, item-coverage, and
-  playoff-versus-regular-season reports.
-- Added a PokéBase-inspired Pokémon usage overview with usage rate, win rate,
-  team-appearance samples, weekly trends, common teammates, and links to
-  supporting match evidence.
-- Added configurable three-, five-, and ten-game rolling windows, preset
-  Pokémon and coach leaderboards, and CSV exports for the visible report.
+- Added the Pokémon usage overview with usage rate, win rate, team-appearance
+  samples, weekly trends, common teammates, and supporting match evidence.
+- Added preset Pokémon and coach leaderboard views, configurable three-, five-,
+  and ten-game rolling windows, and CSV exports for the visible report.
 - Improved Replay Search with text, minimum-damage, minimum-kill, and survived-
-  battle filters, and improved Battle Visualizer replay selection with a
-  shareable match query.
-- Added coverage labels and a minimum three-game qualification rule so reports
-  distinguish missing saved fields from measured zeroes and keep sparse samples
-  out of profiles and rankings.
+  battle filters, and kept Battle Visualizer replay selection shareable through
+  the match query.
+- Added coverage labels and the minimum three-game qualification rule so sparse
+  profile and ranking samples are separated from broader replay evidence.
+
+## September 10, 2026 - Lean Experimental Stats Reports
+
+- Common Experimental Stats reports no longer fetch or parse large HP timeline
+  and key-event JSON when those reports do not use it.
+- Insights, Battle Visualizer, Rare Event Explorer, and comeback leaderboards
+  continue to receive the replay evidence required for their calculations.
+
+## September 10, 2026 - Reliable Power Rankings Slideshow Navigation
+
+- Power Rankings slides now preload their team artwork and Pokemon sprites before
+  changing slides.
+- Rapid clicks are ignored while a slide transition is running, and each team
+  slide remounts with stable identity so images cannot carry over from another
+  team.
+
+## September 10, 2026 - Schedule Match Stats Layout
+
+- Fixed expanded schedule results overflowing on the right when teams or
+  Pokemon had long names. Both team columns now shrink inside the card while
+  keeping sprites and K/D totals visible.
+
+## September 10, 2026 - Site Code Optimization Pass
+
+- Reduced Draft Planner's server response by sending each move name once and
+  referencing it with compact numeric IDs in each Pokemon learnset. The client
+  reconstructs the same data shape, so filters and calculations are unchanged.
+- Added a short-lived, automatically invalidated Pokemon search index, ran the
+  independent search queries concurrently, and cancel stale browser requests
+  when someone continues typing.
+- Limited Matchup Prep's price query to the selected season rather than all
+  historical seasons.
+- Moved Pokemon leaderboard aggregation into SQLite while preserving the prior
+  qualification, win, loss, kill, death, differential, and win-rate rules.
+- Scoped coach placement and playoff reads to the divisions that coach played
+  in and reused the same store-purchase query for balance and inventory data.
+- Added a ten-second shared cache for frequently read site settings, with
+  immediate invalidation after an admin update.
+
+## September 9, 2026 - Full Experimental Stats Audit
+
+Navigation and report organization:
+
+- Moved cross-report analysis into its own `Insights` module so every
+  Experimental Stats page has one primary report instead of repeating a
+  second report at the bottom.
+- Organized all ten modules under one report navigation bar and preserved
+  active filters between reports without carrying a selected visualizer match
+  into unrelated pages.
+- Replaced abbreviated labels such as `apps` with `appearances`, alphabetized
+  Pokémon selectors, and clarified report names and supporting descriptions.
+
+Filters, qualification, and sorting:
+
+- Replaced the always-open shared filter panel with a collapsible filter area
+  on each report. Season, division, week, coach, Pokémon, move, item, result,
+  stage, and forfeit filters remain shareable in the URL.
+- Enforced a minimum of three appearances for Pokémon and coach qualification.
+  Broader evidence reports such as Insights, Replay Search, and the visualizer
+  retain all filtered matches instead of hiding valid low-sample evidence.
+- Added Regular Season and Playoffs filters and sortable columns to Pokémon
+  Career and Splits reports, along with selectable 3-, 5-, and 10-game rolling
+  trend windows.
+
+Clarity and evidence:
+
+- Added `How to read this` guidance throughout Insights and clearer definitions
+  for first-faint advantage, comeback wins, coach shift, move-to-KO signals,
+  battle momentum, replay pace, coverage, and protocol-derived metrics.
+- Pokémon game logs now identify both teams in every matchup. Item Impact,
+  KO Conversion, Team Damage Share, and replay reports retain their match,
+  coach, and team attribution so aggregated rows can be checked against source
+  evidence.
+- The momentum chart now uses an explicit replay selector whose width adapts to
+  both team names. Battle Pace Records now fills its panel with a 2-by-2 grid
+  for fastest, longest, average, and median replay length plus a distribution
+  summary.
+
+Metrics and data integrity:
+
+- Added preset leaderboard reports for KO Differential, KO
+  Differential/Game, and Move Usage while retaining existing presets and CSV
+  export.
+- Corrected coach match deduplication, damage-per-game and regular-season versus
+  playoff comparisons, comeback attribution across persistent coach records,
+  survival-rate bounds, held-item evidence, rare-event coverage, and normalized
+  protocol values.
+- Kept the Battle Visualizer selection synchronized with Event Analytics and
+  its shareable match URL, reduced unnecessary timeline payloads, and corrected
+  landing-page replay/timeline coverage counts.
+- Removed the misleading global Protocol Events summary card. Glossary entries
+  now distinguish currently reported statistics from normalized-event reports
+  that still require calculation and coverage validation.
 
 ## September 9, 2026 - Playoff Hub, Experimental Stats, and Permanent Community Pages
 
@@ -30,6 +118,9 @@
 - Blog and Fantasy are now permanent public pages. Their admin hide toggles,
   navigation filters, route gates, and API availability gates were removed.
 - Experimental Stats remains controlled by its separate admin feature toggle.
+- Experimental Stats module tabs now reset their view on navigation and place
+  the selected module's report before the shared cross-module insights, so each
+  tab visibly changes the page content.
 
 ## September 9, 2026 - Playoff Hub and Full-Bracket Pick-Ems
 

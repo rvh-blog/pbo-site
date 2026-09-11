@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
-import { seasons } from "@/lib/schema";
-import { desc } from "drizzle-orm";
+import { matches, seasons } from "@/lib/schema";
+import { desc, isNotNull } from "drizzle-orm";
 import { CoachesClient } from "./coaches-client";
 import { getAllCoachCosmetics } from "@/lib/glow-utils";
 
@@ -14,13 +14,9 @@ export const metadata: Metadata = {
 
 async function getCoachesData() {
   // Run all queries in parallel for much better performance on network-attached storage
-  const [allCoaches, latestSeason, allSeasonCoaches, allMatches, allSeasons, allDivisions] = await Promise.all([
+  const [allCoaches, allSeasonCoaches, allMatches, allSeasons, allDivisions] = await Promise.all([
     db.query.coaches.findMany({
       columns: { id: true, name: true, eloRating: true },
-    }),
-    db.query.seasons.findFirst({
-      columns: { id: true, seasonNumber: true },
-      orderBy: [desc(seasons.seasonNumber)],
     }),
     db.query.seasonCoaches.findMany({
       columns: {
@@ -42,6 +38,8 @@ async function getCoachesData() {
       },
     }),
     db.query.matches.findMany({
+      // Scheduled games do not contribute to any directory record statistic.
+      where: isNotNull(matches.winnerId),
       columns: {
         id: true,
         coach1SeasonId: true,
@@ -64,7 +62,7 @@ async function getCoachesData() {
     }),
   ]);
 
-  const latestSeasonId = latestSeason?.id;
+  const latestSeasonId = allSeasons[0]?.id;
   const cosmetics = await getAllCoachCosmetics(allCoaches.map((coach) => coach.id));
 
   const participationsByCoach = new Map<number, typeof allSeasonCoaches>();

@@ -19,6 +19,37 @@ interface Props {
   hostedBy?: string;
 }
 
+// Share image requests across slides so moving back and forth does not
+// re-fetch sprites that have already been loaded.
+const imagePreloadCache = new Map<string, Promise<void>>();
+
+function getSlideImageUrls(slide: SlideData): string[] {
+  const urls = new Set<string>();
+  const add = (url: string | null | undefined) => {
+    if (url) urls.add(url);
+  };
+
+  add(slide.teamLogoUrl);
+  slide.roster.forEach((pokemon) => {
+    add(pokemon.spriteUrl);
+    add(pokemon.artworkUrl);
+  });
+  slide.allPokemonStats.forEach((pokemon) => add(pokemon.spriteUrl));
+  slide.schedule.forEach((match) => {
+    add(match.opponentLogoUrl);
+    match.myPokemon.forEach((pokemon) => add(pokemon.spriteUrl));
+    match.opponentPokemon.forEach((pokemon) => add(pokemon.spriteUrl));
+  });
+  slide.transactions.forEach((transaction) => {
+    transaction.pokemonIn.forEach((pokemon) => add(pokemon.spriteUrl));
+    transaction.pokemonOut.forEach((pokemon) => add(pokemon.spriteUrl));
+    add(transaction.newTeraCaptain?.spriteUrl);
+    add(transaction.oldTeraCaptain?.spriteUrl);
+  });
+
+  return Array.from(urls);
+}
+
 export function SlideshowClient({ slides, division, season, hostedBy }: Props) {
   // -1 = title slide, 0..N-1 = team slides
   const [currentSlide, setCurrentSlide] = useState(-1);
@@ -28,6 +59,10 @@ export function SlideshowClient({ slides, division, season, hostedBy }: Props) {
   const [hideUI, setHideUI] = useState(false);
   const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const currentSlideRef = useRef(-1);
+  const navigationBusyRef = useRef(false);
+  const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unlockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Derived: scale to fit entirely, center both axes
   const scale = Math.min(viewport.w / 1920, viewport.h / 1080);
@@ -36,25 +71,69 @@ export function SlideshowClient({ slides, division, season, hostedBy }: Props) {
 
   const totalSlides = slides.length;
 
-  const goNext = useCallback(() => {
-    if (currentSlide < totalSlides - 1) {
-      setTransitioning(true);
-      setTimeout(() => {
-        setCurrentSlide((prev) => prev + 1);
-        setTransitioning(false);
-      }, 150);
-    }
-  }, [currentSlide, totalSlides]);
+  // Load every image used by a slide before showing it. This prevents a fast
+  // click from revealing a slide while its sprites are still being fetched.
+  const preloadSlide = useCallback((slideIndex: number) => {
+    const slide = slides[slideIndex];
+    if (!slide || typeof window === "undefined") return Promise.resolve();
 
-  const goPrev = useCallback(() => {
-    if (currentSlide > -1) {
+    const imageUrls = getSlideImageUrls(slide);
+    return Promise.all(
+      imageUrls.map((url) => {
+        const cached = imagePreloadCache.get(url);
+        if (cached) return cached;
+
+        const imagePromise = new Promise<void>((resolve) => {
+          const image = new window.Image();
+          const finish = () => resolve();
+          image.onload = finish;
+          image.onerror = finish;
+          image.src = url;
+          if (image.complete) finish();
+        });
+        imagePreloadCache.set(url, imagePromise);
+        return imagePromise;
+      })
+    ).then(() => undefined);
+  }, [slides]);
+
+  const navigate = useCallback((direction: -1 | 1) => {
+    if (navigationBusyRef.current) return;
+
+    const nextSlide = currentSlideRef.current + direction;
+    if (nextSlide < -1 || nextSlide >= totalSlides) return;
+
+    navigationBusyRef.current = true;
+    void preloadSlide(nextSlide).then(() => {
       setTransitioning(true);
-      setTimeout(() => {
-        setCurrentSlide((prev) => prev - 1);
+      navigationTimeoutRef.current = setTimeout(() => {
+        currentSlideRef.current = nextSlide;
+        setCurrentSlide(nextSlide);
         setTransitioning(false);
+
+        // Keep the lock for the duration of the fade animation so another
+        // click cannot queue a second transition against stale slide state.
+        unlockTimeoutRef.current = setTimeout(() => {
+          navigationBusyRef.current = false;
+        }, 300);
       }, 150);
-    }
-  }, [currentSlide]);
+    });
+  }, [preloadSlide, totalSlides]);
+
+  const goNext = useCallback(() => navigate(1), [navigate]);
+  const goPrev = useCallback(() => navigate(-1), [navigate]);
+
+  // Warm the first team slide while the title slide is being viewed.
+  useEffect(() => {
+    void preloadSlide(0);
+  }, [preloadSlide]);
+
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current) clearTimeout(navigationTimeoutRef.current);
+      if (unlockTimeoutRef.current) clearTimeout(unlockTimeoutRef.current);
+    };
+  }, []);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -97,9 +176,10 @@ export function SlideshowClient({ slides, division, season, hostedBy }: Props) {
 
   // Portal mount + hide layout chrome
   useEffect(() => {
-    setMounted(true);
+    const frame = window.requestAnimationFrame(() => setMounted(true));
     document.body.style.overflow = "hidden";
     return () => {
+      window.cancelAnimationFrame(frame);
       document.body.style.overflow = "";
     };
   }, []);
@@ -151,17 +231,25 @@ export function SlideshowClient({ slides, division, season, hostedBy }: Props) {
       <div className="absolute w-0 h-0 overflow-hidden pointer-events-none" aria-hidden="true">
         {currentSlide >= 0 && currentSlide < totalSlides - 1 && (
           <div style={{ width: 1920, height: 1080 }}>
-            <Slide data={slides[currentSlide + 1]} divisionColor={division.color} />
+            <Slide
+              key={slides[currentSlide + 1].seasonCoachId}
+              data={slides[currentSlide + 1]}
+              divisionColor={division.color}
+            />
           </div>
         )}
         {currentSlide > 0 && (
           <div style={{ width: 1920, height: 1080 }}>
-            <Slide data={slides[currentSlide - 1]} divisionColor={division.color} />
+            <Slide
+              key={slides[currentSlide - 1].seasonCoachId}
+              data={slides[currentSlide - 1]}
+              divisionColor={division.color}
+            />
           </div>
         )}
         {currentSlide === -1 && slides.length > 0 && (
           <div style={{ width: 1920, height: 1080 }}>
-            <Slide data={slides[0]} divisionColor={division.color} />
+            <Slide key={slides[0].seasonCoachId} data={slides[0]} divisionColor={division.color} />
           </div>
         )}
       </div>
@@ -185,7 +273,11 @@ export function SlideshowClient({ slides, division, season, hostedBy }: Props) {
           // Title Slide
           <TitleSlide division={division} season={season} totalTeams={totalSlides} hostedBy={hostedBy} />
         ) : (
-          <Slide data={slides[currentSlide]} divisionColor={division.color} />
+          <Slide
+            key={slides[currentSlide].seasonCoachId}
+            data={slides[currentSlide]}
+            divisionColor={division.color}
+          />
         )}
 
         {!hideUI && (

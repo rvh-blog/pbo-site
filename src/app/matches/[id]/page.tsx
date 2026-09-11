@@ -20,7 +20,6 @@ import {
 import { getTimeSyncedRoster as getTimeSyncedRosterUtil } from "@/lib/roster-utils";
 import type { TimeSyncTransaction } from "@/lib/roster-utils";
 import { getExpandedHaxEventOverride, usesExpandedHaxRules } from "@/lib/hax-rules";
-import { getMegaStoneName } from "@/lib/mega-stones";
 import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 
 interface PageProps {
@@ -213,14 +212,6 @@ function getDisplayedItem(mp: BattleSummaryPokemon) {
     return {
       label: revealedItems,
       title: mp.revealedItems?.map((entry) => `${entry.item}, turn ${entry.turn}, ${entry.source}`).join(" → ") || revealedItems,
-    };
-  }
-
-  const megaStone = getMegaStoneName(getPokemonLabel(mp));
-  if (megaStone) {
-    return {
-      label: megaStone,
-      title: `${megaStone} (assumed from Mega Evolution)`,
     };
   }
 
