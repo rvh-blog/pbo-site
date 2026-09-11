@@ -136,6 +136,45 @@ Relevant files:
 - `src/app/elo-tracker/elo-tracker-client.tsx`
 - `src/lib/pokemon-leaderboard.ts`
 
+## Experimental Stats Lab
+
+Experimental Stats is an admin-toggle-protected replay-evidence lab at
+`/experimental-stats`. Its shared filters scope season, division, coach,
+Pokémon, move, item, week, result, stage, and forfeit coverage across the
+selected module.
+
+The current modules are:
+
+- Insights: momentum, pace, matchups, first-faint and comeback records, KO
+  conversion, team damage share, item coverage, team cores, coach tendencies,
+  and playoff-versus-regular-season comparisons.
+- Pokémon Profiles: qualified replay usage, win rate, samples, weekly usage
+  trends, common teammates, saved move/item evidence, and direct match links.
+- Rolling Trends: configurable three-, five-, or ten-game comparisons between
+  the latest and preceding windows.
+- Leaderboards: preset Pokémon or coach rankings for damage, survival, K-D,
+  playoff damage, comeback wins, unique moves, move usage, and KO differential,
+  with totals/rates and CSV export.
+- Replay Search: evidence search by Pokémon, coach, or team with minimum
+  damage, minimum kills, and survived-battle filters.
+- Battle Visualizer: a selected replay's saved HP timeline, faint timing, item
+  reveals, and event-density views.
+
+Reports show sample size and field coverage. Profiles and rankings require at
+least three qualifying games; replay evidence remains searchable below that
+threshold. Missing saved fields are shown as unknown rather than treated as
+zero, and protocol-derived metrics remain marked pending until their
+calculation and backfill coverage are validated.
+
+Relevant files:
+
+- `src/app/experimental-stats/page.tsx`
+- `src/app/experimental-stats/[module]/page.tsx`
+- `src/app/experimental-stats/experimental-stats-client.tsx`
+- `src/app/experimental-stats/experimental-insights.tsx`
+- `src/lib/experimental-stats-data.ts`
+- `src/lib/experimental-stats.ts`
+
 ## League Poll
 
 When public poll visibility is enabled, the active league poll appears in the PBO home page Your League box and on coach profile pages. Admins edit it from the admin home page.

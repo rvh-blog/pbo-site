@@ -563,6 +563,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
 
           {module === "insights" ? <ExperimentalInsights matches={filteredMatches} appearances={filteredAppearances} /> : null}
 
+          {module === "pokemon" && activePokemon ? <PokemonUsageReport rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} matches={filteredMatches} onSelect={setProfilePokemonId} /> : null}
           {module === "pokemon" && <PokemonProfiles rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} qualificationText={qualificationText} minimumAppearances={filters.minimumAppearances} onSelect={setProfilePokemonId} />}
           {module === "coaches" && <CoachProfiles rows={coachRows} appearances={filteredAppearances} />}
           {module === "compare" && <CompareModule rows={pokemonRows} compareA={compareA} compareB={compareB} setCompareA={setCompareA} setCompareB={setCompareB} />}
@@ -576,6 +577,64 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
       </div>
     </div>
   );
+}
+
+function PokemonUsageReport({ rows, active, appearances, matches, onSelect }: { rows: EntityAggregate[]; active: EntityAggregate; appearances: EnrichedAppearance[]; matches: ExperimentalMatch[]; onSelect: (id: number) => void }) {
+  const matchesById = new Map(matches.map((match) => [match.id, match]));
+  const matchIdsByPokemon = new Map<number, Set<number>>();
+  matches.forEach((match) => {
+    new Set(match.pokemon.map((appearance) => appearance.pokemonId)).forEach((pokemonId) => {
+      const matchIds = matchIdsByPokemon.get(pokemonId) ?? new Set<number>();
+      matchIds.add(match.id);
+      matchIdsByPokemon.set(pokemonId, matchIds);
+    });
+  });
+  const usageRows = rows.map((row) => {
+    const evidenceMatches = [...(matchIdsByPokemon.get(row.id) ?? new Set<number>())].map((matchId) => matchesById.get(matchId)).filter((match): match is ExperimentalMatch => Boolean(match));
+    return {
+      row,
+      evidenceMatches,
+      usageRate: rate(evidenceMatches.length, matches.length) * 100,
+      winRate: rate(row.wins, row.appearances) * 100,
+    };
+  }).sort((a, b) => b.usageRate - a.usageRate || b.row.appearances - a.row.appearances || a.row.name.localeCompare(b.row.name)).slice(0, 12);
+
+  const trendMap = new Map<string, { label: string; firstPlayedAt: string; totalMatches: number; activeMatchIds: Set<number>; wins: number; samples: number }>();
+  matches.forEach((match) => {
+    const key = `${match.seasonId}:${match.week}`;
+    const row = trendMap.get(key) ?? { label: `${match.seasonName} - W${match.week}`, firstPlayedAt: match.playedAt ?? "", totalMatches: 0, activeMatchIds: new Set<number>(), wins: 0, samples: 0 };
+    row.totalMatches += 1;
+    if (!row.firstPlayedAt || (match.playedAt && match.playedAt < row.firstPlayedAt)) row.firstPlayedAt = match.playedAt ?? "";
+    trendMap.set(key, row);
+  });
+  appearances.forEach((appearance) => {
+    const row = trendMap.get(`${appearance.match.seasonId}:${appearance.match.week}`);
+    if (!row) return;
+    row.activeMatchIds.add(appearance.match.id);
+    row.wins += appearance.won ? 1 : 0;
+    row.samples += 1;
+  });
+  const trendRows = [...trendMap.values()].filter((row) => row.activeMatchIds.size > 0).sort((a, b) => a.firstPlayedAt.localeCompare(b.firstPlayedAt) || a.label.localeCompare(b.label)).slice(-8);
+
+  const teammateMap = new Map<number, { name: string; spriteUrl: string | null; matchIds: Set<number>; winMatchIds: Set<number> }>();
+  appearances.forEach((appearance) => {
+    const teammates = new Map<number, ExperimentalAppearance>();
+    appearance.match.pokemon.filter((candidate) => candidate.seasonCoachId === appearance.seasonCoachId && candidate.pokemonId !== appearance.pokemonId).forEach((candidate) => teammates.set(candidate.pokemonId, candidate));
+    teammates.forEach((teammate) => {
+      const row = teammateMap.get(teammate.pokemonId) ?? { name: teammate.pokemonName, spriteUrl: teammate.spriteUrl, matchIds: new Set<number>(), winMatchIds: new Set<number>() };
+      row.matchIds.add(appearance.match.id);
+      if (appearance.won) row.winMatchIds.add(appearance.match.id);
+      teammateMap.set(teammate.pokemonId, row);
+    });
+  });
+  const activeMatchCount = new Set(appearances.map((appearance) => appearance.match.id)).size;
+  const teammates = [...teammateMap.entries()].map(([id, row]) => ({ id, ...row, games: row.matchIds.size, winRate: rate(row.winMatchIds.size, row.matchIds.size) * 100 })).sort((a, b) => b.games - a.games || b.winRate - a.winRate || a.name.localeCompare(b.name)).slice(0, 8);
+
+  return <section className="mb-6 rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-950/35 via-slate-950/80 to-violet-950/30 p-4 shadow-[0_16px_45px_rgba(0,0,0,0.16)] md:p-5">
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-300">PokéBase-inspired report</div><h3 className="mt-1 font-pixel text-sm text-white">Season usage overview</h3><p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">Usage is the share of filtered replay matches containing each Pokemon. Samples are team appearances, and every evidence link opens a supporting match.</p></div><div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-3 py-2 text-right"><div className="font-mono text-lg font-black text-cyan-200">{matches.length}</div><div className="text-[9px] font-black uppercase tracking-wider text-cyan-100/60">Scope matches</div></div></div>
+    {usageRows.length ? <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--border)] bg-slate-950/45"><table className="w-full min-w-[760px] text-xs"><thead className="bg-slate-950/75 text-[9px] uppercase tracking-wide text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Rank / Pokemon</th><th>Usage</th><th>Win rate</th><th>Samples</th><th className="text-left">Evidence</th></tr></thead><tbody>{usageRows.map(({ row, evidenceMatches, usageRate, winRate }, index) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left"><button type="button" onClick={() => onSelect(row.id)} className="inline-flex items-center gap-2 font-bold text-white hover:text-cyan-200"><span className="font-mono text-[var(--foreground-muted)]">#{index + 1}</span>{row.spriteUrl ? <Image src={row.spriteUrl} alt="" width={28} height={28} className="h-7 w-7 object-contain" /> : null}<span>{row.name}</span></button></td><td><span className="font-mono font-black text-cyan-200">{number(usageRate, 1)}%</span><small className="ml-1 text-[9px] text-[var(--foreground-muted)]">({evidenceMatches.length}/{matches.length})</small></td><td className="font-mono font-black text-emerald-300">{number(winRate, 1)}%</td><td><span className="font-mono text-white">{row.appearances}</span><small className="ml-1 text-[9px] text-[var(--foreground-muted)]">team apps</small></td><td className="p-3 text-left"><div className="flex flex-wrap gap-1.5">{evidenceMatches.slice(0, 3).map((match) => <Link key={match.id} href={matchHref(match)} className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2 py-1 text-[9px] font-bold text-violet-200 hover:border-violet-300/60">W{match.week} - {match.seasonName}</Link>)}{evidenceMatches.length > 3 ? <span className="px-1 py-1 text-[9px] text-[var(--foreground-muted)]">+{evidenceMatches.length - 3} more</span> : null}</div></td></tr>)}</tbody></table></div> : <EmptyState />}
+    <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]"><div className="rounded-xl border border-[var(--border)] bg-slate-950/45 p-4"><div className="flex flex-wrap items-end justify-between gap-2"><div><h4 className="text-xs font-black uppercase tracking-wide text-white">Weekly usage trend: {active.name}</h4><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">The bar is match usage; win rate is calculated from the selected Pokemon&apos;s team appearances.</p></div><span className="text-[9px] font-bold text-cyan-200">{activeMatchCount} active matches</span></div>{trendRows.length ? <div className="mt-4 space-y-3">{trendRows.map((row) => { const usage = rate(row.activeMatchIds.size, row.totalMatches) * 100; const winRate = rate(row.wins, row.samples) * 100; return <div key={row.label} className="grid gap-1.5 text-[10px] sm:grid-cols-[125px_minmax(0,1fr)_70px_58px] sm:items-center sm:gap-3"><span className="font-bold text-white">{row.label}</span><div className="h-2.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${Math.min(100, usage)}%` }} /></div><span className="font-mono text-cyan-200">{number(usage, 1)}%</span><span className="font-mono text-emerald-300">{number(winRate, 1)}% W</span></div>; })}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No weekly trend is available for this selection.</p>}</div><div className="rounded-xl border border-[var(--border)] bg-slate-950/45 p-4"><h4 className="text-xs font-black uppercase tracking-wide text-white">Common teammates: {active.name}</h4><p className="mt-1 text-[10px] leading-4 text-[var(--foreground-muted)]">Pokemon that appeared on the same team in the selected matches. This describes correlation, not guaranteed synergy.</p>{teammates.length ? <div className="mt-3 space-y-2">{teammates.map((teammate) => <div key={teammate.id} className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)]/70 p-2"><button type="button" onClick={() => onSelect(teammate.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-cyan-200">{teammate.spriteUrl ? <Image src={teammate.spriteUrl} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" /> : null}<span className="truncate text-xs font-bold text-white">{teammate.name}</span></button><span className="text-right text-[9px] text-[var(--foreground-muted)]"><strong className="font-mono text-cyan-200">{teammate.games}</strong> games - <strong className="font-mono text-emerald-300">{number(teammate.winRate, 0)}%</strong> W</span></div>)}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No teammate pairings are available for this selection.</p>}</div></div>
+  </section>;
 }
 
 function PokemonProfiles({ rows, active, appearances, qualificationText, minimumAppearances, onSelect }: { rows: EntityAggregate[]; active: EntityAggregate | null; appearances: EnrichedAppearance[]; qualificationText: string; minimumAppearances: number; onSelect: (id: number) => void }) {

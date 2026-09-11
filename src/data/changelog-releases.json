@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-10-experimental-stats-reports",
+    "title": "PokéBase-Inspired Usage Reports",
+    "summary": "Experimental Stats now includes a replay-backed Pokémon usage overview, configurable trends, qualified leaderboards, and clearer evidence coverage.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "added", "text": "Added a Pokémon usage overview with usage rate, win rate, team-appearance samples, weekly trends, common teammates, and supporting match evidence links." },
+      { "type": "added", "text": "Added three-, five-, and ten-game rolling windows, preset Pokémon and coach leaderboards, and CSV exports for the visible report." },
+      { "type": "improved", "text": "Replay Search now supports text, minimum-damage, minimum-kill, and survived-battle filters, while Battle Visualizer replay selection remains shareable through the match query." },
+      { "type": "improved", "text": "Reports expose field coverage and require at least three qualifying games for profiles and rankings; missing saved fields remain unknown instead of being treated as zero." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-10-experimental-stats-payload",
     "title": "Lean Experimental Stats Reports",
     "summary": "Experimental Stats now sends large replay timelines only to reports that use them, making common reports lighter to load.",

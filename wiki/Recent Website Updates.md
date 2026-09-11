@@ -1,5 +1,17 @@
 # Recent Website Updates
 
+## September 10, 2026 - PokéBase-Inspired Usage Reports
+
+- Added the Pokémon usage overview with usage rate, win rate, team-appearance
+  samples, weekly trends, common teammates, and supporting match evidence.
+- Added preset Pokémon and coach leaderboard views, configurable three-, five-,
+  and ten-game rolling windows, and CSV exports for the visible report.
+- Improved Replay Search with text, minimum-damage, minimum-kill, and survived-
+  battle filters, and kept Battle Visualizer replay selection shareable through
+  the match query.
+- Added coverage labels and the minimum three-game qualification rule so sparse
+  profile and ranking samples are separated from broader replay evidence.
+
 ## September 10, 2026 - Lean Experimental Stats Reports
 
 - Common Experimental Stats reports no longer fetch or parse large HP timeline

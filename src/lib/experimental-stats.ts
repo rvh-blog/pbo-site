@@ -32,6 +32,12 @@ export const experimentalMetricGroups: Array<{
     label: "Battle shape and appearances",
     metrics: [
       available("Total turns", "Last saved turn in the replay HP timeline."),
+      available("Pokémon usage rate", "Unique filtered replay matches containing a Pokémon divided by all filtered replay matches."),
+      available("Pokémon win rate", "Wins divided by team appearances for a Pokémon in the active replay scope."),
+      available("Team appearance sample", "The number of saved team-side Pokémon appearances used as the sample for a profile record."),
+      available("Weekly usage trend", "The selected Pokémon's match usage and win rate grouped by season week."),
+      available("Common teammates", "Pokémon that appeared on the same team as the selected Pokémon, with games and associated win rate."),
+      available("Match evidence links", "Direct links from a report row to saved PBO match evidence supporting the displayed statistic."),
       eventStorage("First Pokémon sent out"),
       eventStorage("Most common lead"),
       eventStorage("Lead matchup frequency"),
