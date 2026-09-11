@@ -1,5 +1,18 @@
 [
   {
+    "sourceKey": "2026-09-10-experimental-stats-reports",
+    "title": "Experimental Stats Reports",
+    "summary": "Replay-backed Insights, PokéBase-inspired Pokémon usage reports, configurable trends, qualified leaderboards, and clearer evidence coverage make the Experimental Stats lab easier to use and interpret.",
+    "publishedAt": "2026-09-10",
+    "changes": [
+      { "type": "added", "text": "Added an Insights module with replay-backed momentum, pace, matchup, KO conversion, damage-share, team-core, coach-tendency, item-coverage, and playoff-versus-regular-season reports." },
+      { "type": "added", "text": "Added a Pokémon usage overview with usage rate, win rate, team-appearance samples, weekly trends, common teammates, and supporting match evidence links." },
+      { "type": "added", "text": "Added three-, five-, and ten-game rolling windows, preset Pokémon and coach leaderboards, and CSV exports for the visible report." },
+      { "type": "improved", "text": "Replay Search now supports text, minimum-damage, minimum-kill, and survived-battle filters, while Battle Visualizer replay selection can be shared through the match query." },
+      { "type": "improved", "text": "Reports now expose field coverage and require at least three qualifying games for profiles and rankings; missing saved fields remain unknown instead of being treated as zero." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-09-playoff-hub-pickems",
     "title": "Playoff Hub & Full-Bracket Pick-Ems",
     "summary": "A dedicated postseason hub, full-bracket predictions, spoiler controls, and more responsive playoff pages make the complete playoff experience easier to follow.",

@@ -1,5 +1,22 @@
 # Recent Website Updates
 
+## September 10, 2026 - Experimental Stats Reports
+
+- Added a dedicated Insights module with replay-backed momentum, pace, matchup,
+  KO conversion, damage-share, team-core, coach-tendency, item-coverage, and
+  playoff-versus-regular-season reports.
+- Added a PokéBase-inspired Pokémon usage overview with usage rate, win rate,
+  team-appearance samples, weekly trends, common teammates, and links to
+  supporting match evidence.
+- Added configurable three-, five-, and ten-game rolling windows, preset
+  Pokémon and coach leaderboards, and CSV exports for the visible report.
+- Improved Replay Search with text, minimum-damage, minimum-kill, and survived-
+  battle filters, and improved Battle Visualizer replay selection with a
+  shareable match query.
+- Added coverage labels and a minimum three-game qualification rule so reports
+  distinguish missing saved fields from measured zeroes and keep sparse samples
+  out of profiles and rankings.
+
 ## September 9, 2026 - Playoff Hub, Experimental Stats, and Permanent Community Pages
 
 - Aligned the playoff bracket round headings and columns so Quarterfinals,
