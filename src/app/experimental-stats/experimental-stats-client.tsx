@@ -741,8 +741,15 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
 }
 
 type PokemonUsageSortKey = "name" | "teamUsage" | "globalUsage" | "winRate" | "samples";
+type CoachSortKey = "name" | "appearances" | "winRate" | "damage" | "healing" | "setup" | "events" | "items";
+type SortDirection = "asc" | "desc";
 
 function UsageSortButton({ label, sortKey, activeSort, direction, onSort }: { label: string; sortKey: PokemonUsageSortKey; activeSort: PokemonUsageSortKey; direction: "asc" | "desc"; onSort: (sortKey: PokemonUsageSortKey) => void }) {
+  const isActive = sortKey === activeSort;
+  return <button type="button" onClick={() => onSort(sortKey)} className="inline-flex items-center gap-1 rounded px-1 py-1 text-left transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300" aria-label={`Sort by ${label}${isActive ? `, currently ${direction === "desc" ? "descending" : "ascending"}` : ""}`}><span>{label}</span><span className="font-mono text-[10px] text-cyan-300" aria-hidden="true">{isActive ? (direction === "desc" ? "↓" : "↑") : "↕"}</span></button>;
+}
+
+function CoachSortButton({ label, sortKey, activeSort, direction, onSort }: { label: string; sortKey: CoachSortKey; activeSort: CoachSortKey; direction: SortDirection; onSort: (sortKey: CoachSortKey) => void }) {
   const isActive = sortKey === activeSort;
   return <button type="button" onClick={() => onSort(sortKey)} className="inline-flex items-center gap-1 rounded px-1 py-1 text-left transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300" aria-label={`Sort by ${label}${isActive ? `, currently ${direction === "desc" ? "descending" : "ascending"}` : ""}`}><span>{label}</span><span className="font-mono text-[10px] text-cyan-300" aria-hidden="true">{isActive ? (direction === "desc" ? "↓" : "↑") : "↕"}</span></button>;
 }
@@ -989,9 +996,41 @@ function CoachTendenciesPanel({ averageBattleLength, timelineCoverage, replayCou
 
 function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: EntityAggregate[]; appearances: EnrichedAppearance[]; matches: ExperimentalMatch[]; seasonTeams: NonNullable<ExperimentalStatsDataset["seasonTeams"]> }) {
   const [activeCoachId, setActiveCoachId] = useState<number | null>(null);
+  const [coachSort, setCoachSort] = useState<CoachSortKey>("appearances");
+  const [coachSortDirection, setCoachSortDirection] = useState<SortDirection>("desc");
   const active = rows.find((row) => row.id === activeCoachId) ?? rows[0];
   if (!active) return <EmptyState />;
   const selectorRows = [...rows].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const toggleCoachSort = (nextSort: CoachSortKey) => {
+    if (nextSort === coachSort) {
+      setCoachSortDirection((direction) => direction === "desc" ? "asc" : "desc");
+      return;
+    }
+    setCoachSort(nextSort);
+    setCoachSortDirection(nextSort === "name" ? "asc" : "desc");
+  };
+  const sortedCoachRows = [...rows].sort((a, b) => {
+    if (coachSort === "name") {
+      const comparison = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      return coachSortDirection === "desc" ? -comparison : comparison;
+    }
+    const metricValue = (row: EntityAggregate): number | null => {
+      if (coachSort === "appearances") return row.appearances;
+      if (coachSort === "winRate") return row.appearances > 0 ? rate(row.wins, row.appearances) * 100 : null;
+      if (coachSort === "damage") return coveredRate(row.damage, row.damageAppearances);
+      if (coachSort === "healing") return coveredRate(row.healing, row.healingAppearances);
+      if (coachSort === "setup") return row.setupAppearances > 0 ? row.setupMoves : null;
+      if (coachSort === "events") return row.eventAppearances > 0 ? row.favorableEvents : null;
+      return row.itemDataAppearances > 0 ? row.itemReveals : null;
+    };
+    const aValue = metricValue(a);
+    const bValue = metricValue(b);
+    if (aValue === null && bValue !== null) return 1;
+    if (aValue !== null && bValue === null) return -1;
+    const comparison = Number(bValue ?? 0) - Number(aValue ?? 0);
+    if (comparison !== 0) return coachSortDirection === "desc" ? comparison : -comparison;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
   const officialRecords = new Map<number, { games: number; wins: number }>();
   matches.forEach((match) => {
     for (const team of [match.coach1, match.coach2]) {
@@ -1100,8 +1139,8 @@ function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: Enti
         <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase tracking-wide text-white">Damage composition</h3>{active.damageAppearances ? <><div className="mt-4 flex h-5 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="bg-cyan-500" style={{ width: `${directShare}%` }} /><div className="bg-violet-500" style={{ width: `${100 - directShare}%` }} /></div><div className="mt-3 grid grid-cols-2 gap-2 text-center text-[10px]"><span className="text-cyan-300">{number(active.directDamage)}% direct</span><span className="text-violet-300">{number(active.indirectDamage)}% indirect</span></div></> : <p className="mt-3 text-xs text-[var(--foreground-muted)]">No recorded damage coverage in this scope.</p>}</div>
       </div>
       <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-500/[0.04] p-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-xs font-black uppercase tracking-wide text-white">Recorded move usage</h3><p className="mt-1 max-w-2xl text-[10px] leading-4 text-[var(--foreground-muted)]">Moves explicitly recorded in this coach&apos;s Pokémon appearances, ranked by total uses. This reflects replay evidence, not an exact controller-click log; older or incomplete replays may have no move records.</p></div><span className="text-[9px] font-bold text-cyan-200">{active.moveDataAppearances} replay matches with move data</span></div>{coachMoveRows.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{coachMoveRows.map(([move, count]) => <div key={move} className="grid grid-cols-[minmax(90px,150px)_1fr_auto] items-center gap-2 text-[10px]"><span className="truncate font-bold text-white" title={move}>{move}</span><div className="h-2.5 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${topCoachMoveUses ? count / topCoachMoveUses * 100 : 0}%` }} /></div><span className="font-mono text-cyan-200">{count} uses</span></div>)}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No recorded move usage is available for this coach in the active scope.</p>}</div>
-      <div className="mt-6 hidden overflow-x-auto sm:block"><table className="w-full min-w-[760px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Coach</th><th>Replay matches</th><th>Replay win rate</th><th>Damage/match</th><th>Healing/match</th><th>Setup</th><th>Favorable events</th><th>Items revealed</th></tr></thead><tbody>{rows.slice(0, 50).map((row) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.name}</td><td>{row.appearances}</td><td>{number(rate(row.wins, row.appearances) * 100, 1)}%</td><td>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")}</td><td>{formatCovered(coveredRate(row.healing, row.healingAppearances), 1, "%")}</td><td>{row.setupAppearances ? row.setupMoves : "—"}</td><td>{row.eventAppearances ? row.favorableEvents : "—"}</td><td>{row.itemDataAppearances ? row.itemReveals : "—"}</td></tr>)}</tbody></table></div>
-      <div className="mt-6 grid gap-2 sm:hidden">{rows.slice(0, 25).map((row) => <button type="button" onClick={() => setActiveCoachId(row.id)} key={row.id} className={`rounded-xl border p-3 text-left ${row.id === active.id ? "border-violet-400/50 bg-violet-500/10" : "border-[var(--border)] bg-[var(--background)]"}`}><div className="flex items-center justify-between gap-3"><strong className="text-sm text-white">{row.name}</strong><span className="font-mono text-emerald-300">{number(rate(row.wins, row.appearances) * 100, 1)}%</span></div><div className="mt-2 flex gap-3 text-[10px] text-[var(--foreground-muted)]"><span>{row.appearances} matches</span><span>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")} damage/match</span></div></button>)}</div>
+      <div className="mt-6"><p className="mb-2 text-[10px] text-[var(--foreground-muted)]">Click a column heading to sort the coach rows. Click the active heading again to reverse the order; unavailable metrics stay at the bottom.</p><div className="hidden overflow-x-auto sm:block" tabIndex={0} aria-label="Sortable coach report table"><table className="w-full min-w-[760px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th scope="col" className="p-2 text-left" aria-sort={coachSort === "name" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Coach" sortKey="name" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "appearances" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Replay matches" sortKey="appearances" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "winRate" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Replay win rate" sortKey="winRate" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "damage" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Damage/match" sortKey="damage" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "healing" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Healing/match" sortKey="healing" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "setup" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Setup" sortKey="setup" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "events" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Favorable events" sortKey="events" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "items" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Items revealed" sortKey="items" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th></tr></thead><tbody>{sortedCoachRows.slice(0, 50).map((row) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.name}</td><td>{row.appearances}</td><td>{number(rate(row.wins, row.appearances) * 100, 1)}%</td><td>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")}</td><td>{formatCovered(coveredRate(row.healing, row.healingAppearances), 1, "%")}</td><td>{row.setupAppearances ? row.setupMoves : "—"}</td><td>{row.eventAppearances ? row.favorableEvents : "—"}</td><td>{row.itemDataAppearances ? row.itemReveals : "—"}</td></tr>)}</tbody></table></div></div>
+      <div className="mt-6 grid gap-2 sm:hidden">{sortedCoachRows.slice(0, 25).map((row) => <button type="button" onClick={() => setActiveCoachId(row.id)} key={row.id} className={`rounded-xl border p-3 text-left ${row.id === active.id ? "border-violet-400/50 bg-violet-500/10" : "border-[var(--border)] bg-[var(--background)]"}`}><div className="flex items-center justify-between gap-3"><strong className="text-sm text-white">{row.name}</strong><span className="font-mono text-emerald-300">{number(rate(row.wins, row.appearances) * 100, 1)}%</span></div><div className="mt-2 flex gap-3 text-[10px] text-[var(--foreground-muted)]"><span>{row.appearances} matches</span><span>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")} damage/match</span></div></button>)}</div>
     </section>
   );
 }
