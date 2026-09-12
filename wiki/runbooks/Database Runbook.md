@@ -47,8 +47,8 @@ these bundled commands:
 
 ```bash
 fly ssh console -C "node /app/dist/maintenance/backup-production-db.mjs"
-fly ssh console -C "DATABASE_PATH=/data/pbo.db node /app/dist/maintenance/backfill-season11-hax.mjs"
-fly ssh console -C "DATABASE_PATH=/data/pbo.db node /app/dist/maintenance/backfill-mega-items.mjs --season=11"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db node /app/dist/maintenance/backfill-season11-hax.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db node /app/dist/maintenance/backfill-mega-items.mjs --season=11"
 ```
 
 The first command checkpoints WAL and creates a timestamped backup under
@@ -57,9 +57,17 @@ their counts during a quiet window should they be rerun with the explicit
 write flags and confirmation gate:
 
 ```bash
-fly ssh console -C "DATABASE_PATH=/data/pbo.db ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=SEASON11 BACKFILL_BACKUP_CONFIRMED=1 node /app/dist/maintenance/backfill-season11-hax.mjs --apply"
-fly ssh console -C "DATABASE_PATH=/data/pbo.db ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=SEASON11 BACKFILL_BACKUP_CONFIRMED=1 node /app/dist/maintenance/backfill-mega-items.mjs --season=11 --write"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=SEASON11 BACKFILL_BACKUP_CONFIRMED=1 node /app/dist/maintenance/backfill-season11-hax.mjs --apply"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=SEASON11 BACKFILL_BACKUP_CONFIRMED=1 node /app/dist/maintenance/backfill-mega-items.mjs --season=11 --write"
 ```
+
+The completed production run on 2026-09-12 used a fresh backup under
+`/data/backups/season11-backfill-2026-09-12T22-32-33-242Z/`. It mapped 3,511
+Pokémon rows across 293 replay matches and removed three stale guaranteed
+flinch events. One legacy Season 11 Week 5 Grimmsnarl row had no replay
+evidence and was left unchanged. Mega-item inference filled 354 rows and
+flagged 34 matches with conflicting item evidence for review; one appearance
+was excluded because its historical roster membership could not be confirmed.
 
 These commands update only derived replay evidence and review flags. They do
 not change match winners, standings, Elo, transactions, or the legacy
