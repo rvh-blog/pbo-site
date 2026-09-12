@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-09-12-season11-backfill-runbook-fix",
+    "title": "Season 11 Backfill Runbook Fix",
+    "summary": "The documented Fly maintenance commands now run with the production volume and record the completed historical backfill.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "fixed", "text": "Updated Fly SSH examples to pass environment variables through env and documented the verified Season 11 HAX and Mega-item backfill results, including intentionally unmatched legacy evidence." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-12-season11-production-backfill-path",
     "title": "Season 11 Production Backfill Path",
     "summary": "Existing Season 11 replay evidence can now be filled through a guarded, backup-first maintenance run.",
