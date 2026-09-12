@@ -213,6 +213,13 @@ threshold. Missing saved fields are shown as unknown rather than treated as
 zero, and protocol-derived metrics remain marked pending until their
 calculation and backfill coverage are validated.
 
+On phones, the module selector and report controls stack to the available
+width. Dense tables keep their full columns inside an independent touch
+scroll region with a swipe hint, while profile tabs can be swiped horizontally.
+Buttons, links, and selectors provide a brief pressed-state response on touch
+devices. Experimental Stats follows the site's active light or dark theme;
+muted report text uses theme-aware colors so both modes remain readable.
+
 The home page Upcoming Battles panel is full width, uses aligned team-logo
 slots, labels playoff rounds clearly, and renders scheduled times in each
 visitor's local timezone.

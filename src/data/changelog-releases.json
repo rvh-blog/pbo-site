@@ -1,5 +1,16 @@
 [
   {
+    "sourceKey": "2026-09-12-experimental-stats-mobile-theme-polish",
+    "title": "Experimental Stats Mobile and Theme Polish",
+    "summary": "Experimental Stats reports now fit narrow screens, explain swipeable content, and provide consistent touch and light/dark theme feedback.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Dense report tables stay inside touch-scroll regions with swipe guidance, and mobile selectors, profile tabs, charts, and usage rows fit the available width." },
+      { "type": "improved", "text": "Buttons, links, and selectors provide a brief pressed-state response on touch devices." },
+      { "type": "fixed", "text": "Experimental Stats muted labels now inherit theme-aware colors so light mode remains readable while dark mode keeps its existing contrast." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-12-experimental-stats-search-input-fix",
     "title": "Experimental Stats Search Input Fix",
     "summary": "The report-wide Experimental Stats search field now keeps typed text while the URL scope updates.",

@@ -2033,8 +2033,9 @@ html[data-theme="light"] .score-display {
 /* Experimental Stats is intentionally information-dense, but its supporting
    labels and evidence metadata still need to remain comfortably readable. */
 .experimental-stats-readable {
-  --foreground-muted: #b8c4d8;
-  --foreground-subtle: #94a3b8;
+  /* Keep report copy tied to the active theme. Earlier hard-coded slate
+     values made muted labels too faint when the site switched to light mode. */
+  color: var(--foreground);
 }
 
 .experimental-stats-readable .text-\[8px\] {
@@ -2140,6 +2141,81 @@ html[data-theme="light"] .score-display {
   .mobile-scroll-region td {
     padding: 0.65rem 0.55rem;
     white-space: nowrap;
+  }
+
+  /* Dense Experimental Stats tables keep their desktop columns, but remain
+     usable on phones with a clear, local swipe affordance instead of
+     widening the entire page. */
+  .experimental-stats-readable :is(.overflow-x-auto, .overflow-auto):not(.mobile-scroll-region):has(> table) {
+    position: relative;
+    padding-bottom: 0.5rem;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--foreground-subtle) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .experimental-stats-readable :is(.overflow-x-auto, .overflow-auto):not(.mobile-scroll-region):has(> table)::before {
+    content: "Swipe sideways for more stats";
+    display: block;
+    width: max-content;
+    margin: 0.5rem 1rem;
+    color: var(--foreground-subtle);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .experimental-stats-readable .mobile-tab-strip {
+    position: relative;
+    padding-bottom: 1.9rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--foreground-subtle) transparent;
+  }
+
+  .experimental-stats-readable .mobile-tab-strip::after {
+    content: "Swipe for more tabs";
+    position: absolute;
+    bottom: 0.45rem;
+    left: 0.75rem;
+    color: var(--foreground-subtle);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* The popular-Pokémon rows carry five values. Let their flexible tracks
+     compress on a phone so the row stays inside its card; desktop keeps the
+     wider, more descriptive proportions from the utility classes. */
+  .experimental-stats-readable button[class*="grid-cols-[28px_"] {
+    min-width: 0;
+    grid-template-columns: 28px minmax(0, 1.3fr) minmax(0, 2fr) minmax(38px, 0.6fr) minmax(38px, 0.6fr);
+  }
+
+  .experimental-stats-readable select[style*="width"] {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    margin-top: 0.35rem;
+    margin-left: 0;
+  }
+}
+
+/* Most report controls use bespoke styles rather than the shared retro
+   buttons. Give every tappable control a consistent, short pressed response
+   on touch devices so a tap never feels ignored. */
+@media (hover: none) and (pointer: coarse) {
+  .experimental-stats-readable :is(button, a, select) {
+    -webkit-tap-highlight-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+
+  .experimental-stats-readable :is(button, a, select):active {
+    filter: brightness(1.18);
+    opacity: 0.86;
+    transform: scale(0.985);
+    transition-duration: 80ms;
   }
 }
 
