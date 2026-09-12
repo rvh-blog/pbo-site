@@ -33,7 +33,9 @@ export default async function ExperimentalModulePage({ params, searchParams }: {
   if (!featureSettings.experimentalStatsEnabled) notFound();
 
   const [{ module }, query] = await Promise.all([params, searchParams]);
-  if (!(module in moduleCopy)) notFound();
+  // `in` also matches Object.prototype keys (for example `/toString`).
+  // Restrict dynamic routes to the explicitly supported report slugs.
+  if (!Object.prototype.hasOwnProperty.call(moduleCopy, module)) notFound();
   const slug = module as ExperimentalModuleSlug;
   const copy = moduleCopy[slug];
   const { dataset, filters } = await getExperimentalStatsPageData(slug, query);

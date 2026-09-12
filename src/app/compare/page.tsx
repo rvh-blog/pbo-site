@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { matchPokemon } from "@/lib/schema";
 import { inArray } from "drizzle-orm";
 import { CompareClient, type CompareEntity, type CompareStats } from "./compare-client";
+import { countFavorableEvents, hasFavorableEventData } from "@/lib/favorable-events";
 
 export const dynamic = "force-dynamic";
 
@@ -236,6 +237,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
             favorableFreezes: true,
             favorableBurns: true,
             favorableSleep: true,
+            favorableConfusions: true,
+            favorableConfusionSelfHits: true,
+            favorableEvents: true,
           },
         })
       : [];
@@ -271,17 +275,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
         damage += (row.damageDealt ?? 0) + (row.damageDealtIndirect ?? 0);
         if (row.turnsActive !== null) hasTurns = true;
         turns += row.turnsActive ?? 0;
-        const haxFields = [
-          row.favorableCrits,
-          row.favorableMisses,
-          row.favorableFlinches,
-          row.favorableParalysis,
-          row.favorableFreezes,
-          row.favorableBurns,
-          row.favorableSleep,
-        ];
-        if (haxFields.some((value) => value !== null)) hasHax = true;
-        hax += haxFields.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+        if (hasFavorableEventData(row)) hasHax = true;
+        hax += countFavorableEvents(row);
       }
 
       const games = rows.length;

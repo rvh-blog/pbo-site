@@ -2105,6 +2105,49 @@ html[data-theme="light"] .score-display {
   text-wrap: pretty;
 }
 
+/* Give Metric Glossary categories a presentation accent without coloring the
+   individual metric rows. Data attributes keep each category's accent stable
+   while the glossary search filters the visible groups. */
+.experimental-glossary-surface > section > [data-glossary-group="Profile advanced metrics"] { --glossary-accent: #a78bfa; }
+.experimental-glossary-surface > section > [data-glossary-group="Battle shape and appearances"] { --glossary-accent: #22d3ee; }
+.experimental-glossary-surface > section > [data-glossary-group="Moves and outcomes"] { --glossary-accent: #f59e0b; }
+.experimental-glossary-surface > section > [data-glossary-group="HP, survival, and faints"] { --glossary-accent: #fb7185; }
+.experimental-glossary-surface > section > [data-glossary-group="Statuses"] { --glossary-accent: #e879f9; }
+.experimental-glossary-surface > section > [data-glossary-group="Items and abilities"] { --glossary-accent: #34d399; }
+.experimental-glossary-surface > section > [data-glossary-group="Field conditions"] { --glossary-accent: #38bdf8; }
+.experimental-glossary-surface > section > [data-glossary-group="Transformations and stat stages"] { --glossary-accent: #f97316; }
+.experimental-glossary-surface > section > [data-glossary-group="Replay records and rare events"] { --glossary-accent: #c084fc; }
+.experimental-glossary-surface > section > [data-glossary-group="Signature stats"] { --glossary-accent: #f472b6; }
+.experimental-glossary-surface > section > [data-glossary-group="Team and top-play reports"] { --glossary-accent: #2dd4bf; }
+.experimental-glossary-surface > section > [data-glossary-group] > h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--glossary-accent, var(--foreground));
+}
+.experimental-glossary-surface > section > [data-glossary-group] > h3::before {
+  content: "";
+  display: block;
+  width: 0.25rem;
+  height: 1.65rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--glossary-accent, var(--primary));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--glossary-accent, var(--primary)) 42%, transparent);
+}
+
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Profile advanced metrics"] { --glossary-accent: #6d28d9; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Battle shape and appearances"] { --glossary-accent: #0e7490; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Moves and outcomes"] { --glossary-accent: #b45309; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="HP, survival, and faints"] { --glossary-accent: #be123c; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Statuses"] { --glossary-accent: #a21caf; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Items and abilities"] { --glossary-accent: #047857; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Field conditions"] { --glossary-accent: #0369a1; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Transformations and stat stages"] { --glossary-accent: #c2410c; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Replay records and rare events"] { --glossary-accent: #7e22ce; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Signature stats"] { --glossary-accent: #be185d; }
+html[data-theme="light"] .experimental-glossary-surface > section > [data-glossary-group="Team and top-play reports"] { --glossary-accent: #0f766e; }
+
 @media (max-width: 639px) {
   .experimental-stats-readable .text-\[8px\],
   .experimental-stats-readable .text-\[9px\] {

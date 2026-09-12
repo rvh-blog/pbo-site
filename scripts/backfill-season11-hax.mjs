@@ -1,6 +1,9 @@
 import Database from "better-sqlite3";
 
 const MIN_SEASON = 11;
+// Season 11 changed replay/stat format at Week 6. Seasons 5–10 and S11
+// Weeks 1–5 intentionally remain on the legacy HAX interpretation.
+const EXPANDED_START_WEEK = 6;
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL = process.env.REPLAY_SCRAPE_URL || "http://127.0.0.1:3000/api/replay-scrape";
 const dryRun = !process.argv.includes("--apply");
@@ -71,7 +74,7 @@ function teamScore(team, rows) {
 function usesExpandedHaxRules(match) {
   return match.id === 3586 ||
     match.season_number > 11 ||
-    (match.season_number === 11 && match.week >= 6);
+    (match.season_number === 11 && match.week >= EXPANDED_START_WEEK);
 }
 
 async function scrapeReplay(match) {
@@ -265,7 +268,7 @@ for (const match of matches) {
 db.close();
 console.log(
   [
-    `${dryRun ? "Planned" : "Completed"} ${processed}/${matches.length} Season 11+ replay matches`,
+    `${dryRun ? "Planned" : "Completed"} ${processed}/${matches.length} Season 11+ replay matches (expanded format only from S11 W6; S5–10 and S11 W1–5 stay legacy)`,
     `${matchesChanged} matches and ${rowsChanged} Pokémon rows mapped`,
     `${fakeOutFlinchesRemoved} stored flinch events removed`,
     `${skippedAmbiguous} ambiguous matches skipped`,

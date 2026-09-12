@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
+import type { FavorableEvent } from "@/lib/favorable-events";
 
 // Operational migration history applied before production services start.
 export const appStartupMigrations = sqliteTable("app_startup_migrations", {
@@ -324,11 +325,7 @@ export const matchPokemon = sqliteTable("match_pokemon", {
   favorableSleep: integer("favorable_sleep"), // Opponent is put to sleep by a favorable status proc
   favorableConfusions: integer("favorable_confusions"), // Opponent becomes confused
   favorableConfusionSelfHits: integer("favorable_confusion_self_hits"), // Opponent damages itself in confusion
-  favorableEvents: text("favorable_events", { mode: "json" }).$type<Array<{
-    type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
-    turn: number;
-    description: string;
-  }>>(), // Replay context for favorable/HAX events; historical rows remain null
+  favorableEvents: text("favorable_events", { mode: "json" }).$type<FavorableEvent[]>(), // Replay context for expanded favorable/HAX events; legacy rows remain null
   hpRestored: integer("hp_restored"), // HP healed
   movesUsed: text("moves_used", { mode: "json" }).$type<Record<string, number>>(), // Replay move name -> usage count
   revealedItems: text("revealed_items", { mode: "json" }).$type<Array<{

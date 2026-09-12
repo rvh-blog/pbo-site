@@ -228,6 +228,14 @@ The parser has multiple consumers. Public analyzer output can differ from PBO ma
 
 If adding parser options, default them to existing PBO behavior and opt in from the new consumer.
 
+Replay HAX/favorable-event interpretation is format-aware. Seasons 5–10 and
+Season 11 Weeks 1–5 use the legacy counters; expanded event context starts at
+Season 11 Week 6 and continues in later seasons. Expanded parsing may add
+secondary effects, stat drops, and explicitly logged blocked status turns to
+`favorable_events` without rewriting legacy rows. Use
+`scripts/backfill-season11-hax.mjs` in dry-run mode against a copied database
+before applying a replay backfill.
+
 ## New Pages And APIs
 
 For Next.js app routes:

@@ -41,6 +41,64 @@ const modules = [
   { href: "/experimental-stats/glossary", title: "Metric Glossary", description: "Definitions and coverage status for every proposed official replay-only statistic and visual.", icon: BookOpen, accent: "from-slate-500/20 to-slate-500/5", color: "text-slate-300" },
 ];
 
+const moduleGroups = [
+  {
+    id: "team-performance",
+    title: "Team and league performance",
+    description: "Start with standings, team records, and coach-level results.",
+    bar: "bg-amber-400",
+    panel: "border-amber-400/25 bg-amber-500/[0.04]",
+    cardAccent: "from-amber-500/20 to-orange-500/5",
+    iconBg: "bg-amber-500/15",
+    iconColor: "text-amber-300",
+    hrefs: ["/experimental-stats/coaches", "/experimental-stats/team-stats", "/experimental-stats/leaderboards"],
+  },
+  {
+    id: "pokemon-performance",
+    title: "Pokémon performance",
+    description: "Inspect individual Pokémon output and compare qualified profiles.",
+    bar: "bg-violet-400",
+    panel: "border-violet-400/25 bg-violet-500/[0.04]",
+    cardAccent: "from-violet-500/20 to-fuchsia-500/5",
+    iconBg: "bg-violet-500/15",
+    iconColor: "text-violet-300",
+    hrefs: ["/experimental-stats/pokemon", "/experimental-stats/signature-stats", "/experimental-stats/compare"],
+  },
+  {
+    id: "patterns-and-trends",
+    title: "Patterns and trends",
+    description: "Look for momentum, changes over time, and visual relationships.",
+    bar: "bg-emerald-400",
+    panel: "border-emerald-400/25 bg-emerald-500/[0.04]",
+    cardAccent: "from-emerald-500/20 to-teal-500/5",
+    iconBg: "bg-emerald-500/15",
+    iconColor: "text-emerald-300",
+    hrefs: ["/experimental-stats/insights", "/experimental-stats/trends", "/experimental-stats/visuals"],
+  },
+  {
+    id: "replay-evidence",
+    title: "Replay evidence",
+    description: "Find a match, surface the biggest moments, and inspect saved turn-by-turn evidence.",
+    bar: "bg-red-400",
+    panel: "border-red-400/25 bg-red-500/[0.04]",
+    cardAccent: "from-red-500/20 to-pink-500/5",
+    iconBg: "bg-red-500/15",
+    iconColor: "text-red-300",
+    hrefs: ["/experimental-stats/replays", "/experimental-stats/top-plays", "/experimental-stats/battle-visualizer"],
+  },
+  {
+    id: "specialized-reference",
+    title: "Specialized reports and reference",
+    description: "Explore unusual evidence and check exactly how each metric is defined.",
+    bar: "bg-slate-400",
+    panel: "border-slate-400/25 bg-slate-500/[0.04]",
+    cardAccent: "from-slate-500/20 to-cyan-500/5",
+    iconBg: "bg-slate-500/15",
+    iconColor: "text-slate-300",
+    hrefs: ["/experimental-stats/rare-events", "/experimental-stats/glossary"],
+  },
+] as const;
+
 export default async function ExperimentalStatsPage() {
   const featureSettings = await getSiteFeatureSettings();
   if (!featureSettings.experimentalStatsEnabled) notFound();
@@ -100,18 +158,37 @@ export default async function ExperimentalStatsPage() {
         <div className="flex gap-3"><FlaskConical className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><h2 className="text-sm font-black text-amber-100">Work in progress</h2><p className="mt-1 text-xs leading-5 text-amber-100/80">Experimental Stats is still under active development and will not be finished for a while. Some reports may be incomplete, and labels, calculations, or layouts may change as replay coverage and testing improve.</p></div></div>
       </section>
 
-      <section>
-        <div className="mb-4">
-          <h2 className="font-pixel text-sm text-white">Explore the lab</h2>
-          <p className="mt-2 text-xs text-[var(--foreground-muted)]">Each report loads its own data and preserves filters in the URL.</p>
+      <section aria-labelledby="explore-the-lab-heading">
+        <div className="mb-5">
+          <h2 id="explore-the-lab-heading" className="font-pixel text-sm text-white">Explore the lab</h2>
+          <p className="mt-2 text-xs text-[var(--foreground-muted)]">Reports are grouped by the question they help answer. Each report preserves filters in the URL.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {modules.map(({ href, title, description, icon: Icon, accent, color }) => (
-            <Link key={href} href={href} className={`group relative min-h-52 overflow-hidden rounded-2xl border-2 border-[var(--background-tertiary)] bg-gradient-to-br ${accent} p-5 transition duration-200 hover:-translate-y-1 hover:border-violet-400/40 hover:shadow-xl sm:p-6`}>
-              <div className="flex items-start justify-between gap-4"><div className="rounded-xl border border-white/10 bg-[var(--background)]/70 p-3"><Icon className={`h-6 w-6 ${color}`} /></div><ChevronRight className="h-5 w-5 text-[var(--foreground-subtle)] transition-transform group-hover:translate-x-1 group-hover:text-white" /></div>
-              <h3 className="mt-6 text-base font-black text-white">{title}</h3>
-              <p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">{description}</p>
-            </Link>
+        <div className="space-y-7">
+          {moduleGroups.map((group) => (
+            <section key={group.id} aria-labelledby={`${group.id}-heading`} className={`rounded-2xl border p-3 sm:p-4 ${group.panel}`}>
+              <div className="mb-4 flex items-start gap-3 sm:items-center">
+                <span className={`mt-0.5 h-8 w-1 shrink-0 rounded-full ${group.bar}`} aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <h3 id={`${group.id}-heading`} className="text-sm font-black text-[var(--foreground)]">{group.title}</h3>
+                  <p className="mt-1 text-xs leading-5 text-[var(--foreground-muted)]">{group.description}</p>
+                </div>
+                <span className="hidden shrink-0 rounded-full border border-[var(--border)] bg-[var(--background)]/60 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-[var(--foreground-subtle)] sm:inline-flex">{group.hrefs.length} reports</span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {group.hrefs.map((href) => {
+                  const item = modules.find((module) => module.href === href);
+                  if (!item) return null;
+                  const Icon = item.icon;
+                  return (
+                    <Link key={href} href={href} className={`group relative min-h-52 overflow-hidden rounded-2xl border-2 border-[var(--background-tertiary)] bg-gradient-to-br ${group.cardAccent} p-5 transition duration-200 hover:-translate-y-1 hover:border-violet-400/40 hover:shadow-xl sm:p-6`}>
+                      <div className="flex items-start justify-between gap-4"><div className={`rounded-xl border border-white/10 ${group.iconBg} p-3`}><Icon className={`h-6 w-6 ${group.iconColor}`} /></div><ChevronRight className="h-5 w-5 text-[var(--foreground-subtle)] transition-transform group-hover:translate-x-1 group-hover:text-white" /></div>
+                      <h4 className="mt-6 text-base font-black text-white">{item.title}</h4>
+                      <p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">{item.description}</p>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
           ))}
         </div>
       </section>

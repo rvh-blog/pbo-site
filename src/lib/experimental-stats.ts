@@ -225,7 +225,7 @@ export const experimentalMetricGroups: Array<{
       available("KOs per 10 turns", "Recorded KOs divided by saved active turns, scaled to ten turns."),
       available("Healing per active turn", "Recorded HP restored divided by saved turns active for appearances with both fields available."),
       partial("Setup rate", "Recognized stat-boosting/setup move uses divided by explicitly recorded move uses; each recorded use counts once, and coverage depends on saved setup and move fields."),
-      partial("Favorable event rate", "Saved favorable crit, miss, flinch, paralysis, freeze, burn, or sleep events divided by explicitly recorded move uses."),
+      partial("Favorable event rate", "Explicitly saved crits, misses, flinches, opponent-applied secondary effects (status or stat drops), and each recorded blocked turn from sleep, freeze, or full paralysis, divided by recorded move uses. Expanded coverage starts in Season 11 Week 6; Seasons 5–10 and Season 11 Weeks 1–5 retain the legacy format."),
     ],
   },
   {
@@ -251,7 +251,7 @@ export const experimentalVisualDefinitions = [
   { name: "Team control profile", availability: "partial" as const, description: "Attributed switch/drag events and Terastallizations per event-covered game." },
   { name: "Top-play rankings", availability: "available" as const, description: "Ranked saved HP swings, comeback deficits, and longest active appearances." },
   { name: "Battle momentum timeline", availability: "partial" as const, description: "Saved team HP remaining by turn for a selected replay with timeline coverage." },
-  { name: "Move usage treemap", availability: "available" as const, description: "Relative size of explicitly recorded move-use counts in the active replay scope." },
+  { name: "Move usage ranking", availability: "available" as const, description: "Searchable vertical ranking of explicitly recorded move-use counts; the top 15 are shown by default." },
   { name: "Season/division heatmap", availability: "partial" as const, description: "Pokémon appearance win rate with damage-per-active-turn and sample-size context by season and division." },
   { name: "Team core synergy network", availability: "partial" as const, description: "Repeated two-Pokémon cores connected by shared team appearances; frequency requires repeated roster evidence." },
   { name: "Replay data coverage dashboard", availability: "available" as const, description: "Share of filtered Pokémon appearances with each saved field required by the reports." },

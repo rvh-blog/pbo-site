@@ -12,13 +12,13 @@ import {
   Scatter,
   ScatterChart,
   Tooltip,
-  Treemap,
   XAxis,
   YAxis,
 } from "recharts";
 import type { EntityAggregate, EnrichedAppearance, ExperimentalMatch } from "./experimental-stats-client";
 import { buildSignatureStats, type SignatureStatsRow } from "./experimental-signature-stats";
 import { buildTeamStats, buildTopPlays, type TopPlayRecord } from "./experimental-team-reports";
+import { hasFavorableEventData } from "@/lib/favorable-events";
 
 type StableResponsiveContainerProps = ComponentProps<typeof RechartsResponsiveContainer>;
 function ResponsiveContainer({ initialDimension = { width: 1, height: 1 }, ...props }: StableResponsiveContainerProps) {
@@ -41,28 +41,6 @@ function VisualCard({ title, description, children, className = "" }: { title: s
 
 function ChartBox({ children, height = 270 }: { children: React.ReactNode; height?: number }) {
   return <div style={{ height, minWidth: 1, minHeight: 1 }} className="min-w-0 w-full">{children}</div>;
-}
-
-type MoveTreemapNode = {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  depth?: number;
-  index?: number;
-  name?: string;
-  size?: number;
-};
-
-function MoveTreemapContent({ x = 0, y = 0, width = 0, height = 0, depth = 0, index = 0, name = "", size = 0 }: MoveTreemapNode) {
-  if (depth === 0 || width <= 0 || height <= 0) return null;
-  const colors = ["#8b5cf6", "#7c3aed", "#6366f1", "#a855f7", "#6d28d9"];
-  const label = shortName(name, width > 130 ? 24 : width > 85 ? 15 : 10);
-  return <g>
-    <rect x={x} y={y} width={width} height={height} fill={colors[index % colors.length]} stroke="var(--border)" strokeWidth={1} rx={2} />
-    <title>{name}: {size} uses</title>
-    {width > 42 && height > 22 ? <text x={x + 7} y={y + Math.min(height / 2 + 4, height - 7)} fill="#fff" fontSize={Math.max(9, Math.min(14, width / 10))} fontWeight={700}>{label}</text> : null}
-  </g>;
 }
 
 function TeamAxisTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: { value?: string } }) {
@@ -235,7 +213,7 @@ function CoverageDashboard({ appearances }: { appearances: EnrichedAppearance[] 
     { label: "Move uses", count: appearances.filter((appearance) => moveUses(appearance) !== null).length },
     { label: "Healing", count: appearances.filter((appearance) => appearance.hpRestored !== null).length },
     { label: "Setup moves", count: appearances.filter((appearance) => appearance.setupMovesUsed !== null).length },
-    { label: "Favorable events", count: appearances.filter((appearance) => [appearance.favorableCrits, appearance.favorableMisses, appearance.favorableFlinches, appearance.favorableParalysis, appearance.favorableFreezes, appearance.favorableBurns, appearance.favorableSleep].some((value) => value !== null)).length },
+    { label: "Favorable events", count: appearances.filter((appearance) => hasFavorableEventData(appearance)).length },
   ];
   return <VisualCard title="Replay data coverage" description="The share of filtered Pokémon appearances with each saved field. This distinguishes evidence availability from a true zero. ">
     <div className="space-y-3">{fields.map((field) => { const percentage = appearances.length ? field.count / appearances.length * 100 : 0; return <div key={field.label}><div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold"><span className="text-white">{field.label}</span><span className="font-mono text-[var(--foreground-muted)]">{number(percentage, 1)}% · {field.count}/{appearances.length}</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-500" style={{ width: `${percentage}%` }} /></div></div>; })}</div>
@@ -243,9 +221,21 @@ function CoverageDashboard({ appearances }: { appearances: EnrichedAppearance[] 
 }
 
 function MoveUsageVisual({ moves }: { moves: Array<[string, number]> }) {
-  const data = [...moves].sort((a, b) => b[1] - a[1]).slice(0, 24).map(([name, size]) => ({ name, size }));
-  return <VisualCard title="Move usage treemap" description="The largest tiles represent the most explicitly recorded move uses in the filtered replay scope.">
-    {data.length ? <><div className="mb-2 text-center text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Tile area = recorded move uses · Tile label = move</div><ChartBox height={330}><ResponsiveContainer width="100%" height="100%"><Treemap data={data} dataKey="size" nameKey="name" type="flat" content={<MoveTreemapContent />} aspectRatio={4 / 3} isAnimationActive={false} isUpdateAnimationActive={false} /></ResponsiveContainer></ChartBox></> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No recorded move uses are available.</p>}
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const normalizedQuery = query.trim().toLowerCase();
+  const sortedMoves = useMemo(() => [...moves].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])), [moves]);
+  const filteredMoves = normalizedQuery ? sortedMoves.filter(([name]) => name.toLowerCase().includes(normalizedQuery)) : sortedMoves;
+  const visibleMoves = showAll || normalizedQuery ? filteredMoves : filteredMoves.slice(0, 15);
+  const topUses = sortedMoves[0]?.[1] ?? 0;
+  return <VisualCard title="Move usage ranking" description="A searchable ranking of explicitly recorded move uses in the filtered replay scope. This is replay evidence, not an exact controller-click log; missing move fields remain unknown.">
+    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+      <label className="sr-only" htmlFor="visual-lab-move-search">Search recorded moves</label>
+      <input id="visual-lab-move-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search recorded moves…" className="h-10 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] px-3 text-xs text-[var(--foreground)] outline-none focus:border-cyan-400" />
+      <button type="button" onClick={() => setShowAll((current) => !current)} className="btn-retro-secondary h-10 px-3 text-[9px]">{showAll ? "Show top 15" : "Show all moves"}</button>
+    </div>
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[9px] text-[var(--foreground-muted)]"><span>{normalizedQuery ? `${filteredMoves.length} matching moves` : showAll ? `Showing all ${filteredMoves.length} recorded moves` : `Showing top ${Math.min(15, filteredMoves.length)} of ${filteredMoves.length} recorded moves`}</span><span>Bar length is relative to the most-used move.</span></div>
+    {visibleMoves.length ? <div className="mt-4 space-y-2">{visibleMoves.map(([name, count]) => <div key={name} className="grid grid-cols-[minmax(100px,180px)_1fr_auto] items-center gap-2 text-[10px] sm:grid-cols-[minmax(130px,220px)_1fr_auto] sm:text-xs"><span className="truncate font-bold text-[var(--foreground)]" title={name}>{name}</span><div className="h-3 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${topUses ? count / topUses * 100 : 0}%` }} /></div><span className="font-mono text-cyan-200">{number(count)}</span></div>)}</div> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No recorded moves match this search.</p>}
   </VisualCard>;
 }
 
@@ -319,7 +309,7 @@ function CoreNetwork({ matches }: { matches: ExperimentalMatch[] }) {
     return 20 + ((weight - minNodeWeight) / spread) * 14;
   };
   return <VisualCard title="Team core synergy network" description="Lines connect Pokémon used together on the same team. Thicker lines show more shared games; larger circles show more team appearances. Only pairs with at least two shared games are shown.">
-    {visibleEdges.length ? <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center"><svg viewBox="0 0 420 300" role="img" aria-label="Team core synergy network" className="h-auto w-full rounded-xl border border-white/5 bg-slate-950/45">{visibleEdges.map((edge) => { const source = positions.get(edge.source); const target = positions.get(edge.target); return source && target ? <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke="#8b5cf6" strokeOpacity={0.35 + Math.min(edge.games, 6) / 10} strokeWidth={1 + Math.min(edge.games, 6)} /> : null; })}{nodeNames.map((name) => { const position = positions.get(name); const appearances = nodeAppearances.get(name) ?? 0; return position ? <g key={name}><title>{name}: {appearances} team {appearances === 1 ? "appearance" : "appearances"}</title><circle cx={position.x} cy={position.y} r={nodeRadius(name)} fill="#0f172a" stroke="#22d3ee" strokeWidth="2" /><text x={position.x} y={position.y + 3} textAnchor="middle" fill="#fff" fontSize="9">{shortName(name, 11)}</text></g> : null; })}</svg><div className="space-y-2">{visibleEdges.slice(0, 6).map((edge) => <div key={`${edge.source}-${edge.target}`} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3 text-[10px]"><div className="break-words font-bold leading-4 text-white">{edge.source} <span className="text-violet-300">+</span> {edge.target}</div><div className="mt-1 font-mono text-[9px] leading-4 text-[var(--foreground-muted)]">{edge.games} shared {edge.games === 1 ? "game" : "games"} <span aria-hidden="true">·</span> {number(edge.wins / edge.games * 100, 1)}% team win rate</div></div>)}</div></div> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No repeated Pokémon cores are available.</p>}
+    {visibleEdges.length ? <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center"><svg viewBox="0 0 420 300" role="img" aria-label="Team core synergy network" className="h-auto w-full rounded-xl border border-white/5 bg-slate-950/45">{visibleEdges.map((edge) => { const source = positions.get(edge.source); const target = positions.get(edge.target); return source && target ? <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke="#8b5cf6" strokeOpacity={0.35 + Math.min(edge.games, 6) / 10} strokeWidth={1 + Math.min(edge.games, 6)} /> : null; })}{nodeNames.map((name) => { const position = positions.get(name); const appearances = nodeAppearances.get(name) ?? 0; return position ? <g key={name}><title>{`${name}: ${appearances} team ${appearances === 1 ? "appearance" : "appearances"}`}</title><circle cx={position.x} cy={position.y} r={nodeRadius(name)} fill="#0f172a" stroke="#22d3ee" strokeWidth="2" /><text x={position.x} y={position.y + 3} textAnchor="middle" fill="#fff" fontSize="9">{shortName(name, 11)}</text></g> : null; })}</svg><div className="space-y-2">{visibleEdges.slice(0, 6).map((edge) => <div key={`${edge.source}-${edge.target}`} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3 text-[10px]"><div className="break-words font-bold leading-4 text-white">{edge.source} <span className="text-violet-300">+</span> {edge.target}</div><div className="mt-1 font-mono text-[9px] leading-4 text-[var(--foreground-muted)]">{edge.games} shared {edge.games === 1 ? "game" : "games"} <span aria-hidden="true">·</span> {number(edge.wins / edge.games * 100, 1)}% team win rate</div></div>)}</div></div> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No repeated Pokémon cores are available.</p>}
   </VisualCard>;
 }
 

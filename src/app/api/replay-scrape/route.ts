@@ -9,6 +9,7 @@ import { isGuaranteedHaxOutcome } from "@/lib/hax-rules";
 import { buildStoredBattleEvents, type StoredBattleEvent } from "@/lib/replay-events";
 import { IllusionMoveAttributionTracker } from "@/lib/illusion-move-attribution";
 import { getMegaStoneName, isMegaPokemonName } from "@/lib/mega-stones";
+import type { FavorableEvent } from "@/lib/favorable-events";
 
 interface PokemonStats {
   name: string;
@@ -38,12 +39,6 @@ interface PokemonStats {
     turn: number;
     source: string;
   }>;
-}
-
-interface FavorableEvent {
-  type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
-  turn: number;
-  description: string;
 }
 
 interface TurnSnapshot {
@@ -165,6 +160,39 @@ function isParalysisCantMove(effect: string) {
 
 function isFlinchCantMove(effect: string) {
   return effect.toLowerCase().includes("flinch");
+}
+
+function isSleepCantMove(effect: string) {
+  const lower = effect.toLowerCase();
+  return lower === "slp" || lower.includes("sleep");
+}
+
+function isFreezeCantMove(effect: string) {
+  const lower = effect.toLowerCase();
+  return lower === "frz" || lower.includes("freeze");
+}
+
+function statusLabel(status: string) {
+  return ({
+    brn: "burned",
+    frz: "frozen",
+    par: "paralyzed",
+    psn: "poisoned",
+    slp: "asleep",
+    tox: "badly poisoned",
+  } as Record<string, string>)[status.toLowerCase()] ?? status;
+}
+
+function statLabel(stat: string) {
+  return ({
+    atk: "Attack",
+    def: "Defense",
+    spa: "Special Attack",
+    spd: "Special Defense",
+    spe: "Speed",
+    accuracy: "accuracy",
+    evasion: "evasion",
+  } as Record<string, string>)[stat.toLowerCase()] ?? stat.replace(/-/g, " ");
 }
 
 function isWillOWisp(source: string) {
@@ -379,6 +407,9 @@ export async function POST(request: NextRequest) {
 
     // Status inflicter tracking (poison, burn, etc.)
     const statusInflicterMap: Map<string, PlayerRef> = new Map();
+    // Keys whose status was explicitly applied by the opponent. This keeps
+    // self-inflicted Rest-like sleep from being counted as a favorable turn.
+    const favorableStatusKeys = new Set<string>();
 
     // Confusion source tracking for attributing applications and self-hits.
     const confusionSourceMap: Map<string, PlayerRef> = new Map();
@@ -492,6 +523,11 @@ export async function POST(request: NextRequest) {
         pokemon[field]++;
         if (event && expandedHaxRules) pokemon.favorableEvents.push(event);
       }
+    };
+
+    const recordFavorableEvent = (parsed: PlayerRef | null, event: FavorableEvent) => {
+      if (!parsed || !expandedHaxRules) return;
+      getPokemonByRef(parsed)?.favorableEvents.push(event);
     };
 
     const recordActiveTurn = (parsed: PlayerRef, turn = currentTurn, credit = 1, reason = "active-at-turn-end") => {
@@ -675,6 +711,7 @@ export async function POST(request: NextRequest) {
 
           if (parsed && pokemonInfo) {
             confusionSourceMap.delete(`${parsed.player}:${parsed.nickname}`);
+            favorableStatusKeys.delete(`${parsed.player}:${parsed.nickname}`);
             const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: preserveReplayMegaForms, aliasMaps });
             const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
             let pokemon = team.find((p) => p.name === pokemonName);
@@ -984,6 +1021,17 @@ export async function POST(request: NextRequest) {
               turn: currentTurn,
               description: `${getPokemonNameByRef(parsed, "The opponent")} flinched.`,
             });
+          } else if (
+            parsed &&
+            (isSleepCantMove(effect) || isFreezeCantMove(effect)) &&
+            favorableStatusKeys.has(`${parsed.player}:${parsed.nickname}`)
+          ) {
+            const status = isSleepCantMove(effect) ? "asleep" : "frozen";
+            recordFavorableEvent(beneficiary, {
+              type: "status-turn",
+              turn: currentTurn,
+              description: `${getPokemonNameByRef(parsed, "The opponent")} remained ${status} and could not move.`,
+            });
           }
           break;
         }
@@ -1069,19 +1117,35 @@ export async function POST(request: NextRequest) {
             const fromSource = fromMatch ? fromMatch[1].toLowerCase().trim() : "";
             const statusOfMatch = line.match(/\[of\] (p[12])a: (.+)/);
             const beneficiary = getOpponentActiveRef(parsed.player);
-            const statusSource = fromSource || lastMoveInfo?.moveName || "";
+            const statusSource = fromSource || (lastMoveInfo?.turn === currentTurn ? lastMoveInfo.moveName : "");
+            const toxicSpikesSetter = (statusType === "psn" || statusType === "tox")
+              ? hazardSetterMap.get(`${parsed.player}:toxicspikes`)
+              : null;
             const hasOpponentInflicter =
               (statusOfMatch ? statusOfMatch[1] !== parsed.player : false) ||
-              (lastMoveInfo ? lastMoveInfo.player !== parsed.player : false);
+              (lastMoveInfo?.turn === currentTurn ? lastMoveInfo.player !== parsed.player : false) ||
+              (toxicSpikesSetter ? toxicSpikesSetter.player !== parsed.player : false);
             const isSelfItemStatus = fromSource.includes("item:");
+            let recordedSpecificFavorableStatus = false;
+
+            if (
+              expandedHaxRules &&
+              hasOpponentInflicter &&
+              !isSelfItemStatus &&
+              (statusType === "frz" || statusType === "slp" || statusType === "par")
+            ) {
+              favorableStatusKeys.add(key);
+            }
 
             if (statusType === "frz" && hasOpponentInflicter) {
+              recordedSpecificFavorableStatus = true;
               incrementFavorableEvent(beneficiary, "favorableFreezes", {
                 type: "freeze",
                 turn: currentTurn,
                 description: `${getPokemonNameByRef(parsed)} was frozen${statusSource ? ` by ${statusSource}` : ""}.`,
               });
             } else if (statusType === "brn" && hasOpponentInflicter && !isSelfItemStatus && !isWillOWisp(statusSource)) {
+              recordedSpecificFavorableStatus = true;
               incrementFavorableEvent(beneficiary, "favorableBurns", {
                 type: "burn",
                 turn: currentTurn,
@@ -1093,6 +1157,7 @@ export async function POST(request: NextRequest) {
               statusOfMatch &&
               statusOfMatch[1] !== parsed.player
             ) {
+              recordedSpecificFavorableStatus = true;
               incrementFavorableEvent(
                 { player: statusOfMatch[1] as "p1" | "p2", nickname: statusOfMatch[2] },
                 "favorableParalysis",
@@ -1107,10 +1172,28 @@ export async function POST(request: NextRequest) {
               (fromSource.includes("dire claw") || lastMoveInfo?.moveName.toLowerCase() === "dire claw") &&
               hasOpponentInflicter
             ) {
+              recordedSpecificFavorableStatus = true;
               incrementFavorableEvent(beneficiary, "favorableSleep", {
                 type: "sleep",
                 turn: currentTurn,
                 description: `${getPokemonNameByRef(parsed)} was put to sleep by Dire Claw.`,
+              });
+            }
+
+            // Expanded replays also retain otherwise-unclassified secondary
+            // effects. Guaranteed Will-O-Wisp burns remain excluded from the
+            // favorable metric; the effect is deterministic rather than luck.
+            if (
+              expandedHaxRules &&
+              hasOpponentInflicter &&
+              !isSelfItemStatus &&
+              !recordedSpecificFavorableStatus &&
+              !(statusType === "brn" && isWillOWisp(statusSource))
+            ) {
+              recordFavorableEvent(beneficiary, {
+                type: "secondary",
+                turn: currentTurn,
+                description: `${getPokemonNameByRef(parsed)} was ${statusLabel(statusType)}${statusSource ? ` by ${statusSource}` : ""}.`,
               });
             }
 
@@ -1150,6 +1233,32 @@ export async function POST(request: NextRequest) {
               }
             }
           }
+          break;
+        }
+
+        case "-unboost":
+        case "-setboost": {
+          // |-unboost|p1a: Target|atk|1|[from] move: Parting Shot|[of] p2a: User
+          // Negative -setboost values carry the same meaning when a replay
+          // serializes a stat drop as an absolute stage value.
+          const target = extractNicknameOwner(parts[2]);
+          const stat = parts[3] || "stat";
+          const rawAmount = Number(parts[4]);
+          const amount = parts[1] === "-setboost" ? (rawAmount < 0 ? Math.abs(rawAmount) : 0) : rawAmount;
+          if (!target || !expandedHaxRules || !Number.isFinite(amount) || amount <= 0) break;
+
+          const ofMatch = line.match(/\[of\] (p[12])a: (.+)/);
+          const source = ofMatch
+            ? { player: ofMatch[1] as "p1" | "p2", nickname: ofMatch[2] }
+            : lastMoveInfo?.turn === currentTurn ? lastMoveInfo : null;
+          if (!source || source.player === target.player) break;
+
+          const statName = statLabel(stat);
+          recordFavorableEvent(source, {
+            type: "stat-drop",
+            turn: currentTurn,
+            description: `${getPokemonNameByRef(source)} lowered ${getPokemonNameByRef(target)}'s ${statName}.`,
+          });
           break;
         }
 

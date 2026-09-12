@@ -28,7 +28,7 @@ interface PokemonData {
   favorableConfusions?: number | null;
   favorableConfusionSelfHits?: number | null;
   favorableEvents?: Array<{
-    type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+    type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit" | "secondary" | "status-turn" | "stat-drop";
     turn: number;
     description: string;
   }> | null;
@@ -122,16 +122,17 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
         const turnsActive = pokemon.turnsActive ?? null;
         const hazardDamageTaken = pokemon.hazardDamageTaken ?? null;
         const setupMovesUsed = pokemon.setupMovesUsed ?? null;
-        const favorableTotal =
-          (pokemon.favorableCrits ?? 0) +
-          (pokemon.favorableMisses ?? 0) +
-          (pokemon.favorableFlinches ?? 0) +
-          (pokemon.favorableParalysis ?? 0) +
-          (pokemon.favorableFreezes ?? 0) +
-          (pokemon.favorableBurns ?? 0) +
-          (pokemon.favorableSleep ?? 0) +
-          (pokemon.favorableConfusions ?? 0) +
-          (pokemon.favorableConfusionSelfHits ?? 0);
+        const favorableTotal = pokemon.favorableEvents
+          ? pokemon.favorableEvents.length
+          : (pokemon.favorableCrits ?? 0) +
+            (pokemon.favorableMisses ?? 0) +
+            (pokemon.favorableFlinches ?? 0) +
+            (pokemon.favorableParalysis ?? 0) +
+            (pokemon.favorableFreezes ?? 0) +
+            (pokemon.favorableBurns ?? 0) +
+            (pokemon.favorableSleep ?? 0) +
+            (pokemon.favorableConfusions ?? 0) +
+            (pokemon.favorableConfusionSelfHits ?? 0);
         const hasFavorableData =
           pokemon.favorableCrits != null ||
           pokemon.favorableMisses != null ||
@@ -141,7 +142,8 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
           pokemon.favorableBurns != null ||
           pokemon.favorableSleep != null ||
           pokemon.favorableConfusions != null ||
-          pokemon.favorableConfusionSelfHits != null;
+          pokemon.favorableConfusionSelfHits != null ||
+          pokemon.favorableEvents != null;
         const hpRestored = pokemon.hpRestored ?? 0;
 
         return (
@@ -229,6 +231,7 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
                   <div className="text-[var(--foreground-muted)] text-[10px] uppercase font-bold tracking-wide">
                     Favorable Events
                   </div>
+                  {pokemon.favorableEvents ? <p className="mt-1 text-[10px] leading-4 text-[var(--foreground-muted)]">Expanded replay context counts opponent-applied secondary effects and each logged turn blocked by sleep, freeze, or full paralysis.</p> : null}
                   <div className="mt-1 flex flex-wrap gap-3 text-xs font-mono">
                     <span className="text-white font-bold">Total {favorableTotal}</span>
                     <span className="text-[var(--foreground-muted)]">Crit {pokemon.favorableCrits ?? "x"}</span>
@@ -240,6 +243,11 @@ export function ExpandablePokemonCard({ pokemon, teamColor }: ExpandablePokemonC
                     <span className="text-[var(--foreground-muted)]">Sleep {pokemon.favorableSleep ?? "x"}</span>
                     <span className="text-[var(--foreground-muted)]">Confusion {pokemon.favorableConfusions ?? "x"}</span>
                     <span className="text-[var(--foreground-muted)]">Self-hit {pokemon.favorableConfusionSelfHits ?? "x"}</span>
+                    {pokemon.favorableEvents ? <>
+                      <span className="text-[var(--foreground-muted)]">Secondary {pokemon.favorableEvents.filter((event) => event.type === "secondary").length}</span>
+                      <span className="text-[var(--foreground-muted)]">Blocked turns {pokemon.favorableEvents.filter((event) => event.type === "status-turn").length}</span>
+                      <span className="text-[var(--foreground-muted)]">Stat drops {pokemon.favorableEvents.filter((event) => event.type === "stat-drop").length}</span>
+                    </> : null}
                   </div>
                   {pokemon.favorableEvents && pokemon.favorableEvents.length > 0 && (
                     <details className="mt-2 rounded border border-white/10 bg-black/20">

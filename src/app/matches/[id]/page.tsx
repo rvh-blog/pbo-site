@@ -157,7 +157,7 @@ type BattleSummaryPokemon = {
   favorableConfusions: number | null;
   favorableConfusionSelfHits: number | null;
   favorableEvents: Array<{
-    type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+    type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit" | "secondary" | "status-turn" | "stat-drop";
     turn: number;
     description: string;
   }> | null;
@@ -225,6 +225,29 @@ function formatKnownNumber(value: number | null | undefined, suffix = "") {
 function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[], expandedHaxRules: boolean) {
   const hasHazardDamage = teamPokemon.some((mp) => mp.hazardDamageTaken !== null);
   const hasSetupMoves = teamPokemon.some((mp) => mp.setupMovesUsed !== null);
+  const hasExpandedEventRows = teamPokemon.some((mp) => mp.favorableEvents !== null);
+  const expandedHaxFields: Array<keyof Pick<
+    BattleSummaryPokemon,
+    | "favorableCrits"
+    | "favorableMisses"
+    | "favorableFlinches"
+    | "favorableParalysis"
+    | "favorableFreezes"
+    | "favorableBurns"
+    | "favorableSleep"
+    | "favorableConfusions"
+    | "favorableConfusionSelfHits"
+  >> = [
+    "favorableCrits",
+    "favorableMisses",
+    "favorableFlinches",
+    "favorableParalysis",
+    "favorableFreezes",
+    "favorableBurns",
+    "favorableSleep",
+    "favorableConfusions",
+    "favorableConfusionSelfHits",
+  ];
   const sumKnownStat = (
     fields: Array<keyof Pick<
       BattleSummaryPokemon,
@@ -255,7 +278,11 @@ function getBattleSummaryStats(teamPokemon: BattleSummaryPokemon[], expandedHaxR
     setupMoves: hasSetupMoves
       ? teamPokemon.reduce((sum, mp) => sum + (mp.setupMovesUsed || 0), 0)
       : "x",
-    haxCount: sumKnownStat(expandedHaxRules
+    haxCount: expandedHaxRules && hasExpandedEventRows
+      ? teamPokemon.reduce((sum, mp) => sum + (mp.favorableEvents
+        ? mp.favorableEvents.length
+        : expandedHaxFields.reduce((subtotal, field) => subtotal + (mp[field] ?? 0), 0)), 0)
+      : sumKnownStat(expandedHaxRules
       ? [
           "favorableCrits",
           "favorableMisses",
@@ -524,8 +551,8 @@ function BattleSummaryPanel({
           <p className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-center text-[9px] leading-relaxed text-[var(--foreground-muted)] sm:text-[10px]">
             <span className="font-bold text-white/70">{expandedHaxRules ? "Expanded HAX rules" : "Legacy HAX rules"}</span>
             {expandedHaxRules
-              ? " · Includes crits, misses, flinches, paralysis, freezes, burns, sleep, confusion, and confusion self-hits. Guaranteed critical hits and Fake Out's guaranteed flinch are excluded."
-              : " · Used through Season 11 Week 5: paralysis, freezes, burns, and sleep only."}
+              ? " · Includes crits, misses, flinches, opponent-applied secondary effects, blocked sleep/freeze/paralysis turns, confusion, and confusion self-hits. Guaranteed critical hits and Fake Out's guaranteed flinch are excluded."
+              : " · Legacy coverage used for Seasons 5–10 and Season 11 Weeks 1–5: paralysis, freezes, burns, and sleep only."}
           </p>
         </div>
       </div>

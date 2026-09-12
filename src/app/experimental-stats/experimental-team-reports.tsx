@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import type { ExperimentalAppearance, ExperimentalBattleEvent, ExperimentalMatch } from "./experimental-stats-client";
 
@@ -51,6 +52,7 @@ export type TopPlayRecord = {
   valueLabel: string;
   detail: string;
   match: ExperimentalMatch;
+  pokemon?: Array<{ name: string; spriteUrl: string | null }>;
 };
 
 const number = (value: number, digits = 0) => value.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -77,6 +79,21 @@ function latestFaint(match: ExperimentalMatch) {
     if (event.type !== "faint" || !event.player) return latest;
     return !latest || event.turn >= latest.turn ? event : latest;
   }, null);
+}
+
+function spritesForPokemonNames(match: ExperimentalMatch, names: Array<string | undefined>) {
+  const seen = new Set<number>();
+  return names.flatMap((name) => {
+    const target = name?.trim().toLowerCase();
+    if (!target || target === "unknown" || target === "pokemon") return [];
+    const appearance = match.pokemon.find((candidate) => {
+      const candidateName = candidate.pokemonName.trim().toLowerCase();
+      return candidateName === target || candidateName.startsWith(`${target}-`) || target.startsWith(`${candidateName}-`);
+    });
+    if (!appearance || seen.has(appearance.pokemonId)) return [];
+    seen.add(appearance.pokemonId);
+    return [{ name: appearance.pokemonName, spriteUrl: appearance.spriteUrl }];
+  });
 }
 
 function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
@@ -288,7 +305,7 @@ export function TeamStatsReport({ matches, selectedTeamIds, seasonTeams }: { mat
   return <section className="space-y-4">
     <div className="poke-card border-cyan-400/20 bg-cyan-500/[0.03] p-5 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 className="font-pixel text-sm text-white">Team Stats</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">Season- and division-specific team rows covering offense, defense, and battle control. Team totals use all saved Pokemon in the filtered matches; event metrics only use attributed normalized events.</p></div>
+        <div><h2 className="font-pixel text-sm text-white">Team Stats</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">Season- and division-specific team rows covering offense, defense, and battle control. Team totals use all saved Pokémon in the filtered matches; event metrics only use attributed normalized events.</p><p className="mt-2 max-w-3xl rounded-lg border border-cyan-400/20 bg-cyan-400/[0.05] px-3 py-2 text-[10px] leading-4 text-[var(--foreground-muted)]"><strong className="text-cyan-100">Scope:</strong> each row is one team&apos;s side of the matchup set selected by the shared filters and search. Values summarize that side across every selected matchup. A coach or team search narrows the matchups first; the opponent remains as a separate row for comparison.</p></div>
         <button type="button" onClick={() => downloadCsv("pbo-team-stats.csv", exportRows)} className="btn-retro-secondary px-3 py-2 text-[9px]">CSV</button>
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4"><StatCard label="Teams" value={number(rows.length)} /><StatCard label="Filtered matches" value={number(matches.length)} /><StatCard label="Damage coverage" value={number(new Set(rows.flatMap((row) => row.damageForGames ? [row.team.seasonCoachId] : [])).size)} detail="Teams with recorded damage" /><StatCard label="Event coverage" value={number(eventCoveredTeams)} detail="Teams with attributed events" /></div>
@@ -335,13 +352,13 @@ export function buildTopPlays(matches: ExperimentalMatch[]) {
     const faint = latestFaint(match);
     if (faint?.player) {
       const victimTeam = teamForPlayer(match, faint.player);
-      latestFaints.push({ category: "Latest faint", turn: faint.turn, value: faint.turn, valueLabel: `Turn ${faint.turn}`, detail: `${faint.pokemon ?? "Pokemon"} from ${victimTeam?.teamName ?? "unknown team"}${faint.killer ? ` · ${faint.killer}${faint.move ? ` with ${faint.move}` : ""}` : ""}`, match });
+      latestFaints.push({ category: "Latest faint", turn: faint.turn, value: faint.turn, valueLabel: `Turn ${faint.turn}`, detail: `${faint.pokemon ?? "Pokemon"} from ${victimTeam?.teamName ?? "unknown team"}${faint.killer ? ` · ${faint.killer}${faint.move ? ` with ${faint.move}` : ""}` : ""}`, pokemon: spritesForPokemonNames(match, [faint.pokemon, faint.killer]), match });
     }
 
     for (const appearance of match.pokemon) {
       if (appearance.turnsActive === null) continue;
       const team = appearance.seasonCoachId === match.coach1.seasonCoachId ? match.coach1 : match.coach2;
-      longestAppearances.push({ category: "Longest active", value: appearance.turnsActive, valueLabel: `${number(appearance.turnsActive)} turns`, detail: `${appearance.pokemonName} · ${team.teamName}`, match });
+      longestAppearances.push({ category: "Longest active", value: appearance.turnsActive, valueLabel: `${number(appearance.turnsActive)} turns`, detail: `${appearance.pokemonName} · ${team.teamName}`, pokemon: [{ name: appearance.pokemonName, spriteUrl: appearance.spriteUrl }], match });
     }
   }
 
@@ -373,8 +390,9 @@ function TopPlayList({ title, description, records }: { title: string; descripti
       if (record.match.isDemo) query.set("demo", "1");
       if (record.turn !== undefined) query.set("turn", String(record.turn));
       const battleHref = `/experimental-stats/battle-visualizer?${query}${record.turn !== undefined ? "#battle-turn" : ""}`;
+      const sprites = record.pokemon?.filter((pokemon) => pokemon.spriteUrl).slice(0, 2) ?? [];
       return <li key={`${record.match.id}-${record.detail}-${index}`} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3">
-        <div className="flex items-start gap-3"><span className="font-mono text-xs text-[var(--foreground-muted)]">#{index + 1}</span><div className="min-w-0 flex-1"><strong className="block break-words text-xs text-white">{record.detail}</strong><span className="text-xs text-[var(--foreground-muted)]">{record.match.coach1.teamName} vs {record.match.coach2.teamName} · {record.match.seasonName} · {record.match.divisionName} · Week {record.match.week}</span></div><span className="font-mono text-xs font-black text-violet-300">{record.valueLabel}</span></div>
+        <div className="flex items-start gap-3"><span className="font-mono text-xs text-[var(--foreground-muted)]">#{index + 1}</span><div className="flex min-w-0 flex-1 items-start gap-2">{sprites.length ? <div className="flex shrink-0 items-center gap-0.5 pt-0.5" aria-label={`Pokémon involved: ${sprites.map((pokemon) => pokemon.name).join(", ")}`}>{sprites.map((pokemon) => <Image key={`${pokemon.name}-${pokemon.spriteUrl}`} src={pokemon.spriteUrl as string} alt={`${pokemon.name} sprite`} title={pokemon.name} width={32} height={32} className="h-8 w-8 object-contain" />)}</div> : null}<div className="min-w-0 flex-1"><strong className="block break-words text-xs text-white">{record.detail}</strong><span className="text-xs text-[var(--foreground-muted)]">{record.match.coach1.teamName} vs {record.match.coach2.teamName} · {record.match.seasonName} · {record.match.divisionName} · Week {record.match.week}</span></div></div><span className="shrink-0 font-mono text-xs font-black text-violet-300">{record.valueLabel}</span></div>
         <div className="mt-3 flex flex-wrap gap-4 text-xs"><Link href={matchHref(record.match)} className="text-cyan-300 underline">Match details</Link><Link href={battleHref} className="text-violet-300 underline">{record.turn !== undefined ? `View turn ${record.turn}` : "View battle"}</Link></div>
       </li>;
     })}</ol> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No saved evidence is available in this scope.</p>}

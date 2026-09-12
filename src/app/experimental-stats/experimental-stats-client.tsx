@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useDeferredValue, useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart3,
@@ -22,6 +22,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer as RechartsResponsive
 import { HpChart } from "@/components/hp-chart";
 import { experimentalMetricGroups, experimentalVisualDefinitions } from "@/lib/experimental-stats";
 import { getDistinctHeldItemNames, isTransferredItemReveal } from "@/lib/revealed-items";
+import { isAssumedItemReveal } from "@/lib/mega-item-inference";
+import { countFavorableEvents, hasFavorableEventData, type FavorableEvent } from "@/lib/favorable-events";
 import { ExperimentalInsights } from "./experimental-insights";
 import { SignatureStatsReport } from "./experimental-signature-stats";
 import { TeamStatsReport, TopPlaysReport } from "./experimental-team-reports";
@@ -53,6 +55,9 @@ export interface ExperimentalAppearance {
   favorableFreezes: number | null;
   favorableBurns: number | null;
   favorableSleep: number | null;
+  favorableConfusions: number | null;
+  favorableConfusionSelfHits: number | null;
+  favorableEvents: FavorableEvent[] | null;
   hpRestored: number | null;
   movesUsed: Record<string, number>;
   moveDataRecorded: boolean;
@@ -209,10 +214,8 @@ const totalDamage = (appearance: ExperimentalAppearance) => (appearance.damageDe
 const hasDamageData = (appearance: ExperimentalAppearance) => appearance.damageDealt !== null || appearance.damageDealtIndirect !== null;
 const matchHref = (match: ExperimentalMatch) => match.isDemo ? "/experimental-stats?demo=1" : `/matches/${match.id}`;
 const totalDamageTaken = (appearance: ExperimentalAppearance) => (appearance.damageTaken ?? 0) + (appearance.damageTakenIndirect ?? 0);
-const sumFavorable = (appearance: ExperimentalAppearance) =>
-  (appearance.favorableCrits ?? 0) + (appearance.favorableMisses ?? 0) + (appearance.favorableFlinches ?? 0) +
-  (appearance.favorableParalysis ?? 0) + (appearance.favorableFreezes ?? 0) + (appearance.favorableBurns ?? 0) + (appearance.favorableSleep ?? 0);
-const hasFavorableData = (appearance: ExperimentalAppearance) => [appearance.favorableCrits, appearance.favorableMisses, appearance.favorableFlinches, appearance.favorableParalysis, appearance.favorableFreezes, appearance.favorableBurns, appearance.favorableSleep].some((value) => value !== null);
+const sumFavorable = (appearance: ExperimentalAppearance) => countFavorableEvents(appearance);
+const hasFavorableData = (appearance: ExperimentalAppearance) => hasFavorableEventData(appearance);
 const distinctHeldItemReveals = (appearance: ExperimentalAppearance) => {
   const names = new Set(getDistinctHeldItemNames(appearance.revealedItems).map((item) => item.toLowerCase()));
   const seen = new Set<string>();
@@ -222,6 +225,26 @@ const distinctHeldItemReveals = (appearance: ExperimentalAppearance) => {
     seen.add(key);
     return true;
   });
+};
+type HeldItemCategory = "Damage boosting" | "Recovery / consumable" | "Choice items" | "Mega Stones" | "Utility / other" | "Unknown / unrevealed";
+const HELD_ITEM_CATEGORY_ORDER: HeldItemCategory[] = ["Damage boosting", "Recovery / consumable", "Choice items", "Mega Stones", "Utility / other", "Unknown / unrevealed"];
+const HELD_ITEM_CATEGORY_STYLES: Record<HeldItemCategory, string> = {
+  "Damage boosting": "border-red-400/25 bg-red-500/10 text-red-200",
+  "Recovery / consumable": "border-emerald-400/25 bg-emerald-500/10 text-emerald-200",
+  "Choice items": "border-cyan-400/25 bg-cyan-500/10 text-cyan-200",
+  "Mega Stones": "border-fuchsia-400/25 bg-fuchsia-500/10 text-fuchsia-200",
+  "Utility / other": "border-amber-400/25 bg-amber-500/10 text-amber-200",
+  "Unknown / unrevealed": "border-slate-400/25 bg-slate-500/10 text-slate-200",
+};
+const classifyHeldItem = (item: string): HeldItemCategory => {
+  const normalized = item.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  if (/^choice(?:band|scarf|specs)$/.test(normalized)) return "Choice items";
+  // Mega stones use the stable *-ite naming family. Eviolite is the one
+  // common held item with the same suffix that is not a Mega Stone.
+  if (normalized !== "eviolite" && /ite(?:x|y)?$/.test(normalized)) return "Mega Stones";
+  if (normalized.includes("berry") || ["leftovers", "blacksludge", "shellbell", "bigroot", "lifeorb"].includes(normalized)) return normalized === "lifeorb" ? "Damage boosting" : "Recovery / consumable";
+  if (["gem", "plate", "lifeorb", "expertbelt", "muscleband", "metronome", "silkscarf", "fairyfeather", "charcoal", "mysticwater", "magnet", "miracleseed", "nevermeltice", "blackbelt", "poisonbarb", "softsand", "hardstone", "spelltag", "dragonfang", "blackglasses", "wiseglasses", "sharpbeak", "twistedspoon", "metalcoat", "souldew", "adamantorb", "lustrousorb", "griseousorb"].some((token) => normalized.includes(token))) return "Damage boosting";
+  return "Utility / other";
 };
 const searchableMatchText = (match: ExperimentalMatch) => [
   match.coach1.coachName,
@@ -422,18 +445,39 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
     stage: "all",
     includeForfeits: false,
   };
-  const [filters, setFilters] = useState<Filters>(() => initialFilters ? { ...initialFilters, weekEnd: initialFilters.weekEnd >= 999 ? initialHighestWeek : Math.min(initialFilters.weekEnd, initialHighestWeek) } : defaultFilters);
+  const [filters, setFilters] = useState<Filters>(() => {
+    if (!initialFilters) return defaultFilters;
+    const weekStart = Math.min(initialHighestWeek, Math.max(1, initialFilters.weekStart));
+    const weekEnd = Math.min(initialHighestWeek, Math.max(weekStart, initialFilters.weekEnd >= 999 ? initialHighestWeek : initialFilters.weekEnd));
+    return { ...initialFilters, weekStart, weekEnd };
+  });
   const deferredFilters = useDeferredValue(filters);
-  const filtersAreUpdating = deferredFilters !== filters;
   const highestAvailableWeek = highestWeekForSeason(filters.seasonId);
+  const normalizeFilterWeeks = (next: Filters): Filters => {
+    const maximum = highestWeekForSeason(next.seasonId);
+    const weekStart = Math.min(maximum, Math.max(1, next.weekStart));
+    const weekEnd = Math.min(maximum, Math.max(weekStart, next.weekEnd));
+    return { ...next, weekStart, weekEnd };
+  };
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState(() => searchParams.get("q") ?? "");
-  const globalSearchTerms = useMemo(() => globalSearch.trim().toLowerCase().split(/\s+/).filter(Boolean), [globalSearch]);
+  const deferredGlobalSearch = useDeferredValue(globalSearch);
+  const globalSearchTerms = useMemo(() => deferredGlobalSearch.trim().toLowerCase().split(/\s+/).filter(Boolean), [deferredGlobalSearch]);
+  const searchSyncTimerRef = useRef<number | null>(null);
+  const pendingSearchRef = useRef<string | null>(null);
+  const filtersAreUpdating = deferredFilters !== filters || deferredGlobalSearch !== globalSearch;
 
   useEffect(() => {
     const querySearch = searchParams.get("q") ?? "";
+    if (pendingSearchRef.current !== null) {
+      if (querySearch === pendingSearchRef.current) pendingSearchRef.current = null;
+      else return;
+    }
     setGlobalSearch(querySearch);
   }, [searchParams]);
+  useEffect(() => () => {
+    if (searchSyncTimerRef.current !== null) window.clearTimeout(searchSyncTimerRef.current);
+  }, []);
   const [profilePokemonId, setProfilePokemonId] = useState<number | null>(null);
   const [compareA, setCompareA] = useState<number | null>(null);
   const [compareB, setCompareB] = useState<number | null>(null);
@@ -456,7 +500,9 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
       const maximum = initialFilters.seasonId === "all"
         ? dataset.highestAvailableWeek
         : dataset.highestAvailableWeekBySeason[initialFilters.seasonId] ?? dataset.highestAvailableWeek;
-      setFilters({ ...initialFilters, weekEnd: initialFilters.weekEnd >= 999 ? maximum : Math.min(initialFilters.weekEnd, maximum) });
+      const weekStart = Math.min(maximum, Math.max(1, initialFilters.weekStart));
+      const weekEnd = Math.min(maximum, Math.max(weekStart, initialFilters.weekEnd >= 999 ? maximum : initialFilters.weekEnd));
+      setFilters({ ...initialFilters, weekStart, weekEnd });
     }
   }, [initialFilters, dataset.highestAvailableWeek, dataset.highestAvailableWeekBySeason]);
 
@@ -543,14 +589,14 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
   const coveredMatches = useMemo(() => new Set(filteredAppearances.filter((appearance) => hasDamageData(appearance) || appearance.moveDataRecorded || appearance.itemDataRecorded).map((appearance) => appearance.match.id)).size, [filteredAppearances]);
   const allMoveUses = useMemo(() => {
     const counts = new Map<string, number>();
-    filteredAppearances.forEach((appearance) => Object.entries(appearance.movesUsed).forEach(([move, count]) => counts.set(move, (counts.get(move) ?? 0) + count)));
+    filteredAppearances.filter((appearance) => appearance.moveDataRecorded).forEach((appearance) => Object.entries(appearance.movesUsed).forEach(([move, count]) => counts.set(move, (counts.get(move) ?? 0) + count)));
     return counts;
   }, [filteredAppearances]);
   const moveRows = useMemo(() => [...allMoveUses.entries()], [allMoveUses]);
   const topMove = useMemo(() => [...allMoveUses].sort((a, b) => b[1] - a[1])[0], [allMoveUses]);
 
   const updateFilters = (patch: Partial<Filters>) => setFilters((current) => {
-    const next = { ...current, ...patch };
+    const next = normalizeFilterWeeks({ ...current, ...patch });
     if (standalone) {
       const query = new URLSearchParams({
         season: String(next.seasonId),
@@ -576,10 +622,15 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
   const updateGlobalSearch = (value: string) => {
     setGlobalSearch(value);
     if (!standalone) return;
-    const query = new URLSearchParams(window.location.search);
-    if (value.trim()) query.set("q", value.trim());
-    else query.delete("q");
-    router.replace(`${pathname}${query.toString() ? `?${query}` : ""}`, { scroll: false });
+    pendingSearchRef.current = value;
+    if (searchSyncTimerRef.current !== null) window.clearTimeout(searchSyncTimerRef.current);
+    searchSyncTimerRef.current = window.setTimeout(() => {
+      const query = new URLSearchParams(window.location.search);
+      if (value.trim()) query.set("q", value.trim());
+      else query.delete("q");
+      router.replace(`${pathname}${query.toString() ? `?${query}` : ""}`, { scroll: false });
+      searchSyncTimerRef.current = null;
+    }, 240);
   };
   const qualificationText = `${deferredFilters.minimumAppearances}+ games in the active filters`;
 
@@ -592,8 +643,30 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
   };
 
   const shareView = async () => {
-    await navigator.clipboard.writeText(window.location.href);
-    setShareMessage("Link copied");
+    try {
+      const url = window.location.href;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const fallback = document.createElement("textarea");
+        fallback.value = url;
+        fallback.setAttribute("readonly", "");
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        document.body.appendChild(fallback);
+        let copied = false;
+        try {
+          fallback.select();
+          copied = document.execCommand("copy");
+        } finally {
+          fallback.remove();
+        }
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+      setShareMessage("Link copied");
+    } catch {
+      setShareMessage("Copy unavailable");
+    }
     window.setTimeout(() => setShareMessage(""), 1600);
   };
 
@@ -627,7 +700,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           <FilterSelect label="Stage" value={filters.stage} onChange={(value) => updateFilter("stage", value as StageFilter)}><option value="all">Regular & playoffs</option><option value="regular">Regular season</option><option value="playoffs">Playoffs</option></FilterSelect>
           <label className="flex items-end gap-2 pb-2 text-xs font-bold text-[var(--foreground-muted)]"><input type="checkbox" checked={filters.includeForfeits} onChange={(event) => updateFilter("includeForfeits", event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Include forfeits</label>
         </div>
-        <label className="relative mt-4 block max-w-3xl"><span className="mb-1 block text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Search this report</span><Search className="pointer-events-none absolute left-3 top-8 h-4 w-4 text-[var(--foreground-muted)]" /><input value={globalSearch} onChange={(event) => updateGlobalSearch(event.target.value)} placeholder="Search Pokémon, coaches, teams, moves, items, or replay details…" aria-label="Search Pokémon, coaches, teams, moves, items, or replay details" className="h-11 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 pl-10 pr-3 text-xs font-bold text-[var(--foreground)] shadow-inner shadow-black/20 outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/15" /><span className="mt-1 block text-[8px] leading-3 text-[var(--foreground-subtle)]">Matches all typed words across the active replay scope. Existing dropdowns still provide exact filters.</span></label>
+        <label className="relative mt-4 block max-w-3xl"><span className="mb-1 block text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Search this report</span><Search className="pointer-events-none absolute left-3 top-8 h-4 w-4 text-[var(--foreground-muted)]" /><input value={globalSearch} onChange={(event) => updateGlobalSearch(event.target.value)} placeholder="Search Pokémon, coaches, teams, moves, items, or replay details…" aria-label="Search Pokémon, coaches, teams, moves, items, or replay details" className="h-11 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 pl-10 pr-3 text-xs font-bold text-[var(--foreground)] shadow-inner shadow-black/20 outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/15" /><span className="mt-1 block text-[8px] leading-3 text-[var(--foreground-subtle)]">Matches all typed words across the active replay scope. Results refresh as you type; URL sharing updates after a brief pause. Existing dropdowns still provide exact filters.</span></label>
       </section> : null}
 
       <div className={standalone ? "" : "grid gap-6 xl:grid-cols-[230px_minmax(0,1fr)]"}>
@@ -638,11 +711,11 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
         </aside> : null}
 
         <main className="min-w-0 space-y-6">
-          {module !== "glossary" ? <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {module !== "glossary" ? <div className={`grid grid-cols-2 gap-3 ${module === "compare" ? "md:grid-cols-3" : "md:grid-cols-4"}`}>
             <StatCard label={module === "coaches" ? "Official matches" : "Matches"} value={number(module === "coaches" ? coachReportMatches.length : filteredMatches.length)} />
             <StatCard label="Pokémon appearances" value={number(filteredAppearances.length)} />
             <StatCard label="Unique moves" value={number(allMoveUses.size)} />
-            <StatCard label="Most-used move" value={topMove ? `${topMove[0]} · ${topMove[1]}` : "—"} />
+            {module !== "compare" ? <StatCard label="Most-used move" value={topMove ? `${topMove[0]} · ${topMove[1]}` : "—"} /> : null}
           </div> : null}
 
           {module === "insights" ? <ExperimentalInsights matches={filteredMatches} appearances={filteredAppearances} /> : null}
@@ -650,7 +723,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           {module === "pokemon" && activePokemon ? <PokemonUsageReport rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} matches={filteredMatches} rosterEligibility={dataset.rosterEligibility ?? []} onSelect={setProfilePokemonId} /> : null}
           {module === "pokemon" && <PokemonProfiles rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} qualificationText={qualificationText} minimumAppearances={deferredFilters.minimumAppearances} onSelect={setProfilePokemonId} />}
           {module === "coaches" && <CoachProfiles rows={coachRows} appearances={filteredAppearances} matches={coachReportMatches} seasonTeams={dataset.seasonTeams ?? []} />}
-          {module === "compare" && <CompareModule rows={pokemonRows} compareA={compareA} compareB={compareB} setCompareA={setCompareA} setCompareB={setCompareB} />}
+          {module === "compare" && <CompareModule rows={pokemonRows} appearances={filteredAppearances} compareA={compareA} compareB={compareB} setCompareA={setCompareA} setCompareB={setCompareB} />}
           {module === "rolling" && <ExpandedRollingModule pokemon={activePokemon} appearances={activePokemonAppearances} rows={pokemonRows} onSelect={setProfilePokemonId} />}
           {module === "leaderboard" && <PresetLeaderboardModule rows={leaderboardEntity === "pokemon" ? pokemonRows : coachRows} entity={leaderboardEntity} setEntity={setLeaderboardEntity} perAppearance={leaderboardRate} setPerAppearance={setLeaderboardRate} minimumAppearances={deferredFilters.minimumAppearances} matches={filteredMatches} appearances={filteredAppearances} />}
           {module === "replays" && <ReplaySearchModule matches={filteredMatches} />}
@@ -899,6 +972,21 @@ function PokemonProfiles({ rows, active, appearances, qualificationText, minimum
   </section>;
 }
 
+function CoachTendenciesPanel({ averageBattleLength, timelineCoverage, replayCount, switchEvents, teraEvents, controlMatches, setupUses, setupCoverage, itemRevealCount, itemCoverage, favoritePokemon, favoriteAppearances }: { averageBattleLength: number | null; timelineCoverage: number; replayCount: number; switchEvents: number; teraEvents: number; controlMatches: number; setupUses: number; setupCoverage: number; itemRevealCount: number; itemCoverage: number; favoritePokemon: string | null; favoriteAppearances: number }) {
+  return <div className="mt-6 rounded-xl border border-violet-400/20 bg-violet-500/[0.04] p-4">
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-xs font-black uppercase tracking-wide text-white">Coach tendencies</h3><p className="mt-1 max-w-2xl text-[10px] leading-4 text-[var(--foreground-muted)]">A compact summary of replay-backed habits. These are descriptive signals, not a strategic grade or a prediction of future choices.</p></div><span className="text-[9px] font-bold text-violet-200">{replayCount} replay matches in scope</span></div>
+    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="font-mono text-lg font-black text-violet-200">{formatCovered(averageBattleLength, 1, " turns")}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wide text-[var(--foreground-muted)]">Avg turns</div><div className="mt-1 text-[9px] text-[var(--foreground-muted)]">{timelineCoverage} with timeline</div></div>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="font-mono text-lg font-black text-cyan-200">{formatCovered(coveredRate(switchEvents, replayCount), 1)}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wide text-[var(--foreground-muted)]">Switches / replay</div><div className="mt-1 text-[9px] text-[var(--foreground-muted)]">{controlMatches} with event data</div></div>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="font-mono text-lg font-black text-fuchsia-200">{formatCovered(coveredRate(teraEvents, replayCount), 1)}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wide text-[var(--foreground-muted)]">Tera / replay</div><div className="mt-1 text-[9px] text-[var(--foreground-muted)]">Normalized events only</div></div>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="font-mono text-lg font-black text-emerald-200">{formatCovered(coveredRate(setupUses, setupCoverage), 1)}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wide text-[var(--foreground-muted)]">Setup / appearance</div><div className="mt-1 text-[9px] text-[var(--foreground-muted)]">Recognized setup moves</div></div>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="font-mono text-lg font-black text-amber-200">{formatCovered(coveredRate(itemRevealCount * 100, itemCoverage), 1, "%")}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wide text-[var(--foreground-muted)]">Item reveal rate</div><div className="mt-1 text-[9px] text-[var(--foreground-muted)]">Explicit + inferred</div></div>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="truncate text-sm font-black text-white" title={favoritePokemon ?? undefined}>{favoritePokemon ?? "—"}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wide text-[var(--foreground-muted)]">Most-used Pokémon</div><div className="mt-1 text-[9px] text-[var(--foreground-muted)]">{favoriteAppearances} appearances</div></div>
+    </div>
+    <p className="mt-3 text-[9px] leading-4 text-[var(--foreground-muted)]">Switch and Tera rates use normalized event summaries when available. Missing event or move fields are excluded rather than interpreted as zero activity.</p>
+  </div>;
+}
+
 function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: EntityAggregate[]; appearances: EnrichedAppearance[]; matches: ExperimentalMatch[]; seasonTeams: NonNullable<ExperimentalStatsDataset["seasonTeams"]> }) {
   const [activeCoachId, setActiveCoachId] = useState<number | null>(null);
   const active = rows.find((row) => row.id === activeCoachId) ?? rows[0];
@@ -933,6 +1021,16 @@ function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: Enti
   const replayMatches = [...new Map(coachApps.map((appearance) => [appearance.match.id, appearance.match])).values()];
   const timelineMatches = replayMatches.filter((match) => (match.totalTurns !== null && match.totalTurns !== undefined) || match.turnSnapshots.length > 0);
   const averageBattleLength = timelineMatches.length ? timelineMatches.reduce((sum, match) => sum + (match.totalTurns ?? match.turnSnapshots.reduce((maximum, snapshot) => Math.max(maximum, snapshot.turn), 0)), 0) / timelineMatches.length : null;
+  const controlEvents = replayMatches.flatMap((match) => {
+    const coachPlayer = match.p1IsCoach1 === null ? null : match.p1IsCoach1 ? "p1" : "p2";
+    return match.battleEvents.filter((event) => (event.eventType === "switch" || event.eventType === "drag" || event.eventType === "terastallize") && coachPlayer !== null && event.player === coachPlayer);
+  });
+  const switchEvents = controlEvents.filter((event) => event.eventType === "switch" || event.eventType === "drag").reduce((sum, event) => sum + (event.count ?? 1), 0);
+  const teraEvents = controlEvents.filter((event) => event.eventType === "terastallize").reduce((sum, event) => sum + (event.count ?? 1), 0);
+  const controlMatches = replayMatches.filter((match) => {
+    const coachPlayer = match.p1IsCoach1 === null ? null : match.p1IsCoach1 ? "p1" : "p2";
+    return coachPlayer !== null && match.battleEvents.some((event) => (event.eventType === "switch" || event.eventType === "drag" || event.eventType === "terastallize") && event.player === coachPlayer);
+  });
   const coachSeasonGroups = new Map<number, { seasonName: string; matches: ExperimentalMatch[]; appearances: EnrichedAppearance[] }>();
   officialCoachMatches.forEach((match) => {
     const group = coachSeasonGroups.get(match.seasonId) ?? { seasonName: match.seasonName, matches: [], appearances: [] };
@@ -951,9 +1049,28 @@ function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: Enti
     }).length;
     return { seasonId, seasonName: group.seasonName, wins, losses: group.matches.length - wins, stats: aggregateEntities(group.appearances, "coach")[0] ?? null, pokemonUsed: new Set(group.appearances.map((appearance) => appearance.pokemonId)).size };
   }).sort((a, b) => b.seasonId - a.seasonId);
-  const coachItems = new Map<string, number>();
-  coachApps.forEach((appearance) => distinctHeldItemReveals(appearance).forEach((item) => coachItems.set(item.item, (coachItems.get(item.item) ?? 0) + 1)));
-  const coachMoveRows = [...coachApps.reduce((counts, appearance) => {
+  const coachItemMap = new Map<string, { item: string; category: HeldItemCategory; count: number; explicit: number; inferred: number }>();
+  coachApps.forEach((appearance) => distinctHeldItemReveals(appearance).forEach((reveal) => {
+    const item = reveal.item.trim();
+    const key = item.toLowerCase();
+    const existing = coachItemMap.get(key) ?? { item, category: classifyHeldItem(item), count: 0, explicit: 0, inferred: 0 };
+    existing.count += 1;
+    if (isAssumedItemReveal(reveal.source)) existing.inferred += 1;
+    else existing.explicit += 1;
+    coachItemMap.set(key, existing);
+  }));
+  const coachItemRows = [...coachItemMap.values()].sort((a, b) => b.count - a.count || a.item.localeCompare(b.item));
+  const itemDataAppearances = coachApps.filter((appearance) => appearance.itemDataRecorded).length;
+  const unrevealedItemAppearances = coachApps.filter((appearance) => appearance.itemDataRecorded && distinctHeldItemReveals(appearance).length === 0).length;
+  const unavailableItemAppearances = coachApps.filter((appearance) => !appearance.itemDataRecorded).length;
+  const itemDataMatchIds = new Set(coachApps.filter((appearance) => appearance.itemDataRecorded).map((appearance) => appearance.match.id));
+  const itemRevealMatchIds = new Set(coachApps.filter((appearance) => appearance.itemDataRecorded && distinctHeldItemReveals(appearance).length > 0).map((appearance) => appearance.match.id));
+  const unknownItemRows = [
+    unrevealedItemAppearances ? { item: "Recorded with no reveal", category: "Unknown / unrevealed" as HeldItemCategory, count: unrevealedItemAppearances, explicit: 0, inferred: 0 } : null,
+    unavailableItemAppearances ? { item: "Item data unavailable", category: "Unknown / unrevealed" as HeldItemCategory, count: unavailableItemAppearances, explicit: 0, inferred: 0 } : null,
+  ].filter((row): row is { item: string; category: HeldItemCategory; count: number; explicit: number; inferred: number } => row !== null);
+  const coachItemGroups = HELD_ITEM_CATEGORY_ORDER.map((category) => ({ category, rows: category === "Unknown / unrevealed" ? unknownItemRows : coachItemRows.filter((row) => row.category === category) })).filter((group) => group.rows.length > 0);
+  const coachMoveRows = [...coachApps.filter((appearance) => appearance.moveDataRecorded).reduce((counts, appearance) => {
     Object.entries(appearance.movesUsed).forEach(([move, count]) => counts.set(move, (counts.get(move) ?? 0) + count));
     return counts;
   }, new Map<string, number>())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
@@ -961,7 +1078,7 @@ function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: Enti
   return (
     <section className="poke-card p-5 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 className="font-pixel text-sm text-white">Coach visual report</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Official records include completed results and forfeits. Damage, items, and battle length use only matches with supporting replay data.</p></div>
+        <div><h2 className="font-pixel text-sm text-white">Coach visual report</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Official records include completed results and forfeits. Replay-backed metrics describe what was saved in the selected matches; they are not a formal coaching grade.</p></div>
         <select value={active.id} onChange={(event) => setActiveCoachId(Number(event.target.value))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:w-auto">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name} · {officialRecords.get(row.id)?.games ?? 0} official matches</option>)}</select>
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
@@ -969,12 +1086,14 @@ function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: Enti
         <StatCard label="Official matches" value={number(officialCoachMatches.length)} detail={`${officialWins}-${officialCoachMatches.length - officialWins} record`} />
         <StatCard label="Official win rate" value={`${number(rate(officialWins, officialCoachMatches.length) * 100, 1)}%`} detail="Forfeits included when enabled" />
         <StatCard label="Team damage / match" value={formatCovered(coveredRate(active.damage, active.damageAppearances), 1, "%")} detail={`${active.damageAppearances} covered matches`} />
-        <StatCard label="Average battle length" value={formatCovered(averageBattleLength, 1, " turns")} detail={`${timelineMatches.length} covered matches`} />
+        <StatCard label="Average recorded battle length" value={formatCovered(averageBattleLength, 1, " turns")} detail={`${timelineMatches.length} of ${replayMatches.length} replay matches with turn data`} />
       </div>
+      <p className="mt-3 rounded-lg border border-cyan-400/20 bg-cyan-500/[0.05] px-3 py-2 text-[10px] leading-4 text-[var(--foreground-muted)]"><span className="font-bold text-cyan-200">How to read this report:</span> Official results include forfeits when enabled. Damage, item reveals, turns, switches, Tera, and move usage exclude appearances or matches where the underlying replay field was not saved. The battle-length number is the mean of recorded final turns (or the last saved HP snapshot), not an estimate for missing replays.</p>
       {replacementNotes.length ? <div className="mt-5 rounded-xl border border-amber-400/30 bg-amber-500/[0.07] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-xs font-black uppercase tracking-wide text-amber-100">Replacement history</h3><span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-amber-200">Season stint context</span></div><ul className="mt-3 space-y-2">{replacementNotes.map((note) => <li key={note.key} className="rounded-lg border border-amber-300/15 bg-slate-950/35 p-3"><strong className="text-[10px] uppercase tracking-wide text-amber-200">{note.label}</strong><p className="mt-1 text-xs leading-5 text-[var(--foreground-muted)]">{note.detail}</p></li>)}</ul><p className="mt-3 text-[10px] leading-4 text-amber-100/65">Personal coach statistics stay with the coach who played each match. Replacement links provide franchise and standings continuity without transferring the outgoing coach&apos;s personal results.</p></div> : null}
+      <CoachTendenciesPanel averageBattleLength={averageBattleLength} timelineCoverage={timelineMatches.length} replayCount={replayMatches.length} switchEvents={switchEvents} teraEvents={teraEvents} controlMatches={controlMatches.length} setupUses={active.setupMoves} setupCoverage={active.setupAppearances} itemRevealCount={itemRevealMatchIds.size} itemCoverage={itemDataMatchIds.size} favoritePokemon={usage[0]?.name ?? null} favoriteAppearances={usage[0]?.appearances ?? 0} />
       <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
          <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase text-white">Season-by-season franchise report</h3><p className="mt-1 text-[9px] leading-4 text-[var(--foreground-muted)]">The record is the official season result. Pokémon is the number of distinct Pokémon used. Damage/match and healing/match are replay-derived averages using only appearances where that field was saved. Setup counts recorded setup-move uses, not stat stages; — means there is no supporting replay coverage.</p><div className="mt-3 hidden overflow-x-auto sm:block"><table className="w-full min-w-[560px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Season</th><th>Official record</th><th>Pokémon used</th><th>Damage / match</th><th>Healing / match</th><th>Setup uses</th></tr></thead><tbody>{coachSeasonRows.map((row) => <tr key={row.seasonId} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.seasonName}</td><td>{row.wins}-{row.losses}</td><td>{row.pokemonUsed}</td><td>{formatCovered(coveredRate(row.stats?.damage ?? 0,row.stats?.damageAppearances ?? 0),1,"%")}</td><td>{formatCovered(coveredRate(row.stats?.healing ?? 0,row.stats?.healingAppearances ?? 0),1,"%")}</td><td>{row.stats?.setupAppearances ? row.stats.setupMoves : "—"}</td></tr>)}</tbody></table></div><div className="mt-3 grid gap-2 sm:hidden">{coachSeasonRows.map((row) => <div key={row.seasonId} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3"><div className="flex items-center justify-between gap-3"><strong className="text-xs text-white">{row.seasonName}</strong><span className="font-mono text-xs text-emerald-300">{row.wins}-{row.losses}</span></div><div className="mt-3 grid grid-cols-2 gap-3 text-center text-[10px]"><span>{row.pokemonUsed}<small className="block text-[8px] text-[var(--foreground-muted)]">Pokémon used</small></span><span>{formatCovered(coveredRate(row.stats?.damage ?? 0,row.stats?.damageAppearances ?? 0),1,"%") }<small className="block text-[8px] text-[var(--foreground-muted)]">Damage / match</small></span><span>{formatCovered(coveredRate(row.stats?.healing ?? 0,row.stats?.healingAppearances ?? 0),1,"%") }<small className="block text-[8px] text-[var(--foreground-muted)]">Healing / match</small></span><span>{row.stats?.setupAppearances ? row.stats.setupMoves : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">Setup uses</small></span></div></div>)}</div></div>
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase text-white">Held-item distribution</h3><div className="mt-3 flex flex-wrap gap-2">{[...coachItems].sort((a,b)=>b[1]-a[1]).slice(0,12).map(([item,count]) => <span key={item} className="rounded-full bg-amber-500/10 px-3 py-1.5 text-[10px] text-amber-100">{item} · {count}</span>)}</div></div>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase text-white">Held-item distribution</h3><p className="mt-1 text-[9px] leading-4 text-[var(--foreground-muted)]">Counted once per Pokémon appearance from saved item evidence. Colors are categories, not item rarity.</p>{coachItemGroups.length ? <div className="mt-3 grid gap-3 sm:grid-cols-2">{coachItemGroups.map((group) => <div key={group.category} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3"><div className={`mb-2 inline-flex rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide ${HELD_ITEM_CATEGORY_STYLES[group.category]}`}>{group.category}</div><div className="space-y-2">{group.rows.slice(0, 8).map((row) => <div key={row.item} className="flex items-start justify-between gap-2 text-[10px]"><span className="min-w-0 truncate font-bold text-white" title={row.item}>{row.item}</span><span className="shrink-0 font-mono text-[var(--foreground-muted)]">{row.count} <span className="text-[9px]">appearances</span></span>{row.inferred ? <span className="shrink-0 text-[8px] text-fuchsia-200">inferred {row.inferred}</span> : null}</div>)}</div></div>)}</div> : <p className="mt-3 text-xs text-[var(--foreground-muted)]">No item evidence is available in this scope.</p>}<div className="mt-3 border-t border-[var(--border)] pt-3 text-[9px] leading-4 text-[var(--foreground-muted)]"><div><span className="font-bold text-white">Coverage:</span> {itemDataAppearances}/{coachApps.length} appearances include item data · {unrevealedItemAppearances} recorded with no reveal · {unavailableItemAppearances} unavailable.</div><div className="mt-1"><span className="font-bold text-fuchsia-200">Mega Stones:</span> an “inferred” stone comes from a recorded Mega Evolution/team-roster check when the replay did not explicitly reveal the item. Conflicting evidence remains flagged for review.</div></div></div>
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div><h3 className="mb-3 text-xs font-black uppercase tracking-wide text-white">Pokémon usage frequency</h3><div className="space-y-2">{usage.map((row) => <div key={row.id} className="grid grid-cols-[100px_1fr_36px] items-center gap-2 text-[10px] sm:grid-cols-[150px_1fr_48px] sm:gap-3 sm:text-xs"><span className="truncate font-bold">{row.name}</span><div className="h-3 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full bg-[var(--primary)]" style={{ width: `${(row.appearances / usage[0].appearances) * 100}%` }} /></div><span className="text-right font-mono">{row.appearances}</span></div>)}</div></div>
@@ -987,11 +1106,35 @@ function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: Enti
   );
 }
 
-function CompareModule({ rows, compareA, compareB, setCompareA, setCompareB }: { rows: EntityAggregate[]; compareA: number | null; compareB: number | null; setCompareA: (id: number) => void; setCompareB: (id: number) => void }) {
+type CompareItemSummary = { rows: Array<{ item: string; category: HeldItemCategory; count: number; inferred: number }>; appearances: number; itemData: number; unknown: number };
+
+function CompareItemSummaryCard({ name, summary, accent }: { name: string; summary: CompareItemSummary; accent: "cyan" | "fuchsia" }) {
+  const accentClass = accent === "cyan" ? "border-cyan-400/25 bg-cyan-500/[0.04] text-cyan-200" : "border-fuchsia-400/25 bg-fuchsia-500/[0.04] text-fuchsia-200";
+  return <div className={`rounded-xl border p-4 ${accentClass}`}><h3 className="text-xs font-black uppercase tracking-wide">Common items · {name}</h3><p className="mt-1 text-[10px] leading-4 text-[var(--foreground-muted)]">Most frequent saved item evidence for this Pokémon. Counts are appearances, not assumptions about every unseen game.</p>{summary.rows.length ? <div className="mt-3 space-y-2">{summary.rows.map((row) => <div key={row.item} className="flex items-start justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--background)] p-2 text-[10px]"><span className="min-w-0 truncate font-bold text-white" title={row.item}>{row.item}<small className="ml-1 text-[8px] font-normal text-[var(--foreground-muted)]">{row.category}</small></span><span className="shrink-0 font-mono text-[var(--foreground-muted)]">{row.count} app.{row.inferred ? <small className="ml-1 text-fuchsia-200">({row.inferred} inferred)</small> : null}</span></div>)}</div> : <p className="mt-3 text-xs text-[var(--foreground-muted)]">No item reveals are available.</p>}<div className="mt-3 border-t border-[var(--border)] pt-2 text-[9px] text-[var(--foreground-muted)]">Coverage: {summary.itemData}/{summary.appearances} appearances with item data · {summary.unknown} recorded with no reveal.</div></div>;
+}
+
+function CompareModule({ rows, appearances, compareA, compareB, setCompareA, setCompareB }: { rows: EntityAggregate[]; appearances: EnrichedAppearance[]; compareA: number | null; compareB: number | null; setCompareA: (id: number) => void; setCompareB: (id: number) => void }) {
   const a = rows.find((row) => row.id === compareA) ?? rows[0];
   const b = rows.find((row) => row.id === compareB) ?? rows[1];
   if (!a || !b) return <EmptyState />;
   const selectorRows = [...rows].sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+  const commonItems = (pokemonId: number) => {
+    const pokemonAppearances = appearances.filter((appearance) => appearance.pokemonId === pokemonId);
+    const itemCounts = new Map<string, { item: string; category: HeldItemCategory; count: number; inferred: number }>();
+    pokemonAppearances.forEach((appearance) => distinctHeldItemReveals(appearance).forEach((reveal) => {
+      const item = reveal.item.trim();
+      const key = item.toLowerCase();
+      const current = itemCounts.get(key) ?? { item, category: classifyHeldItem(item), count: 0, inferred: 0 };
+      current.count += 1;
+      if (isAssumedItemReveal(reveal.source)) current.inferred += 1;
+      itemCounts.set(key, current);
+    }));
+    const itemData = pokemonAppearances.filter((appearance) => appearance.itemDataRecorded).length;
+    const unknown = pokemonAppearances.filter((appearance) => appearance.itemDataRecorded && distinctHeldItemReveals(appearance).length === 0).length;
+    return { rows: [...itemCounts.values()].sort((left, right) => right.count - left.count || left.item.localeCompare(right.item)).slice(0, 5), appearances: pokemonAppearances.length, itemData, unknown };
+  };
+  const aItems = commonItems(a.id);
+  const bItems = commonItems(b.id);
   const metrics = [
     { label: "Win rate", get: (row: EntityAggregate) => coveredRate(row.wins * 100, row.appearances), suffix: "%" },
     { label: "Damage / app", get: (row: EntityAggregate) => coveredRate(row.damage, row.damageAppearances), suffix: "%" },
@@ -1006,7 +1149,15 @@ function CompareModule({ rows, compareA, compareB, setCompareA, setCompareB }: {
     { label: "Item reveal rate", get: (row: EntityAggregate) => coveredRate(row.itemReveals * 100, row.itemDataAppearances), suffix: "%" },
     { label: "Unique moves", get: (row: EntityAggregate) => row.moveDataAppearances ? row.uniqueMoves : null, suffix: "" },
   ];
-  return <section className="poke-card p-5 md:p-6"><div className="mb-6"><h2 className="font-pixel text-sm text-white">Compare</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Side-by-side output under the same qualification and replay filters. Missing replay fields display as unknown.</p></div><div className="grid gap-3 sm:grid-cols-2"><select value={a.id} onChange={(event) => setCompareA(Number(event.target.value))} className="rounded-lg border-2 border-cyan-500/50 bg-[var(--background)] p-3 font-bold">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select><select value={b.id} onChange={(event) => setCompareB(Number(event.target.value))} className="rounded-lg border-2 border-fuchsia-500/50 bg-[var(--background)] p-3 font-bold">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div><div className="mt-6 space-y-4">{metrics.map((metric) => { const av = metric.get(a); const bv = metric.get(b); const max = Math.max(av ?? 0, bv ?? 0, 1); return <div key={metric.label}><div className="mb-1 flex justify-between gap-2 text-xs"><span className="font-mono text-cyan-400">{formatCovered(av, 1, metric.suffix)}</span><span className="text-center font-bold text-white">{metric.label}</span><span className="font-mono text-fuchsia-400">{formatCovered(bv, 1, metric.suffix)}</span></div><div className="grid grid-cols-2 gap-1"><div className="flex justify-end rounded-l-full bg-[var(--background-tertiary)]"><div className="h-3 rounded-l-full bg-cyan-500" style={{ width: `${((av ?? 0) / max) * 100}%` }} /></div><div className="rounded-r-full bg-[var(--background-tertiary)]"><div className="h-3 rounded-r-full bg-fuchsia-500" style={{ width: `${((bv ?? 0) / max) * 100}%` }} /></div></div></div>; })}</div></section>;
+  return (
+    <section className="poke-card p-5 md:p-6">
+      <div className="mb-6"><h2 className="font-pixel text-sm text-white">Compare</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Side-by-side output under the same qualification and replay filters. Missing replay fields display as unknown.</p></div>
+      <div className="grid gap-3 sm:grid-cols-2"><select value={a.id} onChange={(event) => setCompareA(Number(event.target.value))} className="rounded-lg border-2 border-cyan-500/50 bg-[var(--background)] p-3 font-bold">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select><select value={b.id} onChange={(event) => setCompareB(Number(event.target.value))} className="rounded-lg border-2 border-fuchsia-500/50 bg-[var(--background)] p-3 font-bold">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-2"><CompareItemSummaryCard name={a.name} summary={aItems} accent="cyan" /><CompareItemSummaryCard name={b.name} summary={bItems} accent="fuchsia" /></div>
+      <div className="mt-5 rounded-xl border border-amber-400/25 bg-amber-500/[0.05] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-xs font-black uppercase tracking-wide text-amber-100">How to read Favorable Events</h3><Link href="/experimental-stats/glossary#metric-favorable-event-rate" className="text-[9px] font-black uppercase tracking-wide text-amber-200 underline underline-offset-4">Metric definition</Link></div><p className="mt-2 text-[10px] leading-4 text-[var(--foreground-muted)]">Favorable Events are explicitly recorded crits, misses, flinches, opponent-applied secondary effects (status or stat drops), and logged turns blocked by sleep, freeze, or full paralysis. The comparison shows events per appearance with saved event data; missing event fields are unknown, not zero. Expanded event coverage starts in Season 11 Week 6; Seasons 5–10 and Season 11 Weeks 1–5 retain the legacy format.</p></div>
+      <div className="mt-6 space-y-4">{metrics.map((metric) => { const av = metric.get(a); const bv = metric.get(b); const max = Math.max(av ?? 0, bv ?? 0, 1); return <div key={metric.label}><div className="mb-1 flex justify-between gap-2 text-xs"><span className="font-mono text-cyan-400">{formatCovered(av, 1, metric.suffix)}</span><span className="text-center font-bold text-white">{metric.label}</span><span className="font-mono text-fuchsia-400">{formatCovered(bv, 1, metric.suffix)}</span></div><div className="grid grid-cols-2 gap-1"><div className="flex justify-end rounded-l-full bg-[var(--background-tertiary)]"><div className="h-3 rounded-l-full bg-cyan-500" style={{ width: `${((av ?? 0) / max) * 100}%` }} /></div><div className="rounded-r-full bg-[var(--background-tertiary)]"><div className="h-3 rounded-r-full bg-fuchsia-500" style={{ width: `${((bv ?? 0) / max) * 100}%` }} /></div></div></div>; })}</div>
+    </section>
+  );
 }
 
 export function RollingModule({ pokemon, appearances, rows, onSelect }: { pokemon: EntityAggregate | null; appearances: EnrichedAppearance[]; rows: EntityAggregate[]; onSelect: (id: number) => void }) {
@@ -1047,28 +1198,38 @@ export function LeaderboardModule({ rows, entity, setEntity, perAppearance, setP
   );
 }
 
+type ReplaySearchScope = "pokemon" | "team" | "coach" | "all";
+
 function ReplaySearchModule({ matches }: { matches: ExperimentalMatch[] }) {
   const [minimumDamage, setMinimumDamage] = useState(0);
   const [minimumKills, setMinimumKills] = useState(0);
   const [survivedOnly, setSurvivedOnly] = useState(false);
   const [finderSearch, setFinderSearch] = useState("");
+  const [searchScope, setSearchScope] = useState<ReplaySearchScope>("pokemon");
   const results = matches.flatMap((match) => match.pokemon.flatMap((appearance) => {
     const owner = appearance.seasonCoachId === match.coach1.seasonCoachId ? match.coach1 : appearance.seasonCoachId === match.coach2.seasonCoachId ? match.coach2 : null;
     if (!owner) return [];
     const opponent = owner.seasonCoachId === match.coach1.seasonCoachId ? match.coach2 : match.coach1;
-    const haystack = `${appearance.pokemonName} ${owner.coachName} ${owner.teamName} ${opponent.teamName}`.toLowerCase();
-    if (finderSearch && !haystack.includes(finderSearch.toLowerCase())) return [];
+    const searchFields = {
+      pokemon: appearance.pokemonName,
+      team: `${owner.teamName} ${opponent.teamName}`,
+      coach: `${owner.coachName} ${opponent.coachName}`,
+      all: `${appearance.pokemonName} ${owner.coachName} ${opponent.coachName} ${owner.teamName} ${opponent.teamName}`,
+    } satisfies Record<ReplaySearchScope, string>;
+    const searchText = finderSearch.trim().toLowerCase();
+    if (searchText && !searchFields[searchScope].toLowerCase().includes(searchText)) return [];
     if (minimumDamage > 0 && (!hasDamageData(appearance) || totalDamage(appearance) < minimumDamage)) return [];
     if (appearance.kills < minimumKills) return [];
     if (survivedOnly && appearance.deaths !== 0) return [];
     return [{ match, appearance, owner, opponent }];
   }));
-  return <section className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Replay Finder</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Combine these appearance conditions with the shared season, stage, Pokémon, move, item, coach, and result filters above.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Search</span><input value={finderSearch} onChange={(event) => setFinderSearch(event.target.value)} placeholder="Pokémon, coach, team…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Minimum damage</span><input type="number" min={0} value={minimumDamage} onChange={(event) => setMinimumDamage(Math.max(0, Number(event.target.value) || 0))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Minimum kills</span><input type="number" min={0} value={minimumKills} onChange={(event) => setMinimumKills(Math.max(0, Number(event.target.value) || 0))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="flex items-end gap-2 pb-2 text-xs font-bold"><input type="checkbox" checked={survivedOnly} onChange={(event) => setSurvivedOnly(event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Survived the battle</label></div><div className="mt-4 text-[10px] font-bold text-[var(--foreground-muted)]">{results.length} matching appearances</div><div className="mt-3 space-y-2">{results.slice(0, 150).map(({ match, appearance, owner, opponent }) => <div key={`${match.id}-${appearance.seasonCoachId}-${appearance.pokemonId}`} className="grid gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><Link href={matchHref(match)} className="font-bold text-white hover:text-[var(--primary)]">{appearance.pokemonName} · {owner.teamName} vs {opponent.teamName}</Link>{match.needsReview ? <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black uppercase text-amber-200" title={match.reviewNotes ?? "This match needs review"}>Review</span> : null}</div><div className="mt-1 text-[10px] text-[var(--foreground-muted)]">{match.seasonName} · {match.divisionName} · Week {match.week} · {match.week > 100 ? "Playoffs" : "Regular season"}</div></div><div className="flex gap-3 text-xs"><span>{appearance.kills}-{appearance.deaths} K–D</span><span>{hasDamageData(appearance) ? `${number(totalDamage(appearance))}% damage` : "Damage unknown"}</span><span>{appearance.hpRestored !== null ? `${number(appearance.hpRestored)}% healed` : "Healing unknown"}</span></div><Link href={match.isDemo ? "/experimental-stats?demo=1" : match.replayUrl} target={match.isDemo ? undefined : "_blank"} className="btn-retro-secondary px-3 py-2 text-center text-[9px]">{match.isDemo ? "Demo" : "Replay"}</Link></div>)}{!results.length ? <EmptyState /> : null}</div></section>;
+  const resultMatchCount = new Set(results.map(({ match }) => match.id)).size;
+  return <section className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Replay Finder</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Search saved Pokémon appearances within the shared season, stage, Pokémon, move, item, coach, and result filters above. Search defaults to Pokémon; switch scope when you want to find a team, coach, or any text.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Search scope</span><select value={searchScope} onChange={(event) => setSearchScope(event.target.value as ReplaySearchScope)} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs"><option value="pokemon">Pokémon (default)</option><option value="team">Team</option><option value="coach">Coach</option><option value="all">All fields</option></select><span className="block text-[8px] leading-3 text-[var(--foreground-subtle)]">Choose what the search text matches.</span></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Search text</span><input value={finderSearch} onChange={(event) => setFinderSearch(event.target.value)} placeholder={searchScope === "pokemon" ? "Search Pokémon…" : searchScope === "team" ? "Search team…" : searchScope === "coach" ? "Search coach…" : "Search Pokémon, team, or coach…"} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Minimum damage</span><input type="number" min={0} value={minimumDamage} onChange={(event) => setMinimumDamage(Math.max(0, Number(event.target.value) || 0))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /><span className="block text-[8px] leading-3 text-[var(--foreground-subtle)]">Total damage by that Pokémon.</span></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Minimum Pokémon KOs</span><input type="number" min={0} max={6} value={minimumKills} onChange={(event) => setMinimumKills(Math.min(6, Math.max(0, Number(event.target.value) || 0)))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /><span className="block text-[8px] leading-3 text-[var(--foreground-subtle)]">KOs by one Pokémon; 0–6 in standard 6v6.</span></label><label className="flex items-end gap-2 pb-2 text-xs font-bold"><input type="checkbox" checked={survivedOnly} onChange={(event) => setSurvivedOnly(event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Survived the battle</label></div><div className="mt-4 text-[10px] font-bold text-[var(--foreground-muted)]">{results.length ? `${results.length} matching Pokémon appearances across ${resultMatchCount} matches.` : "No matching Pokémon appearances."}</div><p className="mt-1 text-[9px] leading-4 text-[var(--foreground-subtle)]">Each result row represents one Pokémon appearance in one replay, so a team search can show up to 12 rows per match. Use the replay link on any row to inspect the full battle.</p><div className="mt-3 space-y-2">{results.slice(0, 150).map(({ match, appearance, owner, opponent }) => <div key={`${match.id}-${appearance.seasonCoachId}-${appearance.pokemonId}`} className="grid gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><Link href={matchHref(match)} className="font-bold text-white hover:text-[var(--primary)]">{appearance.pokemonName} · {owner.teamName} vs {opponent.teamName}</Link>{match.needsReview ? <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black uppercase text-amber-200" title={match.reviewNotes ?? "This match needs review"}>Review</span> : null}</div><div className="mt-1 text-[10px] text-[var(--foreground-muted)]">{match.seasonName} · {match.divisionName} · Week {match.week} · {match.week > 100 ? "Playoffs" : "Regular season"}</div></div><div className="flex gap-3 text-xs"><span>{appearance.kills}-{appearance.deaths} K–D</span><span>{hasDamageData(appearance) ? `${number(totalDamage(appearance))}% damage` : "Damage unknown"}</span><span>{appearance.hpRestored !== null ? `${number(appearance.hpRestored)}% healed` : "Healing unknown"}</span></div><Link href={match.isDemo ? "/experimental-stats?demo=1" : match.replayUrl} target={match.isDemo ? undefined : "_blank"} className="btn-retro-secondary px-3 py-2 text-center text-[9px]">{match.isDemo ? "Demo" : "Replay"}</Link></div>)}{!results.length ? <EmptyState /> : null}</div></section>;
 }
 
 function MatchPokemonBoxScore({ match }: { match: ExperimentalMatch }) {
   const teams = [match.coach1, match.coach2];
-  return <div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Pokémon box score</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Compact saved replay summary; dashes indicate fields that were not recorded.</p><div className="mt-5 grid gap-5 xl:grid-cols-2">{teams.map((team) => <div key={team.seasonCoachId} className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)]"><div className="border-b border-[var(--border)] p-3"><strong className="text-sm text-white">{team.teamName}</strong><span className={`ml-2 text-[10px] font-black ${match.winnerId === team.seasonCoachId ? "text-emerald-400" : "text-red-400"}`}>{match.winnerId === team.seasonCoachId ? "WIN" : "LOSS"}</span></div><div className="divide-y divide-[var(--border)]">{match.pokemon.filter((appearance) => appearance.seasonCoachId === team.seasonCoachId).map((appearance) => <div key={appearance.pokemonId} className="p-3"><div className="flex flex-wrap items-center gap-3">{appearance.spriteUrl ? <Image src={appearance.spriteUrl} alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" /> : null}<div className="min-w-0 flex-1"><div className="font-bold text-white">{appearance.pokemonName}</div><div className="mt-1 truncate text-[9px] text-[var(--foreground-muted)]">{appearance.moveDataRecorded ? Object.keys(appearance.movesUsed).join(", ") || "No moves recorded" : "Moves unknown"}</div></div><div className="grid w-full grid-cols-4 gap-2 text-center text-[10px] sm:w-auto sm:gap-3"><span>{appearance.kills}-{appearance.deaths}<small className="block text-[8px] text-[var(--foreground-muted)]">K–D</small></span><span>{hasDamageData(appearance) ? `${number(totalDamage(appearance))}%` : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">DMG</small></span><span>{appearance.hpRestored !== null ? `${number(appearance.hpRestored)}%` : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">HEAL</small></span><span>{appearance.turnsActive ?? "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">TURNS</small></span></div></div><div className="mt-2 break-words text-[9px] text-amber-200">{distinctHeldItemReveals(appearance).map((item) => item.item).join(", ") || (appearance.itemDataRecorded ? "Item unrevealed" : "Item data unavailable")}</div></div>)}</div></div>)}</div></div>;
+  return <div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Pokémon box score</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Compact saved replay summary; dashes indicate fields that were not recorded. <span className="text-emerald-300">Green KOs</span>, <span className="text-red-300">red deaths</span>, <span className="text-cyan-300">cyan damage</span>, <span className="text-emerald-300">green healing</span>, <span className="text-violet-300">violet turns</span>, and <span className="text-amber-200">amber item evidence</span>.</p><div className="mt-5 grid gap-5 xl:grid-cols-2">{teams.map((team) => <div key={team.seasonCoachId} className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)]"><div className="border-b border-[var(--border)] p-3"><strong className="text-sm text-white">{team.teamName}</strong><span className={`ml-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${match.winnerId === team.seasonCoachId ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-300" : "border-red-400/35 bg-red-400/10 text-red-300"}`}>{match.winnerId === team.seasonCoachId ? "WIN" : "LOSS"}</span></div><div className="divide-y divide-[var(--border)]">{match.pokemon.filter((appearance) => appearance.seasonCoachId === team.seasonCoachId).map((appearance) => <div key={appearance.pokemonId} className="p-3"><div className="flex flex-wrap items-center gap-3">{appearance.spriteUrl ? <Image src={appearance.spriteUrl} alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" /> : null}<div className="min-w-0 flex-1"><div className="font-bold text-white">{appearance.pokemonName}</div><div className="mt-1 truncate text-[9px] text-[var(--foreground-muted)]">{appearance.moveDataRecorded ? Object.keys(appearance.movesUsed).join(", ") || "No moves recorded" : "Moves unknown"}</div></div><div className="grid w-full grid-cols-4 gap-2 text-center text-[10px] sm:w-auto sm:gap-3"><span className="font-mono"><span className="font-black text-emerald-300">{appearance.kills}</span><span className="text-[var(--foreground-subtle)]">-</span><span className="font-black text-red-300">{appearance.deaths}</span><small className="block text-[8px] text-[var(--foreground-muted)]">K–D</small></span><span className={hasDamageData(appearance) ? "font-mono font-black text-cyan-300" : "font-mono font-black text-[var(--foreground-subtle)]"}>{hasDamageData(appearance) ? `${number(totalDamage(appearance))}%` : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">DMG</small></span><span className={appearance.hpRestored !== null ? "font-mono font-black text-emerald-300" : "font-mono font-black text-[var(--foreground-subtle)]"}>{appearance.hpRestored !== null ? `${number(appearance.hpRestored)}%` : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">HEAL</small></span><span className={appearance.turnsActive !== null ? "font-mono font-black text-violet-300" : "font-mono font-black text-[var(--foreground-subtle)]"}>{appearance.turnsActive ?? "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">TURNS</small></span></div></div><div className="mt-2 break-words text-[9px] text-amber-200"><span className="font-black uppercase tracking-wide text-amber-300">Item evidence:</span> {distinctHeldItemReveals(appearance).map((item) => item.item).join(", ") || (appearance.itemDataRecorded ? "Item unrevealed" : "Item data unavailable")}</div></div>)}</div></div>)}</div></div>;
 }
 
 function BattleVisualizer({ matches, selectedId, onSelect }: { matches: ExperimentalMatch[]; selectedId: number | null; onSelect: (id: number) => void }) {
@@ -1126,7 +1287,7 @@ function ExpandedRollingModule({ pokemon, appearances, rows, onSelect }: { pokem
     { metric: "Setup moves", previous: average(previous, (a) => a.setupMovesUsed ?? 0, (a) => a.setupMovesUsed !== null), latest: average(latest, (a) => a.setupMovesUsed ?? 0, (a) => a.setupMovesUsed !== null) },
     { metric: "Favorable events", previous: average(previous, sumFavorable), latest: average(latest, sumFavorable) },
   ];
-  return <section className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Rolling trends</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Compare configurable recent windows. Every row shows its recorded-data basis.</p></div><div className="flex w-full flex-wrap gap-2 sm:w-auto"><select value={windowSize} onChange={(event) => setWindowSize(Number(event.target.value) as 3 | 5 | 10)} className="min-w-0 flex-1 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:flex-none"><option value={3}>3-game window</option><option value={5}>5-game window</option><option value={10}>10-game window</option></select><select value={pokemon.id} onChange={(event) => onSelect(Number(event.target.value))} className="min-w-0 flex-1 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:min-w-48 sm:flex-none">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div></div>{chronological.length < windowSize * 2 ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">Only {chronological.length} appearances are available; a complete comparison needs {windowSize * 2}.</div> : null}<div className="mt-6 h-80 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><ResponsiveContainer width="100%" height="100%"><BarChart data={trendRows} layout="vertical" margin={{ left: 40, right: 12, bottom: 28 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis type="number" stroke="var(--foreground-muted)" tick={{ fontSize: 10 }} label={{ value: "Metric value", position: "insideBottom", offset: -18, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis type="category" dataKey="metric" width={120} stroke="var(--foreground-muted)" tick={{ fontSize: 9 }} label={{ value: "Metric", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="previous" name={`Previous ${windowSize}`} fill="#64748b" radius={[0, 4, 4, 0]} /><Bar dataKey="latest" name={`Latest ${windowSize}`} fill="#8b5cf6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div><div className="mobile-scroll-region mt-4 overflow-x-auto rounded-xl border border-[var(--border)]" tabIndex={0} aria-label="Rolling trend comparison table"><table className="w-full min-w-[600px] text-xs"><thead className="bg-[var(--background)] text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Metric</th><th>Previous</th><th>Latest</th><th>Change</th><th>Direction</th></tr></thead><tbody>{trendRows.map((row) => { const change = row.latest !== null && row.previous !== null ? row.latest - row.previous : null; return <tr key={row.metric} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left font-bold text-white">{row.metric}</td><td>{formatCovered(row.previous, 2)}</td><td>{formatCovered(row.latest, 2)}</td><td className={change !== null && change > 0 ? "text-emerald-400" : change !== null && change < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}>{change === null ? "—" : `${change > 0 ? "+" : ""}${number(change, 2)}`}</td><td>{change === null ? "Unknown" : change > 0 ? "Up" : change < 0 ? "Down" : "Flat"}</td></tr>; })}</tbody></table></div></section>;
+  return <section className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Rolling trends</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Compare configurable recent windows. Every row shows its recorded-data basis.</p></div><div className="flex w-full flex-wrap gap-2 sm:w-auto"><select value={windowSize} onChange={(event) => setWindowSize(Number(event.target.value) as 3 | 5 | 10)} className="min-w-0 flex-1 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:flex-none"><option value={3}>3-game window</option><option value={5}>5-game window</option><option value={10}>10-game window</option></select><select value={pokemon.id} onChange={(event) => onSelect(Number(event.target.value))} className="min-w-0 flex-1 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:min-w-48 sm:flex-none">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div></div>{chronological.length < windowSize * 2 ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">Only {chronological.length} appearances are available; a complete comparison needs {windowSize * 2}.</div> : null}<div className="mt-6 h-80 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><ResponsiveContainer width="100%" height="100%"><BarChart data={trendRows} layout="vertical" margin={{ left: 48, right: 16, top: 8, bottom: 36 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis type="number" stroke="var(--foreground)" tick={{ fill: "var(--foreground)", fontSize: 11, fontWeight: 700 }} label={{ value: "Metric value", position: "insideBottom", offset: -22, fill: "var(--foreground)", fontSize: 11, fontWeight: 700 }} /><YAxis type="category" dataKey="metric" width={152} stroke="var(--foreground)" tick={{ fill: "var(--foreground)", fontSize: 11, fontWeight: 700 }} label={{ value: "Metric", angle: -90, position: "insideLeft", fill: "var(--foreground)", fontSize: 11, fontWeight: 700 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="previous" name={`Previous ${windowSize}`} fill="#64748b" radius={[0, 4, 4, 0]} /><Bar dataKey="latest" name={`Latest ${windowSize}`} fill="#8b5cf6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div><div className="mobile-scroll-region mt-4 overflow-x-auto rounded-xl border border-[var(--border)]" tabIndex={0} aria-label="Rolling trend comparison table"><table className="w-full min-w-[600px] text-xs"><thead className="bg-[var(--background)] text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Metric</th><th>Previous</th><th>Latest</th><th>Change</th><th>Direction</th></tr></thead><tbody>{trendRows.map((row) => { const change = row.latest !== null && row.previous !== null ? row.latest - row.previous : null; return <tr key={row.metric} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left font-bold text-white">{row.metric}</td><td>{formatCovered(row.previous, 2)}</td><td>{formatCovered(row.latest, 2)}</td><td className={change !== null && change > 0 ? "text-emerald-400" : change !== null && change < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}>{change === null ? "—" : `${change > 0 ? "+" : ""}${number(change, 2)}`}</td><td>{change === null ? "Unknown" : change > 0 ? "Up" : change < 0 ? "Down" : "Flat"}</td></tr>; })}</tbody></table></div></section>;
 }
 
 type LeaderboardPreset = "damage" | "kd" | "survival" | "playoffs" | "comeback" | "moves" | "koDifferential" | "koDifferentialPerGame" | "moveUsage";
@@ -1181,7 +1342,7 @@ function PresetLeaderboardModule({ rows, entity, setEntity, perAppearance, setPe
   const sorted = [...sortableRows].sort((a, b) => (valueFor(b) ?? -Infinity) - (valueFor(a) ?? -Infinity));
   const sampleLabel = entity === "pokemon" ? "Appearances" : "Games";
   const exportRows = [[entity === "pokemon" ? "Pokemon" : "Coach", sampleLabel, "Wins", labels[preset], "Coverage"], ...sorted.map((row) => [row.name, row.appearances, row.wins, valueFor(row) ?? "", preset === "damage" || preset === "playoffs" ? row.damageAppearances : preset === "moveUsage" ? row.moveDataAppearances : row.appearances])];
-  return <section className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Preset leaderboards</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Ready-made rankings for common questions, with the current report filters applied.</p></div><div className="flex flex-wrap gap-2"><select value={entity} onChange={(event) => setEntity(event.target.value as "pokemon" | "coach")} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold"><option value="pokemon">Pokémon</option><option value="coach">Coaches</option></select><select value={preset} onChange={(event) => setPreset(event.target.value as keyof typeof presetDefinitions)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{Object.entries(presetDefinitions).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}</select>{(preset === "damage" || preset === "playoffs") ? <button type="button" onClick={() => setPerAppearance(!perAppearance)} className="btn-retro-secondary px-3 py-2 text-[9px]">{perAppearance ? "Per appearance" : "Totals"}</button> : null}<button type="button" onClick={() => downloadCsv(`pbo-${preset}-leaderboard.csv`, exportRows)} className="btn-retro-primary px-3 py-2 text-[9px]">CSV</button></div></div><div className="mt-3 text-[10px] text-[var(--foreground-muted)]"><strong className="text-white">{presetDefinitions[preset].label}:</strong> {presetDefinitions[preset].description} {preset === "comeback" && entity === "pokemon" ? "Choose Coaches to rank this preset." : ""}</div><div className="mt-5 overflow-x-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[650px] text-xs"><thead className="bg-[var(--background)] text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Rank</th><th className="text-left">{entity === "pokemon" ? "Pokémon" : "Coach"}</th><th>{sampleLabel}</th><th>Wins</th><th>{labels[preset]}</th><th>Coverage</th></tr></thead><tbody>{sorted.slice(0, 200).map((row, index) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left font-mono text-[var(--foreground-muted)]">{index + 1}</td><td className="text-left font-bold text-white">{row.name}</td><td>{row.appearances}</td><td>{row.wins}</td><td className="font-mono text-violet-300">{valueFor(row) === null ? "—" : `${number(valueFor(row) ?? 0, 1)}${suffixes[preset]}`}</td><td>{preset === "damage" || preset === "playoffs" ? row.damageAppearances : preset === "moveUsage" ? row.moveDataAppearances : row.appearances}</td></tr>)}</tbody></table></div></section>;
+  return <section className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Preset leaderboards</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Ready-made rankings for common questions, with the current report filters applied.</p></div><div className="flex flex-wrap gap-2"><select value={entity} onChange={(event) => setEntity(event.target.value as "pokemon" | "coach")} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold"><option value="pokemon">Pokémon</option><option value="coach">Coaches</option></select><select value={preset} onChange={(event) => setPreset(event.target.value as keyof typeof presetDefinitions)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{Object.entries(presetDefinitions).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}</select>{(preset === "damage" || preset === "playoffs") ? <button type="button" onClick={() => setPerAppearance(!perAppearance)} className="btn-retro-secondary px-3 py-2 text-[9px]">{perAppearance ? "Per appearance" : "Totals"}</button> : null}<button type="button" onClick={() => downloadCsv(`pbo-${preset}-leaderboard.csv`, exportRows)} className="btn-retro-primary px-3 py-2 text-[9px]">CSV</button></div></div><div className="mt-3 text-[10px] text-[var(--foreground-muted)]"><strong className="text-white">{presetDefinitions[preset].label}:</strong> {presetDefinitions[preset].description} {preset === "comeback" && entity === "pokemon" ? "Choose Coaches to rank this preset." : ""}</div><div className="mt-4 rounded-lg border border-cyan-400/20 bg-cyan-400/[0.06] p-3 text-[10px] leading-4 text-[var(--foreground-muted)]"><strong className="text-cyan-100">Qualification:</strong> {entity === "pokemon" ? "Pokémon" : "Coaches"} need {minimumAppearances}+ {sampleLabel.toLowerCase()} in the active scope to appear in this ranking. Lower-volume appearances remain available in <Link href="/experimental-stats/replays" className="font-bold text-cyan-300 underline underline-offset-2">Replay Search</Link>.</div><div className="mt-5 overflow-x-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[650px] text-xs"><thead className="bg-[var(--background)] text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Rank</th><th className="text-left">{entity === "pokemon" ? "Pokémon" : "Coach"}</th><th>{sampleLabel}</th><th>Wins</th><th>{labels[preset]}</th><th>Coverage</th></tr></thead><tbody>{sorted.slice(0, 200).map((row, index) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left font-mono text-[var(--foreground-muted)]">{index + 1}</td><td className="text-left font-bold text-white">{row.name}</td><td>{row.appearances}</td><td>{row.wins}</td><td className="font-mono text-violet-300">{valueFor(row) === null ? "—" : `${number(valueFor(row) ?? 0, 1)}${suffixes[preset]}`}</td><td>{preset === "damage" || preset === "playoffs" ? row.damageAppearances : preset === "moveUsage" ? row.moveDataAppearances : row.appearances}</td></tr>)}</tbody></table></div></section>;
 }
 
 // Kept for the legacy custom leaderboard implementation during the module transition.
@@ -1254,13 +1415,19 @@ const glossaryReports: Record<string, string> = {
   "Team and top-play reports": "team-stats",
 };
 
-function GlossaryModule({ search, setSearch }: { search: string; setSearch: (value: string) => void }) {
+type GlossaryModuleProps = { search: string; setSearch: (value: string) => void };
+
+function GlossaryModuleLegacy({ search, setSearch }: GlossaryModuleProps) {
   const query = search.trim().toLowerCase();
   const groups = experimentalMetricGroups.map((group) => ({ ...group, metrics: group.metrics.filter((metric) => !query || metric.name.toLowerCase().includes(query) || metric.definition.toLowerCase().includes(query)) })).filter((group) => group.metrics.length);
   const visuals = experimentalVisualDefinitions.filter((visual) => !query || `${visual.name} ${visual.description}`.toLowerCase().includes(query));
   const counts = experimentalMetricGroups.flatMap((group) => group.metrics).reduce((result, metric) => ({ ...result, [metric.availability]: result[metric.availability] + 1 }), { available: 0, partial: 0, "event-storage": 0 });
   const badge = (availability: "available" | "partial" | "event-storage") => availability === "available" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : availability === "partial" ? "bg-amber-500/10 text-amber-200 border-amber-500/30" : "bg-slate-500/10 text-slate-300 border-slate-500/30";
-  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Metric glossary and coverage</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">“Available” has a report calculated from saved replay evidence. “Partial” uses a narrower saved proxy. “Protocol report pending” means normalized events may support it, but the calculation or backfill coverage has not yet been validated for an official report.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><StatCard label="Available" value={String(counts.available)} /><StatCard label="Partial" value={String(counts.partial)} /><StatCard label="Protocol reports pending" value={String(counts["event-storage"])} /></div><div className="relative mt-5"><Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--foreground-muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search metrics and visuals" placeholder="Search metrics and visuals…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] py-2 pl-10 pr-3 text-sm outline-none focus:border-[var(--primary)]" /></div></div>{!groups.length && !visuals.length ? <div role="status" className="poke-card p-5 text-sm">No metrics or visuals match “{search}”. <button type="button" onClick={() => setSearch("")} className="text-cyan-300 underline">Clear search</button></div> : null}{groups.map((group) => <div key={group.label} className="poke-card p-5"><h3 className="font-pixel text-xs text-white">{group.label}</h3><div className="mt-4 grid gap-2">{group.metrics.map((metric) => <div key={metric.name} id={glossaryId(metric.name)} className="scroll-mt-24 grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 md:grid-cols-[minmax(190px,0.8fr)_auto_minmax(260px,1.2fr)] md:items-center"><span className="text-xs font-bold text-white">{metric.name}</span><span className={`w-fit rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide ${badge(metric.availability)}`}>{metric.availability === "event-storage" ? "Protocol report pending" : metric.availability}</span><span className="text-[10px] leading-4 text-[var(--foreground-muted)]">{metric.definition}{metric.availability !== "event-storage" && glossaryReports[group.label] ? <Link href={`/experimental-stats/${metric.name === "Largest comeback deficit" || metric.name === "Longest active Pokemon appearance" ? "top-plays" : glossaryReports[group.label]}`} className="mt-2 block text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</span></div>)}</div></div>)}<div className="poke-card p-5"><h3 className="font-pixel text-xs text-white">Niche visuals</h3>{!visuals.length ? <p className="mt-3 text-xs text-[var(--foreground-muted)]">No visuals match this search.</p> : null}<div className="mt-4 grid gap-3 md:grid-cols-2">{visuals.map((visual) => <div key={visual.name} className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex items-center justify-between gap-2"><strong className="text-sm text-white">{visual.name}</strong><span className={`rounded-full border px-2 py-1 text-[8px] font-black uppercase ${badge(visual.availability)}`}>{visual.availability === "event-storage" ? "Protocol report pending" : visual.availability}</span></div><p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">{visual.description}</p>{visual.availability !== "event-storage" ? <Link href={`/experimental-stats/${visual.name === "Rare Event Explorer" ? "rare-events" : ["Item reveal timeline", "Battle event timeline"].includes(visual.name) ? "battle-visualizer" : visual.name === "Status dashboard" ? "pokemon" : "visuals"}`} className="mt-3 inline-block text-xs text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</div>)}</div></div></section>;
+  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Metric glossary and coverage</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">“Available” has a report calculated from saved replay evidence. “Partial” uses a narrower saved proxy. “Protocol report pending” means normalized events may support it, but the calculation or backfill coverage has not yet been validated for an official report.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><StatCard label="Available" value={String(counts.available)} /><StatCard label="Partial" value={String(counts.partial)} /><StatCard label="Protocol reports pending" value={String(counts["event-storage"])} /></div><div className="relative mt-5"><Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--foreground-muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search metrics and visuals" placeholder="Search metrics and visuals…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] py-2 pl-10 pr-3 text-sm outline-none focus:border-[var(--primary)]" /></div></div>{!groups.length && !visuals.length ? <div role="status" className="poke-card p-5 text-sm">No metrics or visuals match “{search}”. <button type="button" onClick={() => setSearch("")} className="text-cyan-300 underline">Clear search</button></div> : null}{groups.map((group) => <div key={group.label} data-glossary-group={group.label} className="poke-card p-5"><h3 className="font-pixel text-xs text-white">{group.label}</h3><div className="mt-4 grid gap-2">{group.metrics.map((metric) => <div key={metric.name} id={glossaryId(metric.name)} className="scroll-mt-24 grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 md:grid-cols-[minmax(190px,0.8fr)_auto_minmax(260px,1.2fr)] md:items-center"><span className="text-xs font-bold text-white">{metric.name}</span><span className={`w-fit rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide ${badge(metric.availability)}`}>{metric.availability === "event-storage" ? "Protocol report pending" : metric.availability}</span><span className="text-[10px] leading-4 text-[var(--foreground-muted)]">{metric.definition}{metric.availability !== "event-storage" && glossaryReports[group.label] ? <Link href={`/experimental-stats/${metric.name === "Largest comeback deficit" || metric.name === "Longest active Pokemon appearance" ? "top-plays" : glossaryReports[group.label]}`} className="mt-2 block text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</span></div>)}</div></div>)}<div className="poke-card p-5"><h3 className="font-pixel text-xs text-white">Niche visuals</h3>{!visuals.length ? <p className="mt-3 text-xs text-[var(--foreground-muted)]">No visuals match this search.</p> : null}<div className="mt-4 grid gap-3 md:grid-cols-2">{visuals.map((visual) => <div key={visual.name} className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex items-center justify-between gap-2"><strong className="text-sm text-white">{visual.name}</strong><span className={`rounded-full border px-2 py-1 text-[8px] font-black uppercase ${badge(visual.availability)}`}>{visual.availability === "event-storage" ? "Protocol report pending" : visual.availability}</span></div><p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">{visual.description}</p>{visual.availability !== "event-storage" ? <Link href={`/experimental-stats/${visual.name === "Rare Event Explorer" ? "rare-events" : ["Item reveal timeline", "Battle event timeline"].includes(visual.name) ? "battle-visualizer" : visual.name === "Status dashboard" ? "pokemon" : "visuals"}`} className="mt-3 inline-block text-xs text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</div>)}</div></div></section>;
+}
+
+function GlossaryModule(props: GlossaryModuleProps) {
+  return <div className="experimental-glossary-surface"><GlossaryModuleLegacy {...props} /></div>;
 }
 
 function EmptyState() {
