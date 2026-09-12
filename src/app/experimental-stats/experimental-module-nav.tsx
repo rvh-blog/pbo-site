@@ -39,7 +39,7 @@ export function ExperimentalModuleNav({ active }: { active: ExperimentalModuleSl
         <select
           value={active}
           onChange={(event) => router.push(hrefFor(event.target.value as ExperimentalModuleSlug))}
-          className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-3 text-sm font-black text-white outline-none focus:border-[var(--primary)]"
+          className="w-full min-w-0 touch-manipulation rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-3 text-sm font-black text-white outline-none focus:border-[var(--primary)]"
         >
           {experimentalModuleLinks.map((item) => <option key={item.slug} value={item.slug}>{item.label}</option>)}
         </select>
