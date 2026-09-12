@@ -84,7 +84,7 @@ export function HpChart({ turnSnapshots, keyEvents, team1Name, team2Name, team1C
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={chartData}
-            margin={{ top: 5, right: 10, left: 20, bottom: 18 }}
+            margin={{ top: 8, right: 10, left: 30, bottom: 36 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" />
           <XAxis
@@ -93,7 +93,7 @@ export function HpChart({ turnSnapshots, keyEvents, team1Name, team2Name, team1C
             tick={{ fill: "var(--foreground-muted)", fontSize: 11 }}
             tickLine={{ stroke: "var(--background-tertiary)" }}
             axisLine={{ stroke: "var(--background-tertiary)" }}
-            label={{ value: "Turn", position: "insideBottomRight", offset: -5, fill: "var(--foreground-muted)", fontSize: 11 }}
+            label={{ value: "Turn", position: "insideBottom", offset: -12, fill: "var(--foreground-muted)", fontSize: 11 }}
           />
           <YAxis
             stroke="var(--foreground-muted)"
@@ -151,7 +151,10 @@ export function HpChart({ turnSnapshots, keyEvents, team1Name, team2Name, team1C
             }}
           />
           <Legend
-            wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }}
+            verticalAlign="top"
+            height={24}
+            align="left"
+            wrapperStyle={{ fontSize: "12px" }}
             formatter={(value) => <span style={{ color: "var(--foreground)" }}>{value}</span>}
           />
           <Line

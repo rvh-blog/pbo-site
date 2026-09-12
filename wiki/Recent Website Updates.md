@@ -1,5 +1,28 @@
 # Recent Website Updates
 
+## September 11, 2026 - Experimental Stats Visual Lab Depth and Responsiveness
+
+- Added the Visual Lab's signature performance, usage versus win rate, team
+  offense/defense, team records, control profile, top-play, momentum, move
+  usage, season/division, coach-style, coverage, and team-core visuals.
+- Shared Experimental Stats filters now feed every report through one deferred,
+  memoized data path so controls remain responsive while charts refresh. A
+  visible update state identifies the short transition.
+- Added source context to chart points and replay selectors, including
+  season(s), division(s), week, coach/team, record, games, coverage, and the
+  originating replay scope where applicable.
+- Added season context to signature tables and CSV exports, and season/division
+  context to top-play lists and exports.
+- Added inline calculation notes for HP swings, comeback deficits, and longest
+  active appearances. Corrected top-play axis labels so recorded battle events
+  are not mislabeled as Pokémon.
+- Preserved the evidence boundary: entity filters select qualifying replays,
+  while match-level team and top-play visuals use all saved evidence inside
+  those qualifying matches. Minimum-game thresholds remain limited to qualified
+  profiles and rankings.
+- Verification: all fourteen Experimental Stats module routes returned HTTP
+  200 in demo mode; TypeScript, targeted ESLint, and diff checks passed.
+
 ## September 10, 2026 - PokéBase-Inspired Usage Reports
 
 - Added the Pokémon usage overview with usage rate, win rate, team-appearance

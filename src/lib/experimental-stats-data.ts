@@ -6,7 +6,7 @@ import { battleEvents, matches } from "@/lib/schema";
 import type { ExperimentalStatsDataset } from "@/app/experimental-stats/experimental-stats-client";
 import { createExperimentalDemoDataset } from "@/lib/experimental-stats-demo";
 
-export type ExperimentalModuleSlug = "pokemon" | "coaches" | "compare" | "insights" | "trends" | "leaderboards" | "replays" | "battle-visualizer" | "rare-events" | "glossary";
+export type ExperimentalModuleSlug = "pokemon" | "coaches" | "compare" | "insights" | "trends" | "leaderboards" | "replays" | "battle-visualizer" | "rare-events" | "signature-stats" | "team-stats" | "top-plays" | "visuals" | "glossary";
 
 export interface ExperimentalUrlFilters {
   seasonId: number | "all";
@@ -94,7 +94,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   const currentSeasonId = seasons.find((season) => season.isCurrent)?.id ?? null;
   const filters = parseExperimentalFilters(searchParams, currentSeasonId);
   const requestedMatchId = positiveNumber(first(searchParams.match), 0);
-  if (!first(searchParams.season) && (module === "pokemon" || module === "coaches" || module === "insights")) {
+  if (!first(searchParams.season) && (module === "pokemon" || module === "coaches" || module === "insights" || module === "signature-stats" || module === "team-stats" || module === "top-plays" || module === "visuals")) {
     filters.seasonId = "all";
   }
   const demoMode = first(searchParams.demo) === "1";
@@ -129,9 +129,9 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
 
   // Full timelines are large, so only send them to reports that draw or inspect
   // them. Other modules still receive a compact final-turn value.
-  const includeTimeline = module === "insights" || module === "battle-visualizer" || module === "rare-events";
-  const includeKeyEvents = includeTimeline || module === "leaderboards";
-  const includeProtocolEvents = module === "battle-visualizer" || module === "rare-events";
+  const includeTimeline = module === "insights" || module === "battle-visualizer" || module === "rare-events" || module === "top-plays" || module === "visuals";
+  const includeKeyEvents = includeTimeline || module === "leaderboards" || module === "team-stats";
+  const includeProtocolEvents = module === "battle-visualizer" || module === "rare-events" || module === "team-stats" || module === "visuals";
   if (demoMode) {
     return {
       filters,
@@ -140,7 +140,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         divisions: divisions.map(({ id, seasonId, name, displayOrder }) => ({ id, seasonId, name, displayOrder: displayOrder ?? 0 })),
         currentSeasonId,
         filters,
-        includeTimeline: includeTimeline || module === "coaches",
+        includeTimeline: includeTimeline || module === "coaches" || module === "team-stats",
       }),
     };
   }

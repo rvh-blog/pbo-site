@@ -24,7 +24,7 @@ const DEMO_COACHES = [
 ];
 
 function spriteUrl(id: number) {
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+  return `/images/pokemon/sprites/${id}.png`;
 }
 
 function buildSnapshots(totalTurns: number, winner: "p1" | "p2") {
