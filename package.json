@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:maintenance": "node scripts/build-maintenance.js",
     "start": "next start",
     "lint": "eslint",
     "lint:changed": "node scripts/lint-changed.mjs",
