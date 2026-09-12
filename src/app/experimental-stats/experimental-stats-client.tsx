@@ -236,6 +236,55 @@ const HELD_ITEM_CATEGORY_STYLES: Record<HeldItemCategory, string> = {
   "Utility / other": "border-amber-400/25 bg-amber-500/10 text-amber-200",
   "Unknown / unrevealed": "border-slate-400/25 bg-slate-500/10 text-slate-200",
 };
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  move: "Moves",
+  damage: "Damage",
+  heal: "Healing",
+  switch: "Switches",
+  drag: "Forced switches",
+  replace: "Replacements",
+  faint: "Faints",
+  turn: "Turns",
+  status: "Status effects",
+  curestatus: "Status cures",
+  boost: "Stat boosts",
+  unboost: "Stat drops",
+  setboost: "Stat resets",
+  clearallboost: "Boost clears",
+  clearpositiveboost: "Positive boost clears",
+  clearnegativeboost: "Negative boost clears",
+  ability: "Ability events",
+  endability: "Ability ends",
+  item: "Item reveals",
+  enditem: "Items removed",
+  sidestart: "Side conditions",
+  sideend: "Side conditions ended",
+  weather: "Weather",
+  fieldstart: "Terrain starts",
+  fieldend: "Terrain ends",
+  startEffect: "Effects started",
+  endEffect: "Effects ended",
+  activate: "Effect activations",
+  formechange: "Form changes",
+  detailschange: "Form details",
+  terastallize: "Terastallization",
+  crit: "Critical hits",
+  critical: "Critical hits",
+  miss: "Misses",
+  immune: "Immunities",
+  supereffective: "Super-effective hits",
+  resisted: "Resisted hits",
+  fail: "Failed actions",
+  cant: "Unable to move",
+  hitcount: "Multi-hit results",
+  prepare: "Move preparation",
+  singleturn: "Temporary effects",
+  singlemove: "Single-move effects",
+  sethp: "HP updates",
+  win: "Battle results",
+};
+
+const eventTypeLabel = (eventType: string) => EVENT_TYPE_LABELS[eventType] ?? "Other protocol line";
 const classifyHeldItem = (item: string): HeldItemCategory => {
   const normalized = item.trim().toLowerCase().replace(/[\s_-]+/g, "");
   if (/^choice(?:band|scarf|specs)$/.test(normalized)) return "Choice items";
@@ -741,8 +790,15 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
 }
 
 type PokemonUsageSortKey = "name" | "teamUsage" | "globalUsage" | "winRate" | "samples";
+type CoachSortKey = "name" | "appearances" | "winRate" | "damage" | "healing" | "setup" | "events" | "items";
+type SortDirection = "asc" | "desc";
 
 function UsageSortButton({ label, sortKey, activeSort, direction, onSort }: { label: string; sortKey: PokemonUsageSortKey; activeSort: PokemonUsageSortKey; direction: "asc" | "desc"; onSort: (sortKey: PokemonUsageSortKey) => void }) {
+  const isActive = sortKey === activeSort;
+  return <button type="button" onClick={() => onSort(sortKey)} className="inline-flex items-center gap-1 rounded px-1 py-1 text-left transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300" aria-label={`Sort by ${label}${isActive ? `, currently ${direction === "desc" ? "descending" : "ascending"}` : ""}`}><span>{label}</span><span className="font-mono text-[10px] text-cyan-300" aria-hidden="true">{isActive ? (direction === "desc" ? "↓" : "↑") : "↕"}</span></button>;
+}
+
+function CoachSortButton({ label, sortKey, activeSort, direction, onSort }: { label: string; sortKey: CoachSortKey; activeSort: CoachSortKey; direction: SortDirection; onSort: (sortKey: CoachSortKey) => void }) {
   const isActive = sortKey === activeSort;
   return <button type="button" onClick={() => onSort(sortKey)} className="inline-flex items-center gap-1 rounded px-1 py-1 text-left transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300" aria-label={`Sort by ${label}${isActive ? `, currently ${direction === "desc" ? "descending" : "ascending"}` : ""}`}><span>{label}</span><span className="font-mono text-[10px] text-cyan-300" aria-hidden="true">{isActive ? (direction === "desc" ? "↓" : "↑") : "↕"}</span></button>;
 }
@@ -989,9 +1045,41 @@ function CoachTendenciesPanel({ averageBattleLength, timelineCoverage, replayCou
 
 function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: EntityAggregate[]; appearances: EnrichedAppearance[]; matches: ExperimentalMatch[]; seasonTeams: NonNullable<ExperimentalStatsDataset["seasonTeams"]> }) {
   const [activeCoachId, setActiveCoachId] = useState<number | null>(null);
+  const [coachSort, setCoachSort] = useState<CoachSortKey>("appearances");
+  const [coachSortDirection, setCoachSortDirection] = useState<SortDirection>("desc");
   const active = rows.find((row) => row.id === activeCoachId) ?? rows[0];
   if (!active) return <EmptyState />;
   const selectorRows = [...rows].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const toggleCoachSort = (nextSort: CoachSortKey) => {
+    if (nextSort === coachSort) {
+      setCoachSortDirection((direction) => direction === "desc" ? "asc" : "desc");
+      return;
+    }
+    setCoachSort(nextSort);
+    setCoachSortDirection(nextSort === "name" ? "asc" : "desc");
+  };
+  const sortedCoachRows = [...rows].sort((a, b) => {
+    if (coachSort === "name") {
+      const comparison = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      return coachSortDirection === "desc" ? -comparison : comparison;
+    }
+    const metricValue = (row: EntityAggregate): number | null => {
+      if (coachSort === "appearances") return row.appearances;
+      if (coachSort === "winRate") return row.appearances > 0 ? rate(row.wins, row.appearances) * 100 : null;
+      if (coachSort === "damage") return coveredRate(row.damage, row.damageAppearances);
+      if (coachSort === "healing") return coveredRate(row.healing, row.healingAppearances);
+      if (coachSort === "setup") return row.setupAppearances > 0 ? row.setupMoves : null;
+      if (coachSort === "events") return row.eventAppearances > 0 ? row.favorableEvents : null;
+      return row.itemDataAppearances > 0 ? row.itemReveals : null;
+    };
+    const aValue = metricValue(a);
+    const bValue = metricValue(b);
+    if (aValue === null && bValue !== null) return 1;
+    if (aValue !== null && bValue === null) return -1;
+    const comparison = Number(bValue ?? 0) - Number(aValue ?? 0);
+    if (comparison !== 0) return coachSortDirection === "desc" ? comparison : -comparison;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
   const officialRecords = new Map<number, { games: number; wins: number }>();
   matches.forEach((match) => {
     for (const team of [match.coach1, match.coach2]) {
@@ -1100,8 +1188,8 @@ function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: Enti
         <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase tracking-wide text-white">Damage composition</h3>{active.damageAppearances ? <><div className="mt-4 flex h-5 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="bg-cyan-500" style={{ width: `${directShare}%` }} /><div className="bg-violet-500" style={{ width: `${100 - directShare}%` }} /></div><div className="mt-3 grid grid-cols-2 gap-2 text-center text-[10px]"><span className="text-cyan-300">{number(active.directDamage)}% direct</span><span className="text-violet-300">{number(active.indirectDamage)}% indirect</span></div></> : <p className="mt-3 text-xs text-[var(--foreground-muted)]">No recorded damage coverage in this scope.</p>}</div>
       </div>
       <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-500/[0.04] p-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-xs font-black uppercase tracking-wide text-white">Recorded move usage</h3><p className="mt-1 max-w-2xl text-[10px] leading-4 text-[var(--foreground-muted)]">Moves explicitly recorded in this coach&apos;s Pokémon appearances, ranked by total uses. This reflects replay evidence, not an exact controller-click log; older or incomplete replays may have no move records.</p></div><span className="text-[9px] font-bold text-cyan-200">{active.moveDataAppearances} replay matches with move data</span></div>{coachMoveRows.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{coachMoveRows.map(([move, count]) => <div key={move} className="grid grid-cols-[minmax(90px,150px)_1fr_auto] items-center gap-2 text-[10px]"><span className="truncate font-bold text-white" title={move}>{move}</span><div className="h-2.5 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${topCoachMoveUses ? count / topCoachMoveUses * 100 : 0}%` }} /></div><span className="font-mono text-cyan-200">{count} uses</span></div>)}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No recorded move usage is available for this coach in the active scope.</p>}</div>
-      <div className="mt-6 hidden overflow-x-auto sm:block"><table className="w-full min-w-[760px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Coach</th><th>Replay matches</th><th>Replay win rate</th><th>Damage/match</th><th>Healing/match</th><th>Setup</th><th>Favorable events</th><th>Items revealed</th></tr></thead><tbody>{rows.slice(0, 50).map((row) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.name}</td><td>{row.appearances}</td><td>{number(rate(row.wins, row.appearances) * 100, 1)}%</td><td>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")}</td><td>{formatCovered(coveredRate(row.healing, row.healingAppearances), 1, "%")}</td><td>{row.setupAppearances ? row.setupMoves : "—"}</td><td>{row.eventAppearances ? row.favorableEvents : "—"}</td><td>{row.itemDataAppearances ? row.itemReveals : "—"}</td></tr>)}</tbody></table></div>
-      <div className="mt-6 grid gap-2 sm:hidden">{rows.slice(0, 25).map((row) => <button type="button" onClick={() => setActiveCoachId(row.id)} key={row.id} className={`rounded-xl border p-3 text-left ${row.id === active.id ? "border-violet-400/50 bg-violet-500/10" : "border-[var(--border)] bg-[var(--background)]"}`}><div className="flex items-center justify-between gap-3"><strong className="text-sm text-white">{row.name}</strong><span className="font-mono text-emerald-300">{number(rate(row.wins, row.appearances) * 100, 1)}%</span></div><div className="mt-2 flex gap-3 text-[10px] text-[var(--foreground-muted)]"><span>{row.appearances} matches</span><span>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")} damage/match</span></div></button>)}</div>
+      <div className="mt-6"><p className="mb-2 text-[10px] text-[var(--foreground-muted)]">Click a column heading to sort the coach rows. Click the active heading again to reverse the order; unavailable metrics stay at the bottom.</p><div className="hidden overflow-x-auto sm:block" tabIndex={0} aria-label="Sortable coach report table"><table className="w-full min-w-[760px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th scope="col" className="p-2 text-left" aria-sort={coachSort === "name" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Coach" sortKey="name" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "appearances" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Replay matches" sortKey="appearances" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "winRate" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Replay win rate" sortKey="winRate" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "damage" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Damage/match" sortKey="damage" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "healing" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Healing/match" sortKey="healing" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "setup" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Setup" sortKey="setup" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "events" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Favorable events" sortKey="events" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th><th scope="col" aria-sort={coachSort === "items" ? (coachSortDirection === "desc" ? "descending" : "ascending") : "none"}><CoachSortButton label="Items revealed" sortKey="items" activeSort={coachSort} direction={coachSortDirection} onSort={toggleCoachSort} /></th></tr></thead><tbody>{sortedCoachRows.slice(0, 50).map((row) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.name}</td><td>{row.appearances}</td><td>{number(rate(row.wins, row.appearances) * 100, 1)}%</td><td>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")}</td><td>{formatCovered(coveredRate(row.healing, row.healingAppearances), 1, "%")}</td><td>{row.setupAppearances ? row.setupMoves : "—"}</td><td>{row.eventAppearances ? row.favorableEvents : "—"}</td><td>{row.itemDataAppearances ? row.itemReveals : "—"}</td></tr>)}</tbody></table></div></div>
+      <div className="mt-6 grid gap-2 sm:hidden">{sortedCoachRows.slice(0, 25).map((row) => <button type="button" onClick={() => setActiveCoachId(row.id)} key={row.id} className={`rounded-xl border p-3 text-left ${row.id === active.id ? "border-violet-400/50 bg-violet-500/10" : "border-[var(--border)] bg-[var(--background)]"}`}><div className="flex items-center justify-between gap-3"><strong className="text-sm text-white">{row.name}</strong><span className="font-mono text-emerald-300">{number(rate(row.wins, row.appearances) * 100, 1)}%</span></div><div className="mt-2 flex gap-3 text-[10px] text-[var(--foreground-muted)]"><span>{row.appearances} matches</span><span>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")} damage/match</span></div></button>)}</div>
     </section>
   );
 }
@@ -1372,21 +1460,28 @@ function EventAnalytics({ matches, selectedId }: { matches: ExperimentalMatch[];
   const [eventType, setEventType] = useState("all");
   const selected = matches.find((match) => match.id === selectedId) ?? matches[0];
   const events = selected?.battleEvents ?? [];
-  const eventTypes = [...new Set(events.map((event) => event.eventType))].sort();
+  const eventTypes = [...new Set(events.map((event) => eventTypeLabel(event.eventType)).filter((type) => type !== "Other protocol line"))].sort();
   const visibleEvents = events.filter((event) => {
-    if (eventType !== "all" && event.eventType !== eventType) return false;
+    if (eventType !== "all" && eventTypeLabel(event.eventType) !== eventType) return false;
     if (!eventQuery) return true;
     return `${event.rawLine} ${event.moveName ?? ""} ${event.statusName ?? ""} ${event.itemName ?? ""} ${event.abilityName ?? ""}`.toLowerCase().includes(eventQuery.toLowerCase());
-  });
+  }).map((event) => ({ ...event, eventType: eventTypeLabel(event.eventType) }));
   const counts = new Map<string, number>();
-  events.forEach((event) => counts.set(event.eventType, (counts.get(event.eventType) ?? 0) + 1));
+  // The raw stream intentionally keeps every Showdown protocol line for audit/search.
+  // Density is a summary, so only normalized battle signals belong here; transport,
+  // chat, timestamps, team-preview metadata, and unknown commands are left out.
+  events.forEach((event) => {
+    const label = eventTypeLabel(event.eventType);
+    if (label === "Other protocol line") return;
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  });
   const topTypes = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 14);
   const switches = events.filter((event) => event.eventType === "switch" || event.eventType === "drag").length;
   const moveAttempts = events.filter((event) => event.eventType === "move").length;
   const teraEvents = events.filter((event) => event.eventType === "terastallize").length;
   const statusEvents = events.filter((event) => event.eventType === "status" || event.eventType === "curestatus").length;
   const fieldEvents = events.filter((event) => ["weather", "fieldstart", "fieldend", "sidestart", "sideend"].includes(event.eventType)).length;
-  const rareTypes = ["terastallize", "formechange", "ability", "enditem", "critical", "crit", "miss", "immune", "supereffective", "resisted", "status", "boost", "unboost"];
+  const rareTypes = ["Terastallization", "Form changes", "Ability events", "Items removed", "Critical hits", "Misses", "Immunities", "Super-effective hits", "Resisted hits", "Status effects", "Stat boosts", "Stat drops"];
   if (!events.length) return <section className="poke-card border-amber-400/30 bg-amber-500/[0.06] p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Protocol event analytics</h2><div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4"><strong className="text-sm text-amber-100">Protocol events have not been generated for this replay.</strong><p className="mt-2 text-xs leading-5 text-amber-100/75">The battle may still have an HP timeline, faint markers, and Pokémon totals above. Move, switch, status, field, and Tera counts require the separate normalized-event backfill, so missing coverage is shown here instead of misleading zeroes.</p>{selected ? <p className="mt-2 text-[10px] text-amber-200/70">Selected replay: {selected.coach1.teamName} vs {selected.coach2.teamName} · {selected.seasonName} · Week {selected.week}</p> : null}</div></section>;
   return <section className="space-y-4"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Protocol event analytics</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Every stored line remains traceable to its raw Showdown source. Select a battle above for a single-battle view.</p></div><span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-bold text-cyan-200">{events.length.toLocaleString()} events</span></div><div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="Moves" value={moveAttempts.toLocaleString()} /><StatCard label="Switches" value={switches.toLocaleString()} /><StatCard label="Statuses" value={statusEvents.toLocaleString()} /><StatCard label="Field events" value={fieldEvents.toLocaleString()} /><StatCard label="Tera events" value={teraEvents.toLocaleString()} /></div><div className="mt-6 grid gap-5 lg:grid-cols-2"><div><h3 className="text-xs font-black uppercase text-white">Event density</h3><div className="mt-3 space-y-2">{topTypes.map(([type, count]) => <div key={type} className="grid grid-cols-[130px_1fr_48px] items-center gap-2 text-[10px]"><span className="truncate font-bold text-white">{type}</span><div className="h-2 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full bg-cyan-400" style={{ width: `${(count / (topTypes[0]?.[1] ?? 1)) * 100}%` }} /></div><span className="text-right font-mono">{count}</span></div>)}</div></div><div><h3 className="text-xs font-black uppercase text-white">Rare protocol signals</h3><div className="mt-3 grid grid-cols-2 gap-2">{rareTypes.map((type) => <div key={type} className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="text-[9px] uppercase text-[var(--foreground-muted)]">{type}</div><div className="mt-1 font-mono text-lg font-black text-violet-300">{counts.get(type) ?? 0}</div></div>)}</div></div></div></div>{selected ? <div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Turn-by-turn event stream</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Showing {Math.min(250, visibleEvents.length)} of {visibleEvents.length} matching events for {selected.coach1.teamName} vs {selected.coach2.teamName}.</p><div className="mt-4 grid gap-2 sm:grid-cols-[1fr_190px]"><input value={eventQuery} onChange={(event) => setEventQuery(event.target.value)} placeholder="Search raw lines, moves, statuses…" className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /><select value={eventType} onChange={(event) => setEventType(event.target.value)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs"><option value="all">All event types</option>{eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></div><div className="mt-4 max-h-[32rem] overflow-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[820px] text-[10px]"><thead className="sticky top-0 bg-[var(--background-secondary)] text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Turn</th><th>Type</th><th className="text-left">Actor</th><th className="text-left">Target</th><th className="text-left">Details</th><th className="text-left">Raw source</th></tr></thead><tbody>{visibleEvents.slice(-250).map((event) => <tr key={`${event.sequence}-${event.rawLine}`} className="border-t border-[var(--border)]"><td className="p-2 font-mono">{event.turn}</td><td className="font-bold text-cyan-200">{event.eventType}</td><td>{event.actorNickname ?? "—"}</td><td>{event.targetNickname ?? "—"}</td><td>{event.moveName ?? event.statusName ?? event.itemName ?? event.abilityName ?? event.fieldName ?? "—"}</td><td className="max-w-[420px] truncate font-mono text-[var(--foreground-muted)]" title={event.rawLine}>{event.rawLine}</td></tr>)}</tbody></table></div></div> : <div className="poke-card p-6 text-center text-xs text-[var(--foreground-muted)]">No normalized protocol events are available in this filtered scope yet. Run the replay backfill after applying the battle-events migration.</div>}</section>;
 }

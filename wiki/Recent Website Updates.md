@@ -1,5 +1,19 @@
 # Recent Website Updates
 
+## September 12, 2026 - Experimental Stats Sorting and Protocol Analytics
+
+- Coach Profiles now has sortable report columns for coach, replay matches, win
+  rate, damage, healing, setup, favorable events, and items. Click the active
+  heading again to reverse the order; metrics without coverage remain at the
+  bottom. The responsive coach list follows the same sort.
+- Battle Visualizer protocol analytics now uses readable normalized labels for
+  Event Density, rare signals, event filters, and the turn-by-turn Type column.
+  Transport, chat, timestamps, team-preview metadata, and unknown protocol lines
+  are excluded from the density summary while the complete raw stream remains
+  searchable for audit.
+
+Verification: TypeScript, targeted ESLint, and the production build pass.
+
 ## September 11, 2026 - Experimental Stats Audit Polish
 
 - Reduced Team Stats and Visual Lab event payloads by grouping switch, drag,
