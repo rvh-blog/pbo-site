@@ -78,7 +78,7 @@ interface PokemonStats {
     favorableConfusions: number;
     favorableConfusionSelfHits: number;
     favorableEvents: Array<{
-      type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+      type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit" | "secondary" | "status-turn" | "stat-drop";
       turn: number;
       description: string;
     }>;

@@ -161,11 +161,18 @@ turns active, hazard-only damage taken, setup moves used, favorable event
 counters for crits, misses, flinches, paralysis, freezes, and non-Will-O-Wisp
 burns. Beginning with Season 11 Week 6, replay rows also store confusion
 applications, confusion self-hits, and `favorable_events` JSON context with the
-event type, turn, and description. The expanded HAX total includes crits,
-misses, flinches, paralysis, freezes, burns, sleep, confusion, and confusion
-self-hits; guaranteed critical hits from Wicked Blow, Surging Strikes, and
-Flower Trick are excluded. Earlier matches retain the legacy HAX definition
-and are not backfilled. Match Pokemon also store `revealed_items` JSON entries
+event type, turn, and description. Expanded event context additionally records
+opponent-applied secondary effects (status or stat drops) and each explicitly
+logged turn where an opponent is asleep or frozen and cannot move. The expanded
+JSON uses `secondary`, `stat-drop`, and `status-turn` event types for those
+additional records.
+HAX total includes these events plus crits, misses, flinches, paralysis, freezes,
+burns, sleep, confusion, and confusion self-hits; guaranteed critical hits from
+Wicked Blow, Surging Strikes, and Flower Trick, plus Fake Out's guaranteed
+flinch, are excluded. Seasons 5–10 use the legacy replay format; Season 11
+Weeks 1–5 also retain the legacy definition, with the expanded format beginning
+at Week 6. Earlier matches are intentionally not backfilled with expanded events.
+Match Pokemon also store `revealed_items` JSON entries
 containing an item, reveal turn, and
 source. The base replay-detail fields require
 `migrations/add-match-pokemon-replay-detail-stats.sql`; revealed item storage

@@ -66,11 +66,13 @@ export function parseExperimentalFilters(searchParams: SearchParams, currentSeas
   const pokemonValue = first(searchParams.pokemon);
   const resultValue = first(searchParams.result);
   const stageValue = first(searchParams.stage);
+  const weekStart = positiveNumber(first(searchParams.weekStart), 1);
+  const weekEnd = Math.max(weekStart, positiveNumber(first(searchParams.weekEnd), 999));
   return {
     seasonId: seasonValue === "all" ? "all" : positiveNumber(seasonValue, currentSeasonId ?? 0) || "all",
     divisionId: divisionValue === "all" || !divisionValue ? "all" : positiveNumber(divisionValue, 0) || "all",
-    weekStart: positiveNumber(first(searchParams.weekStart), 1),
-    weekEnd: positiveNumber(first(searchParams.weekEnd), 999),
+    weekStart,
+    weekEnd,
     coachId: coachValue === "all" || !coachValue ? "all" : nonZeroInteger(coachValue, 0) || "all",
     pokemonId: pokemonValue === "all" || !pokemonValue ? "all" : nonZeroInteger(pokemonValue, 0) || "all",
     move: first(searchParams.move) || "all",
@@ -191,9 +193,9 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   // Full timelines are large, so only send them to reports that draw or inspect
   // them. Other modules still receive a compact final-turn value.
   const includeTimeline = module === "insights" || module === "battle-visualizer" || module === "rare-events" || module === "top-plays" || module === "visuals";
-  const includeKeyEvents = includeTimeline || module === "leaderboards" || module === "team-stats";
-  const includeProtocolEvents = module === "battle-visualizer" || module === "rare-events" || module === "team-stats" || module === "visuals";
-  const includeTeamEventSummary = module === "team-stats" || module === "visuals";
+  const includeKeyEvents = includeTimeline || module === "leaderboards" || module === "team-stats" || module === "coaches";
+  const includeProtocolEvents = module === "battle-visualizer" || module === "rare-events" || module === "team-stats" || module === "visuals" || module === "coaches";
+  const includeTeamEventSummary = module === "team-stats" || module === "visuals" || module === "coaches";
   if (demoMode) {
     return {
       filters,
@@ -261,6 +263,9 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
           favorableFreezes: true,
           favorableBurns: true,
           favorableSleep: true,
+          favorableConfusions: true,
+          favorableConfusionSelfHits: true,
+          favorableEvents: true,
           hpRestored: true,
           movesUsed: true,
           revealedItems: true,
@@ -460,6 +465,9 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
           favorableFreezes: entry.favorableFreezes,
           favorableBurns: entry.favorableBurns,
           favorableSleep: entry.favorableSleep,
+          favorableConfusions: entry.favorableConfusions,
+          favorableConfusionSelfHits: entry.favorableConfusionSelfHits,
+          favorableEvents: Array.isArray(entry.favorableEvents) ? entry.favorableEvents : null,
           hpRestored: entry.hpRestored,
           movesUsed: entry.movesUsed ?? {},
           moveDataRecorded: entry.movesUsed !== null,

@@ -1,5 +1,128 @@
 [
   {
+    "sourceKey": "2026-09-12-experimental-stats-audit-fixes",
+    "title": "Experimental Stats Audit Fixes",
+    "summary": "Experimental Stats deep links and week filters now fail more predictably.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "fixed", "text": "Removed a React SVG title warning in the Team Core Network, normalized reversed or out-of-range week selections, restricted dynamic report links to supported slugs, and added a mobile-safe clipboard fallback." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-metric-glossary-category-accents",
+    "title": "Metric Glossary Category Accents",
+    "summary": "Metric Glossary sections are easier to scan while individual metric rows stay neutral.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Added distinct, theme-aware category heading accents and side markers to the Metric Glossary for presentation and navigation clarity." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-search-performance",
+    "title": "Experimental Stats Search Performance",
+    "summary": "Visual Lab search stays responsive while filtered charts refresh.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Deferred chart filtering and debounced shareable URL updates so report-wide searches remain responsive while typing." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-top-plays-pokemon-sprites",
+    "title": "Top Plays Pokémon Sprites",
+    "summary": "Top Plays now makes Pokémon-specific moments easier to recognize at a glance.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Added saved Pokémon sprites before latest-faint and longest-active record details when matching sprite evidence is available." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-team-stats-matchup-scope-context",
+    "title": "Team Stats Matchup Scope Context",
+    "summary": "Team Stats now makes filtered matchup-side scope explicit.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Added a scope note explaining that each row represents one team's side of the filtered matchup set and that coach or team searches retain opponents as separate comparison rows." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-favorable-event-context",
+    "title": "Favorable Event Context",
+    "summary": "Signature Stats now explains its event-rate denominator and keeps replay-format differences visible.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Bolded the Season(s), Apps, and Record scope columns and added a clear definition for favorable event coverage." },
+      { "type": "improved", "text": "Expanded Season 11 Week 6+ parsing and backfill coverage for opponent-applied secondary effects, stat drops, and logged blocked status turns while preserving the legacy Seasons 5–10 and Season 11 Weeks 1–5 format." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-battle-visualizer-color-context",
+    "title": "Battle Visualizer Color Context",
+    "summary": "Battle Visualizer box scores now use semantic color cues to make replay metrics easier to scan.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Color-coded KOs, deaths, damage, healing, turns, team results, and item evidence in the Pokémon box score, with an inline legend and text labels for accessibility." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-replay-search-context",
+    "title": "Replay Search Context",
+    "summary": "Replay Search now makes its search scope, result units, and KO filter definition clear.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Added Pokémon, Team, Coach, and All search scopes with Pokémon selected by default, plus match-count context for appearance-level results." },
+      { "type": "improved", "text": "Renamed the kills filter to Minimum Pokémon KOs, capped it at six for standard 6v6 battles, and explained that it measures one Pokémon rather than both sides combined." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-leaderboard-qualification-context",
+    "title": "Leaderboard Qualification Context",
+    "summary": "Experimental Stats Leaderboards now make their minimum-appearance rule explicit.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Added a visible qualification note above the leaderboard table and a Replay Search link for lower-volume Pokémon or coach appearances." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-rolling-trends-readability",
+    "title": "Rolling Trends Readability",
+    "summary": "Rolling Trends now gives its chart labels more room and stronger contrast.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Rolling Trends metric names and axes now use larger, higher-contrast typography with extra label room on responsive layouts." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-compare-context",
+    "title": "Experimental Stats Compare Context",
+    "summary": "Compare now focuses on useful side-by-side evidence, with common items and a clear Favorable Events definition.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "removed", "text": "Removed the redundant Most-used move summary from the Compare scope." },
+      { "type": "added", "text": "Added per-Pokémon common-item summaries with item-data coverage, unknown/revealed counts, and inferred Mega Stone labels." },
+      { "type": "improved", "text": "Added inline Favorable Events context plus a glossary link explaining which recorded outcomes count and how missing fields are handled." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-coach-context",
+    "title": "Experimental Stats Coach and Move Context",
+    "summary": "Coach Profiles now explain replay coverage and tendencies, while Visual Lab Move Usage is easier to search and read.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Coach Profiles now explain recorded battle-length coverage, summarize replay-backed tendencies, and group item evidence with inferred Mega Stone context." },
+      { "type": "improved", "text": "Visual Lab Move Usage is now a searchable vertical ranking with a top-15 default and a Show all control." }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-12-experimental-stats-grouped-navigation",
+    "title": "Experimental Stats Grouped Navigation",
+    "summary": "The Experimental Stats landing page now groups reports by purpose so visitors can move from team performance to Pokémon analysis, trends, replay evidence, and reference material.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Landing cards are organized into Team and league performance, Pokémon performance, Patterns and trends, Replay evidence, and Specialized reports and reference groups." },
+      { "type": "improved", "text": "Each group has a labeled heading, short explanation, subtle category accent, and a consistent mobile stacking order." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-12-experimental-stats-mobile-theme-polish",
     "title": "Experimental Stats Mobile and Theme Polish",
     "summary": "Experimental Stats reports now fit narrow screens, explain swipeable content, and provide consistent touch and light/dark theme feedback.",
@@ -26,7 +149,7 @@
     "publishedAt": "2026-09-12",
     "changes": [
       { "type": "improved", "text": "Added a report-wide search bar, sortable Pokémon and Team Stats columns, team-versus-global usage context, replacement and drop history, clearer setup-move definitions, and expanded coverage guidance." },
-      { "type": "fixed", "text": "Top Plays now ranks latest faint turns, the Move Usage treemap renders individual tiles, Signature Stats shows real sprites, protocol-event gaps explain missing coverage instead of displaying misleading zeroes, and Coach Style Radar was removed." },
+      { "type": "fixed", "text": "Top Plays now ranks latest faint turns, Move Usage uses a searchable vertical ranking, Signature Stats shows real sprites, protocol-event gaps explain missing coverage instead of displaying misleading zeroes, and Coach Style Radar was removed." },
       { "type": "added", "text": "Mega formes are preserved during replay parsing, matching Mega Stones can be inferred from historical roster context, contradictory item evidence flags a match for review, and a dry-run-by-default backfill command is available." },
       { "type": "improved", "text": "The Battle Visualizer links to the selected replay, average battle length uses saved timeline/event evidence, and Coach Profiles distinguish official records from replay-backed metrics." },
       { "type": "improved", "text": "Upcoming Battles now spans the full homepage width with aligned team logos, clearer playoff badges, and times shown in each visitor's local timezone." }

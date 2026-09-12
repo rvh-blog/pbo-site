@@ -154,44 +154,85 @@ may roll predecessor results into the active franchise.
 
 Use the report-wide search field to search all words across the active replay
 scope, including Pokémon, coaches, teams, moves, items, replay URLs, weeks, and
-review notes. Exact season, division, stage, result, and forfeit filters remain
-available alongside the search. Pokémon Profiles separate global match usage
+review notes. Results refresh as you type and the shareable URL updates after a
+brief pause, keeping chart-heavy reports responsive. Exact season, division,
+stage, result, and forfeit filters remain available alongside the search. Week
+ranges are normalized when a shared link contains reversed or out-of-range
+values, so a malformed URL cannot silently create an impossible filter scope.
+Pokémon Profiles separate global match usage
 from roster-aware team usage; the latter uses team-match eligibility windows so
 acquisitions, drops, trades, and mid-season replacements affect the denominator.
 
 The current modules are:
+
+The landing page presents them in five purpose-based groups: Team and league
+performance (Coach Profiles, Team Stats, Leaderboards), Pokémon performance
+(Pokémon Profiles, Signature Stats, Compare), Patterns and trends (Insights,
+Rolling Trends, Visual Lab), Replay evidence (Replay Search, Top Plays, Battle
+Visualizer), and Specialized reports and reference (Rare Event Explorer and
+Metric Glossary). The same group order is preserved when cards stack on mobile.
 
 - Insights: momentum, pace, matchups, first-faint and comeback records, KO
   conversion, team damage share, item coverage, team cores, coach tendencies,
   and playoff-versus-regular-season comparisons.
 - Pokémon Profiles: qualified replay usage, win rate, samples, weekly usage
   trends, common teammates, saved move/item evidence, and direct match links.
+- Compare: side-by-side qualified Pokémon metrics with common-item evidence for
+  each Pokémon. Favorable Events includes an inline definition and glossary
+  link; missing event data remains unknown rather than zero.
 - Rolling Trends: configurable three-, five-, or ten-game comparisons between
-  the latest and preceding windows.
+  the latest and preceding windows. Chart axis labels and metric names use
+  high-contrast typography so the comparison remains readable at a glance.
 - Leaderboards: preset Pokémon or coach rankings for damage, survival, K-D,
   playoff damage, comeback wins, unique moves, move usage, and KO differential,
-  with totals/rates and CSV export.
+  with totals/rates and CSV export. A qualification note explains the active
+  minimum-appearance threshold and links to Replay Search for lower-volume
+  appearances.
 - Replay Search: evidence search by Pokémon, coach, or team with minimum
-  damage, minimum kills, and survived-battle filters.
+  damage, minimum Pokémon KOs, and survived-battle filters. Search scope
+  defaults to Pokémon; each result is one Pokémon appearance in one replay,
+  so team searches can return up to twelve rows per match.
+- Coach Profiles: official records stay separate from replay-derived evidence.
+  The report includes a clearly labeled average recorded battle length, a
+  compact tendencies summary (turns, switches, Tera, setup, item reveals, and
+  most-used Pokémon), and a held-item distribution grouped by damage boosting,
+  recovery/consumable, Choice, Mega Stone, utility, and unknown/unrevealed
+  categories. Mega Stones inferred from a recorded Mega Evolution/team-roster
+  check are labeled as
+  inferred; conflicting item evidence remains a review flag.
 - Battle Visualizer: a selected replay's saved HP timeline, faint timing, item
-  reveals, event-density views, and an Open replay link. Average battle length
-  uses saved timeline or normalized event-turn evidence and shows its covered
-  sample.
+  reveals, event-density views, and an Open replay link. The Pokémon box score
+  uses a color key for KOs, deaths, damage, healing, turns, and item evidence
+  while keeping the text labels visible. Average battle length uses saved
+  timeline or normalized event-turn evidence and shows its covered sample.
 - Signature Stats: opportunity-normalized damage, KO, healing, setup, and
-  favorable-event rates with season-aware context and coverage.
+  favorable-event rates with season-aware context and coverage. Favorable
+  events are explicitly saved crits, misses, flinches, opponent-applied
+  secondary effects (status or stat drops), and each logged blocked turn from
+  sleep, freeze, or full paralysis, divided by recorded move uses. Expanded
+  event coverage starts in Season 11 Week 6; Seasons 5–10 and Season 11 Weeks
+  1–5 retain the legacy replay format.
 - Team Stats: season/division-aware team offense, defense, damage efficiency,
   first-faint, and replay-control summaries. Switches and Tera uses are separate
-  sortable columns, and every numeric report column can be sorted.
+  sortable columns, and every numeric report column can be sorted. Each row is
+  one team side of the currently filtered matchup set, with values summarized
+  across those matchups. Coach or team searches narrow the matchups first while
+  keeping the opponent as a separate comparison row.
 - Top Plays: replay-linked HP swings, comeback deficits, latest faint turns,
-  and longest active appearances.
+  and longest active appearances. Pokémon-specific records show the saved
+  sprite(s) before the relevant Pokémon names when sprite evidence is available.
 - Visual Lab: filter-aware scatter plots, ranked bars, team charts, momentum,
   move usage, season/division heatmaps, replay coverage, and
   team-core networks.
+- Metric Glossary: searchable definitions grouped by report area, with restrained
+  category accents that make the sections easier to scan without coloring every
+  metric row.
 
 The Visual Lab does not currently include the retired Coach Style Radar. Move
-usage tiles are individually rendered, and team-core circles grow with Pokémon
-team appearances; these visuals describe saved evidence rather than strategic
-grades.
+usage is shown as a consistent-color, searchable vertical ranking with the top
+15 moves shown by default and a Show all control. Team-core circles grow with
+Pokémon team appearances; these visuals describe saved evidence rather than
+strategic grades.
 
 Visual Lab notes:
 

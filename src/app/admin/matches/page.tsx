@@ -11,7 +11,7 @@ import { usesExpandedHaxRules } from "@/lib/hax-rules";
 import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 
 type FavorableEvent = {
-  type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit";
+  type: "crit" | "miss" | "flinch" | "paralysis" | "freeze" | "burn" | "sleep" | "confusion" | "confusion-self-hit" | "secondary" | "status-turn" | "stat-drop";
   turn: number;
   description: string;
 };

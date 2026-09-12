@@ -5,6 +5,23 @@ const client = createClient({ url: `file:${dbPath}` });
 
 const migrations = [
   {
+    id: "2026-09-12-favorable-event-context-v2",
+    statements: [
+      {
+        sql: "ALTER TABLE match_pokemon ADD COLUMN favorable_confusions INTEGER",
+        whenMissingColumn: { table: "match_pokemon", column: "favorable_confusions" },
+      },
+      {
+        sql: "ALTER TABLE match_pokemon ADD COLUMN favorable_confusion_self_hits INTEGER",
+        whenMissingColumn: { table: "match_pokemon", column: "favorable_confusion_self_hits" },
+      },
+      {
+        sql: "ALTER TABLE match_pokemon ADD COLUMN favorable_events TEXT",
+        whenMissingColumn: { table: "match_pokemon", column: "favorable_events" },
+      },
+    ],
+  },
+  {
     id: "2026-09-09-normalized-battle-events-v1",
     statements: [
       `CREATE TABLE IF NOT EXISTS battle_events (
