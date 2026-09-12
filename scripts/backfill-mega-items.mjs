@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { openMaintenanceDb, assertProductionWriteAllowed } from "./maintenance-db.mjs";
 import { getMegaStoneName, isMegaPokemonName } from "../src/lib/mega-stones.ts";
 import { inferMegaItemForRosterPokemon } from "../src/lib/mega-item-inference.ts";
 
@@ -9,6 +9,8 @@ const databasePath = process.argv.find((argument) => argument.startsWith("--db="
 const requestedSeason = process.argv.find((argument) => argument.startsWith("--season="))?.slice(9);
 const dryRun = !process.argv.includes("--write");
 const verbose = process.argv.includes("--verbose");
+
+if (!dryRun) assertProductionWriteAllowed(databasePath);
 
 function parseJsonArray(value, label) {
   if (value == null || value === "") return [];
@@ -64,12 +66,14 @@ function rosterAtMatchWeek(currentRosterIds, transactions, matchWeek) {
   return roster;
 }
 
-const db = new Database(databasePath);
-db.pragma("busy_timeout = 30000");
+const db = openMaintenanceDb(databasePath);
 const seasons = requestedSeason
-  ? db.prepare("SELECT id, season_number FROM seasons WHERE season_number = ?").all(Number(requestedSeason))
-  : db.prepare("SELECT id, season_number FROM seasons ORDER BY season_number").all();
-if (seasons.length === 0) throw new Error(`No matching season found for ${requestedSeason || "all seasons"}`);
+  ? await db.all("SELECT id, season_number FROM seasons WHERE season_number = ?", [Number(requestedSeason)])
+  : await db.all("SELECT id, season_number FROM seasons ORDER BY season_number");
+if (seasons.length === 0) {
+  db.client.close();
+  throw new Error(`No matching season found for ${requestedSeason || "all seasons"}`);
+}
 
 const itemUpdates = [];
 const reviewUpdates = new Map();
@@ -77,28 +81,28 @@ let scanned = 0;
 let rosterExcluded = 0;
 
 for (const season of seasons) {
-  const matches = db.prepare(`
+  const matches = await db.all(`
     SELECT id, week, coach1_season_id, coach2_season_id
     FROM matches WHERE season_id = ? AND is_forfeit = 0
-  `).all(season.id);
+  `, [season.id]);
   const matchById = new Map(matches.map((match) => [match.id, match]));
   const rosterIdsByTeam = new Map();
-  for (const row of db.prepare(`
+  for (const row of await db.all(`
     SELECT r.season_coach_id, r.pokemon_id FROM rosters r
     JOIN season_coaches sc ON sc.id = r.season_coach_id
     JOIN divisions d ON d.id = sc.division_id
     WHERE d.season_id = ?
-  `).all(season.id)) {
+  `, [season.id])) {
     const ids = rosterIdsByTeam.get(row.season_coach_id) || [];
     ids.push(row.pokemon_id);
     rosterIdsByTeam.set(row.season_coach_id, ids);
   }
-  const transactionsByTeam = buildTeamTransactions(db.prepare(`
+  const transactionsByTeam = buildTeamTransactions(await db.all(`
     SELECT id, type, week, season_coach_id, trading_partner_season_coach_id,
            pokemon_in, pokemon_out FROM transactions WHERE season_id = ?
-  `).all(season.id));
+  `, [season.id]));
 
-  const rows = db.prepare(`
+  const rows = await db.all(`
     SELECT mp.id, mp.match_id, mp.season_coach_id, mp.pokemon_id, mp.revealed_items,
            p.name AS pokemon_name, p.display_name AS pokemon_display_name, sc.team_name,
            m.week, m.review_notes
@@ -109,7 +113,7 @@ for (const season of seasons) {
     WHERE m.season_id = ? AND m.is_forfeit = 0
       AND mp.season_coach_id IN (m.coach1_season_id, m.coach2_season_id)
     ORDER BY m.week, m.id, mp.id
-  `).all(season.id);
+  `, [season.id]);
 
   for (const row of rows) {
     const species = row.pokemon_display_name || row.pokemon_name;
@@ -148,19 +152,22 @@ for (const season of seasons) {
 }
 
 if (!dryRun) {
-  const updateItems = db.prepare("UPDATE match_pokemon SET revealed_items = ? WHERE id = ?");
-  const updateReview = db.prepare("UPDATE matches SET needs_review = 1, review_notes = ? WHERE id = ?");
-  db.transaction(() => {
-    for (const row of itemUpdates) updateItems.run(JSON.stringify(row.items), row.id);
-    for (const [matchId, notes] of reviewUpdates) {
-      const existing = db.prepare("SELECT review_notes FROM matches WHERE id = ?").get(matchId)?.review_notes || "";
-      const merged = [...new Set([existing, ...notes].filter(Boolean))].join("\n");
-      updateReview.run(merged || null, matchId);
-    }
-  })();
+  const statements = itemUpdates.map((row) => ({
+    sql: "UPDATE match_pokemon SET revealed_items = ? WHERE id = ?",
+    args: [JSON.stringify(row.items), row.id],
+  }));
+  for (const [matchId, notes] of reviewUpdates) {
+    const existing = (await db.get("SELECT review_notes FROM matches WHERE id = ?", [matchId]))?.review_notes || "";
+    const merged = [...new Set([existing, ...notes].filter(Boolean))].join("\n");
+    statements.push({
+      sql: "UPDATE matches SET needs_review = 1, review_notes = ? WHERE id = ?",
+      args: [merged || null, matchId],
+    });
+  }
+  await db.batch(statements);
 }
 
-db.close();
+db.client.close();
 console.log(`${dryRun ? "Planned" : "Backfilled"} ${itemUpdates.length} Mega Stone item rows across ${seasons.length} season(s)`);
 console.log(`Scanned ${scanned} roster-linked Mega appearances; excluded ${rosterExcluded} Mega rows without historical roster confirmation`);
 console.log(`${dryRun ? "Planned" : "Flagged"} ${reviewUpdates.size} match review record(s) for conflicting item evidence`);

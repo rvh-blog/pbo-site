@@ -234,7 +234,9 @@ Season 11 Week 6 and continues in later seasons. Expanded parsing may add
 secondary effects, stat drops, and explicitly logged blocked status turns to
 `favorable_events` without rewriting legacy rows. Use
 `scripts/backfill-season11-hax.mjs` in dry-run mode against a copied database
-before applying a replay backfill.
+before applying a replay backfill. Production backfills use the bundled
+maintenance commands after a fresh WAL-aware backup and explicit confirmation;
+they are never run automatically during app startup.
 
 ## New Pages And APIs
 

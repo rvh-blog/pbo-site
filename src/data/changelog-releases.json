@@ -1,5 +1,15 @@
 [
   {
+    "sourceKey": "2026-09-12-season11-production-backfill-path",
+    "title": "Season 11 Production Backfill Path",
+    "summary": "Existing Season 11 replay evidence can now be filled through a guarded, backup-first maintenance run.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "added", "text": "Added bundled backup, Season 11 favorable-event, and Mega Stone maintenance commands that use the production SQLite client and require explicit confirmation before writes." },
+      { "type": "improved", "text": "Documented the controlled dry-run, backup, and quiet-window workflow while keeping backfills out of automatic application startup." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-12-experimental-stats-audit-fixes",
     "title": "Experimental Stats Audit Fixes",
     "summary": "Experimental Stats deep links and week filters now fail more predictably.",

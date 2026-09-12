@@ -75,13 +75,20 @@ replay links are flagged only for non-forfeit fixtures.
 Production execution must use a fresh WAL-aware backup and a controlled quiet
 window. Never upload a stale local `pbo.db` over the Fly volume.
 
+The deployed image includes bundled one-off maintenance commands under
+`/app/dist/maintenance`. After confirming a fresh backup and pausing other
+database writes, run the HAX backfill with `--apply` and the Mega item backfill
+with `--season=11 --write`. Both commands require the explicit production
+confirmation environment variables documented in [[Database Runbook]]. They
+are not part of application startup and never run implicitly on every boot.
+
 ## Mega Item Backfill
 
 `scripts/backfill-mega-items.mjs` is the all-season, dry-run-by-default repair
 for saved replay rows whose historical roster identifies a Mega forme. It adds
 the matching stone only when no contradictory item evidence exists and marks a
 match for review when a non-transferred item conflicts. Use `--season=N` to
-scope a run and `--write` only against a verified database copy.
+scope a run and `--write` only after the production backup/confirmation gate.
 
 ## Public Analyzer
 

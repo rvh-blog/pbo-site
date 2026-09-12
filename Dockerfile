@@ -24,6 +24,9 @@ RUN npm run build
 # Build Discord bot (bundle with esbuild)
 RUN node scripts/build-bot.js
 
+# Build the explicit, one-off production database maintenance commands.
+RUN node scripts/build-maintenance.js
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
@@ -43,6 +46,7 @@ COPY --from=builder /app/.next/static ./.next/static
 
 # The bot bundle includes Discord.js and its JavaScript dependencies.
 COPY --from=builder /app/dist/bot ./dist/bot
+COPY --from=builder /app/dist/maintenance ./dist/maintenance
 COPY --from=builder /app/scripts/run-startup-migrations.mjs ./scripts/run-startup-migrations.mjs
 
 # Copy startup script and ensure it's executable

@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { openMaintenanceDb, assertProductionWriteAllowed } from "./maintenance-db.mjs";
 
 const MIN_SEASON = 11;
 // Season 11 changed replay/stat format at Week 6. Seasons 5–10 and S11
@@ -8,6 +8,8 @@ const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL = process.env.REPLAY_SCRAPE_URL || "http://127.0.0.1:3000/api/replay-scrape";
 const dryRun = !process.argv.includes("--apply");
 const quiet = process.argv.includes("--quiet");
+
+if (!dryRun) assertProductionWriteAllowed(DATABASE_PATH);
 
 const HAX_FIELDS = [
   "favorableCrits",
@@ -94,8 +96,7 @@ async function scrapeReplay(match) {
   return payload;
 }
 
-const db = new Database(DATABASE_PATH);
-db.pragma("busy_timeout = 30000");
+const db = openMaintenanceDb(DATABASE_PATH);
 
 const requiredColumns = [
   "favorable_crits",
@@ -110,31 +111,32 @@ const requiredColumns = [
   "favorable_events",
 ];
 const existingColumns = new Set(
-  db.prepare("SELECT name FROM pragma_table_info('match_pokemon')").all().map((row) => row.name)
+  (await db.all("SELECT name FROM pragma_table_info('match_pokemon')")).map((row) => row.name)
 );
 const missingColumns = requiredColumns.filter((column) => !existingColumns.has(column));
 if (missingColumns.length > 0) {
-  db.close();
+  db.client.close();
   throw new Error(`match_pokemon is missing required columns: ${missingColumns.join(", ")}`);
 }
 
-const tableExists = db.prepare(
-  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1"
-);
-if (tableExists.get("pokemon_name_aliases")) {
-  for (const row of db.prepare("SELECT pokemon_id, alias FROM pokemon_name_aliases").all()) {
+const tableExists = async (name) => Boolean(await db.get(
+  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+  [name],
+));
+if (await tableExists("pokemon_name_aliases")) {
+  for (const row of await db.all("SELECT pokemon_id, alias FROM pokemon_name_aliases")) {
     addAcceptedName(row.pokemon_id, row.alias);
   }
 }
-if (tableExists.get("pokemon_name_collapses")) {
-  for (const row of db.prepare(
+if (await tableExists("pokemon_name_collapses")) {
+  for (const row of await db.all(
     "SELECT target_pokemon_id AS pokemon_id, source_name AS alias FROM pokemon_name_collapses"
-  ).all()) {
+  )) {
     addAcceptedName(row.pokemon_id, row.alias);
   }
 }
 
-const matches = db.prepare(`
+const matches = await db.all(`
   SELECT
     m.id,
     m.week,
@@ -150,9 +152,9 @@ const matches = db.prepare(`
     AND TRIM(m.replay_url) != ''
     AND s.season_number >= ?
   ORDER BY s.season_number, m.id
-`).all(MIN_SEASON);
+`, [MIN_SEASON]);
 
-const rowsByMatch = db.prepare(`
+const rowsByMatch = `
   SELECT
     mp.id,
     mp.season_coach_id,
@@ -163,9 +165,9 @@ const rowsByMatch = db.prepare(`
   FROM match_pokemon mp
   JOIN pokemon p ON p.id = mp.pokemon_id
   WHERE mp.match_id = ?
-`);
+`;
 
-const updateHax = db.prepare(`
+const updateHax = `
   UPDATE match_pokemon SET
     favorable_crits = ?,
     favorable_misses = ?,
@@ -178,7 +180,7 @@ const updateHax = db.prepare(`
     favorable_confusion_self_hits = ?,
     favorable_events = ?
   WHERE id = ?
-`);
+`;
 
 let processed = 0;
 let matchesChanged = 0;
@@ -193,7 +195,7 @@ for (const match of matches) {
     const replay = await scrapeReplay(match);
     const p1Team = Array.isArray(replay.p1Team) ? replay.p1Team : [];
     const p2Team = Array.isArray(replay.p2Team) ? replay.p2Team : [];
-    const matchRows = rowsByMatch.all(match.id);
+    const matchRows = await db.all(rowsByMatch, [match.id]);
     const coach1Rows = matchRows.filter((row) => row.season_coach_id === match.coach1_season_id);
     const coach2Rows = matchRows.filter((row) => row.season_coach_id === match.coach2_season_id);
     const p1IsCoach1Score = teamScore(p1Team, coach1Rows) + teamScore(p2Team, coach2Rows);
@@ -242,11 +244,10 @@ for (const match of matches) {
     }
 
     if (!dryRun && updates.length > 0) {
-      db.transaction((pendingUpdates) => {
-        for (const update of pendingUpdates) {
-          updateHax.run(...update.values, JSON.stringify(update.events), update.rowId);
-        }
-      })(updates);
+      await db.batch(updates.map((update) => ({
+        sql: updateHax,
+        args: [...update.values, JSON.stringify(update.events), update.rowId],
+      })));
     }
 
     processed++;
@@ -265,7 +266,7 @@ for (const match of matches) {
   }
 }
 
-db.close();
+db.client.close();
 console.log(
   [
     `${dryRun ? "Planned" : "Completed"} ${processed}/${matches.length} Season 11+ replay matches (expanded format only from S11 W6; S5–10 and S11 W1–5 stay legacy)`,
