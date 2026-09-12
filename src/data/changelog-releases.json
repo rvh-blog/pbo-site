@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-11-experimental-stats-visual-lab",
+    "title": "Experimental Stats Visual Lab",
+    "summary": "Experimental Stats now has a deeper, filter-aware Visual Lab with source context, calculation guidance, and smoother chart updates.",
+    "publishedAt": "2026-09-11",
+    "changes": [
+      { "type": "added", "text": "Added signature, team, top-play, momentum, move-usage, season/division, coach-style, coverage, and team-core visual reports." },
+      { "type": "improved", "text": "Chart points, replay selectors, tables, lists, and exports now expose relevant season, division, week, team, coach, record, coverage, and replay context." },
+      { "type": "improved", "text": "Shared Experimental Stats filtering uses deferred, memoized updates so filter controls stay responsive while expensive chart aggregations refresh." },
+      { "type": "improved", "text": "Top-play charts now display their HP-swing, comeback-deficit, and active-appearance calculation guidance with accurate recorded-play axis labels." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-10-experimental-stats-reports",
     "title": "PokéBase-Inspired Usage Reports",
     "summary": "Experimental Stats now includes a replay-backed Pokémon usage overview, configurable trends, qualified leaderboards, and clearer evidence coverage.",

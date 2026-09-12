@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
@@ -23,6 +23,9 @@ import { HpChart } from "@/components/hp-chart";
 import { experimentalMetricGroups, experimentalVisualDefinitions } from "@/lib/experimental-stats";
 import { getDistinctHeldItemNames, isTransferredItemReveal } from "@/lib/revealed-items";
 import { ExperimentalInsights } from "./experimental-insights";
+import { SignatureStatsReport } from "./experimental-signature-stats";
+import { TeamStatsReport, TopPlaysReport } from "./experimental-team-reports";
+import { ExperimentalVisualsReport } from "./experimental-visuals";
 
 export interface ExperimentalAppearance {
   seasonCoachId: number;
@@ -106,7 +109,7 @@ export interface ExperimentalStatsDataset {
   matches: ExperimentalMatch[];
 }
 
-export type ExperimentalClientModule = "pokemon" | "coaches" | "compare" | "insights" | "rolling" | "leaderboard" | "replays" | "visualizer" | "rare" | "glossary";
+export type ExperimentalClientModule = "pokemon" | "coaches" | "compare" | "insights" | "rolling" | "leaderboard" | "replays" | "visualizer" | "rare" | "signature-stats" | "team-stats" | "top-plays" | "visuals" | "glossary";
 type ModuleId = ExperimentalClientModule;
 type ResultFilter = "all" | "wins" | "losses";
 type StageFilter = "all" | "regular" | "playoffs";
@@ -128,7 +131,7 @@ export interface ExperimentalFilterState {
 
 type Filters = ExperimentalFilterState;
 
-interface EnrichedAppearance extends ExperimentalAppearance {
+export interface EnrichedAppearance extends ExperimentalAppearance {
   match: ExperimentalMatch;
   coachId: number;
   coachName: string;
@@ -136,7 +139,7 @@ interface EnrichedAppearance extends ExperimentalAppearance {
   won: boolean;
 }
 
-interface EntityAggregate {
+export interface EntityAggregate {
   id: number;
   name: string;
   spriteUrl: string | null;
@@ -175,6 +178,10 @@ const MODULES: Array<{ id: ModuleId; label: string; icon: typeof BarChart3 }> = 
   { id: "replays", label: "Replay Search", icon: Search },
   { id: "visualizer", label: "Battle Visualizer", icon: BarChart3 },
   { id: "rare", label: "Rare Events", icon: FlaskConical },
+  { id: "signature-stats", label: "Signature Stats", icon: Sparkles },
+  { id: "team-stats", label: "Team Stats", icon: BarChart3 },
+  { id: "top-plays", label: "Top Plays", icon: Sparkles },
+  { id: "visuals", label: "Visual Lab", icon: BarChart3 },
   { id: "glossary", label: "Metric Glossary", icon: BookOpen },
 ];
 
@@ -383,6 +390,8 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
     includeForfeits: false,
   };
   const [filters, setFilters] = useState<Filters>(() => initialFilters ? { ...initialFilters, weekEnd: initialFilters.weekEnd >= 999 ? initialHighestWeek : Math.min(initialFilters.weekEnd, initialHighestWeek) } : defaultFilters);
+  const deferredFilters = useDeferredValue(filters);
+  const filtersAreUpdating = deferredFilters !== filters;
   const highestAvailableWeek = highestWeekForSeason(filters.seasonId);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [profilePokemonId, setProfilePokemonId] = useState<number | null>(null);
@@ -449,32 +458,37 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
 
   const filteredAppearances = useMemo(() => enrichedAppearances.filter((appearance) => {
     const match = appearance.match;
-    if (filters.seasonId !== "all" && match.seasonId !== filters.seasonId) return false;
-    if (filters.divisionId !== "all" && match.divisionId !== filters.divisionId) return false;
-    if (match.week < filters.weekStart || match.week > filters.weekEnd) return false;
-    if (filters.stage === "regular" && match.week > 100) return false;
-    if (filters.stage === "playoffs" && match.week <= 100) return false;
-    if (!filters.includeForfeits && match.isForfeit) return false;
-    if (filters.coachId !== "all" && appearance.coachId !== filters.coachId) return false;
-    if (filters.pokemonId !== "all" && appearance.pokemonId !== filters.pokemonId) return false;
-    if (filters.move !== "all" && !appearance.movesUsed[filters.move]) return false;
-    if (filters.item !== "all" && !distinctHeldItemReveals(appearance).some((item) => item.item === filters.item)) return false;
-    if (filters.result === "wins" && !appearance.won) return false;
-    if (filters.result === "losses" && appearance.won) return false;
+    if (deferredFilters.seasonId !== "all" && match.seasonId !== deferredFilters.seasonId) return false;
+    if (deferredFilters.divisionId !== "all" && match.divisionId !== deferredFilters.divisionId) return false;
+    if (match.week < deferredFilters.weekStart || match.week > deferredFilters.weekEnd) return false;
+    if (deferredFilters.stage === "regular" && match.week > 100) return false;
+    if (deferredFilters.stage === "playoffs" && match.week <= 100) return false;
+    if (!deferredFilters.includeForfeits && match.isForfeit) return false;
+    if (deferredFilters.coachId !== "all" && appearance.coachId !== deferredFilters.coachId) return false;
+    if (deferredFilters.pokemonId !== "all" && appearance.pokemonId !== deferredFilters.pokemonId) return false;
+    if (deferredFilters.move !== "all" && !appearance.movesUsed[deferredFilters.move]) return false;
+    if (deferredFilters.item !== "all" && !distinctHeldItemReveals(appearance).some((item) => item.item === deferredFilters.item)) return false;
+    if (deferredFilters.result === "wins" && !appearance.won) return false;
+    if (deferredFilters.result === "losses" && appearance.won) return false;
     return true;
-  }), [enrichedAppearances, filters]);
+  }), [enrichedAppearances, deferredFilters]);
 
-  const filteredMatchIds = new Set(filteredAppearances.map((appearance) => appearance.match.id));
-  const filteredMatches = dataset.matches.filter((match) => filteredMatchIds.has(match.id));
-  const pokemonRows = aggregateEntities(filteredAppearances, "pokemon").filter((row) => row.appearances >= filters.minimumAppearances).sort((a, b) => b.appearances - a.appearances || b.damage - a.damage);
-  const coachRows = aggregateEntities(filteredAppearances, "coach").filter((row) => row.appearances >= filters.minimumAppearances).sort((a, b) => b.wins - a.wins || b.appearances - a.appearances);
-  const activePokemon = pokemonRows.find((row) => row.id === profilePokemonId) ?? pokemonRows[0] ?? null;
-  const activePokemonAppearances = activePokemon ? filteredAppearances.filter((appearance) => appearance.pokemonId === activePokemon.id).sort((a, b) => (a.match.playedAt ?? "").localeCompare(b.match.playedAt ?? "") || a.match.id - b.match.id) : [];
+  const filteredMatchIds = useMemo(() => new Set(filteredAppearances.map((appearance) => appearance.match.id)), [filteredAppearances]);
+  const filteredMatches = useMemo(() => dataset.matches.filter((match) => filteredMatchIds.has(match.id)), [dataset.matches, filteredMatchIds]);
+  const selectedTeamIds = useMemo(() => [...new Set(filteredAppearances.map((appearance) => appearance.seasonCoachId))], [filteredAppearances]);
+  const pokemonRows = useMemo(() => aggregateEntities(filteredAppearances, "pokemon").filter((row) => row.appearances >= deferredFilters.minimumAppearances).sort((a, b) => b.appearances - a.appearances || b.damage - a.damage), [filteredAppearances, deferredFilters.minimumAppearances]);
+  const coachRows = useMemo(() => aggregateEntities(filteredAppearances, "coach").filter((row) => row.appearances >= deferredFilters.minimumAppearances).sort((a, b) => b.wins - a.wins || b.appearances - a.appearances), [filteredAppearances, deferredFilters.minimumAppearances]);
+  const activePokemon = useMemo(() => pokemonRows.find((row) => row.id === profilePokemonId) ?? pokemonRows[0] ?? null, [pokemonRows, profilePokemonId]);
+  const activePokemonAppearances = useMemo(() => activePokemon ? filteredAppearances.filter((appearance) => appearance.pokemonId === activePokemon.id).sort((a, b) => (a.match.playedAt ?? "").localeCompare(b.match.playedAt ?? "") || a.match.id - b.match.id) : [], [activePokemon, filteredAppearances]);
 
-  const coveredMatches = new Set(filteredAppearances.filter((appearance) => appearance.damageDealt !== null || appearance.moveDataRecorded || appearance.itemDataRecorded).map((appearance) => appearance.match.id)).size;
-  const allMoveUses = new Map<string, number>();
-  filteredAppearances.forEach((appearance) => Object.entries(appearance.movesUsed).forEach(([move, count]) => allMoveUses.set(move, (allMoveUses.get(move) ?? 0) + count)));
-  const topMove = [...allMoveUses].sort((a, b) => b[1] - a[1])[0];
+  const coveredMatches = useMemo(() => new Set(filteredAppearances.filter((appearance) => appearance.damageDealt !== null || appearance.moveDataRecorded || appearance.itemDataRecorded).map((appearance) => appearance.match.id)).size, [filteredAppearances]);
+  const allMoveUses = useMemo(() => {
+    const counts = new Map<string, number>();
+    filteredAppearances.forEach((appearance) => Object.entries(appearance.movesUsed).forEach(([move, count]) => counts.set(move, (counts.get(move) ?? 0) + count)));
+    return counts;
+  }, [filteredAppearances]);
+  const moveRows = useMemo(() => [...allMoveUses.entries()], [allMoveUses]);
+  const topMove = useMemo(() => [...allMoveUses].sort((a, b) => b[1] - a[1])[0], [allMoveUses]);
 
   const updateFilters = (patch: Partial<Filters>) => setFilters((current) => {
     const next = { ...current, ...patch };
@@ -499,7 +513,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
     return next;
   });
   const updateFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => updateFilters({ [key]: value });
-  const qualificationText = `${filters.minimumAppearances}+ games in the active filters`;
+  const qualificationText = `${deferredFilters.minimumAppearances}+ games in the active filters`;
 
   const selectVisualMatch = (matchId: number) => {
     setVisualMatchId(matchId);
@@ -527,6 +541,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold text-emerald-300">{filteredMatches.length} matches · {coveredMatches} with detailed fields</span>
+            {filtersAreUpdating ? <span role="status" className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-bold text-cyan-200">Updating charts…</span> : null}
             <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="btn-retro-secondary px-3 py-2 text-[9px]">{filtersOpen ? "Close filters" : "Filters"}</button>
             <button type="button" onClick={shareView} className="btn-retro-secondary inline-flex items-center gap-1 px-3 py-2 text-[9px]"><Share2 className="h-3 w-3" />{shareMessage || "Share"}</button>
           </div>
@@ -564,14 +579,18 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           {module === "insights" ? <ExperimentalInsights matches={filteredMatches} appearances={filteredAppearances} /> : null}
 
           {module === "pokemon" && activePokemon ? <PokemonUsageReport rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} matches={filteredMatches} onSelect={setProfilePokemonId} /> : null}
-          {module === "pokemon" && <PokemonProfiles rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} qualificationText={qualificationText} minimumAppearances={filters.minimumAppearances} onSelect={setProfilePokemonId} />}
+          {module === "pokemon" && <PokemonProfiles rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} qualificationText={qualificationText} minimumAppearances={deferredFilters.minimumAppearances} onSelect={setProfilePokemonId} />}
           {module === "coaches" && <CoachProfiles rows={coachRows} appearances={filteredAppearances} />}
           {module === "compare" && <CompareModule rows={pokemonRows} compareA={compareA} compareB={compareB} setCompareA={setCompareA} setCompareB={setCompareB} />}
           {module === "rolling" && <ExpandedRollingModule pokemon={activePokemon} appearances={activePokemonAppearances} rows={pokemonRows} onSelect={setProfilePokemonId} />}
-          {module === "leaderboard" && <PresetLeaderboardModule rows={leaderboardEntity === "pokemon" ? pokemonRows : coachRows} entity={leaderboardEntity} setEntity={setLeaderboardEntity} perAppearance={leaderboardRate} setPerAppearance={setLeaderboardRate} minimumAppearances={filters.minimumAppearances} matches={filteredMatches} appearances={filteredAppearances} />}
+          {module === "leaderboard" && <PresetLeaderboardModule rows={leaderboardEntity === "pokemon" ? pokemonRows : coachRows} entity={leaderboardEntity} setEntity={setLeaderboardEntity} perAppearance={leaderboardRate} setPerAppearance={setLeaderboardRate} minimumAppearances={deferredFilters.minimumAppearances} matches={filteredMatches} appearances={filteredAppearances} />}
           {module === "replays" && <ReplaySearchModule matches={filteredMatches} />}
           {module === "visualizer" && <><div className="space-y-2"><BattleVisualizer matches={filteredMatches} selectedId={visualMatchId} onSelect={selectVisualMatch} /><div className="poke-card px-4 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Timeline axes: Turn / turn range of first reveal · Item reveals / team HP remaining (%)</div></div><EventAnalytics matches={filteredMatches} selectedId={visualMatchId} /></>}
           {module === "rare" && <><RareEventsModule matches={filteredMatches} appearances={filteredAppearances} /><EventRareRecords matches={filteredMatches} /></>}
+          {module === "signature-stats" && <SignatureStatsReport appearances={filteredAppearances} minimumAppearances={deferredFilters.minimumAppearances} />}
+          {module === "team-stats" && <TeamStatsReport matches={filteredMatches} selectedTeamIds={selectedTeamIds} />}
+          {module === "top-plays" && <TopPlaysReport matches={filteredMatches} />}
+          {module === "visuals" && <ExperimentalVisualsReport appearances={filteredAppearances} matches={filteredMatches} pokemonRows={pokemonRows} coachRows={coachRows} selectedTeamIds={selectedTeamIds} moves={moveRows} minimumAppearances={deferredFilters.minimumAppearances} />}
           {module === "glossary" && <GlossaryModule search={glossarySearch} setSearch={setGlossarySearch} />}
         </main>
       </div>
@@ -845,7 +864,7 @@ export function RollingModule({ pokemon, appearances, rows, onSelect }: { pokemo
     { metric: "Kills", previous: calc(previous, (a) => a.kills), latest: calc(latest, (a) => a.kills) },
     { metric: "Setup moves", previous: calc(previous, (a) => a.setupMovesUsed ?? 0, (a) => a.setupMovesUsed !== null), latest: calc(latest, (a) => a.setupMovesUsed ?? 0, (a) => a.setupMovesUsed !== null) },
   ];
-  return <section className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Rolling trends</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Previous five appearances compared with the latest five. Each metric uses only appearances where that field was recorded.</p></div><select value={pokemon.id} onChange={(event) => onSelect(Number(event.target.value))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:w-auto">{rows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>{appearances.length < 10 ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">Only {appearances.length} qualified appearances are available. Values remain visible, but a full 5-vs-5 window needs 10.</div> : null}<div className="mt-6 h-72 rounded-xl border border-[var(--border)] bg-[var(--background)] p-2 sm:h-80 sm:p-4"><ResponsiveContainer width="100%" height="100%"><BarChart data={trendRows} layout="vertical" margin={{ left: 8, right: 12 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis type="number" stroke="var(--foreground-muted)" tick={{ fontSize: 10 }} /><YAxis type="category" dataKey="metric" width={105} stroke="var(--foreground-muted)" tick={{ fontSize: 9 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: 8 }} /><Bar dataKey="previous" name="Previous 5" fill="#64748b" radius={[0, 4, 4, 0]} /><Bar dataKey="latest" name="Latest 5" fill="#8b5cf6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div><div className="mt-4 overflow-hidden rounded-xl border border-[var(--border)]"><table className="w-full text-[10px] sm:text-xs"><thead className="bg-[var(--background)] text-[8px] uppercase text-[var(--foreground-muted)] sm:text-[9px]"><tr><th className="p-3 text-left">Metric</th><th>Previous</th><th>Latest</th><th>Change</th></tr></thead><tbody>{trendRows.map((row) => { const change = row.latest !== null && row.previous !== null ? row.latest - row.previous : null; return <tr key={row.metric} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left font-bold text-white">{row.metric}</td><td className="font-mono">{formatCovered(row.previous, 1)}</td><td className="font-mono">{formatCovered(row.latest, 1)}</td><td className={`font-mono font-black ${change !== null && change > 0 ? "text-emerald-400" : change !== null && change < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>{change === null ? "—" : `${change > 0 ? "+" : ""}${number(change, 1)}`}</td></tr>; })}</tbody></table></div></section>;
+  return <section className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Rolling trends</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Previous five appearances compared with the latest five. Each metric uses only appearances where that field was recorded.</p></div><select value={pokemon.id} onChange={(event) => onSelect(Number(event.target.value))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:w-auto">{rows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>{appearances.length < 10 ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">Only {appearances.length} qualified appearances are available. Values remain visible, but a full 5-vs-5 window needs 10.</div> : null}<div className="mt-6 h-72 rounded-xl border border-[var(--border)] bg-[var(--background)] p-2 sm:h-80 sm:p-4"><ResponsiveContainer width="100%" height="100%"><BarChart data={trendRows} layout="vertical" margin={{ left: 28, right: 12, bottom: 28 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis type="number" stroke="var(--foreground-muted)" tick={{ fontSize: 10 }} label={{ value: "Metric value", position: "insideBottom", offset: -18, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis type="category" dataKey="metric" width={105} stroke="var(--foreground-muted)" tick={{ fontSize: 9 }} label={{ value: "Metric", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--foreground)" }} /><Bar dataKey="previous" name="Previous 5" fill="#64748b" radius={[0, 4, 4, 0]} /><Bar dataKey="latest" name="Latest 5" fill="#8b5cf6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div><div className="mt-4 overflow-hidden rounded-xl border border-[var(--border)]"><table className="w-full text-[10px] sm:text-xs"><thead className="bg-[var(--background)] text-[8px] uppercase text-[var(--foreground-muted)] sm:text-[9px]"><tr><th className="p-3 text-left">Metric</th><th>Previous</th><th>Latest</th><th>Change</th></tr></thead><tbody>{trendRows.map((row) => { const change = row.latest !== null && row.previous !== null ? row.latest - row.previous : null; return <tr key={row.metric} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left font-bold text-white">{row.metric}</td><td className="font-mono">{formatCovered(row.previous, 1)}</td><td className="font-mono">{formatCovered(row.latest, 1)}</td><td className={`font-mono font-black ${change !== null && change > 0 ? "text-emerald-400" : change !== null && change < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>{change === null ? "—" : `${change > 0 ? "+" : ""}${number(change, 1)}`}</td></tr>; })}</tbody></table></div></section>;
 }
 
 export function LeaderboardModule({ rows, entity, setEntity, perAppearance, setPerAppearance }: { rows: EntityAggregate[]; entity: "pokemon" | "coach"; setEntity: (value: "pokemon" | "coach") => void; perAppearance: boolean; setPerAppearance: (value: boolean) => void }) {
@@ -897,7 +916,7 @@ function BattleVisualizer({ matches, selectedId, onSelect }: { matches: Experime
   const itemBuckets = [{ label: "1–5", min: 1, max: 5 }, { label: "6–10", min: 6, max: 10 }, { label: "11–15", min: 11, max: 15 }, { label: "16+", min: 16, max: 999 }].map((bucket) => ({ turn: bucket.label, reveals: heldItemRevealTurns.filter((turn) => turn >= bucket.min && turn <= bucket.max).length }));
   const chartEvents = match.keyEvents.filter((event): event is typeof event & { player: "p1" | "p2" } => (event.type === "faint" || event.type === "win") && Boolean(event.player)).map((event) => ({ ...event, type: event.type as "faint" | "win" }));
   const orientationKnown = match.p1IsCoach1 !== null;
-  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Battle visualizer</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Team HP, faint order, and item timing from saved replay evidence.</p></div><select value={match.id} onChange={(event) => onSelect(Number(event.target.value))} className="max-w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{eligible.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.coach1.teamName} vs {candidate.coach2.teamName} · W{candidate.week}</option>)}</select></div>{!orientationKnown ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">The saved replay lacks a winner-to-player mapping event, so the HP lines are labeled by replay player rather than attributed to teams.</div> : null}<div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><HpChart turnSnapshots={match.turnSnapshots} keyEvents={chartEvents} team1Name={orientationKnown ? match.coach1.teamName : "Replay Player 1"} team2Name={orientationKnown ? match.coach2.teamName : "Replay Player 2"} team1Color="#22d3ee" team2Color="#e879f9" p1IsCoach1={match.p1IsCoach1 ?? true} /></div><div className="mt-4 flex flex-wrap gap-2">{match.keyEvents.filter((event) => event.type === "faint").sort((a, b) => a.turn - b.turn).map((event, index) => <span key={`${event.turn}-${index}`} className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] text-red-200">T{event.turn} · {event.pokemon ?? "Unknown"} fainted</span>)}</div></div><MatchPokemonBoxScore match={match} /><div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Item reveal timeline</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">First explicit saved held-item reveals; transferred Trick and Switcheroo items are excluded and unrevealed items remain unknown.</p><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={itemBuckets}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis dataKey="turn" stroke="var(--foreground-muted)" /><YAxis allowDecimals={false} stroke="var(--foreground-muted)" /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }} /><Bar dataKey="reveals" fill="#a78bfa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div></section>;
+  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Battle visualizer</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Team HP, faint order, and item timing from saved replay evidence.</p></div><select value={match.id} onChange={(event) => onSelect(Number(event.target.value))} className="max-w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{eligible.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.coach1.teamName} vs {candidate.coach2.teamName} · {candidate.seasonName} · {candidate.divisionName} · W{candidate.week}</option>)}</select></div>{!orientationKnown ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">The saved replay lacks a winner-to-player mapping event, so the HP lines are labeled by replay player rather than attributed to teams.</div> : null}<div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><HpChart turnSnapshots={match.turnSnapshots} keyEvents={chartEvents} team1Name={orientationKnown ? match.coach1.teamName : "Replay Player 1"} team2Name={orientationKnown ? match.coach2.teamName : "Replay Player 2"} team1Color="#22d3ee" team2Color="#e879f9" p1IsCoach1={match.p1IsCoach1 ?? true} /></div><div className="mt-4 flex flex-wrap gap-2">{match.keyEvents.filter((event) => event.type === "faint").sort((a, b) => a.turn - b.turn).map((event, index) => <span key={`${event.turn}-${index}`} className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] text-red-200">T{event.turn} · {event.pokemon ?? "Unknown"} fainted</span>)}</div></div><MatchPokemonBoxScore match={match} /><div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Item reveal timeline</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">First explicit saved held-item reveals; transferred Trick and Switcheroo items are excluded and unrevealed items remain unknown.</p><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={itemBuckets} margin={{ bottom: 24, left: 18 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis dataKey="turn" stroke="var(--foreground-muted)" label={{ value: "Turn", position: "insideBottom", offset: -16, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis allowDecimals={false} stroke="var(--foreground-muted)" label={{ value: "Item reveals", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="reveals" fill="#a78bfa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div></section>;
 }
 
 function RareEventsModule({ matches, appearances }: { matches: ExperimentalMatch[]; appearances: EnrichedAppearance[] }) {
@@ -940,7 +959,7 @@ function ExpandedRollingModule({ pokemon, appearances, rows, onSelect }: { pokem
     { metric: "Setup moves", previous: average(previous, (a) => a.setupMovesUsed ?? 0, (a) => a.setupMovesUsed !== null), latest: average(latest, (a) => a.setupMovesUsed ?? 0, (a) => a.setupMovesUsed !== null) },
     { metric: "Favorable events", previous: average(previous, sumFavorable), latest: average(latest, sumFavorable) },
   ];
-  return <section className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Rolling trends</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Compare configurable recent windows. Every row shows its recorded-data basis.</p></div><div className="flex flex-wrap gap-2"><select value={windowSize} onChange={(event) => setWindowSize(Number(event.target.value) as 3 | 5 | 10)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold"><option value={3}>3-game window</option><option value={5}>5-game window</option><option value={10}>10-game window</option></select><select value={pokemon.id} onChange={(event) => onSelect(Number(event.target.value))} className="min-w-48 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div></div>{chronological.length < windowSize * 2 ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">Only {chronological.length} appearances are available; a complete comparison needs {windowSize * 2}.</div> : null}<div className="mt-6 h-80 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><ResponsiveContainer width="100%" height="100%"><BarChart data={trendRows} layout="vertical" margin={{ left: 12, right: 12 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis type="number" stroke="var(--foreground-muted)" tick={{ fontSize: 10 }} /><YAxis type="category" dataKey="metric" width={120} stroke="var(--foreground-muted)" tick={{ fontSize: 9 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }} /><Bar dataKey="previous" name={`Previous ${windowSize}`} fill="#64748b" radius={[0, 4, 4, 0]} /><Bar dataKey="latest" name={`Latest ${windowSize}`} fill="#8b5cf6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div><div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[600px] text-xs"><thead className="bg-[var(--background)] text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Metric</th><th>Previous</th><th>Latest</th><th>Change</th><th>Direction</th></tr></thead><tbody>{trendRows.map((row) => { const change = row.latest !== null && row.previous !== null ? row.latest - row.previous : null; return <tr key={row.metric} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left font-bold text-white">{row.metric}</td><td>{formatCovered(row.previous, 2)}</td><td>{formatCovered(row.latest, 2)}</td><td className={change !== null && change > 0 ? "text-emerald-400" : change !== null && change < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}>{change === null ? "—" : `${change > 0 ? "+" : ""}${number(change, 2)}`}</td><td>{change === null ? "Unknown" : change > 0 ? "Up" : change < 0 ? "Down" : "Flat"}</td></tr>; })}</tbody></table></div></section>;
+  return <section className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Rolling trends</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Compare configurable recent windows. Every row shows its recorded-data basis.</p></div><div className="flex flex-wrap gap-2"><select value={windowSize} onChange={(event) => setWindowSize(Number(event.target.value) as 3 | 5 | 10)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold"><option value={3}>3-game window</option><option value={5}>5-game window</option><option value={10}>10-game window</option></select><select value={pokemon.id} onChange={(event) => onSelect(Number(event.target.value))} className="min-w-48 rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div></div>{chronological.length < windowSize * 2 ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">Only {chronological.length} appearances are available; a complete comparison needs {windowSize * 2}.</div> : null}<div className="mt-6 h-80 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><ResponsiveContainer width="100%" height="100%"><BarChart data={trendRows} layout="vertical" margin={{ left: 40, right: 12, bottom: 28 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis type="number" stroke="var(--foreground-muted)" tick={{ fontSize: 10 }} label={{ value: "Metric value", position: "insideBottom", offset: -18, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis type="category" dataKey="metric" width={120} stroke="var(--foreground-muted)" tick={{ fontSize: 9 }} label={{ value: "Metric", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="previous" name={`Previous ${windowSize}`} fill="#64748b" radius={[0, 4, 4, 0]} /><Bar dataKey="latest" name={`Latest ${windowSize}`} fill="#8b5cf6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div><div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[600px] text-xs"><thead className="bg-[var(--background)] text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Metric</th><th>Previous</th><th>Latest</th><th>Change</th><th>Direction</th></tr></thead><tbody>{trendRows.map((row) => { const change = row.latest !== null && row.previous !== null ? row.latest - row.previous : null; return <tr key={row.metric} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left font-bold text-white">{row.metric}</td><td>{formatCovered(row.previous, 2)}</td><td>{formatCovered(row.latest, 2)}</td><td className={change !== null && change > 0 ? "text-emerald-400" : change !== null && change < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}>{change === null ? "—" : `${change > 0 ? "+" : ""}${number(change, 2)}`}</td><td>{change === null ? "Unknown" : change > 0 ? "Up" : change < 0 ? "Down" : "Flat"}</td></tr>; })}</tbody></table></div></section>;
 }
 
 type LeaderboardPreset = "damage" | "kd" | "survival" | "playoffs" | "comeback" | "moves" | "koDifferential" | "koDifferentialPerGame" | "moveUsage";

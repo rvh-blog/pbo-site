@@ -2084,6 +2084,13 @@ html[data-theme="light"] .score-display {
   font-size: 0.75rem;
 }
 
+.experimental-stats-readable .recharts-label {
+  fill: var(--foreground);
+  font-size: 18px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
 .experimental-stats-readable .recharts-tooltip-wrapper {
   font-size: 0.8125rem;
   line-height: 1.25rem;

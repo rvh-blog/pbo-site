@@ -14,6 +14,10 @@ export const experimentalModuleLinks: Array<{ slug: ExperimentalModuleSlug; labe
   { slug: "replays", label: "Replays" },
   { slug: "battle-visualizer", label: "Visualizer" },
   { slug: "rare-events", label: "Rare Events" },
+  { slug: "signature-stats", label: "Signature Stats" },
+  { slug: "team-stats", label: "Team Stats" },
+  { slug: "top-plays", label: "Top Plays" },
+  { slug: "visuals", label: "Visual Lab" },
   { slug: "glossary", label: "Glossary" },
 ];
 

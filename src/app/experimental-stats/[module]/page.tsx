@@ -17,6 +17,10 @@ const moduleCopy: Record<ExperimentalModuleSlug, { title: string; description: s
   replays: { title: "Replay Search", description: "Find filtered battles and open the recorded match or official replay source.", clientModule: "replays" },
   "battle-visualizer": { title: "Battle Visualizer", description: "Explore saved team HP, faint timing, and explicit item-reveal timing for one battle.", clientModule: "visualizer" },
   "rare-events": { title: "Rare Event Explorer", description: "Search unusual records that can be supported by currently saved replay evidence.", clientModule: "rare" },
+  "signature-stats": { title: "Signature Stats", description: "Review opportunity-normalized Pokémon rates for damage, KOs, healing, setup, and favorable replay events.", clientModule: "signature-stats" },
+  "team-stats": { title: "Team Stats", description: "Review season- and division-specific team offense, defense, damage efficiency, and replay control signals.", clientModule: "team-stats" },
+  "top-plays": { title: "Top Plays", description: "Find the biggest replay-backed moments: HP swings, comebacks, early knockouts, and long active appearances.", clientModule: "top-plays" },
+  visuals: { title: "Visual Lab", description: "Explore comparison charts, coverage maps, team visuals, replay momentum, move usage, and synergy views under the active filters.", clientModule: "visuals" },
   glossary: { title: "Metric Glossary", description: "Definitions and report coverage for every proposed official replay-only metric and visual.", clientModule: "glossary" },
 };
 

@@ -159,6 +159,29 @@ The current modules are:
   damage, minimum kills, and survived-battle filters.
 - Battle Visualizer: a selected replay's saved HP timeline, faint timing, item
   reveals, and event-density views.
+- Signature Stats: opportunity-normalized damage, KO, healing, setup, and
+  favorable-event rates with season-aware context and coverage.
+- Team Stats: season/division-aware team offense, defense, damage efficiency,
+  first-faint, and replay-control summaries.
+- Top Plays: replay-linked HP swings, comeback deficits, earliest first faints,
+  and longest active appearances.
+- Visual Lab: filter-aware scatter plots, ranked bars, team charts, momentum,
+  move usage, season/division heatmaps, coach proxies, replay coverage, and
+  team-core networks.
+
+Visual Lab notes:
+
+- Every panel receives the active shared filter scope. Chart tooltips and replay
+  selectors expose source context such as season, division, week, team, coach,
+  record, games, and field coverage where the aggregation supports it.
+- Visual Lab filters use a deferred, memoized refresh path so filter controls
+  stay responsive while expensive chart aggregations update.
+- Entity filters select replays containing the selected coach, Pokémon, move,
+  or item. Match-level panels then summarize all saved evidence in those
+  qualifying replays; this is intentional and is called out in the team-panel
+  descriptions.
+- Minimum-game qualification affects profiles, rankings, signature charts, and
+  coach comparisons; broad replay evidence panels retain lower-sample records.
 
 Reports show sample size and field coverage. Profiles and rankings require at
 least three qualifying games; replay evidence remains searchable below that
