@@ -432,8 +432,8 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
 
   useEffect(() => {
     const querySearch = searchParams.get("q") ?? "";
-    if (querySearch !== globalSearch) setGlobalSearch(querySearch);
-  }, [globalSearch, searchParams]);
+    setGlobalSearch(querySearch);
+  }, [searchParams]);
   const [profilePokemonId, setProfilePokemonId] = useState<number | null>(null);
   const [compareA, setCompareA] = useState<number | null>(null);
   const [compareB, setCompareB] = useState<number | null>(null);

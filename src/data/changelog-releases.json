@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-09-12-experimental-stats-search-input-fix",
+    "title": "Experimental Stats Search Input Fix",
+    "summary": "The report-wide Experimental Stats search field now keeps typed text while the URL scope updates.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "fixed", "text": "Search input state now syncs from URL changes only, so typing no longer gets overwritten by an in-flight router update." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-12-experimental-stats-mega-and-homepage-follow-up",
     "title": "Experimental Stats, Replay Evidence & Homepage Follow-up",
     "summary": "Experimental Stats now has clearer search, coverage, roster, Mega item, and report context, while the homepage Upcoming Battles panel is full width and localized.",
