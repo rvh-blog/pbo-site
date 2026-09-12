@@ -29,6 +29,18 @@ export const experimentalMetricGroups: Array<{
   metrics: ExperimentalMetricDefinition[];
 }> = [
   {
+    label: "Profile advanced metrics",
+    metrics: [
+      available("Damage Dealt", "Recorded direct plus indirect damage, measured in percentage points of Pokémon HP, per damage-covered appearance."),
+      available("Direct Damage", "Recorded direct damage per damage-covered appearance, in percentage points of Pokémon HP."),
+      available("Indirect Damage", "Recorded indirect damage per damage-covered appearance, in percentage points of Pokémon HP."),
+      available("HP Restored", "Recorded healing per healing-covered appearance, in percentage points of Pokémon HP."),
+      available("Turns Active", "Saved active turns per appearance with turn data; this is not the full battle length."),
+      available("Survival Rate", "Percentage of saved appearances with no recorded death."),
+      partial("Setup Moves", "Recorded setup-move uses per setup-covered appearance; this does not measure exact stat stages."),
+    ],
+  },
+  {
     label: "Battle shape and appearances",
     metrics: [
       available("Total turns", "Last saved turn in the replay HP timeline."),

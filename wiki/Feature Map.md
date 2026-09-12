@@ -57,8 +57,11 @@ See also:
   item tendencies, team cores, replay pace, playoff comparisons, replay
   comparison, configurable leaderboards, rolling windows, replay search,
   event-density visualizations, rare-event records, confidence labels, saved
-  browser reports, CSV exports, and the coverage glossary; protected by the
-  admin Experimental Stats feature toggle)
+  browser reports, CSV exports, and the coverage glossary; advanced profile
+  metrics expose covered-sample qualification and direct glossary links, Top
+  Plays supports expandable one-record-per-match rankings with links to saved
+  Battle Visualizer turns, and glossary search covers both metrics and visuals;
+  protected by the admin Experimental Stats feature toggle)
 - Normalized replay events: `src/lib/replay-events.ts`,
   `src/lib/battle-event-storage.ts`, `migrations/add-battle-events.sql`, and
   `scripts/backfill-battle-events.ts`; preserves every Showdown protocol line

@@ -31,6 +31,7 @@ type EventQueryRow = {
   turn: number;
   sequence: number;
   eventType: string;
+  count?: number | null;
   player?: "p1" | "p2" | null;
   actorNickname?: string | null;
   targetPlayer?: "p1" | "p2" | null;
@@ -52,6 +53,10 @@ const positiveNumber = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
+const nonZeroInteger = (value: string | undefined, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed !== 0 ? parsed : fallback;
+};
 
 export function parseExperimentalFilters(searchParams: SearchParams, currentSeasonId: number | null): ExperimentalUrlFilters {
   const seasonValue = first(searchParams.season);
@@ -65,8 +70,8 @@ export function parseExperimentalFilters(searchParams: SearchParams, currentSeas
     divisionId: divisionValue === "all" || !divisionValue ? "all" : positiveNumber(divisionValue, 0) || "all",
     weekStart: positiveNumber(first(searchParams.weekStart), 1),
     weekEnd: positiveNumber(first(searchParams.weekEnd), 999),
-    coachId: coachValue === "all" || !coachValue ? "all" : positiveNumber(coachValue, 0) || "all",
-    pokemonId: pokemonValue === "all" || !pokemonValue ? "all" : positiveNumber(pokemonValue, 0) || "all",
+    coachId: coachValue === "all" || !coachValue ? "all" : nonZeroInteger(coachValue, 0) || "all",
+    pokemonId: pokemonValue === "all" || !pokemonValue ? "all" : nonZeroInteger(pokemonValue, 0) || "all",
     move: first(searchParams.move) || "all",
     item: first(searchParams.item) || "all",
     minimumAppearances: Math.max(3, positiveNumber(first(searchParams.min), 3)),
@@ -132,6 +137,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   const includeTimeline = module === "insights" || module === "battle-visualizer" || module === "rare-events" || module === "top-plays" || module === "visuals";
   const includeKeyEvents = includeTimeline || module === "leaderboards" || module === "team-stats";
   const includeProtocolEvents = module === "battle-visualizer" || module === "rare-events" || module === "team-stats" || module === "visuals";
+  const includeTeamEventSummary = module === "team-stats" || module === "visuals";
   if (demoMode) {
     return {
       filters,
@@ -222,7 +228,19 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         ...rareCounts.map((row) => ({ matchId: row.matchId, turn: 0, sequence: 0, eventType: row.eventType === "terastallize" ? "__tera_count" : "__switch_count", value: Number(row.count) })),
       ];
     })()
-    : db.select({
+    : includeTeamEventSummary
+      ? db.select({
+        matchId: battleEvents.matchId,
+        turn: sql<number>`0`,
+        sequence: sql<number>`0`,
+        eventType: battleEvents.eventType,
+        player: battleEvents.player,
+        count: sql<number>`count(*)`,
+      }).from(battleEvents).where(and(
+        inArray(battleEvents.matchId, eventMatchIds),
+        or(eq(battleEvents.eventType, "switch"), eq(battleEvents.eventType, "drag"), eq(battleEvents.eventType, "terastallize")),
+      )).groupBy(battleEvents.matchId, battleEvents.eventType, battleEvents.player).catch(() => [])
+      : db.select({
       matchId: battleEvents.matchId,
       turn: battleEvents.turn,
       sequence: battleEvents.sequence,
@@ -304,6 +322,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
             statusName: null,
             fieldName: null,
             value: event.value ?? null,
+            count: event.count ?? null,
             source: null,
             rawLine: "",
             metadata: null,
@@ -323,6 +342,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
             statusName: event.statusName ?? null,
             fieldName: event.fieldName ?? null,
             value: event.value ?? null,
+            count: event.count ?? null,
             source: event.source ?? null,
             rawLine: event.rawLine ?? "",
             metadata: event.metadata ?? null,

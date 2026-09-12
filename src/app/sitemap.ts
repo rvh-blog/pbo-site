@@ -36,6 +36,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       "/experimental-stats/replays",
       "/experimental-stats/battle-visualizer",
       "/experimental-stats/rare-events",
+      "/experimental-stats/insights",
+      "/experimental-stats/signature-stats",
+      "/experimental-stats/team-stats",
+      "/experimental-stats/top-plays",
+      "/experimental-stats/visuals",
       "/experimental-stats/glossary",
     );
   }

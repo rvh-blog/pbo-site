@@ -81,7 +81,7 @@ export function HpChart({ turnSnapshots, keyEvents, team1Name, team2Name, team1C
 
   return (
     <div className="w-full h-64 sm:h-80">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 1, height: 1 }}>
         <LineChart
           data={chartData}
             margin={{ top: 8, right: 10, left: 30, bottom: 36 }}
