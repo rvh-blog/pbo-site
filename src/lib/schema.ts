@@ -335,7 +335,7 @@ export const matchPokemon = sqliteTable("match_pokemon", {
     item: string;
     turn: number;
     source: string;
-  }>>(), // Held items explicitly revealed by replay events; unrevealed items remain unknown
+  }>>(), // Replay item evidence; Mega Stones may be labelled as assumed from the historical roster
 }, (table) => [
   index("idx_match_pokemon_match_id").on(table.matchId),
   index("idx_match_pokemon_pokemon_id").on(table.pokemonId),

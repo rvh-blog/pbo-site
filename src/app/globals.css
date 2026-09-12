@@ -913,6 +913,10 @@ html[data-theme="light"] .poke-card:hover {
   .synced-home-grid > * {
     min-height: 0;
   }
+
+  .synced-home-grid.single-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .your-league-layout {

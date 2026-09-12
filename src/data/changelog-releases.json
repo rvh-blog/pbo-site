@@ -1,5 +1,18 @@
 [
   {
+    "sourceKey": "2026-09-12-experimental-stats-mega-and-homepage-follow-up",
+    "title": "Experimental Stats, Replay Evidence & Homepage Follow-up",
+    "summary": "Experimental Stats now has clearer search, coverage, roster, Mega item, and report context, while the homepage Upcoming Battles panel is full width and localized.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Added a report-wide search bar, sortable Pokémon and Team Stats columns, team-versus-global usage context, replacement and drop history, clearer setup-move definitions, and expanded coverage guidance." },
+      { "type": "fixed", "text": "Top Plays now ranks latest faint turns, the Move Usage treemap renders individual tiles, Signature Stats shows real sprites, protocol-event gaps explain missing coverage instead of displaying misleading zeroes, and Coach Style Radar was removed." },
+      { "type": "added", "text": "Mega formes are preserved during replay parsing, matching Mega Stones can be inferred from historical roster context, contradictory item evidence flags a match for review, and a dry-run-by-default backfill command is available." },
+      { "type": "improved", "text": "The Battle Visualizer links to the selected replay, average battle length uses saved timeline/event evidence, and Coach Profiles distinguish official records from replay-backed metrics." },
+      { "type": "improved", "text": "Upcoming Battles now spans the full homepage width with aligned team logos, clearer playoff badges, and times shown in each visitor's local timezone." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-11-experimental-stats-audit-polish",
     "title": "Experimental Stats Audit Improvements",
     "summary": "Experimental Stats is lighter, clearer, and easier to verify through improved coverage rules, expandable Top Plays, report-linked definitions, and saved-turn evidence.",

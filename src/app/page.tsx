@@ -726,7 +726,7 @@ function HomepageMatchupsPanel({
 function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
   return (
     <section className="poke-card flex min-h-0 flex-1 flex-col overflow-hidden p-0">
-      <div className="section-title mx-6 mt-6 shrink-0 justify-center">
+      <div className="section-title mx-6 mt-6 shrink-0">
         <div className="section-title-icon">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -758,12 +758,15 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
               aria-disabled={battle.matchId <= 0}
             >
               <div className={`battle-log-item relative justify-center ${battle.isUnderway ? "ring-2 ring-[var(--error)]/40" : ""}`}>
-                <div className={`week-badge absolute left-3 top-1/2 shrink-0 -translate-y-1/2 sm:left-4 ${battle.week > 100 ? "playoff" : ""}`}>
-                  {battle.week > 100 ? (
-                    <>
-                      <span>Playoff</span>
-                      <span>{battle.week === 101 ? "QF" : battle.week === 102 ? "SF" : "F"}</span>
-                    </>
+                  <div
+                    className={`week-badge absolute left-3 top-1/2 shrink-0 -translate-y-1/2 sm:left-4 ${battle.week > 100 ? "playoff" : ""}`}
+                    aria-label={battle.week > 100 ? `Playoffs, ${battle.week === 101 ? "quarterfinals" : battle.week === 102 ? "semifinals" : "finals"}` : `Week ${battle.week}`}
+                  >
+                    {battle.week > 100 ? (
+                      <>
+                        <span>Playoffs</span>
+                        <span>{battle.week === 101 ? "QF" : battle.week === 102 ? "SF" : "F"}</span>
+                      </>
                   ) : (
                     <>
                       <span>Week</span>
@@ -776,7 +779,9 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
                   <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-[7.5%]">
                     <div className="flex min-w-0 items-center justify-start gap-2 text-left text-white">
                       {battle.team1Logo && (
-                        <Image src={battle.team1Logo} alt="" width={24} height={24} sizes="24px" className="rounded hidden sm:block shrink-0" />
+                        <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-slate-950/55 sm:flex">
+                          <Image src={battle.team1Logo} alt="" width={24} height={24} sizes="24px" className="h-6 w-6 object-contain" />
+                        </span>
                       )}
                       <span className="min-w-0 break-words text-xs font-bold leading-tight sm:text-sm">
                         {battle.team1Name}
@@ -790,7 +795,9 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
                         {battle.team2Name}
                       </span>
                       {battle.team2Logo && (
-                        <Image src={battle.team2Logo} alt="" width={24} height={24} sizes="24px" className="rounded hidden sm:block shrink-0" />
+                        <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-slate-950/55 sm:flex">
+                          <Image src={battle.team2Logo} alt="" width={24} height={24} sizes="24px" className="h-6 w-6 object-contain" />
+                        </span>
                       )}
                     </div>
                   </div>
@@ -803,8 +810,17 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
                       </div>
                     ) : battle.scheduledAt ? (
                       <div className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
-                        <LocalTime dateString={battle.scheduledAt} format="time" className="text-[10px] font-bold text-[var(--accent)] sm:text-xs" />
-                        <LocalTime dateString={battle.scheduledAt} format="date" className="truncate text-[8px] uppercase text-[var(--foreground-subtle)] sm:text-[10px]" />
+                        <LocalTime
+                          dateString={battle.scheduledAt}
+                          format="time"
+                          showTimeZone
+                          className="text-[10px] font-bold text-[var(--accent)] sm:text-xs"
+                        />
+                        <LocalTime
+                          dateString={battle.scheduledAt}
+                          format="date"
+                          className="truncate text-[8px] uppercase text-[var(--foreground-subtle)] sm:text-[10px]"
+                        />
                       </div>
                     ) : (
                       <span className="text-[9px] font-bold uppercase text-[var(--foreground-subtle)]">Time TBD</span>
@@ -1413,7 +1429,7 @@ export default async function Home() {
                       <div className={`week-badge shrink-0 ${battle.type === "playoff" ? "playoff" : ""}`}>
                         {battle.type === "playoff" ? (
                           <>
-                            <span>Playoff</span>
+                            <span>Playoffs</span>
                             <span>{getRoundLabel(battle.round || 1)}</span>
                           </>
                         ) : (
@@ -1630,7 +1646,7 @@ export default async function Home() {
             </div>
           </div>
         }
-        rightContent={
+        fullWidthContent={
           <UpcomingBattlesPanel
             battles={upcomingBattles}
           />

@@ -17,10 +17,10 @@ const DEMO_POKEMON = [
 ];
 
 const DEMO_COACHES = [
-  { seasonCoachId: -101, coachId: -11, coachName: "Demo Aurora", teamName: "Aurora Articunos" },
-  { seasonCoachId: -102, coachId: -12, coachName: "Demo Ember", teamName: "Ember Enteis" },
-  { seasonCoachId: -103, coachId: -13, coachName: "Demo Marina", teamName: "Marina Manaphys" },
-  { seasonCoachId: -104, coachId: -14, coachName: "Demo Summit", teamName: "Summit Salamences" },
+  { seasonCoachId: -101, coachId: -11, coachName: "Demo Aurora", teamName: "Aurora Articunos", isActive: true, replacedById: null },
+  { seasonCoachId: -102, coachId: -12, coachName: "Demo Ember", teamName: "Ember Enteis", isActive: true, replacedById: null },
+  { seasonCoachId: -103, coachId: -13, coachName: "Demo Marina", teamName: "Marina Manaphys", isActive: true, replacedById: null },
+  { seasonCoachId: -104, coachId: -14, coachName: "Demo Summit", teamName: "Summit Salamences", isActive: true, replacedById: null },
 ];
 
 function spriteUrl(id: number) {
@@ -136,6 +136,7 @@ export function createExperimentalDemoDataset(params: {
     highestAvailableWeekBySeason: { [season.id]: Math.max(1, ...demoMatches.map((match) => match.week)) },
     seasons,
     divisions,
+    rosterEligibility: DEMO_COACHES.flatMap((team) => DEMO_POKEMON.map((pokemon) => ({ seasonCoachId: team.seasonCoachId, seasonId: season.id, pokemonId: pokemon.id, startWeek: 1, endWeek: null }))),
     matches: demoMatches,
   };
 }

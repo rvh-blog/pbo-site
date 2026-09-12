@@ -52,7 +52,11 @@ effects, while leaderboard aggregation excludes a Pokemon/item pairing revealed
 only after that Pokemon received the item through Trick or Switcheroo. A berry
 revealed because Knock Off removed it does not count as a successful berry use;
 the berry counts only when another replay event shows it activating or being
-consumed. Unrevealed items are never inferred.
+consumed. Unrevealed items remain unknown unless the replay row is a
+roster-confirmed Mega forme. In that case the matching Mega Stone is stored as
+an explicitly labelled `assumed from team roster` evidence entry. A
+non-transferred replay item that contradicts that stone is preserved and marks
+the match for manual review.
 
 ## Historical Season 6 Backfill
 
@@ -70,6 +74,14 @@ replay links are flagged only for non-forfeit fixtures.
 
 Production execution must use a fresh WAL-aware backup and a controlled quiet
 window. Never upload a stale local `pbo.db` over the Fly volume.
+
+## Mega Item Backfill
+
+`scripts/backfill-mega-items.mjs` is the all-season, dry-run-by-default repair
+for saved replay rows whose historical roster identifies a Mega forme. It adds
+the matching stone only when no contradictory item evidence exists and marks a
+match for review when a non-transferred item conflicts. Use `--season=N` to
+scope a run and `--write` only against a verified database copy.
 
 ## Public Analyzer
 

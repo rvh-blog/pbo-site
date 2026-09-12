@@ -58,6 +58,7 @@ export interface ExperimentalAppearance {
   moveDataRecorded: boolean;
   revealedItems: Array<{ item: string; turn: number; source: string }>;
   itemDataRecorded: boolean;
+  itemDataInferred?: boolean;
 }
 
 export interface ExperimentalMatch {
@@ -73,13 +74,15 @@ export interface ExperimentalMatch {
   playedAt: string | null;
   replayUrl: string;
   zoroarkInvolved: boolean;
+  needsReview?: boolean;
+  reviewNotes?: string | null;
   p1IsCoach1: boolean | null;
   totalTurns?: number | null;
   turnSnapshots: Array<{ turn: number; p1TotalHp: number; p2TotalHp: number }>;
   keyEvents: Array<{ turn: number; type: string; player?: "p1" | "p2"; pokemon?: string; cause?: string; killer?: string; move?: string }>;
   battleEvents: ExperimentalBattleEvent[];
-  coach1: { seasonCoachId: number; coachId: number; coachName: string; teamName: string };
-  coach2: { seasonCoachId: number; coachId: number; coachName: string; teamName: string };
+  coach1: { seasonCoachId: number; coachId: number; coachName: string; teamName: string; isActive: boolean; replacedById: number | null };
+  coach2: { seasonCoachId: number; coachId: number; coachName: string; teamName: string; isActive: boolean; replacedById: number | null };
   pokemon: ExperimentalAppearance[];
 }
 
@@ -112,6 +115,8 @@ export interface ExperimentalStatsDataset {
   highestAvailableWeekBySeason: Record<number, number>;
   seasons: Array<{ id: number; name: string; seasonNumber: number }>;
   divisions: Array<{ id: number; seasonId: number; name: string; displayOrder: number }>;
+  seasonTeams?: Array<{ seasonCoachId: number; coachId: number; coachName: string; teamName: string; seasonId: number; seasonName: string; divisionId: number; divisionName: string; isActive: boolean; replacedById: number | null }>;
+  rosterEligibility?: Array<{ seasonCoachId: number; seasonId: number; pokemonId: number; startWeek: number; endWeek: number | null }>;
   matches: ExperimentalMatch[];
 }
 
@@ -218,6 +223,26 @@ const distinctHeldItemReveals = (appearance: ExperimentalAppearance) => {
     return true;
   });
 };
+const searchableMatchText = (match: ExperimentalMatch) => [
+  match.coach1.coachName,
+  match.coach1.teamName,
+  match.coach2.coachName,
+  match.coach2.teamName,
+  match.seasonName,
+  match.divisionName,
+  `week ${match.week}`,
+  match.replayUrl,
+  match.reviewNotes ?? "",
+].join(" ").toLowerCase();
+const searchableAppearanceText = (appearance: EnrichedAppearance) => [
+  searchableMatchText(appearance.match),
+  appearance.pokemonName,
+  appearance.coachName,
+  appearance.teamName,
+  ...Object.keys(appearance.movesUsed),
+  ...distinctHeldItemReveals(appearance).map((item) => item.item),
+].join(" ").toLowerCase();
+const searchableFullMatchText = (match: ExperimentalMatch) => [searchableMatchText(match), ...match.pokemon.flatMap((appearance) => [appearance.pokemonName, ...Object.keys(appearance.movesUsed), ...distinctHeldItemReveals(appearance).map((item) => item.item)])].join(" ").toLowerCase();
 
 function aggregateEntities(appearances: EnrichedAppearance[], entity: "pokemon" | "coach"): EntityAggregate[] {
   const rows = new Map<number, EntityAggregate & { moves: Map<string, number>; seenMatches: Set<number>; survivalMatches: Set<number>; failedSurvivalMatches: Set<number>; damageMatches: Set<number>; healingMatches: Set<number>; turnMatches: Set<number>; setupMatches: Set<number>; eventMatches: Set<number>; moveMatches: Set<number>; itemMatches: Set<number> }>();
@@ -378,6 +403,7 @@ function PercentileStrip({ label, value, percentileValue }: { label: string; val
 export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", initialFilters, standalone = false }: { dataset: ExperimentalStatsDataset; initialModule?: ExperimentalClientModule; initialFilters?: ExperimentalFilterState; standalone?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [module, setModule] = useState<ModuleId>(initialModule);
   const highestWeekForSeason = (seasonId: number | "all") => seasonId === "all" ? dataset.highestAvailableWeek : dataset.highestAvailableWeekBySeason[seasonId] ?? dataset.highestAvailableWeek;
   const initialSeasonId = initialFilters?.seasonId ?? dataset.currentSeasonId ?? "all";
@@ -401,6 +427,13 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
   const filtersAreUpdating = deferredFilters !== filters;
   const highestAvailableWeek = highestWeekForSeason(filters.seasonId);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState(() => searchParams.get("q") ?? "");
+  const globalSearchTerms = useMemo(() => globalSearch.trim().toLowerCase().split(/\s+/).filter(Boolean), [globalSearch]);
+
+  useEffect(() => {
+    const querySearch = searchParams.get("q") ?? "";
+    if (querySearch !== globalSearch) setGlobalSearch(querySearch);
+  }, [globalSearch, searchParams]);
   const [profilePokemonId, setProfilePokemonId] = useState<number | null>(null);
   const [compareA, setCompareA] = useState<number | null>(null);
   const [compareB, setCompareB] = useState<number | null>(null);
@@ -465,6 +498,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
 
   const filteredAppearances = useMemo(() => enrichedAppearances.filter((appearance) => {
     const match = appearance.match;
+    if (globalSearchTerms.length && !globalSearchTerms.every((term) => searchableAppearanceText(appearance).includes(term))) return false;
     if (deferredFilters.seasonId !== "all" && match.seasonId !== deferredFilters.seasonId) return false;
     if (deferredFilters.divisionId !== "all" && match.divisionId !== deferredFilters.divisionId) return false;
     if (match.week < deferredFilters.weekStart || match.week > deferredFilters.weekEnd) return false;
@@ -478,10 +512,28 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
     if (deferredFilters.result === "wins" && !appearance.won) return false;
     if (deferredFilters.result === "losses" && appearance.won) return false;
     return true;
-  }), [enrichedAppearances, deferredFilters]);
+  }), [enrichedAppearances, deferredFilters, globalSearchTerms]);
 
   const filteredMatchIds = useMemo(() => new Set(filteredAppearances.map((appearance) => appearance.match.id)), [filteredAppearances]);
   const filteredMatches = useMemo(() => dataset.matches.filter((match) => filteredMatchIds.has(match.id)), [dataset.matches, filteredMatchIds]);
+  const coachReportMatches = useMemo(() => module !== "coaches" ? filteredMatches : dataset.matches.filter((match) => {
+    if (globalSearchTerms.length && !globalSearchTerms.every((term) => searchableFullMatchText(match).includes(term))) return false;
+    if (deferredFilters.seasonId !== "all" && match.seasonId !== deferredFilters.seasonId) return false;
+    if (deferredFilters.divisionId !== "all" && match.divisionId !== deferredFilters.divisionId) return false;
+    if (match.week < deferredFilters.weekStart || match.week > deferredFilters.weekEnd) return false;
+    if (deferredFilters.stage === "regular" && match.week > 100) return false;
+    if (deferredFilters.stage === "playoffs" && match.week <= 100) return false;
+    if (!deferredFilters.includeForfeits && match.isForfeit) return false;
+    if (deferredFilters.coachId !== "all" && match.coach1.coachId !== deferredFilters.coachId && match.coach2.coachId !== deferredFilters.coachId) return false;
+    if (deferredFilters.pokemonId !== "all" || deferredFilters.move !== "all" || deferredFilters.item !== "all") return filteredMatchIds.has(match.id);
+    if (deferredFilters.result !== "all" && deferredFilters.coachId !== "all") {
+      const selectedTeam = match.coach1.coachId === deferredFilters.coachId ? match.coach1 : match.coach2;
+      const won = match.winnerId === selectedTeam.seasonCoachId;
+      if (deferredFilters.result === "wins" && !won) return false;
+      if (deferredFilters.result === "losses" && won) return false;
+    }
+    return true;
+  }), [dataset.matches, deferredFilters, filteredMatchIds, filteredMatches, globalSearchTerms, module]);
   const selectedTeamIds = useMemo(() => [...new Set(filteredMatches.flatMap((match) => [match.coach1.seasonCoachId, match.coach2.seasonCoachId]))], [filteredMatches]);
   const pokemonRows = useMemo(() => aggregateEntities(filteredAppearances, "pokemon").filter((row) => row.appearances >= deferredFilters.minimumAppearances).sort((a, b) => b.appearances - a.appearances || b.damage - a.damage), [filteredAppearances, deferredFilters.minimumAppearances]);
   const coachRows = useMemo(() => aggregateEntities(filteredAppearances, "coach").filter((row) => row.appearances >= deferredFilters.minimumAppearances).sort((a, b) => b.wins - a.wins || b.appearances - a.appearances), [filteredAppearances, deferredFilters.minimumAppearances]);
@@ -514,12 +566,21 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
         stage: next.stage,
         forfeits: next.includeForfeits ? "1" : "0",
       });
+      if (globalSearch.trim()) query.set("q", globalSearch.trim());
       if (dataset.isDemo) query.set("demo", "1");
       router.replace(`${pathname}?${query}`, { scroll: false });
     }
     return next;
   });
   const updateFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => updateFilters({ [key]: value });
+  const updateGlobalSearch = (value: string) => {
+    setGlobalSearch(value);
+    if (!standalone) return;
+    const query = new URLSearchParams(window.location.search);
+    if (value.trim()) query.set("q", value.trim());
+    else query.delete("q");
+    router.replace(`${pathname}${query.toString() ? `?${query}` : ""}`, { scroll: false });
+  };
   const qualificationText = `${deferredFilters.minimumAppearances}+ games in the active filters`;
 
   const selectVisualMatch = (matchId: number) => {
@@ -566,6 +627,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           <FilterSelect label="Stage" value={filters.stage} onChange={(value) => updateFilter("stage", value as StageFilter)}><option value="all">Regular & playoffs</option><option value="regular">Regular season</option><option value="playoffs">Playoffs</option></FilterSelect>
           <label className="flex items-end gap-2 pb-2 text-xs font-bold text-[var(--foreground-muted)]"><input type="checkbox" checked={filters.includeForfeits} onChange={(event) => updateFilter("includeForfeits", event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Include forfeits</label>
         </div>
+        <label className="relative mt-4 block max-w-3xl"><span className="mb-1 block text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Search this report</span><Search className="pointer-events-none absolute left-3 top-8 h-4 w-4 text-[var(--foreground-muted)]" /><input value={globalSearch} onChange={(event) => updateGlobalSearch(event.target.value)} placeholder="Search Pokémon, coaches, teams, moves, items, or replay details…" aria-label="Search Pokémon, coaches, teams, moves, items, or replay details" className="h-11 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 pl-10 pr-3 text-xs font-bold text-[var(--foreground)] shadow-inner shadow-black/20 outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/15" /><span className="mt-1 block text-[8px] leading-3 text-[var(--foreground-subtle)]">Matches all typed words across the active replay scope. Existing dropdowns still provide exact filters.</span></label>
       </section> : null}
 
       <div className={standalone ? "" : "grid gap-6 xl:grid-cols-[230px_minmax(0,1fr)]"}>
@@ -577,7 +639,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
 
         <main className="min-w-0 space-y-6">
           {module !== "glossary" ? <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Matches" value={number(filteredMatches.length)} />
+            <StatCard label={module === "coaches" ? "Official matches" : "Matches"} value={number(module === "coaches" ? coachReportMatches.length : filteredMatches.length)} />
             <StatCard label="Pokémon appearances" value={number(filteredAppearances.length)} />
             <StatCard label="Unique moves" value={number(allMoveUses.size)} />
             <StatCard label="Most-used move" value={topMove ? `${topMove[0]} · ${topMove[1]}` : "—"} />
@@ -585,9 +647,9 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
 
           {module === "insights" ? <ExperimentalInsights matches={filteredMatches} appearances={filteredAppearances} /> : null}
 
-          {module === "pokemon" && activePokemon ? <PokemonUsageReport rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} matches={filteredMatches} onSelect={setProfilePokemonId} /> : null}
+          {module === "pokemon" && activePokemon ? <PokemonUsageReport rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} matches={filteredMatches} rosterEligibility={dataset.rosterEligibility ?? []} onSelect={setProfilePokemonId} /> : null}
           {module === "pokemon" && <PokemonProfiles rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} qualificationText={qualificationText} minimumAppearances={deferredFilters.minimumAppearances} onSelect={setProfilePokemonId} />}
-          {module === "coaches" && <CoachProfiles rows={coachRows} appearances={filteredAppearances} />}
+          {module === "coaches" && <CoachProfiles rows={coachRows} appearances={filteredAppearances} matches={coachReportMatches} seasonTeams={dataset.seasonTeams ?? []} />}
           {module === "compare" && <CompareModule rows={pokemonRows} compareA={compareA} compareB={compareB} setCompareA={setCompareA} setCompareB={setCompareB} />}
           {module === "rolling" && <ExpandedRollingModule pokemon={activePokemon} appearances={activePokemonAppearances} rows={pokemonRows} onSelect={setProfilePokemonId} />}
           {module === "leaderboard" && <PresetLeaderboardModule rows={leaderboardEntity === "pokemon" ? pokemonRows : coachRows} entity={leaderboardEntity} setEntity={setLeaderboardEntity} perAppearance={leaderboardRate} setPerAppearance={setLeaderboardRate} minimumAppearances={deferredFilters.minimumAppearances} matches={filteredMatches} appearances={filteredAppearances} />}
@@ -595,7 +657,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           {module === "visualizer" && <><div className="space-y-2"><BattleVisualizer matches={filteredMatches} selectedId={visualMatchId} onSelect={selectVisualMatch} /><div className="poke-card px-4 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Timeline axes: Turn / turn range of first reveal · Item reveals / team HP remaining (%)</div></div><EventAnalytics matches={filteredMatches} selectedId={visualMatchId} /></>}
           {module === "rare" && <><RareEventsModule matches={filteredMatches} appearances={filteredAppearances} /><EventRareRecords matches={filteredMatches} /></>}
           {module === "signature-stats" && <SignatureStatsReport appearances={filteredAppearances} minimumAppearances={deferredFilters.minimumAppearances} />}
-          {module === "team-stats" && <TeamStatsReport matches={filteredMatches} selectedTeamIds={selectedTeamIds} />}
+          {module === "team-stats" && <TeamStatsReport matches={filteredMatches} selectedTeamIds={selectedTeamIds} seasonTeams={dataset.seasonTeams ?? []} />}
           {module === "top-plays" && <TopPlaysReport matches={filteredMatches} />}
           {module === "visuals" && <ExperimentalVisualsReport appearances={filteredAppearances} matches={filteredMatches} pokemonRows={pokemonRows} coachRows={coachRows} selectedTeamIds={selectedTeamIds} moves={moveRows} minimumAppearances={deferredFilters.minimumAppearances} />}
           {module === "glossary" && <GlossaryModule search={glossarySearch} setSearch={setGlossarySearch} />}
@@ -605,7 +667,16 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
   );
 }
 
-function PokemonUsageReport({ rows, active, appearances, matches, onSelect }: { rows: EntityAggregate[]; active: EntityAggregate; appearances: EnrichedAppearance[]; matches: ExperimentalMatch[]; onSelect: (id: number) => void }) {
+type PokemonUsageSortKey = "name" | "teamUsage" | "globalUsage" | "winRate" | "samples";
+
+function UsageSortButton({ label, sortKey, activeSort, direction, onSort }: { label: string; sortKey: PokemonUsageSortKey; activeSort: PokemonUsageSortKey; direction: "asc" | "desc"; onSort: (sortKey: PokemonUsageSortKey) => void }) {
+  const isActive = sortKey === activeSort;
+  return <button type="button" onClick={() => onSort(sortKey)} className="inline-flex items-center gap-1 rounded px-1 py-1 text-left transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300" aria-label={`Sort by ${label}${isActive ? `, currently ${direction === "desc" ? "descending" : "ascending"}` : ""}`}><span>{label}</span><span className="font-mono text-[10px] text-cyan-300" aria-hidden="true">{isActive ? (direction === "desc" ? "↓" : "↑") : "↕"}</span></button>;
+}
+
+function PokemonUsageReport({ rows, active, appearances, matches, rosterEligibility, onSelect }: { rows: EntityAggregate[]; active: EntityAggregate; appearances: EnrichedAppearance[]; matches: ExperimentalMatch[]; rosterEligibility: NonNullable<ExperimentalStatsDataset["rosterEligibility"]>; onSelect: (id: number) => void }) {
+  const [usageSort, setUsageSort] = useState<PokemonUsageSortKey>(rosterEligibility.length ? "teamUsage" : "globalUsage");
+  const [usageSortDirection, setUsageSortDirection] = useState<"asc" | "desc">("desc");
   const matchesById = new Map(matches.map((match) => [match.id, match]));
   const matchIdsByPokemon = new Map<number, Set<number>>();
   matches.forEach((match) => {
@@ -615,15 +686,59 @@ function PokemonUsageReport({ rows, active, appearances, matches, onSelect }: { 
       matchIdsByPokemon.set(pokemonId, matchIds);
     });
   });
-  const usageRows = rows.map((row) => {
+  const rosterWindowsByTeam = new Map<number, NonNullable<ExperimentalStatsDataset["rosterEligibility"]>>();
+  rosterEligibility.forEach((window) => {
+    const windows = rosterWindowsByTeam.get(window.seasonCoachId) ?? [];
+    windows.push(window);
+    rosterWindowsByTeam.set(window.seasonCoachId, windows);
+  });
+  const teamUsageByPokemon = new Map<number, { used: number; eligible: number }>();
+  matches.forEach((match) => {
+    [match.coach1, match.coach2].forEach((team) => {
+      const eligiblePokemonIds = new Set(rosterWindowsByTeam.get(team.seasonCoachId)?.filter((window) => window.seasonId === match.seasonId && match.week >= window.startWeek && (window.endWeek === null || match.week < window.endWeek)).map((window) => window.pokemonId));
+      if (!eligiblePokemonIds.size) return;
+      const usedPokemonIds = new Set(match.pokemon.filter((appearance) => appearance.seasonCoachId === team.seasonCoachId).map((appearance) => appearance.pokemonId));
+      eligiblePokemonIds.forEach((pokemonId) => {
+        const stats = teamUsageByPokemon.get(pokemonId) ?? { used: 0, eligible: 0 };
+        stats.eligible += 1;
+        if (usedPokemonIds.has(pokemonId)) stats.used += 1;
+        teamUsageByPokemon.set(pokemonId, stats);
+      });
+    });
+  });
+  const unsortedUsageRows = rows.map((row) => {
     const evidenceMatches = [...(matchIdsByPokemon.get(row.id) ?? new Set<number>())].map((matchId) => matchesById.get(matchId)).filter((match): match is ExperimentalMatch => Boolean(match));
+    const teamUsage = teamUsageByPokemon.get(row.id);
     return {
       row,
       evidenceMatches,
+      globalUsageRate: rate(evidenceMatches.length, matches.length) * 100,
       usageRate: rate(evidenceMatches.length, matches.length) * 100,
+      teamUsageRate: teamUsage?.eligible ? rate(teamUsage.used, teamUsage.eligible) * 100 : null,
+      teamUsageUsed: teamUsage?.used ?? 0,
+      teamUsageEligible: teamUsage?.eligible ?? 0,
       winRate: rate(row.wins, row.appearances) * 100,
     };
-  }).sort((a, b) => b.usageRate - a.usageRate || b.row.appearances - a.row.appearances || a.row.name.localeCompare(b.row.name)).slice(0, 12);
+  });
+  const toggleUsageSort = (nextSort: PokemonUsageSortKey) => {
+    if (nextSort === usageSort) {
+      setUsageSortDirection((direction) => direction === "desc" ? "asc" : "desc");
+      return;
+    }
+    setUsageSort(nextSort);
+    setUsageSortDirection(nextSort === "name" ? "asc" : "desc");
+  };
+  const usageRows = [...unsortedUsageRows].sort((a, b) => {
+    if (usageSort === "name") return usageSortDirection === "desc" ? b.row.name.localeCompare(a.row.name) : a.row.name.localeCompare(b.row.name);
+    const aValue = usageSort === "teamUsage" ? a.teamUsageRate : usageSort === "globalUsage" ? a.globalUsageRate : usageSort === "winRate" ? a.winRate : a.row.appearances;
+    const bValue = usageSort === "teamUsage" ? b.teamUsageRate : usageSort === "globalUsage" ? b.globalUsageRate : usageSort === "winRate" ? b.winRate : b.row.appearances;
+    if (aValue === null && bValue !== null) return 1;
+    if (aValue !== null && bValue === null) return -1;
+    const comparison = Number(bValue ?? 0) - Number(aValue ?? 0);
+    if (comparison !== 0) return usageSortDirection === "desc" ? comparison : -comparison;
+    return b.row.appearances - a.row.appearances || a.row.name.localeCompare(b.row.name);
+  }).slice(0, 12);
+  const otherPokemon = usageRows.filter(({ row }) => row.id !== active.id).slice(0, 5);
 
   const trendMap = new Map<string, { label: string; firstPlayedAt: string; totalMatches: number; activeMatchIds: Set<number>; wins: number; samples: number }>();
   matches.forEach((match) => {
@@ -657,9 +772,9 @@ function PokemonUsageReport({ rows, active, appearances, matches, onSelect }: { 
   const teammates = [...teammateMap.entries()].map(([id, row]) => ({ id, ...row, games: row.matchIds.size, winRate: rate(row.winMatchIds.size, row.matchIds.size) * 100 })).sort((a, b) => b.games - a.games || b.winRate - a.winRate || a.name.localeCompare(b.name)).slice(0, 8);
 
   return <section className="mb-6 rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-950/35 via-slate-950/80 to-violet-950/30 p-4 shadow-[0_16px_45px_rgba(0,0,0,0.16)] md:p-5">
-    <div className="flex flex-wrap items-end justify-between gap-3"><div><div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-300">PokéBase-inspired report</div><h3 className="mt-1 font-pixel text-sm text-white">Season usage overview</h3><p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">Usage is the share of filtered replay matches containing each Pokemon. Samples are team appearances, and every evidence link opens a supporting match.</p></div><div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-3 py-2 text-right"><div className="font-mono text-lg font-black text-cyan-200">{matches.length}</div><div className="text-[9px] font-black uppercase tracking-wider text-cyan-100/60">Scope matches</div></div></div>
-    {usageRows.length ? <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--border)] bg-slate-950/45"><table className="w-full min-w-[760px] text-xs"><thead className="bg-slate-950/75 text-[9px] uppercase tracking-wide text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Rank / Pokemon</th><th>Usage</th><th>Win rate</th><th>Samples</th><th className="text-left">Evidence</th></tr></thead><tbody>{usageRows.map(({ row, evidenceMatches, usageRate, winRate }, index) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left"><button type="button" onClick={() => onSelect(row.id)} className="inline-flex items-center gap-2 font-bold text-white hover:text-cyan-200"><span className="font-mono text-[var(--foreground-muted)]">#{index + 1}</span>{row.spriteUrl ? <Image src={row.spriteUrl} alt="" width={28} height={28} className="h-7 w-7 object-contain" /> : null}<span>{row.name}</span></button></td><td><span className="font-mono font-black text-cyan-200">{number(usageRate, 1)}%</span><small className="ml-1 text-[9px] text-[var(--foreground-muted)]">({evidenceMatches.length}/{matches.length})</small></td><td className="font-mono font-black text-emerald-300">{number(winRate, 1)}%</td><td><span className="font-mono text-white">{row.appearances}</span><small className="ml-1 text-[9px] text-[var(--foreground-muted)]">team apps</small></td><td className="p-3 text-left"><div className="flex flex-wrap gap-1.5">{evidenceMatches.slice(0, 3).map((match) => <Link key={match.id} href={matchHref(match)} className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2 py-1 text-[9px] font-bold text-violet-200 hover:border-violet-300/60">W{match.week} - {match.seasonName}</Link>)}{evidenceMatches.length > 3 ? <span className="px-1 py-1 text-[9px] text-[var(--foreground-muted)]">+{evidenceMatches.length - 3} more</span> : null}</div></td></tr>)}</tbody></table></div> : <EmptyState />}
-    <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]"><div className="rounded-xl border border-[var(--border)] bg-slate-950/45 p-4"><div className="flex flex-wrap items-end justify-between gap-2"><div><h4 className="text-xs font-black uppercase tracking-wide text-white">Weekly usage trend: {active.name}</h4><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">The bar is match usage; win rate is calculated from the selected Pokemon&apos;s team appearances.</p></div><span className="text-[9px] font-bold text-cyan-200">{activeMatchCount} active matches</span></div>{trendRows.length ? <div className="mt-4 space-y-3">{trendRows.map((row) => { const usage = rate(row.activeMatchIds.size, row.totalMatches) * 100; const winRate = rate(row.wins, row.samples) * 100; return <div key={row.label} className="grid gap-1.5 text-[10px] sm:grid-cols-[125px_minmax(0,1fr)_70px_58px] sm:items-center sm:gap-3"><span className="font-bold text-white">{row.label}</span><div className="h-2.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${Math.min(100, usage)}%` }} /></div><span className="font-mono text-cyan-200">{number(usage, 1)}%</span><span className="font-mono text-emerald-300">{number(winRate, 1)}% W</span></div>; })}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No weekly trend is available for this selection.</p>}</div><div className="rounded-xl border border-[var(--border)] bg-slate-950/45 p-4"><h4 className="text-xs font-black uppercase tracking-wide text-white">Common teammates: {active.name}</h4><p className="mt-1 text-[10px] leading-4 text-[var(--foreground-muted)]">Pokemon that appeared on the same team in the selected matches. This describes correlation, not guaranteed synergy.</p>{teammates.length ? <div className="mt-3 space-y-2">{teammates.map((teammate) => <div key={teammate.id} className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)]/70 p-2"><button type="button" onClick={() => onSelect(teammate.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-cyan-200">{teammate.spriteUrl ? <Image src={teammate.spriteUrl} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" /> : null}<span className="truncate text-xs font-bold text-white">{teammate.name}</span></button><span className="text-right text-[9px] text-[var(--foreground-muted)]"><strong className="font-mono text-cyan-200">{teammate.games}</strong> games - <strong className="font-mono text-emerald-300">{number(teammate.winRate, 0)}%</strong> W</span></div>)}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No teammate pairings are available for this selection.</p>}</div></div>
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-300">PokéBase-inspired report</div><h3 className="mt-1 font-pixel text-sm text-white">Season usage overview</h3><p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">Global usage is the share of filtered replay matches containing each Pokémon. Team usage is recorded Pokémon appearances divided by roster-eligible team matches, so acquisitions, replacements, and drops change the denominator. Samples are team appearances.</p></div><div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-3 py-2 text-right"><div className="font-mono text-lg font-black text-cyan-200">{matches.length}</div><div className="text-[9px] font-black uppercase tracking-wider text-cyan-100/60">Scope matches</div></div></div>
+    {usageRows.length ? <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--border)] bg-slate-950/45"><table className="w-full min-w-[960px] text-xs"><thead className="bg-slate-950/75 text-[9px] uppercase tracking-wide text-[var(--foreground-muted)]"><tr><th scope="col" className="p-3 text-left" aria-sort={usageSort === "name" ? (usageSortDirection === "desc" ? "descending" : "ascending") : "none"}><UsageSortButton label="Rank / Pokémon" sortKey="name" activeSort={usageSort} direction={usageSortDirection} onSort={toggleUsageSort} /></th><th scope="col" aria-sort={usageSort === "teamUsage" ? (usageSortDirection === "desc" ? "descending" : "ascending") : "none"}><UsageSortButton label="Team usage" sortKey="teamUsage" activeSort={usageSort} direction={usageSortDirection} onSort={toggleUsageSort} /></th><th scope="col" aria-sort={usageSort === "globalUsage" ? (usageSortDirection === "desc" ? "descending" : "ascending") : "none"}><UsageSortButton label="Global usage" sortKey="globalUsage" activeSort={usageSort} direction={usageSortDirection} onSort={toggleUsageSort} /></th><th scope="col" aria-sort={usageSort === "winRate" ? (usageSortDirection === "desc" ? "descending" : "ascending") : "none"}><UsageSortButton label="Win rate" sortKey="winRate" activeSort={usageSort} direction={usageSortDirection} onSort={toggleUsageSort} /></th><th scope="col" aria-sort={usageSort === "samples" ? (usageSortDirection === "desc" ? "descending" : "ascending") : "none"}><UsageSortButton label="Samples" sortKey="samples" activeSort={usageSort} direction={usageSortDirection} onSort={toggleUsageSort} /></th><th scope="col" className="text-left">Evidence</th></tr></thead><tbody>{usageRows.map(({ row, evidenceMatches, globalUsageRate, teamUsageRate, teamUsageUsed, teamUsageEligible, winRate }, index) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left"><button type="button" onClick={() => onSelect(row.id)} className="inline-flex items-center gap-2 font-bold text-white hover:text-cyan-200"><span className="font-mono text-[var(--foreground-muted)]">#{index + 1}</span>{row.spriteUrl ? <Image src={row.spriteUrl} alt="" width={28} height={28} className="h-7 w-7 object-contain" /> : null}<span>{row.name}</span></button></td><td><span className="font-mono font-black text-violet-200">{teamUsageRate === null ? "—" : `${number(teamUsageRate, 1)}%`}</span><small className="ml-1 text-[9px] text-[var(--foreground-muted)]">{teamUsageRate === null ? "roster data unavailable" : `(${teamUsageUsed}/${teamUsageEligible})`}</small></td><td><span className="font-mono font-black text-cyan-200">{number(globalUsageRate, 1)}%</span><small className="ml-1 text-[9px] text-[var(--foreground-muted)]">({evidenceMatches.length}/{matches.length})</small></td><td className="font-mono font-black text-emerald-300">{number(winRate, 1)}%</td><td><span className="font-mono text-white">{row.appearances}</span><small className="ml-1 text-[9px] text-[var(--foreground-muted)]">team apps</small></td><td className="p-3 text-left"><div className="flex flex-wrap gap-1.5">{evidenceMatches.slice(0, 3).map((match) => <Link key={match.id} href={matchHref(match)} className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2 py-1 text-[9px] font-bold text-violet-200 hover:border-violet-300/60">W{match.week} - {match.seasonName}</Link>)}{evidenceMatches.length > 3 ? <span className="px-1 py-1 text-[9px] text-[var(--foreground-muted)]">+{evidenceMatches.length - 3} more</span> : null}</div></td></tr>)}</tbody></table></div> : <EmptyState />}
+    <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]"><div className="rounded-xl border border-[var(--border)] bg-slate-950/45 p-4"><div className="flex flex-wrap items-end justify-between gap-2"><div><h4 className="text-xs font-black uppercase tracking-wide text-white">Weekly usage trend: {active.name}</h4><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">The bar is match usage; win rate is calculated from the selected Pokemon&apos;s team appearances.</p></div><span className="text-[9px] font-bold text-cyan-200">{activeMatchCount} active matches</span></div>{trendRows.length ? <div className="mt-4 space-y-3">{trendRows.map((row) => { const usage = rate(row.activeMatchIds.size, row.totalMatches) * 100; const winRate = rate(row.wins, row.samples) * 100; return <div key={row.label} className="grid gap-1.5 text-[10px] sm:grid-cols-[125px_minmax(0,1fr)_70px_58px] sm:items-center sm:gap-3"><span className="font-bold text-white">{row.label}</span><div className="h-2.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${Math.min(100, usage)}%` }} /></div><span className="font-mono text-cyan-200">{number(usage, 1)}%</span><span className="font-mono text-emerald-300">{number(winRate, 1)}% W</span></div>; })}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No weekly trend is available for this selection.</p>}{otherPokemon.length ? <div className="mt-5 border-t border-slate-700/70 pt-4"><div className="mb-3 flex items-end justify-between gap-3"><div><h4 className="text-[10px] font-black uppercase tracking-wide text-white">Other popular Pokémon</h4><p className="mt-1 text-[9px] text-[var(--foreground-muted)]">Click a Pokémon to view its weekly trend.</p></div><span className="text-[8px] font-bold uppercase tracking-wide text-cyan-300">Usage / win rate</span></div><div className="space-y-2">{otherPokemon.map(({ row, usageRate, winRate }) => <button key={row.id} type="button" onClick={() => onSelect(row.id)} title={`View ${row.name} weekly trend`} className="group grid w-full cursor-pointer grid-cols-[28px_minmax(90px,145px)_minmax(70px,1fr)_48px_48px] items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left transition hover:border-cyan-400/40 hover:bg-cyan-500/10 focus-visible:border-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40">{row.spriteUrl ? <Image src={row.spriteUrl} alt="" width={28} height={28} className="h-7 w-7 object-contain" /> : <span className="h-7 w-7" />}<span className="truncate text-[10px] font-bold text-white group-hover:text-cyan-200">{row.name}</span><span className="h-2 overflow-hidden rounded-full bg-slate-800"><span className="block h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${Math.min(100, usageRate)}%` }} /></span><span className="text-right font-mono text-[9px] text-cyan-200">{number(usageRate, 1)}%</span><span className="text-right font-mono text-[9px] text-emerald-300">{number(winRate, 0)}% W</span></button>)}</div></div> : null}</div><div className="rounded-xl border border-[var(--border)] bg-slate-950/45 p-4"><h4 className="text-xs font-black uppercase tracking-wide text-white">Common teammates: {active.name}</h4><p className="mt-1 text-[10px] leading-4 text-[var(--foreground-muted)]">Pokemon that appeared on the same team in the selected matches. This describes correlation, not guaranteed synergy.</p>{teammates.length ? <div className="mt-3 space-y-2">{teammates.map((teammate) => <button key={teammate.id} type="button" onClick={() => onSelect(teammate.id)} title={`View ${teammate.name} profile`} aria-label={`View ${teammate.name} profile`} className="group flex w-full cursor-pointer items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)]/70 p-2 text-left transition duration-150 hover:-translate-y-0.5 hover:border-cyan-400/60 hover:bg-cyan-500/10 hover:shadow-[0_6px_18px_rgba(34,211,238,0.12)] focus-visible:border-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40">{teammate.spriteUrl ? <Image src={teammate.spriteUrl} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" /> : null}<span className="min-w-0 flex-1 truncate text-xs font-bold text-white transition-colors group-hover:text-cyan-200">{teammate.name}</span><span className="text-right text-[9px] text-[var(--foreground-muted)]"><strong className="font-mono text-cyan-200">{teammate.games}</strong> games - <strong className="font-mono text-emerald-300">{number(teammate.winRate, 0)}%</strong> W</span></button>)}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No teammate pairings are available for this selection.</p>}</div></div>
   </section>;
 }
 
@@ -784,48 +899,89 @@ function PokemonProfiles({ rows, active, appearances, qualificationText, minimum
   </section>;
 }
 
-function CoachProfiles({ rows, appearances }: { rows: EntityAggregate[]; appearances: EnrichedAppearance[] }) {
+function CoachProfiles({ rows, appearances, matches, seasonTeams }: { rows: EntityAggregate[]; appearances: EnrichedAppearance[]; matches: ExperimentalMatch[]; seasonTeams: NonNullable<ExperimentalStatsDataset["seasonTeams"]> }) {
   const [activeCoachId, setActiveCoachId] = useState<number | null>(null);
   const active = rows.find((row) => row.id === activeCoachId) ?? rows[0];
   if (!active) return <EmptyState />;
   const selectorRows = [...rows].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const officialRecords = new Map<number, { games: number; wins: number }>();
+  matches.forEach((match) => {
+    for (const team of [match.coach1, match.coach2]) {
+      const record = officialRecords.get(team.coachId) ?? { games: 0, wins: 0 };
+      record.games += 1;
+      record.wins += match.winnerId === team.seasonCoachId ? 1 : 0;
+      officialRecords.set(team.coachId, record);
+    }
+  });
   const coachApps = appearances.filter((appearance) => appearance.coachId === active.id);
   const usage = aggregateEntities(coachApps, "pokemon").sort((a, b) => b.appearances - a.appearances).slice(0, 10);
   const directShare = active.damage ? (active.directDamage / active.damage) * 100 : 0;
-  const coachMatches = [...new Map(coachApps.map((appearance) => [appearance.match.id, appearance.match])).values()];
-  const timelineMatches = coachMatches.filter((match) => (match.totalTurns !== null && match.totalTurns !== undefined) || match.turnSnapshots.length > 0);
+  const officialCoachMatches = matches.filter((match) => match.coach1.coachId === active.id || match.coach2.coachId === active.id);
+  const officialWins = officialCoachMatches.filter((match) => {
+    const team = match.coach1.coachId === active.id ? match.coach1 : match.coach2;
+    return match.winnerId === team.seasonCoachId;
+  }).length;
+  const scopedSeasonIds = new Set(matches.map((match) => match.seasonId));
+  const seasonTeamById = new Map(seasonTeams.map((team) => [team.seasonCoachId, team]));
+  const replacementNotes = seasonTeams.filter((team) => team.coachId === active.id && scopedSeasonIds.has(team.seasonId)).flatMap((team) => {
+    const predecessor = seasonTeams.find((candidate) => candidate.replacedById === team.seasonCoachId);
+    const successor = team.replacedById ? seasonTeamById.get(team.replacedById) : null;
+    if (predecessor) return [{ key: `joined-${team.seasonCoachId}`, label: "Joined mid-season", detail: `${team.seasonName} · ${team.divisionName}: ${team.teamName} (${team.coachName}) replaced ${predecessor.teamName} (${predecessor.coachName}).` }];
+    if (successor) return [{ key: `left-${team.seasonCoachId}`, label: "Dropped mid-season", detail: `${team.seasonName} · ${team.divisionName}: ${team.teamName} (${team.coachName}) was replaced by ${successor.teamName} (${successor.coachName}).` }];
+    return [];
+  });
+  const replayMatches = [...new Map(coachApps.map((appearance) => [appearance.match.id, appearance.match])).values()];
+  const timelineMatches = replayMatches.filter((match) => (match.totalTurns !== null && match.totalTurns !== undefined) || match.turnSnapshots.length > 0);
   const averageBattleLength = timelineMatches.length ? timelineMatches.reduce((sum, match) => sum + (match.totalTurns ?? match.turnSnapshots.reduce((maximum, snapshot) => Math.max(maximum, snapshot.turn), 0)), 0) / timelineMatches.length : null;
-  const coachSeasonGroups = new Map<number, { seasonName: string; appearances: EnrichedAppearance[] }>();
+  const coachSeasonGroups = new Map<number, { seasonName: string; matches: ExperimentalMatch[]; appearances: EnrichedAppearance[] }>();
+  officialCoachMatches.forEach((match) => {
+    const group = coachSeasonGroups.get(match.seasonId) ?? { seasonName: match.seasonName, matches: [], appearances: [] };
+    group.matches.push(match);
+    coachSeasonGroups.set(match.seasonId, group);
+  });
   coachApps.forEach((appearance) => {
-    const group = coachSeasonGroups.get(appearance.match.seasonId) ?? { seasonName: appearance.match.seasonName, appearances: [] };
+    const group = coachSeasonGroups.get(appearance.match.seasonId) ?? { seasonName: appearance.match.seasonName, matches: [], appearances: [] };
     group.appearances.push(appearance);
     coachSeasonGroups.set(appearance.match.seasonId, group);
   });
-  const coachSeasonRows = [...coachSeasonGroups.entries()].map(([seasonId, group]) => ({ seasonId, seasonName: group.seasonName, stats: aggregateEntities(group.appearances, "coach")[0], pokemonUsed: new Set(group.appearances.map((appearance) => appearance.pokemonId)).size })).sort((a, b) => b.seasonId - a.seasonId);
+  const coachSeasonRows = [...coachSeasonGroups.entries()].map(([seasonId, group]) => {
+    const wins = group.matches.filter((match) => {
+      const team = match.coach1.coachId === active.id ? match.coach1 : match.coach2;
+      return match.winnerId === team.seasonCoachId;
+    }).length;
+    return { seasonId, seasonName: group.seasonName, wins, losses: group.matches.length - wins, stats: aggregateEntities(group.appearances, "coach")[0] ?? null, pokemonUsed: new Set(group.appearances.map((appearance) => appearance.pokemonId)).size };
+  }).sort((a, b) => b.seasonId - a.seasonId);
   const coachItems = new Map<string, number>();
   coachApps.forEach((appearance) => distinctHeldItemReveals(appearance).forEach((item) => coachItems.set(item.item, (coachItems.get(item.item) ?? 0) + 1)));
+  const coachMoveRows = [...coachApps.reduce((counts, appearance) => {
+    Object.entries(appearance.movesUsed).forEach(([move, count]) => counts.set(move, (counts.get(move) ?? 0) + count));
+    return counts;
+  }, new Map<string, number>())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
+  const topCoachMoveUses = coachMoveRows[0]?.[1] ?? 0;
   return (
     <section className="poke-card p-5 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 className="font-pixel text-sm text-white">Coach visual report</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Observed replay tendencies only—no claims about intent, predictions, or mistakes.</p></div>
-        <select value={active.id} onChange={(event) => setActiveCoachId(Number(event.target.value))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:w-auto">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name} · {row.appearances} matches</option>)}</select>
+        <div><h2 className="font-pixel text-sm text-white">Coach visual report</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Official records include completed results and forfeits. Damage, items, and battle length use only matches with supporting replay data.</p></div>
+        <select value={active.id} onChange={(event) => setActiveCoachId(Number(event.target.value))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-sm font-bold sm:w-auto">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name} · {officialRecords.get(row.id)?.games ?? 0} official matches</option>)}</select>
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <StatCard label="Coach" value={active.name} />
-        <StatCard label="Matches" value={number(active.appearances)} />
-        <StatCard label="Win rate" value={`${number(rate(active.wins, active.appearances) * 100, 1)}%`} />
+        <StatCard label="Official matches" value={number(officialCoachMatches.length)} detail={`${officialWins}-${officialCoachMatches.length - officialWins} record`} />
+        <StatCard label="Official win rate" value={`${number(rate(officialWins, officialCoachMatches.length) * 100, 1)}%`} detail="Forfeits included when enabled" />
         <StatCard label="Team damage / match" value={formatCovered(coveredRate(active.damage, active.damageAppearances), 1, "%")} detail={`${active.damageAppearances} covered matches`} />
         <StatCard label="Average battle length" value={formatCovered(averageBattleLength, 1, " turns")} detail={`${timelineMatches.length} covered matches`} />
       </div>
+      {replacementNotes.length ? <div className="mt-5 rounded-xl border border-amber-400/30 bg-amber-500/[0.07] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-xs font-black uppercase tracking-wide text-amber-100">Replacement history</h3><span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-amber-200">Season stint context</span></div><ul className="mt-3 space-y-2">{replacementNotes.map((note) => <li key={note.key} className="rounded-lg border border-amber-300/15 bg-slate-950/35 p-3"><strong className="text-[10px] uppercase tracking-wide text-amber-200">{note.label}</strong><p className="mt-1 text-xs leading-5 text-[var(--foreground-muted)]">{note.detail}</p></li>)}</ul><p className="mt-3 text-[10px] leading-4 text-amber-100/65">Personal coach statistics stay with the coach who played each match. Replacement links provide franchise and standings continuity without transferring the outgoing coach&apos;s personal results.</p></div> : null}
       <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase text-white">Season-by-season franchise report</h3><div className="mt-3 hidden overflow-x-auto sm:block"><table className="w-full min-w-[560px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Season</th><th>Record</th><th>Pokémon</th><th>Damage/match</th><th>Healing/match</th><th>Setup</th></tr></thead><tbody>{coachSeasonRows.map((row) => <tr key={row.seasonId} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.seasonName}</td><td>{row.stats.wins}-{row.stats.appearances-row.stats.wins}</td><td>{row.pokemonUsed}</td><td>{formatCovered(coveredRate(row.stats.damage,row.stats.damageAppearances),1,"%")}</td><td>{formatCovered(coveredRate(row.stats.healing,row.stats.healingAppearances),1,"%")}</td><td>{row.stats.setupAppearances ? row.stats.setupMoves : "—"}</td></tr>)}</tbody></table></div><div className="mt-3 grid gap-2 sm:hidden">{coachSeasonRows.map((row) => <div key={row.seasonId} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3"><div className="flex items-center justify-between gap-3"><strong className="text-xs text-white">{row.seasonName}</strong><span className="font-mono text-xs text-emerald-300">{row.stats.wins}-{row.stats.appearances-row.stats.wins}</span></div><div className="mt-3 grid grid-cols-2 gap-3 text-center text-[10px]"><span>{row.pokemonUsed}<small className="block text-[8px] text-[var(--foreground-muted)]">Pokémon</small></span><span>{formatCovered(coveredRate(row.stats.damage,row.stats.damageAppearances),1,"%") }<small className="block text-[8px] text-[var(--foreground-muted)]">Damage/match</small></span><span>{formatCovered(coveredRate(row.stats.healing,row.stats.healingAppearances),1,"%") }<small className="block text-[8px] text-[var(--foreground-muted)]">Healing/match</small></span><span>{row.stats.setupAppearances ? row.stats.setupMoves : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">Setup</small></span></div></div>)}</div></div>
+         <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase text-white">Season-by-season franchise report</h3><p className="mt-1 text-[9px] leading-4 text-[var(--foreground-muted)]">The record is the official season result. Pokémon is the number of distinct Pokémon used. Damage/match and healing/match are replay-derived averages using only appearances where that field was saved. Setup counts recorded setup-move uses, not stat stages; — means there is no supporting replay coverage.</p><div className="mt-3 hidden overflow-x-auto sm:block"><table className="w-full min-w-[560px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Season</th><th>Official record</th><th>Pokémon used</th><th>Damage / match</th><th>Healing / match</th><th>Setup uses</th></tr></thead><tbody>{coachSeasonRows.map((row) => <tr key={row.seasonId} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.seasonName}</td><td>{row.wins}-{row.losses}</td><td>{row.pokemonUsed}</td><td>{formatCovered(coveredRate(row.stats?.damage ?? 0,row.stats?.damageAppearances ?? 0),1,"%")}</td><td>{formatCovered(coveredRate(row.stats?.healing ?? 0,row.stats?.healingAppearances ?? 0),1,"%")}</td><td>{row.stats?.setupAppearances ? row.stats.setupMoves : "—"}</td></tr>)}</tbody></table></div><div className="mt-3 grid gap-2 sm:hidden">{coachSeasonRows.map((row) => <div key={row.seasonId} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3"><div className="flex items-center justify-between gap-3"><strong className="text-xs text-white">{row.seasonName}</strong><span className="font-mono text-xs text-emerald-300">{row.wins}-{row.losses}</span></div><div className="mt-3 grid grid-cols-2 gap-3 text-center text-[10px]"><span>{row.pokemonUsed}<small className="block text-[8px] text-[var(--foreground-muted)]">Pokémon used</small></span><span>{formatCovered(coveredRate(row.stats?.damage ?? 0,row.stats?.damageAppearances ?? 0),1,"%") }<small className="block text-[8px] text-[var(--foreground-muted)]">Damage / match</small></span><span>{formatCovered(coveredRate(row.stats?.healing ?? 0,row.stats?.healingAppearances ?? 0),1,"%") }<small className="block text-[8px] text-[var(--foreground-muted)]">Healing / match</small></span><span>{row.stats?.setupAppearances ? row.stats.setupMoves : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">Setup uses</small></span></div></div>)}</div></div>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase text-white">Held-item distribution</h3><div className="mt-3 flex flex-wrap gap-2">{[...coachItems].sort((a,b)=>b[1]-a[1]).slice(0,12).map(([item,count]) => <span key={item} className="rounded-full bg-amber-500/10 px-3 py-1.5 text-[10px] text-amber-100">{item} · {count}</span>)}</div></div>
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div><h3 className="mb-3 text-xs font-black uppercase tracking-wide text-white">Pokémon usage frequency</h3><div className="space-y-2">{usage.map((row) => <div key={row.id} className="grid grid-cols-[100px_1fr_36px] items-center gap-2 text-[10px] sm:grid-cols-[150px_1fr_48px] sm:gap-3 sm:text-xs"><span className="truncate font-bold">{row.name}</span><div className="h-3 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full bg-[var(--primary)]" style={{ width: `${(row.appearances / usage[0].appearances) * 100}%` }} /></div><span className="text-right font-mono">{row.appearances}</span></div>)}</div></div>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="text-xs font-black uppercase tracking-wide text-white">Damage composition</h3>{active.damageAppearances ? <><div className="mt-4 flex h-5 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="bg-cyan-500" style={{ width: `${directShare}%` }} /><div className="bg-violet-500" style={{ width: `${100 - directShare}%` }} /></div><div className="mt-3 grid grid-cols-2 gap-2 text-center text-[10px]"><span className="text-cyan-300">{number(active.directDamage)}% direct</span><span className="text-violet-300">{number(active.indirectDamage)}% indirect</span></div></> : <p className="mt-3 text-xs text-[var(--foreground-muted)]">No recorded damage coverage in this scope.</p>}</div>
       </div>
-      <div className="mt-6 hidden overflow-x-auto sm:block"><table className="w-full min-w-[760px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Coach</th><th>Matches</th><th>Win rate</th><th>Damage/match</th><th>Healing/match</th><th>Setup</th><th>Favorable events</th><th>Items revealed</th></tr></thead><tbody>{rows.slice(0, 50).map((row) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.name}</td><td>{row.appearances}</td><td>{number(rate(row.wins, row.appearances) * 100, 1)}%</td><td>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")}</td><td>{formatCovered(coveredRate(row.healing, row.healingAppearances), 1, "%")}</td><td>{row.setupAppearances ? row.setupMoves : "—"}</td><td>{row.eventAppearances ? row.favorableEvents : "—"}</td><td>{row.itemDataAppearances ? row.itemReveals : "—"}</td></tr>)}</tbody></table></div>
+      <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-500/[0.04] p-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-xs font-black uppercase tracking-wide text-white">Recorded move usage</h3><p className="mt-1 max-w-2xl text-[10px] leading-4 text-[var(--foreground-muted)]">Moves explicitly recorded in this coach&apos;s Pokémon appearances, ranked by total uses. This reflects replay evidence, not an exact controller-click log; older or incomplete replays may have no move records.</p></div><span className="text-[9px] font-bold text-cyan-200">{active.moveDataAppearances} replay matches with move data</span></div>{coachMoveRows.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{coachMoveRows.map(([move, count]) => <div key={move} className="grid grid-cols-[minmax(90px,150px)_1fr_auto] items-center gap-2 text-[10px]"><span className="truncate font-bold text-white" title={move}>{move}</span><div className="h-2.5 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${topCoachMoveUses ? count / topCoachMoveUses * 100 : 0}%` }} /></div><span className="font-mono text-cyan-200">{count} uses</span></div>)}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No recorded move usage is available for this coach in the active scope.</p>}</div>
+      <div className="mt-6 hidden overflow-x-auto sm:block"><table className="w-full min-w-[760px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Coach</th><th>Replay matches</th><th>Replay win rate</th><th>Damage/match</th><th>Healing/match</th><th>Setup</th><th>Favorable events</th><th>Items revealed</th></tr></thead><tbody>{rows.slice(0, 50).map((row) => <tr key={row.id} className="border-t border-[var(--border)] text-center"><td className="p-2 text-left font-bold text-white">{row.name}</td><td>{row.appearances}</td><td>{number(rate(row.wins, row.appearances) * 100, 1)}%</td><td>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")}</td><td>{formatCovered(coveredRate(row.healing, row.healingAppearances), 1, "%")}</td><td>{row.setupAppearances ? row.setupMoves : "—"}</td><td>{row.eventAppearances ? row.favorableEvents : "—"}</td><td>{row.itemDataAppearances ? row.itemReveals : "—"}</td></tr>)}</tbody></table></div>
       <div className="mt-6 grid gap-2 sm:hidden">{rows.slice(0, 25).map((row) => <button type="button" onClick={() => setActiveCoachId(row.id)} key={row.id} className={`rounded-xl border p-3 text-left ${row.id === active.id ? "border-violet-400/50 bg-violet-500/10" : "border-[var(--border)] bg-[var(--background)]"}`}><div className="flex items-center justify-between gap-3"><strong className="text-sm text-white">{row.name}</strong><span className="font-mono text-emerald-300">{number(rate(row.wins, row.appearances) * 100, 1)}%</span></div><div className="mt-2 flex gap-3 text-[10px] text-[var(--foreground-muted)]"><span>{row.appearances} matches</span><span>{formatCovered(coveredRate(row.damage, row.damageAppearances), 1, "%")} damage/match</span></div></button>)}</div>
     </section>
   );
@@ -907,7 +1063,7 @@ function ReplaySearchModule({ matches }: { matches: ExperimentalMatch[] }) {
     if (survivedOnly && appearance.deaths !== 0) return [];
     return [{ match, appearance, owner, opponent }];
   }));
-  return <section className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Replay Finder</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Combine these appearance conditions with the shared season, stage, Pokémon, move, item, coach, and result filters above.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Search</span><input value={finderSearch} onChange={(event) => setFinderSearch(event.target.value)} placeholder="Pokémon, coach, team…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Minimum damage</span><input type="number" min={0} value={minimumDamage} onChange={(event) => setMinimumDamage(Math.max(0, Number(event.target.value) || 0))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Minimum kills</span><input type="number" min={0} value={minimumKills} onChange={(event) => setMinimumKills(Math.max(0, Number(event.target.value) || 0))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="flex items-end gap-2 pb-2 text-xs font-bold"><input type="checkbox" checked={survivedOnly} onChange={(event) => setSurvivedOnly(event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Survived the battle</label></div><div className="mt-4 text-[10px] font-bold text-[var(--foreground-muted)]">{results.length} matching appearances</div><div className="mt-3 space-y-2">{results.slice(0, 150).map(({ match, appearance, owner, opponent }) => <div key={`${match.id}-${appearance.seasonCoachId}-${appearance.pokemonId}`} className="grid gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center"><div><Link href={matchHref(match)} className="font-bold text-white hover:text-[var(--primary)]">{appearance.pokemonName} · {owner.teamName} vs {opponent.teamName}</Link><div className="mt-1 text-[10px] text-[var(--foreground-muted)]">{match.seasonName} · {match.divisionName} · Week {match.week} · {match.week > 100 ? "Playoffs" : "Regular season"}</div></div><div className="flex gap-3 text-xs"><span>{appearance.kills}-{appearance.deaths} K–D</span><span>{hasDamageData(appearance) ? `${number(totalDamage(appearance))}% damage` : "Damage unknown"}</span><span>{appearance.hpRestored !== null ? `${number(appearance.hpRestored)}% healed` : "Healing unknown"}</span></div><Link href={match.isDemo ? "/experimental-stats?demo=1" : match.replayUrl} target={match.isDemo ? undefined : "_blank"} className="btn-retro-secondary px-3 py-2 text-center text-[9px]">{match.isDemo ? "Demo" : "Replay"}</Link></div>)}{!results.length ? <EmptyState /> : null}</div></section>;
+  return <section className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Replay Finder</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Combine these appearance conditions with the shared season, stage, Pokémon, move, item, coach, and result filters above.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Search</span><input value={finderSearch} onChange={(event) => setFinderSearch(event.target.value)} placeholder="Pokémon, coach, team…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Minimum damage</span><input type="number" min={0} value={minimumDamage} onChange={(event) => setMinimumDamage(Math.max(0, Number(event.target.value) || 0))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="space-y-1"><span className="text-[9px] font-black uppercase text-[var(--foreground-muted)]">Minimum kills</span><input type="number" min={0} value={minimumKills} onChange={(event) => setMinimumKills(Math.max(0, Number(event.target.value) || 0))} className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /></label><label className="flex items-end gap-2 pb-2 text-xs font-bold"><input type="checkbox" checked={survivedOnly} onChange={(event) => setSurvivedOnly(event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Survived the battle</label></div><div className="mt-4 text-[10px] font-bold text-[var(--foreground-muted)]">{results.length} matching appearances</div><div className="mt-3 space-y-2">{results.slice(0, 150).map(({ match, appearance, owner, opponent }) => <div key={`${match.id}-${appearance.seasonCoachId}-${appearance.pokemonId}`} className="grid gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><Link href={matchHref(match)} className="font-bold text-white hover:text-[var(--primary)]">{appearance.pokemonName} · {owner.teamName} vs {opponent.teamName}</Link>{match.needsReview ? <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black uppercase text-amber-200" title={match.reviewNotes ?? "This match needs review"}>Review</span> : null}</div><div className="mt-1 text-[10px] text-[var(--foreground-muted)]">{match.seasonName} · {match.divisionName} · Week {match.week} · {match.week > 100 ? "Playoffs" : "Regular season"}</div></div><div className="flex gap-3 text-xs"><span>{appearance.kills}-{appearance.deaths} K–D</span><span>{hasDamageData(appearance) ? `${number(totalDamage(appearance))}% damage` : "Damage unknown"}</span><span>{appearance.hpRestored !== null ? `${number(appearance.hpRestored)}% healed` : "Healing unknown"}</span></div><Link href={match.isDemo ? "/experimental-stats?demo=1" : match.replayUrl} target={match.isDemo ? undefined : "_blank"} className="btn-retro-secondary px-3 py-2 text-center text-[9px]">{match.isDemo ? "Demo" : "Replay"}</Link></div>)}{!results.length ? <EmptyState /> : null}</div></section>;
 }
 
 function MatchPokemonBoxScore({ match }: { match: ExperimentalMatch }) {
@@ -927,7 +1083,7 @@ function BattleVisualizer({ matches, selectedId, onSelect }: { matches: Experime
   const itemBuckets = [{ label: "1–5", min: 1, max: 5 }, { label: "6–10", min: 6, max: 10 }, { label: "11–15", min: 11, max: 15 }, { label: "16+", min: 16, max: 999 }].map((bucket) => ({ turn: bucket.label, reveals: heldItemRevealTurns.filter((turn) => turn >= bucket.min && turn <= bucket.max).length }));
   const chartEvents = match.keyEvents.filter((event): event is typeof event & { player: "p1" | "p2" } => (event.type === "faint" || event.type === "win") && Boolean(event.player)).map((event) => ({ ...event, type: event.type as "faint" | "win" }));
   const orientationKnown = match.p1IsCoach1 !== null;
-  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Battle visualizer</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Team HP, faint order, and item timing from saved replay evidence.</p></div><select value={match.id} onChange={(event) => onSelect(Number(event.target.value))} className="max-w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{eligible.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.coach1.teamName} vs {candidate.coach2.teamName} · {candidate.seasonName} · {candidate.divisionName} · W{candidate.week}</option>)}</select></div>{!orientationKnown ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">The saved replay lacks a winner-to-player mapping event, so the HP lines are labeled by replay player rather than attributed to teams.</div> : null}<div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><HpChart turnSnapshots={match.turnSnapshots} keyEvents={chartEvents} team1Name={orientationKnown ? match.coach1.teamName : "Replay Player 1"} team2Name={orientationKnown ? match.coach2.teamName : "Replay Player 2"} team1Color="#22d3ee" team2Color="#e879f9" p1IsCoach1={match.p1IsCoach1 ?? true} /></div><div className="mt-4 flex flex-wrap gap-2">{match.keyEvents.filter((event) => event.type === "faint").sort((a, b) => a.turn - b.turn).map((event, index) => <span key={`${event.turn}-${index}`} className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] text-red-200">T{event.turn} · {event.pokemon ?? "Unknown"} fainted</span>)}</div></div>{focusedSnapshot ? <div id="battle-turn" className="poke-card scroll-mt-24 p-5"><h3 className="font-pixel text-xs text-white">Selected play · Turn {focusedSnapshot.turn}</h3><p className="mt-3 text-sm">Replay Player 1: {number(focusedSnapshot.p1TotalHp / 6, 1)}% team HP · Replay Player 2: {number(focusedSnapshot.p2TotalHp / 6, 1)}% team HP</p><p className="mt-2 text-xs text-[var(--foreground-muted)]">Saved end-of-turn HP, normalized to a six-Pokémon team. See the full timeline above.</p></div> : null}<MatchPokemonBoxScore match={match} /><div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Item reveal timeline</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">First explicit saved held-item reveals; transferred Trick and Switcheroo items are excluded and unrevealed items remain unknown.</p><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={itemBuckets} margin={{ bottom: 24, left: 18 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis dataKey="turn" stroke="var(--foreground-muted)" label={{ value: "Turn", position: "insideBottom", offset: -16, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis allowDecimals={false} stroke="var(--foreground-muted)" label={{ value: "Item reveals", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="reveals" fill="#a78bfa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div></section>;
+  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Battle visualizer</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Team HP, faint order, and item timing from saved replay evidence.</p></div><div className="flex max-w-full flex-wrap items-center justify-end gap-2"><select value={match.id} onChange={(event) => onSelect(Number(event.target.value))} className="max-w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{eligible.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.coach1.teamName} vs {candidate.coach2.teamName} · {candidate.seasonName} · {candidate.divisionName} · W{candidate.week}</option>)}</select>{!match.isDemo && match.replayUrl ? <Link href={match.replayUrl} target="_blank" rel="noopener noreferrer" className="btn-retro-secondary shrink-0 px-3 py-2 text-center text-[9px]">Open replay</Link> : null}</div></div>{!orientationKnown ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">The saved replay lacks a winner-to-player mapping event, so the HP lines are labeled by replay player rather than attributed to teams.</div> : null}<div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><HpChart turnSnapshots={match.turnSnapshots} keyEvents={chartEvents} team1Name={orientationKnown ? match.coach1.teamName : "Replay Player 1"} team2Name={orientationKnown ? match.coach2.teamName : "Replay Player 2"} team1Color="#22d3ee" team2Color="#e879f9" p1IsCoach1={match.p1IsCoach1 ?? true} /></div><div className="mt-4 flex flex-wrap gap-2">{match.keyEvents.filter((event) => event.type === "faint").sort((a, b) => a.turn - b.turn).map((event, index) => <span key={`${event.turn}-${index}`} className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] text-red-200">T{event.turn} · {event.pokemon ?? "Unknown"} fainted</span>)}</div></div>{focusedSnapshot ? <div id="battle-turn" className="poke-card scroll-mt-24 p-5"><h3 className="font-pixel text-xs text-white">Selected play · Turn {focusedSnapshot.turn}</h3><p className="mt-3 text-sm">Replay Player 1: {number(focusedSnapshot.p1TotalHp / 6, 1)}% team HP · Replay Player 2: {number(focusedSnapshot.p2TotalHp / 6, 1)}% team HP</p><p className="mt-2 text-xs text-[var(--foreground-muted)]">Saved end-of-turn HP, normalized to a six-Pokémon team. See the full timeline above.</p></div> : null}<MatchPokemonBoxScore match={match} /><div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Item reveal timeline</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">First explicit saved held-item reveals; transferred Trick and Switcheroo items are excluded and unrevealed items remain unknown.</p><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={itemBuckets} margin={{ bottom: 24, left: 18 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis dataKey="turn" stroke="var(--foreground-muted)" label={{ value: "Turn", position: "insideBottom", offset: -16, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis allowDecimals={false} stroke="var(--foreground-muted)" label={{ value: "Item reveals", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="reveals" fill="#a78bfa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div></section>;
 }
 
 function RareEventsModule({ matches, appearances }: { matches: ExperimentalMatch[]; appearances: EnrichedAppearance[] }) {
@@ -1053,8 +1209,8 @@ function ExpandedLeaderboardModule({ rows, entity, setEntity, perAppearance, set
 function EventAnalytics({ matches, selectedId }: { matches: ExperimentalMatch[]; selectedId: number | null }) {
   const [eventQuery, setEventQuery] = useState("");
   const [eventType, setEventType] = useState("all");
-  const selected = matches.find((match) => match.id === selectedId && match.battleEvents.length > 0) ?? matches.find((match) => match.battleEvents.length > 0);
-  const events = selected?.battleEvents ?? matches.flatMap((match) => match.battleEvents);
+  const selected = matches.find((match) => match.id === selectedId) ?? matches[0];
+  const events = selected?.battleEvents ?? [];
   const eventTypes = [...new Set(events.map((event) => event.eventType))].sort();
   const visibleEvents = events.filter((event) => {
     if (eventType !== "all" && event.eventType !== eventType) return false;
@@ -1070,6 +1226,7 @@ function EventAnalytics({ matches, selectedId }: { matches: ExperimentalMatch[];
   const statusEvents = events.filter((event) => event.eventType === "status" || event.eventType === "curestatus").length;
   const fieldEvents = events.filter((event) => ["weather", "fieldstart", "fieldend", "sidestart", "sideend"].includes(event.eventType)).length;
   const rareTypes = ["terastallize", "formechange", "ability", "enditem", "critical", "crit", "miss", "immune", "supereffective", "resisted", "status", "boost", "unboost"];
+  if (!events.length) return <section className="poke-card border-amber-400/30 bg-amber-500/[0.06] p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Protocol event analytics</h2><div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4"><strong className="text-sm text-amber-100">Protocol events have not been generated for this replay.</strong><p className="mt-2 text-xs leading-5 text-amber-100/75">The battle may still have an HP timeline, faint markers, and Pokémon totals above. Move, switch, status, field, and Tera counts require the separate normalized-event backfill, so missing coverage is shown here instead of misleading zeroes.</p>{selected ? <p className="mt-2 text-[10px] text-amber-200/70">Selected replay: {selected.coach1.teamName} vs {selected.coach2.teamName} · {selected.seasonName} · Week {selected.week}</p> : null}</div></section>;
   return <section className="space-y-4"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Protocol event analytics</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Every stored line remains traceable to its raw Showdown source. Select a battle above for a single-battle view.</p></div><span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-bold text-cyan-200">{events.length.toLocaleString()} events</span></div><div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="Moves" value={moveAttempts.toLocaleString()} /><StatCard label="Switches" value={switches.toLocaleString()} /><StatCard label="Statuses" value={statusEvents.toLocaleString()} /><StatCard label="Field events" value={fieldEvents.toLocaleString()} /><StatCard label="Tera events" value={teraEvents.toLocaleString()} /></div><div className="mt-6 grid gap-5 lg:grid-cols-2"><div><h3 className="text-xs font-black uppercase text-white">Event density</h3><div className="mt-3 space-y-2">{topTypes.map(([type, count]) => <div key={type} className="grid grid-cols-[130px_1fr_48px] items-center gap-2 text-[10px]"><span className="truncate font-bold text-white">{type}</span><div className="h-2 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full bg-cyan-400" style={{ width: `${(count / (topTypes[0]?.[1] ?? 1)) * 100}%` }} /></div><span className="text-right font-mono">{count}</span></div>)}</div></div><div><h3 className="text-xs font-black uppercase text-white">Rare protocol signals</h3><div className="mt-3 grid grid-cols-2 gap-2">{rareTypes.map((type) => <div key={type} className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="text-[9px] uppercase text-[var(--foreground-muted)]">{type}</div><div className="mt-1 font-mono text-lg font-black text-violet-300">{counts.get(type) ?? 0}</div></div>)}</div></div></div></div>{selected ? <div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Turn-by-turn event stream</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Showing {Math.min(250, visibleEvents.length)} of {visibleEvents.length} matching events for {selected.coach1.teamName} vs {selected.coach2.teamName}.</p><div className="mt-4 grid gap-2 sm:grid-cols-[1fr_190px]"><input value={eventQuery} onChange={(event) => setEventQuery(event.target.value)} placeholder="Search raw lines, moves, statuses…" className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /><select value={eventType} onChange={(event) => setEventType(event.target.value)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs"><option value="all">All event types</option>{eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></div><div className="mt-4 max-h-[32rem] overflow-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[820px] text-[10px]"><thead className="sticky top-0 bg-[var(--background-secondary)] text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Turn</th><th>Type</th><th className="text-left">Actor</th><th className="text-left">Target</th><th className="text-left">Details</th><th className="text-left">Raw source</th></tr></thead><tbody>{visibleEvents.slice(-250).map((event) => <tr key={`${event.sequence}-${event.rawLine}`} className="border-t border-[var(--border)]"><td className="p-2 font-mono">{event.turn}</td><td className="font-bold text-cyan-200">{event.eventType}</td><td>{event.actorNickname ?? "—"}</td><td>{event.targetNickname ?? "—"}</td><td>{event.moveName ?? event.statusName ?? event.itemName ?? event.abilityName ?? event.fieldName ?? "—"}</td><td className="max-w-[420px] truncate font-mono text-[var(--foreground-muted)]" title={event.rawLine}>{event.rawLine}</td></tr>)}</tbody></table></div></div> : <div className="poke-card p-6 text-center text-xs text-[var(--foreground-muted)]">No normalized protocol events are available in this filtered scope yet. Run the replay backfill after applying the battle-events migration.</div>}</section>;
 }
 

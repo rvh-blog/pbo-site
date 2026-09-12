@@ -6,9 +6,13 @@ interface LocalTimeProps {
   dateString: string;
   format?: "time" | "date" | "datetime";
   className?: string;
+  /** Render in a specific IANA timezone instead of the viewer's local timezone. */
+  timeZone?: string;
+  /** Include the timezone abbreviation when rendering a time. */
+  showTimeZone?: boolean;
 }
 
-export function LocalTime({ dateString, format = "datetime", className }: LocalTimeProps) {
+export function LocalTime({ dateString, format = "datetime", className, timeZone, showTimeZone = false }: LocalTimeProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -31,7 +35,7 @@ export function LocalTime({ dateString, format = "datetime", className }: LocalT
             weekday: "short",
             month: "short",
             day: "numeric",
-            timeZone: "America/Los_Angeles",
+            ...(timeZone ? { timeZone } : { timeZone: "America/Los_Angeles" }),
           })
         : date.toLocaleString("en-US", {
             ...(format === "datetime"
@@ -39,8 +43,8 @@ export function LocalTime({ dateString, format = "datetime", className }: LocalT
               : {}),
             hour: "numeric",
             minute: "2-digit",
-            timeZone: "America/Los_Angeles",
-            timeZoneName: "short",
+            ...(timeZone ? { timeZone } : { timeZone: "America/Los_Angeles" }),
+            ...(showTimeZone || !timeZone ? { timeZoneName: "short" } : {}),
           });
     return (
       <time dateTime={date.toISOString()} className={className}>
@@ -55,6 +59,8 @@ export function LocalTime({ dateString, format = "datetime", className }: LocalT
         {date.toLocaleString(undefined, {
           hour: "numeric",
           minute: "2-digit",
+          ...(timeZone ? { timeZone } : {}),
+          ...(showTimeZone ? { timeZoneName: "short" } : {}),
         })}
       </time>
     );
@@ -67,6 +73,7 @@ export function LocalTime({ dateString, format = "datetime", className }: LocalT
           weekday: "short",
           month: "short",
           day: "numeric",
+          ...(timeZone ? { timeZone } : {}),
         })}
       </time>
     );
@@ -81,6 +88,8 @@ export function LocalTime({ dateString, format = "datetime", className }: LocalT
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
+        ...(timeZone ? { timeZone } : {}),
+        ...(showTimeZone ? { timeZoneName: "short" } : {}),
       })}
     </time>
   );

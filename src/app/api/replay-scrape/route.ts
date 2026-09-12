@@ -8,7 +8,7 @@ import {
 import { isGuaranteedHaxOutcome } from "@/lib/hax-rules";
 import { buildStoredBattleEvents, type StoredBattleEvent } from "@/lib/replay-events";
 import { IllusionMoveAttributionTracker } from "@/lib/illusion-move-attribution";
-import { getMegaStoneName } from "@/lib/mega-stones";
+import { getMegaStoneName, isMegaPokemonName } from "@/lib/mega-stones";
 
 interface PokemonStats {
   name: string;
@@ -154,14 +154,9 @@ const PIVOT_MOVES = new Set([
   "volt switch",
 ]);
 
-const CHAMPIONS_NATDEX_DRAFT_TIER = "[Gen 9 Champions] NatDex Draft";
 const MAX_REPLAY_URL_LENGTH = 300;
 const MAX_REPLAY_RESPONSE_BYTES = 2_000_000;
 const REPLAY_FETCH_TIMEOUT_MS = 15_000;
-
-function shouldPreserveMegaFormsForTier(tier: string | null) {
-  return tier === CHAMPIONS_NATDEX_DRAFT_TIER;
-}
 
 function isParalysisCantMove(effect: string) {
   const lower = effect.toLowerCase();
@@ -227,10 +222,6 @@ function buildReplayJsonCandidates(replayUrl: string): string[] {
   return candidates;
 }
 
-function isMegaPokemonName(name: string): boolean {
-  return /-Mega(?:-|$)/.test(name);
-}
-
 function cleanReplayPokemonName(name: string): string {
   return name
     .split(",")[0]
@@ -269,7 +260,6 @@ export async function POST(request: NextRequest) {
   try {
     const {
       replayUrl,
-      preserveMegas = false,
       debugActiveTurns = false,
       expandedHaxRules = false,
     } = await request.json();
@@ -336,7 +326,10 @@ export async function POST(request: NextRequest) {
       .find((line) => line.startsWith("|tier|"))
       ?.split("|")[2]
       ?.trim() || null;
-    const preserveReplayMegaForms = preserveMegas || shouldPreserveMegaFormsForTier(replayTier);
+    // Mega formes are meaningful evidence for item inference in every replay,
+    // not only the current Champions tier. Keep them in the parsed payload so
+    // an evolved Delphox (and every other Mega) can be assigned its stone.
+    const preserveReplayMegaForms = true;
     const aliasMaps = await getPokemonAliasMaps();
 
     const result: ParsedReplay = {
@@ -466,6 +459,13 @@ export async function POST(request: NextRequest) {
       }
     };
 
+    const assumeMegaStone = (pokemon: PokemonStats | null, species: string) => {
+      if (!pokemon || !isMegaPokemonName(species)) return;
+      const megaStone = getMegaStoneName(species);
+      if (!megaStone || pokemon.revealedItems.some((entry) => entry.item.toLowerCase() === megaStone.toLowerCase())) return;
+      pokemon.revealedItems.push({ item: megaStone, turn: currentTurn, source: "assumed from Mega Evolution" });
+    };
+
     const getOpponentActiveRef = (player: "p1" | "p2"): PlayerRef | null => {
       const opponent = player === "p1" ? "p2" : "p1";
       const nickname = opponent === "p1" ? p1ActivePokemon : p2ActivePokemon;
@@ -562,10 +562,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (pokemon) {
-        const megaStone = getMegaStoneName(pokemonName);
-        if (megaStone && !pokemon.revealedItems.some((entry) => entry.item.toLowerCase() === megaStone.toLowerCase())) {
-          pokemon.revealedItems.push({ item: megaStone, turn: currentTurn, source: "assumed from Mega Evolution" });
-        }
+        assumeMegaStone(pokemon, pokemonName);
         const oldHp = previousName ? hpPercentMap.get(`${parsed.player}:${previousName}`) : undefined;
         pokemon.name = pokemonName;
         nicknameMap.set(parsed.nickname, pokemonName);
@@ -660,6 +657,8 @@ export async function POST(request: NextRequest) {
             revealedItems: [],
           };
 
+          assumeMegaStone(stats, pokemonName);
+
           if (player === "p1") {
             result.p1Team.push(stats);
           } else if (player === "p2") {
@@ -692,6 +691,8 @@ export async function POST(request: NextRequest) {
                 pokemon = baseMatch;
               }
             }
+
+            assumeMegaStone(pokemon ?? null, pokemonName);
 
             const pivotMoveInfo =
               currentTurn > 0 &&

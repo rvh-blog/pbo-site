@@ -143,6 +143,22 @@ Experimental Stats is an admin-toggle-protected replay-evidence lab at
 Pokémon, move, item, week, result, stage, and forfeit coverage across the
 selected module.
 
+The landing page identifies the lab as a long-running work in progress. Coach
+Profiles show official completed-match records, including enabled forfeits,
+alongside separately labeled replay-backed metrics and coverage. Coach and Team
+Stats also expose `season_coaches.replacedById` history: an incoming coach is
+labeled as a mid-season replacement, a departing coach is labeled with their
+successor, and personal statistics remain with the coach who played the match.
+Replacement stints stay separate in experimental team rows; official standings
+may roll predecessor results into the active franchise.
+
+Use the report-wide search field to search all words across the active replay
+scope, including Pokémon, coaches, teams, moves, items, replay URLs, weeks, and
+review notes. Exact season, division, stage, result, and forfeit filters remain
+available alongside the search. Pokémon Profiles separate global match usage
+from roster-aware team usage; the latter uses team-match eligibility windows so
+acquisitions, drops, trades, and mid-season replacements affect the denominator.
+
 The current modules are:
 
 - Insights: momentum, pace, matchups, first-faint and comeback records, KO
@@ -158,16 +174,24 @@ The current modules are:
 - Replay Search: evidence search by Pokémon, coach, or team with minimum
   damage, minimum kills, and survived-battle filters.
 - Battle Visualizer: a selected replay's saved HP timeline, faint timing, item
-  reveals, and event-density views.
+  reveals, event-density views, and an Open replay link. Average battle length
+  uses saved timeline or normalized event-turn evidence and shows its covered
+  sample.
 - Signature Stats: opportunity-normalized damage, KO, healing, setup, and
   favorable-event rates with season-aware context and coverage.
 - Team Stats: season/division-aware team offense, defense, damage efficiency,
-  first-faint, and replay-control summaries.
-- Top Plays: replay-linked HP swings, comeback deficits, earliest first faints,
+  first-faint, and replay-control summaries. Switches and Tera uses are separate
+  sortable columns, and every numeric report column can be sorted.
+- Top Plays: replay-linked HP swings, comeback deficits, latest faint turns,
   and longest active appearances.
 - Visual Lab: filter-aware scatter plots, ranked bars, team charts, momentum,
-  move usage, season/division heatmaps, coach proxies, replay coverage, and
+  move usage, season/division heatmaps, replay coverage, and
   team-core networks.
+
+The Visual Lab does not currently include the retired Coach Style Radar. Move
+usage tiles are individually rendered, and team-core circles grow with Pokémon
+team appearances; these visuals describe saved evidence rather than strategic
+grades.
 
 Visual Lab notes:
 
@@ -188,6 +212,10 @@ least three qualifying games; replay evidence remains searchable below that
 threshold. Missing saved fields are shown as unknown rather than treated as
 zero, and protocol-derived metrics remain marked pending until their
 calculation and backfill coverage are validated.
+
+The home page Upcoming Battles panel is full width, uses aligned team-logo
+slots, labels playoff rounds clearly, and renders scheduled times in each
+visitor's local timezone.
 
 Relevant files:
 

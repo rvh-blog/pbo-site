@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Chakra_Petch, Geist, Geist_Mono, Press_Start_2P } from "next/font/google";
+import localFont from "next/font/local";
 import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
@@ -7,26 +7,34 @@ import { Navigation } from "@/components/navigation";
 import { PerformanceMonitor } from "@/components/performance-monitor";
 import { SITE_URL } from "@/lib/site-url";
 
-const geistSans = Geist({
+const geistSans = localFont({
+  src: "../../public/fonts/geist-latin.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const chakraPetch = Chakra_Petch({
-  variable: "--font-chakra-petch",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "100 900",
   display: "swap",
 });
 
-const pressStart2P = Press_Start_2P({
+const geistMono = localFont({
+  src: "../../public/fonts/geist-mono-latin.woff2",
+  variable: "--font-geist-mono",
+  weight: "100 900",
+  display: "swap",
+});
+
+const chakraPetch = localFont({
+  src: [
+    { path: "../../public/fonts/chakra-petch-400.woff2", weight: "400" },
+    { path: "../../public/fonts/chakra-petch-500.woff2", weight: "500" },
+    { path: "../../public/fonts/chakra-petch-600.woff2", weight: "600" },
+    { path: "../../public/fonts/chakra-petch-700.woff2", weight: "700" },
+  ],
+  variable: "--font-chakra-petch",
+  display: "swap",
+});
+
+const pressStart2P = localFont({
+  src: "../../public/fonts/press-start-2p.woff2",
   variable: "--font-press-start-2p",
-  subsets: ["latin"],
   weight: "400",
   display: "swap",
 });

@@ -21,6 +21,8 @@ import { queueMilestoneEvaluation } from "@/lib/milestones";
 import { syncDivision } from "@/lib/sheets-sync-all";
 import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 import { replaceBattleEvents } from "@/lib/battle-event-storage";
+import { getCoachRoster } from "@/bot/services/match-service";
+import { applyMegaItemInferenceToPokemonData, type MegaRosterPokemon } from "@/lib/mega-item-inference";
 
 async function refreshFantasyStatsForResult(seasonId: number, week: number) {
   await refreshFantasyWeeklyStatsForWeek(seasonId, week);
@@ -66,6 +68,10 @@ interface PokemonDataEntry {
   pokemonId: number;
   kills?: number;
   deaths?: number;
+  damageDealt?: number;
+  damageDealtIndirect?: number;
+  damageTaken?: number;
+  damageTakenIndirect?: number;
   turnsActive?: number;
   hazardDamageTaken?: number;
   setupMovesUsed?: number;
@@ -83,7 +89,26 @@ interface PokemonDataEntry {
     turn: number;
     description: string;
   }>;
+  hpRestored?: number;
   movesUsed?: Record<string, number>;
+  revealedItems?: Array<{ item: string; turn: number; source: string }> | null;
+}
+
+async function prepareMegaPokemonData(
+  pokemonData: PokemonDataEntry[],
+  coach1SeasonId: number,
+  coach2SeasonId: number,
+  week: number,
+) {
+  const [coach1Roster, coach2Roster] = await Promise.all([
+    getCoachRoster(coach1SeasonId, week),
+    getCoachRoster(coach2SeasonId, week),
+  ]);
+  const rostersByTeam = new Map<number, Map<number, MegaRosterPokemon>>([
+    [coach1SeasonId, new Map(coach1Roster.map((entry) => [entry.pokemonId, entry]))],
+    [coach2SeasonId, new Map(coach2Roster.map((entry) => [entry.pokemonId, entry]))],
+  ]);
+  return applyMegaItemInferenceToPokemonData(pokemonData, rostersByTeam);
 }
 
 // Helper to insert kill events from keyEvents data
@@ -340,9 +365,30 @@ export async function POST(request: NextRequest) {
     })
     .returning();
 
+  let preparedPokemonData: PokemonDataEntry[] | undefined = Array.isArray(pokemonData)
+    ? pokemonData as PokemonDataEntry[]
+    : undefined;
+  let megaReviewNotes: string[] = [];
+  if (replayUrl && preparedPokemonData?.length) {
+    const inference = await prepareMegaPokemonData(
+      preparedPokemonData,
+      coach1SeasonId,
+      coach2SeasonId,
+      match.week,
+    );
+    preparedPokemonData = inference.pokemonData;
+    megaReviewNotes = inference.reviewNotes;
+    if (megaReviewNotes.length > 0) {
+      await db.update(matches).set({
+        needsReview: true,
+        reviewNotes: [reviewNotes?.trim() || "", ...megaReviewNotes].filter(Boolean).join("\n"),
+      }).where(eq(matches.id, match.id));
+    }
+  }
+
   // Add Pokemon data if provided
-  if (pokemonData && Array.isArray(pokemonData)) {
-    for (const poke of pokemonData) {
+  if (preparedPokemonData) {
+    for (const poke of preparedPokemonData) {
       await db.insert(matchPokemon).values({
         matchId: match.id,
         seasonCoachId: poke.seasonCoachId,
@@ -375,7 +421,7 @@ export async function POST(request: NextRequest) {
     // Insert kill events if keyEvents are provided
     if (keyEvents && Array.isArray(keyEvents)) {
       try {
-        await insertKillEvents(match.id, keyEvents, pokemonData, coach1SeasonId, coach2SeasonId, winnerId || null);
+        await insertKillEvents(match.id, keyEvents, preparedPokemonData, coach1SeasonId, coach2SeasonId, winnerId || null);
       } catch (err) {
         console.error("[Matches API] Error inserting kill events:", err);
       }
@@ -505,6 +551,21 @@ export async function PUT(request: NextRequest) {
   const hadPreviousWinner = previousMatch?.winnerId !== null && previousMatch?.winnerId !== undefined;
   const hadPreviousResult = isCompletedMatchResult(previousMatch?.winnerId, previousMatch?.isForfeit);
 
+  let preparedPokemonData: PokemonDataEntry[] | undefined = Array.isArray(pokemonData)
+    ? pokemonData as PokemonDataEntry[]
+    : undefined;
+  let megaReviewNotes: string[] = [];
+  if ((replayUrl || previousMatch?.replayUrl) && preparedPokemonData?.length && previousMatch) {
+    const inference = await prepareMegaPokemonData(
+      preparedPokemonData,
+      previousMatch.coach1SeasonId,
+      previousMatch.coach2SeasonId,
+      previousMatch.week,
+    );
+    preparedPokemonData = inference.pokemonData;
+    megaReviewNotes = inference.reviewNotes;
+  }
+
   const updateData: Record<string, unknown> = {};
   if (winnerId !== undefined) updateData.winnerId = winnerId;
   if (coach1Differential !== undefined) updateData.coach1Differential = coach1Differential;
@@ -518,6 +579,14 @@ export async function PUT(request: NextRequest) {
   if (turnSnapshots !== undefined) updateData.turnSnapshots = turnSnapshots ? JSON.stringify(turnSnapshots) : null;
   if (keyEvents !== undefined) updateData.keyEvents = keyEvents ? JSON.stringify(keyEvents) : null;
   if (zoroarkInvolved !== undefined) updateData.zoroarkInvolved = zoroarkInvolved;
+  if (megaReviewNotes.length > 0) {
+    updateData.needsReview = true;
+    updateData.reviewNotes = [
+      previousMatch?.reviewNotes?.trim() || "",
+      reviewNotes?.trim() || "",
+      ...megaReviewNotes,
+    ].filter(Boolean).filter((note, index, notes) => notes.indexOf(note) === index).join("\n");
+  }
 
   const [updated] = await db
     .update(matches)
@@ -526,12 +595,12 @@ export async function PUT(request: NextRequest) {
     .returning();
 
   // Update Pokemon data if provided
-  if (pokemonData && Array.isArray(pokemonData)) {
+  if (preparedPokemonData) {
     // Delete existing Pokemon data for this match
     await db.delete(matchPokemon).where(eq(matchPokemon.matchId, id));
 
     // Insert new Pokemon data
-    for (const poke of pokemonData) {
+    for (const poke of preparedPokemonData) {
       if (poke.pokemonId) {
         await db.insert(matchPokemon).values({
           matchId: id,
@@ -572,7 +641,7 @@ export async function PUT(request: NextRequest) {
           await db.delete(killEvents).where(eq(killEvents.matchId, id));
           // Use the new winnerId if provided, otherwise use previous winner
           const effectiveWinnerId = winnerId !== undefined ? winnerId : previousMatch.winnerId;
-          await insertKillEvents(id, eventsToProcess, pokemonData, previousMatch.coach1SeasonId, previousMatch.coach2SeasonId, effectiveWinnerId);
+          await insertKillEvents(id, eventsToProcess, preparedPokemonData, previousMatch.coach1SeasonId, previousMatch.coach2SeasonId, effectiveWinnerId);
         } catch (err) {
           console.error("[Matches API] Error inserting kill events:", err);
         }

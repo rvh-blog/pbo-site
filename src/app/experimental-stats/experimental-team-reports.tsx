@@ -7,6 +7,15 @@ type TeamRef = {
   coachId: number;
   coachName: string;
   teamName: string;
+  isActive: boolean;
+  replacedById: number | null;
+};
+
+type SeasonTeam = {
+  seasonCoachId: number;
+  teamName: string;
+  coachName: string;
+  replacedById: number | null;
 };
 
 export type TeamStatsRow = {
@@ -31,6 +40,9 @@ export type TeamStatsRow = {
   eventGames: number;
   pokemonUsed: number;
 };
+
+type TeamSortKey = "team" | "games" | "wins" | "winRate" | "damageFor" | "damageAgainst" | "differential" | "kills" | "deaths" | "damageActiveTurn" | "firstFaint" | "switches" | "teraUses";
+type SortDirection = "asc" | "desc";
 
 export type TopPlayRecord = {
   category: string;
@@ -60,6 +72,13 @@ function firstFaint(match: ExperimentalMatch) {
     .sort((a, b) => a.turn - b.turn)[0] ?? null;
 }
 
+function latestFaint(match: ExperimentalMatch) {
+  return match.keyEvents.reduce<(typeof match.keyEvents)[number] | null>((latest, event) => {
+    if (event.type !== "faint" || !event.player) return latest;
+    return !latest || event.turn >= latest.turn ? event : latest;
+  }, null);
+}
+
 function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
   const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -72,6 +91,10 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
 
 function StatCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return <div className="rounded-2xl border border-slate-700/70 bg-gradient-to-br from-slate-950/95 to-slate-900/70 p-4 text-center"><div className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div><div className="mt-2 break-words font-mono text-lg font-black text-white sm:text-xl">{value}</div>{detail ? <div className="mt-1 text-[10px] text-[var(--foreground-subtle)]">{detail}</div> : null}</div>;
+}
+
+function SortableHeader({ label, sortKey, activeSortKey, direction, onSort, align = "center" }: { label: string; sortKey: TeamSortKey; activeSortKey: TeamSortKey; direction: SortDirection; onSort: (key: TeamSortKey) => void; align?: "left" | "center" }) {
+  return <th className={align === "left" ? "p-3 text-left" : "p-3 text-center"}><button type="button" onClick={() => onSort(sortKey)} className="inline-flex items-center gap-1 font-black hover:text-cyan-200" aria-label={`Sort by ${label}`}>{label}<span className={`text-[8px] ${activeSortKey === sortKey ? "text-cyan-300" : "text-[var(--foreground-subtle)]"}`}>{activeSortKey === sortKey ? (direction === "asc" ? "▲" : "▼") : "↕"}</span></button></th>;
 }
 
 export function buildTeamStats(matches: ExperimentalMatch[], selectedTeamIds: Set<number>): TeamStatsRow[] {
@@ -192,14 +215,59 @@ function eventTeamForMatch(match: ExperimentalMatch, event: ExperimentalBattleEv
   return event.player ? teamForPlayer(match, event.player) : null;
 }
 
-export function TeamStatsReport({ matches, selectedTeamIds }: { matches: ExperimentalMatch[]; selectedTeamIds: number[] }) {
+export function TeamStatsReport({ matches, selectedTeamIds, seasonTeams }: { matches: ExperimentalMatch[]; selectedTeamIds: number[]; seasonTeams: SeasonTeam[] }) {
   const rows = buildTeamStats(matches, new Set(selectedTeamIds));
+  const [sortKey, setSortKey] = useState<TeamSortKey>("wins");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const seasonTeamById = new Map(seasonTeams.map((team) => [team.seasonCoachId, team]));
+  const predecessorByReplacementId = new Map(seasonTeams.filter((team) => team.replacedById !== null).map((team) => [team.replacedById as number, team]));
+  const stintStatus = (team: TeamRef) => {
+    const predecessor = predecessorByReplacementId.get(team.seasonCoachId);
+    if (predecessor) return `Joined as replacement for ${predecessor.teamName} (${predecessor.coachName})`;
+    const successor = team.replacedById ? seasonTeamById.get(team.replacedById) : null;
+    if (successor) return `Dropped; replaced by ${successor.teamName} (${successor.coachName})`;
+    return "Full/current team stint";
+  };
   const eventCoveredTeams = rows.filter((row) => row.eventGames > 0).length;
+  const sortValue = (row: TeamStatsRow): string | number | null => {
+    if (sortKey === "team") return row.team.teamName;
+    if (sortKey === "games") return row.games;
+    if (sortKey === "wins") return row.wins;
+    if (sortKey === "winRate") return row.games ? row.wins / row.games : null;
+    if (sortKey === "damageFor") return row.damageForGames ? row.damageFor / row.damageForGames : null;
+    if (sortKey === "damageAgainst") return row.damageAgainstGames ? row.damageAgainst / row.damageAgainstGames : null;
+    if (sortKey === "differential") return row.damageForGames && row.damageAgainstGames ? row.damageFor / row.damageForGames - row.damageAgainst / row.damageAgainstGames : null;
+    if (sortKey === "kills") return row.games ? row.kills / row.games : null;
+    if (sortKey === "deaths") return row.games ? row.deaths / row.games : null;
+    if (sortKey === "damageActiveTurn") return row.turnsActive && row.turnsGames && row.damageForGames ? row.damageFor / row.turnsActive : null;
+    if (sortKey === "firstFaint") return row.firstFaintGames ? row.firstFaintFor / row.firstFaintGames : null;
+    if (sortKey === "switches") return row.eventGames ? row.switches : null;
+    return row.eventGames ? row.teraUses : null;
+  };
+  const sortedRows = [...rows].sort((left, right) => {
+    const leftValue = sortValue(left);
+    const rightValue = sortValue(right);
+    if (leftValue === null && rightValue === null) return left.team.teamName.localeCompare(right.team.teamName);
+    if (leftValue === null) return 1;
+    if (rightValue === null) return -1;
+    const comparison = typeof leftValue === "string" && typeof rightValue === "string"
+      ? leftValue.localeCompare(rightValue)
+      : Number(leftValue) - Number(rightValue);
+    return (sortDirection === "asc" ? comparison : -comparison) || left.team.teamName.localeCompare(right.team.teamName);
+  });
+  const changeSort = (nextKey: TeamSortKey) => {
+    if (sortKey === nextKey) setSortDirection((direction) => direction === "asc" ? "desc" : "asc");
+    else {
+      setSortKey(nextKey);
+      setSortDirection(nextKey === "team" ? "asc" : "desc");
+    }
+  };
   const exportRows = [
-    ["Team", "Coach", "Games", "Wins", "Losses", "Win rate", "Damage for/game", "Damage against/game", "Damage differential/game", "KOs/game", "Deaths/game", "Damage/active turn", "First faint for-against", "Switch/drag events", "Tera uses", "Event coverage"],
-    ...rows.map((row) => [
+    ["Team", "Coach", "Stint status", "Games", "Wins", "Losses", "Win rate", "Damage for/game", "Damage against/game", "Damage differential/game", "KOs/game", "Deaths/game", "Damage/active turn", "First faint for-against", "Switch/drag events", "Tera uses", "Event coverage"],
+    ...sortedRows.map((row) => [
       row.team.teamName,
       row.team.coachName,
+      stintStatus(row.team),
       row.games,
       row.wins,
       row.games - row.wins,
@@ -220,15 +288,15 @@ export function TeamStatsReport({ matches, selectedTeamIds }: { matches: Experim
   return <section className="space-y-4">
     <div className="poke-card border-cyan-400/20 bg-cyan-500/[0.03] p-5 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 className="font-pixel text-sm text-white">Team Stats</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">Season- and division-specific team rows, using an NFL-style offense / defense / control layout. Team totals use all saved Pokemon in the filtered matches; event metrics only use attributed normalized events.</p></div>
+        <div><h2 className="font-pixel text-sm text-white">Team Stats</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">Season- and division-specific team rows covering offense, defense, and battle control. Team totals use all saved Pokemon in the filtered matches; event metrics only use attributed normalized events.</p></div>
         <button type="button" onClick={() => downloadCsv("pbo-team-stats.csv", exportRows)} className="btn-retro-secondary px-3 py-2 text-[9px]">CSV</button>
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4"><StatCard label="Teams" value={number(rows.length)} /><StatCard label="Filtered matches" value={number(matches.length)} /><StatCard label="Damage coverage" value={number(new Set(rows.flatMap((row) => row.damageForGames ? [row.team.seasonCoachId] : [])).size)} detail="Teams with recorded damage" /><StatCard label="Event coverage" value={number(eventCoveredTeams)} detail="Teams with attributed events" /></div>
     </div>
 
     <div className="poke-card p-5 md:p-6">
-      <div className="mb-4"><h3 className="font-pixel text-xs text-white">Offense, defense, and control</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Damage and recovery are reported only when the underlying match fields were saved. First-faint records are team-level, not persistent-coach records.</p></div>
-      {rows.length ? <div className="overflow-x-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[1180px] text-xs"><thead className="bg-[var(--background)] text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-3 text-left">Team</th><th>GP</th><th>Record</th><th>Win rate</th><th>DMG for / G</th><th>DMG against / G</th><th>Diff / G</th><th>KOs / G</th><th>Deaths / G</th><th>DMG / active turn</th><th>First faint</th><th>Switches / Tera</th></tr></thead><tbody>{rows.map((row) => { const differential = row.damageForGames && row.damageAgainstGames ? row.damageFor / row.damageForGames - row.damageAgainst / row.damageAgainstGames : null; return <tr key={row.team.seasonCoachId} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left"><div className="font-bold text-white">{row.team.teamName}</div><div className="text-[10px] text-[var(--foreground-muted)]">{row.team.coachName}</div></td><td>{row.games}</td><td>{row.wins}-{row.games - row.wins}</td><td>{number(rate(row.wins, row.games) * 100, 1)}%</td><td>{perGame(row.damageFor, row.damageForGames, 1)}</td><td>{perGame(row.damageAgainst, row.damageAgainstGames, 1)}</td><td className={differential !== null && differential >= 0 ? "text-emerald-300" : "text-red-300"}>{differential === null ? "—" : number(differential, 1)}</td><td>{perGame(row.kills, row.games, 2)}</td><td>{perGame(row.deaths, row.games, 2)}</td><td>{row.turnsActive && row.turnsGames && row.damageForGames ? number(row.damageFor / row.turnsActive, 2) : "—"}</td><td>{row.firstFaintGames ? `${row.firstFaintFor}-${row.firstFaintAgainst}` : "—"}</td><td>{row.eventGames ? `${row.switches} / ${row.teraUses}` : "—"}</td></tr>; })}</tbody></table></div> : <p className="text-xs text-[var(--foreground-muted)]">No team rows match the active filters.</p>}
+      <div className="mb-4"><h3 className="font-pixel text-xs text-white">Offense, defense, and control</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Damage and recovery are reported only when the underlying match fields were saved. Replacement stints remain separate here so each coach keeps only the games they played; official standings may roll predecessor results into the active franchise.</p></div>
+      {rows.length ? <div className="overflow-x-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[1280px] text-xs"><thead className="bg-[var(--background)] text-[9px] uppercase text-[var(--foreground-muted)]"><tr><SortableHeader label="Team" sortKey="team" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} align="left" /><SortableHeader label="GP" sortKey="games" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="Record" sortKey="wins" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="Win rate" sortKey="winRate" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="DMG for / G" sortKey="damageFor" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="DMG against / G" sortKey="damageAgainst" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="Diff / G" sortKey="differential" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="KOs / G" sortKey="kills" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="Deaths / G" sortKey="deaths" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="DMG / active turn" sortKey="damageActiveTurn" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="First faint" sortKey="firstFaint" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="Switches" sortKey="switches" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /><SortableHeader label="Tera" sortKey="teraUses" activeSortKey={sortKey} direction={sortDirection} onSort={changeSort} /></tr></thead><tbody>{sortedRows.map((row) => { const differential = row.damageForGames && row.damageAgainstGames ? row.damageFor / row.damageForGames - row.damageAgainst / row.damageAgainstGames : null; return <tr key={row.team.seasonCoachId} className="border-t border-[var(--border)] text-center"><td className="p-3 text-left"><div className="font-bold text-white">{row.team.teamName}</div><div className="text-[10px] text-[var(--foreground-muted)]">{row.team.coachName}</div><div className={`mt-1 text-[9px] ${row.team.replacedById || predecessorByReplacementId.has(row.team.seasonCoachId) ? "text-amber-300" : "text-[var(--foreground-subtle)]"}`}>{stintStatus(row.team)}</div></td><td>{row.games}</td><td>{row.wins}-{row.games - row.wins}</td><td>{number(rate(row.wins, row.games) * 100, 1)}%</td><td>{perGame(row.damageFor, row.damageForGames, 1)}</td><td>{perGame(row.damageAgainst, row.damageAgainstGames, 1)}</td><td className={differential !== null && differential >= 0 ? "text-emerald-300" : "text-red-300"}>{differential === null ? "—" : number(differential, 1)}</td><td>{perGame(row.kills, row.games, 2)}</td><td>{perGame(row.deaths, row.games, 2)}</td><td>{row.turnsActive && row.turnsGames && row.damageForGames ? number(row.damageFor / row.turnsActive, 2) : "—"}</td><td>{row.firstFaintGames ? `${row.firstFaintFor}-${row.firstFaintAgainst}` : "—"}</td><td>{row.eventGames ? row.switches : "—"}</td><td>{row.eventGames ? row.teraUses : "—"}</td></tr>; })}</tbody></table></div> : <p className="text-xs text-[var(--foreground-muted)]">No team rows match the active filters.</p>}
     </div>
   </section>;
 }
@@ -236,7 +304,7 @@ export function TeamStatsReport({ matches, selectedTeamIds }: { matches: Experim
 export function buildTopPlays(matches: ExperimentalMatch[]) {
   const hpSwings: TopPlayRecord[] = [];
   const comebacks: TopPlayRecord[] = [];
-  const earliestFaints: TopPlayRecord[] = [];
+  const latestFaints: TopPlayRecord[] = [];
   const longestAppearances: TopPlayRecord[] = [];
 
   for (const match of matches) {
@@ -264,10 +332,10 @@ export function buildTopPlays(matches: ExperimentalMatch[]) {
       if (lowPoint && lowPoint.lead < 0) comebacks.push({ category: "Comeback", turn: lowPoint.snapshot.turn, value: -lowPoint.lead / 6, valueLabel: `${number(-lowPoint.lead / 6, 1)}% deficit`, detail: `${winner.teamName} overcame ${loser.teamName} at turn ${lowPoint.snapshot.turn}`, match });
     }
 
-    const faint = firstFaint(match);
+    const faint = latestFaint(match);
     if (faint?.player) {
       const victimTeam = teamForPlayer(match, faint.player);
-      earliestFaints.push({ category: "First faint", turn: faint.turn, value: faint.turn, valueLabel: `Turn ${faint.turn}`, detail: `${faint.pokemon ?? "Pokemon"} from ${victimTeam?.teamName ?? "unknown team"}${faint.killer ? ` · ${faint.killer}${faint.move ? ` with ${faint.move}` : ""}` : ""}`, match });
+      latestFaints.push({ category: "Latest faint", turn: faint.turn, value: faint.turn, valueLabel: `Turn ${faint.turn}`, detail: `${faint.pokemon ?? "Pokemon"} from ${victimTeam?.teamName ?? "unknown team"}${faint.killer ? ` · ${faint.killer}${faint.move ? ` with ${faint.move}` : ""}` : ""}`, match });
     }
 
     for (const appearance of match.pokemon) {
@@ -280,7 +348,7 @@ export function buildTopPlays(matches: ExperimentalMatch[]) {
   return {
     hpSwings: hpSwings.sort((a, b) => b.value - a.value),
     comebacks: comebacks.sort((a, b) => b.value - a.value),
-    earliestFaints: earliestFaints.sort((a, b) => a.value - b.value),
+    latestFaints: latestFaints.sort((a, b) => b.value - a.value),
     longestAppearances: longestAppearances.sort((a, b) => b.value - a.value),
   };
 }
@@ -316,13 +384,13 @@ function TopPlayList({ title, description, records }: { title: string; descripti
 
 export function TopPlaysReport({ matches }: { matches: ExperimentalMatch[] }) {
   const records = buildTopPlays(matches);
-  const allRecords = [...records.hpSwings, ...records.comebacks, ...records.earliestFaints, ...records.longestAppearances];
+  const allRecords = [...records.hpSwings, ...records.comebacks, ...records.latestFaints, ...records.longestAppearances];
   const exportRows = [["Category", "Value", "Detail", "Match", "Season", "Division", "Week"], ...allRecords.map((record) => [record.category, record.valueLabel, record.detail, `${record.match.coach1.teamName} vs ${record.match.coach2.teamName}`, record.match.seasonName, record.match.divisionName, record.match.week])];
   const timelineMatches = matches.filter((match) => match.turnSnapshots.length > 1).length;
   const faintMatches = matches.filter((match) => firstFaint(match)).length;
 
   return <section className="space-y-4">
     <div className="poke-card border-fuchsia-400/20 bg-fuchsia-500/[0.03] p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Top Plays</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">Replay-linked records from saved turn snapshots and faint events. This report focuses on individual battle moments, not aggregate leaderboards.</p></div><button type="button" onClick={() => downloadCsv("pbo-top-plays.csv", exportRows)} className="btn-retro-secondary px-3 py-2 text-[9px]">CSV</button></div><div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4"><StatCard label="Filtered matches" value={number(matches.length)} /><StatCard label="HP-swing coverage" value={number(timelineMatches)} detail="Matches with turn snapshots" /><StatCard label="Faint coverage" value={number(faintMatches)} detail="Matches with a mapped first faint" /><StatCard label="Evidence records" value={number(allRecords.length)} /></div></div>
-    <div className="grid gap-4 xl:grid-cols-2"><TopPlayList title="Biggest HP swings" description="Largest saved turn-to-turn loss in team HP, shown as a percentage of a six-Pokemon team total." records={records.hpSwings} /><TopPlayList title="Biggest comebacks" description="Largest recorded team-HP deficit overcome by the eventual winner." records={records.comebacks} /><TopPlayList title="Earliest first faints" description="Fastest opening knockout based on the first mapped faint event in a replay." records={records.earliestFaints} /><TopPlayList title="Longest active appearances" description="Pokemon with the most saved turns active in one battle." records={records.longestAppearances} /></div>
+    <div className="grid gap-4 xl:grid-cols-2"><TopPlayList title="Biggest HP swings" description="Largest saved turn-to-turn loss in team HP, shown as a percentage of a six-Pokemon team total." records={records.hpSwings} /><TopPlayList title="Biggest comebacks" description="Largest recorded team-HP deficit overcome by the eventual winner." records={records.comebacks} /><TopPlayList title="Latest faint turns" description="Latest final knockout based on the last mapped faint event in a replay." records={records.latestFaints} /><TopPlayList title="Longest active appearances" description="Pokemon with the most saved turns active in one battle." records={records.longestAppearances} /></div>
   </section>;
 }

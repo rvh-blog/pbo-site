@@ -26,7 +26,7 @@ export const metadata = {
 
 const modules = [
   { href: "/experimental-stats/pokemon", title: "Pokémon Profiles", description: "Qualified percentiles, season totals, per-appearance rates, recent matches, moves, items, and survival.", icon: Sparkles, accent: "from-violet-500/25 to-fuchsia-500/5", color: "text-violet-300" },
-  { href: "/experimental-stats/coaches", title: "Coach Profiles", description: "Observed usage, replay tendencies, damage composition, healing, items, setup, and favorable events.", icon: Users, accent: "from-cyan-500/20 to-blue-500/5", color: "text-cyan-300" },
+  { href: "/experimental-stats/coaches", title: "Coach Profiles", description: "Official records alongside replay-backed usage, damage, healing, items, setup, and favorable events.", icon: Users, accent: "from-cyan-500/20 to-blue-500/5", color: "text-cyan-300" },
   { href: "/experimental-stats/compare", title: "Compare", description: "Compare two Pokémon under the exact same filters using side-by-side metric bars.", icon: GitCompareArrows, accent: "from-fuchsia-500/20 to-cyan-500/5", color: "text-fuchsia-300" },
   { href: "/experimental-stats/insights", title: "Insights", description: "Momentum, matchups, pace, coverage, and other replay-backed patterns across the active filters.", icon: BarChart3, accent: "from-emerald-500/20 to-teal-500/5", color: "text-emerald-300" },
   { href: "/experimental-stats/trends", title: "Rolling Trends", description: "Compare a Pokémon's recent 3-, 5-, or 10-game window with the immediately preceding window.", icon: LineChart, accent: "from-emerald-500/20 to-teal-500/5", color: "text-emerald-300" },
@@ -35,9 +35,9 @@ const modules = [
   { href: "/experimental-stats/battle-visualizer", title: "Battle Visualizer", description: "Explore saved team HP, faint order, replay length, and explicit held-item reveal timing.", icon: BarChart3, accent: "from-red-500/20 to-pink-500/5", color: "text-red-300" },
   { href: "/experimental-stats/rare-events", title: "Rare Event Explorer", description: "Evidence-linked records for long battles, late reveals, distinct moves, damage, healing, and faints.", icon: FlaskConical, accent: "from-purple-500/20 to-violet-500/5", color: "text-purple-300" },
   { href: "/experimental-stats/signature-stats", title: "Signature Stats", description: "Opportunity-normalized Pokémon rates for damage, KOs, healing, setup, and favorable replay events.", icon: Sparkles, accent: "from-violet-500/20 to-fuchsia-500/5", color: "text-violet-300" },
-  { href: "/experimental-stats/team-stats", title: "Team Stats", description: "NFL-style team rows for season/division records, damage differentials, KOs, and replay control coverage.", icon: BarChart3, accent: "from-cyan-500/20 to-blue-500/5", color: "text-cyan-300" },
-  { href: "/experimental-stats/top-plays", title: "Top Plays", description: "Replay-linked moments for HP swings, comebacks, early knockouts, and long active appearances.", icon: Sparkles, accent: "from-fuchsia-500/20 to-violet-500/5", color: "text-fuchsia-300" },
-  { href: "/experimental-stats/visuals", title: "Visual Lab", description: "Charts for signature performance, teams, top plays, move usage, coverage, coach style, and Pokémon cores.", icon: BarChart3, accent: "from-emerald-500/20 to-cyan-500/5", color: "text-emerald-300" },
+  { href: "/experimental-stats/team-stats", title: "Team Stats", description: "Team rows for season/division records, damage differentials, KOs, and replay control coverage.", icon: BarChart3, accent: "from-cyan-500/20 to-blue-500/5", color: "text-cyan-300" },
+  { href: "/experimental-stats/top-plays", title: "Top Plays", description: "Replay-linked moments for HP swings, comebacks, late knockouts, and long active appearances.", icon: Sparkles, accent: "from-fuchsia-500/20 to-violet-500/5", color: "text-fuchsia-300" },
+  { href: "/experimental-stats/visuals", title: "Visual Lab", description: "Charts for signature performance, teams, top plays, move usage, coverage, and Pokémon cores.", icon: BarChart3, accent: "from-emerald-500/20 to-cyan-500/5", color: "text-emerald-300" },
   { href: "/experimental-stats/glossary", title: "Metric Glossary", description: "Definitions and coverage status for every proposed official replay-only statistic and visual.", icon: BookOpen, accent: "from-slate-500/20 to-slate-500/5", color: "text-slate-300" },
 ];
 
@@ -90,11 +90,15 @@ export default async function ExperimentalStatsPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-1">
               <div className="rounded-xl border border-violet-400/20 bg-[var(--background)]/75 p-4 backdrop-blur"><div className="font-mono text-2xl font-black text-white">{replayRows.length}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Official replays</div></div>
               <div className="rounded-xl border border-cyan-400/20 bg-[var(--background)]/75 p-4 backdrop-blur"><div className="font-mono text-2xl font-black text-white">{seasonCount}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Seasons covered</div></div>
-              <div className="col-span-2 rounded-xl border border-emerald-400/20 bg-[var(--background)]/75 p-4 backdrop-blur sm:col-span-1"><div className="font-mono text-2xl font-black text-white">{timelineCount}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">HP timelines</div></div>
+              <div className="col-span-2 rounded-xl border border-emerald-400/20 bg-[var(--background)]/75 p-4 backdrop-blur sm:col-span-1" title="Official non-forfeit replays with saved turn-by-turn team HP snapshots."><div className="font-mono text-2xl font-black text-white">{timelineCount}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">HP timeline replays</div><div className="mt-2 text-[9px] leading-3 text-[var(--foreground-subtle)]">Replays with saved turn-by-turn team HP data</div></div>
             </div>
           </div>
         </div>
       </header>
+
+      <section className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 sm:p-5" role="status">
+        <div className="flex gap-3"><FlaskConical className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><h2 className="text-sm font-black text-amber-100">Work in progress</h2><p className="mt-1 text-xs leading-5 text-amber-100/80">Experimental Stats is still under active development and will not be finished for a while. Some reports may be incomplete, and labels, calculations, or layouts may change as replay coverage and testing improve.</p></div></div>
+      </section>
 
       <section>
         <div className="mb-4">

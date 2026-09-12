@@ -16,6 +16,7 @@ const [pokemon, plays, glossary] = await Promise.all([
 assert.ok(pokemon.includes("Advanced"));
 assert.ok(plays.includes("One record per match"));
 assert.ok(plays.includes("Show more"));
+assert.ok(plays.includes("Latest faint turns"));
 assert.ok(glossary.includes('aria-label="Search metrics and visuals"'));
 assert.ok(glossary.includes("Open related report"));
 for (const id of ["damage-dealt", "direct-damage", "indirect-damage", "hp-restored", "turns-active", "survival-rate", "setup-moves"]) {

@@ -29,6 +29,7 @@ import {
 } from "@/lib/replay-roster-matching";
 import { replaceBattleEvents } from "@/lib/battle-event-storage";
 import type { StoredBattleEvent } from "@/lib/replay-events";
+import { applyMegaItemInferenceToPokemonData, type MegaRosterPokemon } from "@/lib/mega-item-inference";
 
 export interface FixtureOption {
   matchId: number;
@@ -558,6 +559,27 @@ export async function recordMatchResult(
       return { success: false, error: "Invalid winner - must be one of the match participants" };
     }
 
+    let preparedPokemonData = pokemonData;
+    let megaReviewNotes: string[] = [];
+    if ((replayUrl || match.replayUrl) && pokemonData && pokemonData.length > 0) {
+      const [coach1Roster, coach2Roster] = await Promise.all([
+        getCoachRoster(match.coach1SeasonId, match.week),
+        getCoachRoster(match.coach2SeasonId, match.week),
+      ]);
+      const rostersByTeam = new Map<number, Map<number, MegaRosterPokemon>>([
+        [match.coach1SeasonId, new Map(coach1Roster.map((entry) => [entry.pokemonId, entry]))],
+        [match.coach2SeasonId, new Map(coach2Roster.map((entry) => [entry.pokemonId, entry]))],
+      ]);
+      const inference = applyMegaItemInferenceToPokemonData(pokemonData, rostersByTeam);
+      preparedPokemonData = inference.pokemonData;
+      megaReviewNotes = inference.reviewNotes;
+    }
+
+    const mergedReviewNotes = [
+      match.reviewNotes?.trim() || "",
+      ...megaReviewNotes,
+    ].filter(Boolean).filter((note, index, notes) => notes.indexOf(note) === index).join("\n");
+
     // Update the match
     await db
       .update(matches)
@@ -572,16 +594,19 @@ export async function recordMatchResult(
         turnSnapshots: turnSnapshots ? JSON.stringify(turnSnapshots) : null,
         keyEvents: keyEvents ? JSON.stringify(keyEvents) : null,
         zoroarkInvolved: zoroarkInvolved || false,
+        ...(megaReviewNotes.length > 0
+          ? { needsReview: true, reviewNotes: mergedReviewNotes || null }
+          : {}),
       })
       .where(eq(matches.id, matchId));
 
     // Update Pokemon data if provided
-    if (pokemonData && pokemonData.length > 0) {
+    if (preparedPokemonData && preparedPokemonData.length > 0) {
       // Delete existing Pokemon data for this match
       await db.delete(matchPokemon).where(eq(matchPokemon.matchId, matchId));
 
       // Insert new Pokemon data
-      for (const poke of pokemonData) {
+      for (const poke of preparedPokemonData) {
         if (poke.pokemonId) {
           await db.insert(matchPokemon).values({
             matchId,
@@ -618,7 +643,7 @@ export async function recordMatchResult(
         try {
           // Delete existing kill events for this match
           await db.delete(killEvents).where(eq(killEvents.matchId, matchId));
-          await insertKillEvents(matchId, keyEvents, pokemonData, match.coach1SeasonId, match.coach2SeasonId, winnerId);
+          await insertKillEvents(matchId, keyEvents, preparedPokemonData, match.coach1SeasonId, match.coach2SeasonId, winnerId);
         } catch (err) {
           console.error("[Match Service] Error inserting kill events:", err);
         }
@@ -1105,7 +1130,11 @@ export async function buildPokemonDataFromReplay(
     }
   }
 
-  return pokemonData;
+  const rostersByTeam = new Map<number, Map<number, MegaRosterPokemon>>([
+    [coach1SeasonId, new Map(coach1Roster.map((entry) => [entry.pokemonId, entry]))],
+    [coach2SeasonId, new Map(coach2Roster.map((entry) => [entry.pokemonId, entry]))],
+  ]);
+  return applyMegaItemInferenceToPokemonData(pokemonData, rostersByTeam).pokemonData;
 }
 
 /**
