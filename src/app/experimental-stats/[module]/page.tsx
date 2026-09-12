@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const moduleCopy: Record<ExperimentalModuleSlug, { title: string; description: string; clientModule: ExperimentalClientModule }> = {
   insights: { title: "Insights", description: "Review replay-backed momentum, matchups, pace, item coverage, and other patterns across the active filters.", clientModule: "insights" },
   pokemon: { title: "Pokémon Profiles", description: "Qualified percentile reports, totals, rates, move usage, item reveals, and recent match evidence.", clientModule: "pokemon" },
-  coaches: { title: "Coach Profiles", description: "Observed replay tendencies and usage patterns without assigning strategic intent.", clientModule: "coaches" },
+  coaches: { title: "Coach Profiles", description: "Review official records alongside replay-backed tendencies and usage patterns.", clientModule: "coaches" },
   compare: { title: "Compare", description: "Place two qualified Pokémon under the same replay filters and compare their output directly.", clientModule: "compare" },
   trends: { title: "Rolling Trends", description: "Compare a Pokémon's recent 3-, 5-, or 10-game window with the immediately preceding window.", clientModule: "rolling" },
   leaderboards: { title: "Leaderboards", description: "Use preset Pokémon or coach rankings and export the visible evidence as CSV.", clientModule: "leaderboard" },
@@ -19,7 +19,7 @@ const moduleCopy: Record<ExperimentalModuleSlug, { title: string; description: s
   "rare-events": { title: "Rare Event Explorer", description: "Search unusual records that can be supported by currently saved replay evidence.", clientModule: "rare" },
   "signature-stats": { title: "Signature Stats", description: "Review opportunity-normalized Pokémon rates for damage, KOs, healing, setup, and favorable replay events.", clientModule: "signature-stats" },
   "team-stats": { title: "Team Stats", description: "Review season- and division-specific team offense, defense, damage efficiency, and replay control signals.", clientModule: "team-stats" },
-  "top-plays": { title: "Top Plays", description: "Find the biggest replay-backed moments: HP swings, comebacks, early knockouts, and long active appearances.", clientModule: "top-plays" },
+  "top-plays": { title: "Top Plays", description: "Find the biggest replay-backed moments: HP swings, comebacks, late knockouts, and long active appearances.", clientModule: "top-plays" },
   visuals: { title: "Visual Lab", description: "Explore comparison charts, coverage maps, team visuals, replay momentum, move usage, and synergy views under the active filters.", clientModule: "visuals" },
   glossary: { title: "Metric Glossary", description: "Definitions and report coverage for every proposed official replay-only metric and visual.", clientModule: "glossary" },
 };

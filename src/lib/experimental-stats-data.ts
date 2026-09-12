@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { battleEvents, matches } from "@/lib/schema";
 import type { ExperimentalStatsDataset } from "@/app/experimental-stats/experimental-stats-client";
 import { createExperimentalDemoDataset } from "@/lib/experimental-stats-demo";
+import { inferMegaItemForRosterPokemon } from "@/lib/mega-item-inference";
 
 export type ExperimentalModuleSlug = "pokemon" | "coaches" | "compare" | "insights" | "trends" | "leaderboards" | "replays" | "battle-visualizer" | "rare-events" | "signature-stats" | "team-stats" | "top-plays" | "visuals" | "glossary";
 
@@ -91,14 +92,69 @@ function parseJsonArray<T>(value: string | null | undefined): T[] {
   }
 }
 
+type RosterTransactionRow = {
+  id: number;
+  seasonId: number;
+  type: string;
+  week: number;
+  seasonCoachId: number;
+  tradingPartnerSeasonCoachId: number | null;
+  pokemonIn: number[] | null;
+  pokemonOut: number[] | null;
+};
+
+function buildRosterEligibility(seasonTeamRows: Array<{ id: number; division: { seasonId: number }; rosters: Array<{ pokemonId: number; acquiredWeek: number | null }> }>, transactionRows: RosterTransactionRow[]) {
+  const windows: Array<{ seasonCoachId: number; seasonId: number; pokemonId: number; startWeek: number; endWeek: number | null }> = [];
+  seasonTeamRows.forEach((team) => {
+    const teamTransactions = transactionRows
+      .filter((transaction) => transaction.seasonId === team.division.seasonId && (
+        transaction.seasonCoachId === team.id ||
+        (transaction.type === "P2P_TRADE" && transaction.tradingPartnerSeasonCoachId === team.id)
+      ))
+      .map((transaction) => transaction.tradingPartnerSeasonCoachId === team.id && transaction.seasonCoachId !== team.id
+        ? { ...transaction, pokemonIn: transaction.pokemonOut, pokemonOut: transaction.pokemonIn }
+        : transaction)
+      .sort((a, b) => a.week - b.week || a.id - b.id);
+    const starts = new Map<number, Set<number>>();
+    const addStart = (pokemonId: number, startWeek: number) => {
+      const startWeeks = starts.get(pokemonId) ?? new Set<number>();
+      startWeeks.add(startWeek);
+      starts.set(pokemonId, startWeeks);
+    };
+    team.rosters.forEach((roster) => addStart(roster.pokemonId, roster.acquiredWeek ?? 1));
+    teamTransactions.forEach((transaction) => transaction.pokemonIn?.forEach((pokemonId) => addStart(pokemonId, transaction.week)));
+    teamTransactions.forEach((transaction) => transaction.pokemonOut?.forEach((pokemonId) => {
+      if (!starts.has(pokemonId)) addStart(pokemonId, 1);
+    }));
+    starts.forEach((startWeeks, pokemonId) => startWeeks.forEach((startWeek) => {
+      const drop = teamTransactions.find((transaction) => transaction.week >= startWeek && transaction.pokemonOut?.includes(pokemonId));
+      windows.push({ seasonCoachId: team.id, seasonId: team.division.seasonId, pokemonId, startWeek, endWeek: drop?.week ?? null });
+    }));
+  });
+  return windows;
+}
+
 export async function getExperimentalStatsPageData(module: ExperimentalModuleSlug, searchParams: SearchParams) {
-  const [seasons, divisions] = await Promise.all([
+  const [seasons, divisions, seasonTeamRows, transactionRows] = await Promise.all([
     db.query.seasons.findMany({ columns: { id: true, name: true, seasonNumber: true, isCurrent: true } }),
     db.query.divisions.findMany({ columns: { id: true, seasonId: true, name: true, displayOrder: true } }),
+    db.query.seasonCoaches.findMany({
+      columns: { id: true, coachId: true, divisionId: true, teamName: true, isActive: true, replacedById: true },
+      with: {
+        coach: { columns: { name: true } },
+        division: { columns: { seasonId: true, name: true }, with: { season: { columns: { name: true } } } },
+        rosters: { columns: { pokemonId: true, acquiredWeek: true } },
+      },
+    }),
+    db.query.transactions.findMany({
+      columns: { id: true, seasonId: true, type: true, week: true, seasonCoachId: true, tradingPartnerSeasonCoachId: true, pokemonIn: true, pokemonOut: true },
+    }),
   ]);
+  const rosterEligibility = buildRosterEligibility(seasonTeamRows, transactionRows);
   const currentSeasonId = seasons.find((season) => season.isCurrent)?.id ?? null;
   const filters = parseExperimentalFilters(searchParams, currentSeasonId);
   const requestedMatchId = positiveNumber(first(searchParams.match), 0);
+  if (module === "coaches" && first(searchParams.forfeits) === undefined) filters.includeForfeits = true;
   if (!first(searchParams.season) && (module === "pokemon" || module === "coaches" || module === "insights" || module === "signature-stats" || module === "team-stats" || module === "top-plays" || module === "visuals")) {
     filters.seasonId = "all";
   }
@@ -114,17 +170,17 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         highestAvailableWeekBySeason: {},
         seasons: seasons.map(({ id, name, seasonNumber }) => ({ id, name, seasonNumber })).sort((a, b) => b.seasonNumber - a.seasonNumber),
         divisions: divisions.map(({ id, seasonId, name, displayOrder }) => ({ id, seasonId, name, displayOrder: displayOrder ?? 0 })),
+        seasonTeams: seasonTeamRows.map((team) => ({ seasonCoachId: team.id, coachId: team.coachId, coachName: team.coach?.name ?? "Unknown Coach", teamName: team.teamName, seasonId: team.division.seasonId, seasonName: team.division.season?.name ?? `Season ${team.division.seasonId}`, divisionId: team.divisionId, divisionName: team.division.name, isActive: Boolean(team.isActive), replacedById: team.replacedById ?? null })),
         matches: [],
       } satisfies ExperimentalStatsDataset,
     };
   }
 
   const conditions: SQL[] = [
-    isNotNull(matches.replayUrl),
-    ne(matches.replayUrl, ""),
     isNotNull(matches.winnerId),
     or(eq(matches.winnerId, matches.coach1SeasonId), eq(matches.winnerId, matches.coach2SeasonId))!,
   ];
+  if (module !== "coaches") conditions.push(isNotNull(matches.replayUrl), ne(matches.replayUrl, ""));
   if (filters.seasonId !== "all") conditions.push(eq(matches.seasonId, filters.seasonId));
   if (filters.divisionId !== "all") conditions.push(eq(matches.divisionId, filters.divisionId));
   conditions.push(gte(matches.week, filters.weekStart), lte(matches.week, filters.weekEnd));
@@ -152,8 +208,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   }
   const availableWeekRows = await db.query.matches.findMany({
     where: and(
-      isNotNull(matches.replayUrl),
-      ne(matches.replayUrl, ""),
+      ...(module === "coaches" ? [] : [isNotNull(matches.replayUrl), ne(matches.replayUrl, "")]),
       isNotNull(matches.winnerId),
       or(eq(matches.winnerId, matches.coach1SeasonId), eq(matches.winnerId, matches.coach2SeasonId))!,
       ...(filters.includeForfeits ? [] : [eq(matches.isForfeit, false)]),
@@ -180,10 +235,12 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
       ...(includeTimeline ? { turnSnapshots: true } : {}),
       ...(includeKeyEvents ? { keyEvents: true } : {}),
       zoroarkInvolved: true,
+      needsReview: true,
+      reviewNotes: true,
     },
     with: {
-      coach1: { columns: { id: true, coachId: true, teamName: true }, with: { coach: { columns: { id: true, name: true } } } },
-      coach2: { columns: { id: true, coachId: true, teamName: true }, with: { coach: { columns: { id: true, name: true } } } },
+      coach1: { columns: { id: true, coachId: true, teamName: true, isActive: true, replacedById: true }, with: { coach: { columns: { id: true, name: true } } } },
+      coach2: { columns: { id: true, coachId: true, teamName: true, isActive: true, replacedById: true }, with: { coach: { columns: { id: true, name: true } } } },
       matchPokemon: {
         columns: {
           seasonCoachId: true,
@@ -217,6 +274,13 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   const eventMatchIds = module === "battle-visualizer"
     ? selectedEventMatch ? [selectedEventMatch.id] : []
     : replayMatches.map((match) => match.id);
+  const totalTurnRows = module === "coaches" && eventMatchIds.length
+    ? await db.select({
+      matchId: battleEvents.matchId,
+      totalTurns: sql<number>`max(${battleEvents.turn})`,
+    }).from(battleEvents).where(inArray(battleEvents.matchId, eventMatchIds)).groupBy(battleEvents.matchId).catch(() => [])
+    : [];
+  const totalTurnsByMatch = new Map(totalTurnRows.map((row) => [row.matchId, Number(row.totalTurns)]));
   const eventRows: EventQueryRow[] = includeProtocolEvents && eventMatchIds.length ? await (module === "rare-events"
     ? (async () => {
       const [density, rareCounts] = await Promise.all([
@@ -276,6 +340,8 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
     highestAvailableWeekBySeason,
     seasons: seasons.map(({ id, name, seasonNumber }) => ({ id, name, seasonNumber })).sort((a, b) => b.seasonNumber - a.seasonNumber),
     divisions: divisions.map(({ id, seasonId, name, displayOrder }) => ({ id, seasonId, name, displayOrder: displayOrder ?? 0 })).sort((a, b) => a.seasonId - b.seasonId || a.displayOrder - b.displayOrder),
+    rosterEligibility,
+    seasonTeams: seasonTeamRows.map((team) => ({ seasonCoachId: team.id, coachId: team.coachId, coachName: team.coach?.name ?? "Unknown Coach", teamName: team.teamName, seasonId: team.division.seasonId, seasonName: team.division.season?.name ?? `Season ${team.division.seasonId}`, divisionId: team.divisionId, divisionName: team.division.name, isActive: Boolean(team.isActive), replacedById: team.replacedById ?? null })),
     matches: replayMatches.map((match) => {
       const timelineJson = "turnSnapshots" in match && typeof match.turnSnapshots === "string"
         ? match.turnSnapshots
@@ -290,6 +356,19 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
       const events = includeKeyEvents ? parseJsonArray<KeyEvent>(keyEventsJson) : [];
       const winEvent = events.find((event) => event.type === "win");
       const winnerIsCoach1 = match.winnerId === match.coach1.id;
+      const derivedMegaReviewNotes = match.matchPokemon.flatMap((entry) => {
+        if (!entry.pokemon) return [];
+        const inference = inferMegaItemForRosterPokemon({
+          pokemonId: entry.pokemonId,
+          name: entry.pokemon.name,
+          displayName: entry.pokemon.displayName,
+        }, entry.revealedItems ?? []);
+        return inference.conflict ? [inference.conflict] : [];
+      });
+      const mergedReviewNotes = [
+        match.reviewNotes?.trim() || "",
+        ...derivedMegaReviewNotes,
+      ].filter(Boolean).filter((note, index, notes) => notes.indexOf(note) === index).join("\n");
       return {
         id: match.id,
         seasonId: match.seasonId,
@@ -302,8 +381,12 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         playedAt: match.playedAt,
         replayUrl: match.replayUrl ?? "",
         zoroarkInvolved: Boolean(match.zoroarkInvolved),
+        needsReview: Boolean(match.needsReview) || derivedMegaReviewNotes.length > 0,
+        reviewNotes: mergedReviewNotes || null,
         p1IsCoach1: winEvent?.player ? (winEvent.player === "p1") === winnerIsCoach1 : null,
-        totalTurns: parsedSnapshots.length ? parsedSnapshots.reduce((maximum, snapshot) => Math.max(maximum, snapshot.turn), 0) : null,
+        totalTurns: parsedSnapshots.length
+          ? parsedSnapshots.reduce((maximum, snapshot) => Math.max(maximum, snapshot.turn), 0)
+          : totalTurnsByMatch.get(match.id) ?? null,
         turnSnapshots: snapshots,
         keyEvents: events,
         battleEvents: eventsByMatch.get(match.id)?.map((event) => module === "rare-events"
@@ -347,9 +430,16 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
             rawLine: event.rawLine ?? "",
             metadata: event.metadata ?? null,
           }) ?? [],
-        coach1: { seasonCoachId: match.coach1.id, coachId: match.coach1.coachId, coachName: match.coach1.coach?.name ?? "Unknown Coach", teamName: match.coach1.teamName },
-        coach2: { seasonCoachId: match.coach2.id, coachId: match.coach2.coachId, coachName: match.coach2.coach?.name ?? "Unknown Coach", teamName: match.coach2.teamName },
-        pokemon: match.matchPokemon.flatMap((entry) => entry.pokemon ? [{
+        coach1: { seasonCoachId: match.coach1.id, coachId: match.coach1.coachId, coachName: match.coach1.coach?.name ?? "Unknown Coach", teamName: match.coach1.teamName, isActive: Boolean(match.coach1.isActive), replacedById: match.coach1.replacedById ?? null },
+        coach2: { seasonCoachId: match.coach2.id, coachId: match.coach2.coachId, coachName: match.coach2.coach?.name ?? "Unknown Coach", teamName: match.coach2.teamName, isActive: Boolean(match.coach2.isActive), replacedById: match.coach2.replacedById ?? null },
+        pokemon: match.matchPokemon.flatMap((entry) => entry.pokemon ? (() => {
+          const storedReveals = entry.revealedItems ?? [];
+          const megaInference = inferMegaItemForRosterPokemon({
+            pokemonId: entry.pokemonId,
+            name: entry.pokemon.name,
+            displayName: entry.pokemon.displayName,
+          }, storedReveals);
+          return [{
           seasonCoachId: entry.seasonCoachId,
           pokemonId: entry.pokemonId,
           pokemonName: entry.pokemon.displayName || entry.pokemon.name,
@@ -373,9 +463,11 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
           hpRestored: entry.hpRestored,
           movesUsed: entry.movesUsed ?? {},
           moveDataRecorded: entry.movesUsed !== null,
-          revealedItems: entry.revealedItems ?? [],
-          itemDataRecorded: entry.revealedItems !== null,
-        }] : []),
+          revealedItems: megaInference.revealedItems,
+          itemDataRecorded: entry.revealedItems !== null || megaInference.assumed,
+          itemDataInferred: megaInference.assumed,
+          }];
+        })() : []),
       };
     }),
   };

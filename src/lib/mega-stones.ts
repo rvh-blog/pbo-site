@@ -2,6 +2,8 @@ import { normalizePokemonName } from "@/lib/pokemon-name-utils";
 
 const MEGA_STONE_NAMES: Record<string, string> = {
   abomasnow: "Abomasite",
+  absol: "Absolite",
+  aggron: "Aggronite",
   aerodactyl: "Aerodactylite",
   alakazam: "Alakazite",
   altaria: "Altarianite",
@@ -9,6 +11,7 @@ const MEGA_STONE_NAMES: Record<string, string> = {
   audino: "Audinite",
   banette: "Banettite",
   beedrill: "Beedrillite",
+  blaziken: "Blazikenite",
   blastoise: "Blastoisinite",
   camerupt: "Cameruptite",
   charizard: "Charizardite",
@@ -33,6 +36,8 @@ const MEGA_STONE_NAMES: Record<string, string> = {
   pidgeot: "Pidgeotite",
   pinsir: "Pinsirite",
   salamence: "Salamencite",
+  sableye: "Sablenite",
+  scizor: "Scizorite",
   sceptile: "Sceptilite",
   sharpedo: "Sharpedonite",
   slowbro: "Slowbronite",
@@ -40,7 +45,20 @@ const MEGA_STONE_NAMES: Record<string, string> = {
   swampert: "Swampertite",
   tyranitar: "Tyranitarite",
   venusaur: "Venusaurite",
+  magearnaoriginal: "Magearnite",
+  raichu: "Raichunite",
+  tatsugiricurly: "Tatsugirite",
+  tatsugiridroopy: "Tatsugirite",
+  tatsugiristretchy: "Tatsugirite",
 };
+const STONELESS_MEGA_BASES = new Set(["rayquaza"]);
+
+/** True when a stored or replay species name is a Mega forme. */
+export function isMegaPokemonName(species: string): boolean {
+  return normalizePokemonName(species)
+    .split("-")
+    .some((part) => part.toLowerCase() === "mega");
+}
 
 export function getMegaBaseSpecies(species: string): string | null {
   const parts = normalizePokemonName(species).split("-").filter(Boolean);
@@ -62,6 +80,7 @@ export function getMegaStoneName(species: string): string | null {
   if (!baseSpecies) return null;
 
   const baseId = baseSpecies.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (STONELESS_MEGA_BASES.has(baseId)) return null;
   const stoneName = MEGA_STONE_NAMES[baseId] || `${baseSpecies}ite`;
   const parts = normalizedSpecies.split("-").filter(Boolean);
   const megaIndex = parts.findIndex((part) => part.toLowerCase() === "mega");

@@ -37,7 +37,7 @@ export const experimentalMetricGroups: Array<{
       available("HP Restored", "Recorded healing per healing-covered appearance, in percentage points of Pokémon HP."),
       available("Turns Active", "Saved active turns per appearance with turn data; this is not the full battle length."),
       available("Survival Rate", "Percentage of saved appearances with no recorded death."),
-      partial("Setup Moves", "Recorded setup-move uses per setup-covered appearance; this does not measure exact stat stages."),
+      partial("Setup Moves", "Recognized stat-boosting/setup move uses per setup-covered appearance (for example Swords Dance, Dragon Dance, Calm Mind, Nasty Plot, Agility, Shell Smash, and Tidy Up); each use counts once and exact stat stages are not measured."),
     ],
   },
   {
@@ -45,6 +45,7 @@ export const experimentalMetricGroups: Array<{
     metrics: [
       available("Total turns", "Last saved turn in the replay HP timeline."),
       available("Pokémon usage rate", "Unique filtered replay matches containing a Pokémon divided by all filtered replay matches."),
+      available("Team usage rate", "Recorded Pokémon appearances divided by roster-eligible team matches; roster windows account for acquisitions, replacements, and drops when that history is available."),
       available("Pokémon win rate", "Wins divided by team appearances for a Pokémon in the active replay scope."),
       available("Team appearance sample", "The number of saved team-side Pokémon appearances used as the sample for a profile record."),
       available("Weekly usage trend", "The selected Pokémon's match usage and win rate grouped by season week."),
@@ -223,7 +224,7 @@ export const experimentalMetricGroups: Array<{
       available("Damage per move", "Total recorded damage divided by explicitly recorded move uses."),
       available("KOs per 10 turns", "Recorded KOs divided by saved active turns, scaled to ten turns."),
       available("Healing per active turn", "Recorded HP restored divided by saved turns active for appearances with both fields available."),
-      partial("Setup rate", "Recorded setup moves divided by explicitly recorded move uses; coverage depends on saved setup and move fields."),
+      partial("Setup rate", "Recognized stat-boosting/setup move uses divided by explicitly recorded move uses; each recorded use counts once, and coverage depends on saved setup and move fields."),
       partial("Favorable event rate", "Saved favorable crit, miss, flinch, paralysis, freeze, burn, or sleep events divided by explicitly recorded move uses."),
     ],
   },
@@ -252,7 +253,6 @@ export const experimentalVisualDefinitions = [
   { name: "Battle momentum timeline", availability: "partial" as const, description: "Saved team HP remaining by turn for a selected replay with timeline coverage." },
   { name: "Move usage treemap", availability: "available" as const, description: "Relative size of explicitly recorded move-use counts in the active replay scope." },
   { name: "Season/division heatmap", availability: "partial" as const, description: "Pokémon appearance win rate with damage-per-active-turn and sample-size context by season and division." },
-  { name: "Coach style radar", availability: "partial" as const, description: "Comparative proxy dimensions for pressure, durability, setup, favorable events, and appearance win rate." },
   { name: "Team core synergy network", availability: "partial" as const, description: "Repeated two-Pokémon cores connected by shared team appearances; frequency requires repeated roster evidence." },
   { name: "Replay data coverage dashboard", availability: "available" as const, description: "Share of filtered Pokémon appearances with each saved field required by the reports." },
   { name: "Move outcome flow", availability: "event-storage" as const, description: "Attempt-to-outcome flow for success, critical, effectiveness, miss, failure, immunity, and no target." },

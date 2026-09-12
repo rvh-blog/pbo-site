@@ -8,11 +8,6 @@ import {
   Legend,
   Line,
   LineChart,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
   ResponsiveContainer as RechartsResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -46,6 +41,28 @@ function VisualCard({ title, description, children, className = "" }: { title: s
 
 function ChartBox({ children, height = 270 }: { children: React.ReactNode; height?: number }) {
   return <div style={{ height, minWidth: 1, minHeight: 1 }} className="min-w-0 w-full">{children}</div>;
+}
+
+type MoveTreemapNode = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  depth?: number;
+  index?: number;
+  name?: string;
+  size?: number;
+};
+
+function MoveTreemapContent({ x = 0, y = 0, width = 0, height = 0, depth = 0, index = 0, name = "", size = 0 }: MoveTreemapNode) {
+  if (depth === 0 || width <= 0 || height <= 0) return null;
+  const colors = ["#8b5cf6", "#7c3aed", "#6366f1", "#a855f7", "#6d28d9"];
+  const label = shortName(name, width > 130 ? 24 : width > 85 ? 15 : 10);
+  return <g>
+    <rect x={x} y={y} width={width} height={height} fill={colors[index % colors.length]} stroke="var(--border)" strokeWidth={1} rx={2} />
+    <title>{name}: {size} uses</title>
+    {width > 42 && height > 22 ? <text x={x + 7} y={y + Math.min(height / 2 + 4, height - 7)} fill="#fff" fontSize={Math.max(9, Math.min(14, width / 10))} fontWeight={700}>{label}</text> : null}
+  </g>;
 }
 
 function TeamAxisTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: { value?: string } }) {
@@ -144,9 +161,10 @@ function SignatureVisuals({ appearances, minimumAppearances }: { appearances: En
       <RankedMetricChart title="Damage efficiency leaders" description="Top qualified Pokémon by recorded damage per active turn." rows={signatureMetricRows(rows, (row) => metricValue(row.damagePerTurn))} color="#a78bfa" xLabel="Damage / active turn" />
       <RankedMetricChart title="KO pace leaders" description="Top qualified Pokémon by recorded KOs per ten active turns." rows={signatureMetricRows(rows, (row) => metricValue(row.kosPerTenTurns))} color="#f472b6" xLabel="KOs / 10 turns" />
       <RankedMetricChart title="Damage per move leaders" description="Top qualified Pokémon by recorded damage per explicitly recorded move use." rows={signatureMetricRows(rows, (row) => metricValue(row.damagePerMove))} color="#22d3ee" xLabel="Damage / move" />
-      <RankedMetricChart title="Setup rate leaders" description="Top qualified Pokémon by setup moves divided by recorded move uses." rows={signatureMetricRows(rows, (row) => metricValue(row.setupRate) * 100)} color="#34d399" suffix="%" xLabel="Setup rate" />
+      <RankedMetricChart title="Setup rate leaders" description="Top qualified Pokémon by recognized setup-move uses divided by recorded move uses." calculation="A setup use is one explicitly recorded use of a recognized stat-boosting or setup move, such as Swords Dance, Dragon Dance, Calm Mind, Nasty Plot, Agility, Shell Smash, or Tidy Up. Each use counts once; stat stages and missing move data are not inferred." rows={signatureMetricRows(rows, (row) => metricValue(row.setupRate) * 100)} color="#34d399" suffix="%" xLabel="Setup rate" />
     </div>
-    <VisualCard title="Signature coverage heatmap" description="Coverage is shown separately from performance so sparse replay fields do not look like missing or zero production.">
+    <VisualCard title="Signature data coverage" description="This is a data-completeness view, not a performance ranking. It shows how often each replay field was saved for each Pokémon in the current filtered scope.">
+      <div className="mb-4 rounded-xl border border-cyan-400/20 bg-cyan-500/[0.06] p-4 text-[10px] leading-4 text-[var(--foreground-muted)]"><div className="font-black uppercase tracking-wide text-cyan-200">How to read this</div><p className="mt-1">Each percentage is the share of that Pokémon&apos;s qualifying appearances where the underlying fields were available. For example, 75% means the metric can be calculated for 3 of 4 appearances; the other appearance is missing evidence, not a zero.</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[9px] font-bold"><span className="text-violet-200">Darker purple = more recorded coverage</span><span className="text-amber-200">Coverage does not measure performance</span></div></div>
       {coverageRows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-xs"><thead className="text-[9px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Pokémon</th>{coverageMetrics.map((metric) => <th key={metric.label} className="p-2 text-center">{metric.label}</th>)}</tr></thead><tbody>{coverageRows.map((row) => <tr key={row.id} className="border-t border-[var(--border)]"><td className="p-2 font-bold text-white">{row.name}</td>{coverageMetrics.map((metric) => { const value = coveragePercent(row, metric.get); return <td key={metric.label} className="p-2 text-center font-mono" style={{ backgroundColor: `rgba(124, 58, 237, ${Math.max(0.08, value / 100 * 0.72)})` }}>{number(value, 0)}%</td>; })}</tr>)}</tbody></table></div> : <p className="py-8 text-center text-xs text-[var(--foreground-muted)]">No coverage rows are available.</p>}
     </VisualCard>
   </>;
@@ -227,7 +245,7 @@ function CoverageDashboard({ appearances }: { appearances: EnrichedAppearance[] 
 function MoveUsageVisual({ moves }: { moves: Array<[string, number]> }) {
   const data = [...moves].sort((a, b) => b[1] - a[1]).slice(0, 24).map(([name, size]) => ({ name, size }));
   return <VisualCard title="Move usage treemap" description="The largest tiles represent the most explicitly recorded move uses in the filtered replay scope.">
-    {data.length ? <><div className="mb-2 text-center text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Tile area = recorded move uses · Tile label = move</div><ChartBox height={330}><ResponsiveContainer width="100%" height="100%"><Treemap data={data} dataKey="size" nameKey="name" stroke="var(--border)" fill="#8b5cf6" aspectRatio={4 / 3} /></ResponsiveContainer></ChartBox></> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No recorded move uses are available.</p>}
+    {data.length ? <><div className="mb-2 text-center text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Tile area = recorded move uses · Tile label = move</div><ChartBox height={330}><ResponsiveContainer width="100%" height="100%"><Treemap data={data} dataKey="size" nameKey="name" type="flat" content={<MoveTreemapContent />} aspectRatio={4 / 3} isAnimationActive={false} isUpdateAnimationActive={false} /></ResponsiveContainer></ChartBox></> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No recorded move uses are available.</p>}
   </VisualCard>;
 }
 
@@ -255,34 +273,10 @@ function SeasonDivisionHeatmap({ appearances }: { appearances: EnrichedAppearanc
   </VisualCard>;
 }
 
-function CoachStyleRadar({ rows }: { rows: EntityAggregate[] }) {
-  const base = rows.filter((row) => row.appearances > 0).slice(0, 5);
-  const dimensions = ["Pressure", "Durability", "Setup", "Favorable events", "Win rate"];
-  const rawValues = base.map((row) => ({
-    row,
-    values: [
-      row.turns ? row.damage / row.turns : 0,
-      row.appearances ? 1 / (1 + row.damageTaken / row.appearances) : 0,
-      row.turns ? row.setupMoves / row.turns : 0,
-      row.turns ? row.favorableEvents / row.turns : 0,
-      row.appearances ? row.wins / row.appearances : 0,
-    ],
-  }));
-  const normalized = dimensions.map((subject, index) => {
-    const values = rawValues.map((item) => item.values[index]);
-    const min = Math.min(...values, 0);
-    const max = Math.max(...values, 1);
-    return { subject, ...Object.fromEntries(rawValues.map((item) => [String(item.row.id), max === min ? 50 : (item.values[index] - min) / (max - min) * 100])) };
-  });
-  const colors = ["#a78bfa", "#22d3ee", "#34d399", "#f472b6", "#f59e0b"];
-  return <VisualCard title="Coach style radar" description="A comparative proxy built from pressure, durability, setup, favorable events, and appearance win rate. It is not a formal grade.">
-    {base.length ? <><div className="mb-2 text-center text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Radial axis = relative proxy score (0–100)</div><ChartBox height={350}><ResponsiveContainer width="100%" height="100%"><RadarChart data={normalized} outerRadius="62%" margin={{ top: 8, right: 18, bottom: 12, left: 18 }}><PolarGrid stroke="var(--background-tertiary)" /><PolarAngleAxis dataKey="subject" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} /><PolarRadiusAxis domain={[0, 100]} tick={{ fill: "var(--foreground-muted)", fontSize: 8 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Legend verticalAlign="top" height={24} align="left" wrapperStyle={{ color: "var(--foreground)", fontSize: 10 }} />{base.map((item, index) => <Radar key={item.id} name={item.name} dataKey={String(item.id)} stroke={colors[index]} fill={colors[index]} fillOpacity={0.08} />)}</RadarChart></ResponsiveContainer></ChartBox></> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No coach rows are available.</p>}
-  </VisualCard>;
-}
-
 type CoreEdge = { source: string; target: string; games: number; wins: number };
 function buildCoreEdges(matches: ExperimentalMatch[]) {
   const edges = new Map<string, CoreEdge>();
+  const nodeAppearances = new Map<string, number>();
   matches.forEach((match) => {
     const teams = new Map<number, Map<number, string>>();
     match.pokemon.forEach((appearance) => {
@@ -291,6 +285,7 @@ function buildCoreEdges(matches: ExperimentalMatch[]) {
       teams.set(appearance.seasonCoachId, team);
     });
     teams.forEach((team, seasonCoachId) => {
+      team.forEach((name) => nodeAppearances.set(name, (nodeAppearances.get(name) ?? 0) + 1));
       const pokemon = [...team.entries()].sort((a, b) => a[0] - b[0]);
       for (let first = 0; first < pokemon.length; first += 1) for (let second = first + 1; second < pokemon.length; second += 1) {
         const source = pokemon[first][1];
@@ -303,17 +298,28 @@ function buildCoreEdges(matches: ExperimentalMatch[]) {
       }
     });
   });
-  return [...edges.values()].filter((edge) => edge.games >= 2).sort((a, b) => b.games - a.games || b.wins - a.wins).slice(0, 10);
+  return {
+    edges: [...edges.values()].filter((edge) => edge.games >= 2).sort((a, b) => b.games - a.games || b.wins - a.wins).slice(0, 10),
+    nodeAppearances,
+  };
 }
 
 function CoreNetwork({ matches }: { matches: ExperimentalMatch[] }) {
-  const edges = buildCoreEdges(matches);
+  const { edges, nodeAppearances } = buildCoreEdges(matches);
   const nodeNames = [...new Set(edges.flatMap((edge) => [edge.source, edge.target]))].slice(0, 12);
   const visibleEdges = edges.filter((edge) => nodeNames.includes(edge.source) && nodeNames.includes(edge.target));
   const center = { x: 210, y: 150 };
   const positions = new Map(nodeNames.map((name, index) => { const angle = index / Math.max(1, nodeNames.length) * Math.PI * 2 - Math.PI / 2; return [name, { x: center.x + Math.cos(angle) * 142, y: center.y + Math.sin(angle) * 106 }]; }));
-  return <VisualCard title="Team core synergy network" description="Repeated two-Pokémon cores are connected by shared appearances; thicker lines mean more games together. Only cores seen at least twice are shown.">
-    {visibleEdges.length ? <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center"><svg viewBox="0 0 420 300" role="img" aria-label="Repeated Pokémon core network" className="h-auto w-full rounded-xl border border-white/5 bg-slate-950/45">{visibleEdges.map((edge) => { const source = positions.get(edge.source); const target = positions.get(edge.target); return source && target ? <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke="#8b5cf6" strokeOpacity={0.35 + Math.min(edge.games, 6) / 10} strokeWidth={1 + Math.min(edge.games, 6)} /> : null; })}{nodeNames.map((name) => { const position = positions.get(name); return position ? <g key={name}><circle cx={position.x} cy={position.y} r="22" fill="#0f172a" stroke="#22d3ee" strokeWidth="2" /><text x={position.x} y={position.y + 3} textAnchor="middle" fill="#fff" fontSize="9">{shortName(name, 11)}</text></g> : null; })}</svg><div className="space-y-2">{visibleEdges.slice(0, 6).map((edge) => <div key={`${edge.source}-${edge.target}`} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3 text-[10px]"><div className="font-bold text-white">{edge.source} + {edge.target}</div><div className="mt-1 text-[var(--foreground-muted)]">{edge.games} games · {number(edge.wins / edge.games * 100, 1)}% appearance wins</div></div>)}</div></div> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No repeated Pokémon cores are available.</p>}
+  const nodeWeights = nodeNames.map((name) => nodeAppearances.get(name) ?? 0);
+  const minNodeWeight = Math.min(...nodeWeights, 1);
+  const maxNodeWeight = Math.max(...nodeWeights, 1);
+  const nodeRadius = (name: string) => {
+    const weight = nodeAppearances.get(name) ?? 0;
+    const spread = Math.max(1, maxNodeWeight - minNodeWeight);
+    return 20 + ((weight - minNodeWeight) / spread) * 14;
+  };
+  return <VisualCard title="Team core synergy network" description="Lines connect Pokémon used together on the same team. Thicker lines show more shared games; larger circles show more team appearances. Only pairs with at least two shared games are shown.">
+    {visibleEdges.length ? <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center"><svg viewBox="0 0 420 300" role="img" aria-label="Team core synergy network" className="h-auto w-full rounded-xl border border-white/5 bg-slate-950/45">{visibleEdges.map((edge) => { const source = positions.get(edge.source); const target = positions.get(edge.target); return source && target ? <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke="#8b5cf6" strokeOpacity={0.35 + Math.min(edge.games, 6) / 10} strokeWidth={1 + Math.min(edge.games, 6)} /> : null; })}{nodeNames.map((name) => { const position = positions.get(name); const appearances = nodeAppearances.get(name) ?? 0; return position ? <g key={name}><title>{name}: {appearances} team {appearances === 1 ? "appearance" : "appearances"}</title><circle cx={position.x} cy={position.y} r={nodeRadius(name)} fill="#0f172a" stroke="#22d3ee" strokeWidth="2" /><text x={position.x} y={position.y + 3} textAnchor="middle" fill="#fff" fontSize="9">{shortName(name, 11)}</text></g> : null; })}</svg><div className="space-y-2">{visibleEdges.slice(0, 6).map((edge) => <div key={`${edge.source}-${edge.target}`} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3 text-[10px]"><div className="break-words font-bold leading-4 text-white">{edge.source} <span className="text-violet-300">+</span> {edge.target}</div><div className="mt-1 font-mono text-[9px] leading-4 text-[var(--foreground-muted)]">{edge.games} shared {edge.games === 1 ? "game" : "games"} <span aria-hidden="true">·</span> {number(edge.wins / edge.games * 100, 1)}% team win rate</div></div>)}</div></div> : <p className="py-12 text-center text-xs text-[var(--foreground-muted)]">No repeated Pokémon cores are available.</p>}
   </VisualCard>;
 }
 
@@ -323,7 +329,7 @@ export const ExperimentalVisualsReport = memo(function ExperimentalVisualsReport
     <SignatureVisuals appearances={appearances} minimumAppearances={minimumAppearances} />
     <TeamVisuals matches={matches} selectedTeamIds={selectedTeamIds} />
     <TopPlayCharts matches={matches} />
-    <div className="grid items-start gap-4 xl:grid-cols-2"><MoveUsageVisual moves={moves} /><CoachStyleRadar rows={coachRows} /></div>
+    <MoveUsageVisual moves={moves} />
     <SeasonDivisionHeatmap appearances={appearances} />
     <CoverageDashboard appearances={appearances} />
     <CoreNetwork matches={matches} />
