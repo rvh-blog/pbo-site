@@ -1,5 +1,18 @@
 [
   {
+    "sourceKey": "2026-09-11-experimental-stats-audit-polish",
+    "title": "Experimental Stats Audit Improvements",
+    "summary": "Experimental Stats is lighter, clearer, and easier to verify through improved coverage rules, expandable Top Plays, report-linked definitions, and saved-turn evidence.",
+    "publishedAt": "2026-09-11",
+    "changes": [
+      { "type": "fixed", "text": "Indirect-only damage is now recognized as recorded coverage, team reports retain both teams from qualifying matches, and compact grouped replay-event counts replace oversized raw event payloads." },
+      { "type": "improved", "text": "Pokemon Profiles explain advanced metrics, show covered-sample qualification, and link directly to their glossary definitions." },
+      { "type": "improved", "text": "Top Plays supports expandable rankings, one record per match, and links from recorded moments to their saved Battle Visualizer turn evidence." },
+      { "type": "improved", "text": "Glossary search now includes visuals, reports a clear empty state, and links available definitions to the reports that use them." },
+      { "type": "improved", "text": "Experimental charts initialize with stable dimensions, and every current report route is included in the public sitemap." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-11-experimental-stats-visual-lab",
     "title": "Experimental Stats Visual Lab",
     "summary": "Experimental Stats now has a deeper, filter-aware Visual Lab with source context, calculation guidance, and smoother chart updates.",

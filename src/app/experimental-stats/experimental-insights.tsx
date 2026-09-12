@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import type { ExperimentalAppearance, ExperimentalMatch } from "./experimental-stats-client";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer as RechartsResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { getDistinctHeldItemNames, isTransferredItemReveal } from "@/lib/revealed-items";
+
+type StableResponsiveContainerProps = ComponentProps<typeof RechartsResponsiveContainer>;
+function ResponsiveContainer({ initialDimension = { width: 1, height: 1 }, ...props }: StableResponsiveContainerProps) {
+  return <RechartsResponsiveContainer {...props} initialDimension={initialDimension} />;
+}
 
 type InsightAppearance = ExperimentalAppearance & { match: ExperimentalMatch; coachId: number; coachName: string; teamName: string; won: boolean };
 type RecordRow = { wins: number; losses: number; games: number };
 const format = (value: number, digits = 0) => value.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const damage = (appearance: ExperimentalAppearance) => (appearance.damageDealt ?? 0) + (appearance.damageDealtIndirect ?? 0);
+const hasDamageData = (appearance: ExperimentalAppearance) => appearance.damageDealt !== null || appearance.damageDealtIndirect !== null;
 const matchTurns = (match: ExperimentalMatch) => Math.max(0, ...match.turnSnapshots.map((snapshot) => snapshot.turn), ...match.keyEvents.map((event) => event.turn));
 const winnerSide = (match: ExperimentalMatch) => match.winnerId === match.coach1.seasonCoachId ? "coach1" : match.winnerId === match.coach2.seasonCoachId ? "coach2" : null;
 const playerSide = (match: ExperimentalMatch, player?: "p1" | "p2") => !player || match.p1IsCoach1 === null ? null : (player === "p1") === match.p1IsCoach1 ? "coach1" : "coach2";
@@ -24,7 +30,7 @@ function coachGameStats(rows: InsightAppearance[]) {
   let damageGames = 0;
   for (const gameRows of groupedGames.values()) {
     if (gameRows[0]?.won) wins += 1;
-    const coveredRows = gameRows.filter((appearance) => appearance.damageDealt !== null);
+    const coveredRows = gameRows.filter(hasDamageData);
     if (coveredRows.length) {
       recordedDamage += coveredRows.reduce((sum, appearance) => sum + damage(appearance), 0);
       damageGames += 1;
@@ -62,7 +68,7 @@ export function ExperimentalInsights({ matches, appearances }: { matches: Experi
   const teamDamage = new Map<string, number>();
   matches.forEach((match) => match.pokemon.forEach((appearance) => teamDamage.set(`${match.id}:${appearance.seasonCoachId}`, (teamDamage.get(`${match.id}:${appearance.seasonCoachId}`) ?? 0) + damage(appearance))));
   const shareRows = new Map<number, { name: string; total: number; covered: number }>();
-  appearances.filter((appearance) => appearance.damageDealt !== null).forEach((appearance) => { const total = teamDamage.get(`${appearance.match.id}:${appearance.seasonCoachId}`) ?? 0; if (!total) return; const row = shareRows.get(appearance.pokemonId) ?? { name: appearance.pokemonName, total: 0, covered: 0 }; row.total += damage(appearance) / total * 100; row.covered += 1; shareRows.set(appearance.pokemonId, row); });
+  appearances.filter(hasDamageData).forEach((appearance) => { const total = teamDamage.get(`${appearance.match.id}:${appearance.seasonCoachId}`) ?? 0; if (!total) return; const row = shareRows.get(appearance.pokemonId) ?? { name: appearance.pokemonName, total: 0, covered: 0 }; row.total += damage(appearance) / total * 100; row.covered += 1; shareRows.set(appearance.pokemonId, row); });
   const topShare = [...shareRows.values()].map((row) => ({ ...row, average: row.total / row.covered })).sort((a, b) => b.average - a.average).slice(0, 6);
 
   const koMoves = new Map<string, number>();
@@ -121,7 +127,7 @@ export function ExperimentalInsights({ matches, appearances }: { matches: Experi
       const opponentRow = opponentMap.get(opponent.seasonCoachId) ?? { teamName: opponent.teamName, coachName: opponent.coachName, games: 0, wins: 0, damage: 0, damageGames: 0, favorite: new Map<string, number>() };
       opponentRow.games += 1;
       if (match.winnerId === owner.seasonCoachId) opponentRow.wins += 1;
-      const recordedRows = ownRows.filter((appearance) => appearance.damageDealt !== null);
+      const recordedRows = ownRows.filter(hasDamageData);
       opponentRow.damage += ownRows.reduce((sum, appearance) => sum + damage(appearance), 0);
       opponentRow.damageGames += recordedRows.length ? 1 : 0;
       ownRows.forEach((appearance) => opponentRow.favorite.set(appearance.pokemonName, (opponentRow.favorite.get(appearance.pokemonName) ?? 0) + 1));
@@ -147,7 +153,7 @@ export function ExperimentalInsights({ matches, appearances }: { matches: Experi
     if (match.winnerId === right.seasonCoachId) matchup.rightWins += 1;
     matchup.leftDamage += leftRows.reduce((sum, appearance) => sum + damage(appearance), 0);
     matchup.rightDamage += rightRows.reduce((sum, appearance) => sum + damage(appearance), 0);
-    if (leftRows.some((appearance) => appearance.damageDealt !== null) && rightRows.some((appearance) => appearance.damageDealt !== null)) matchup.damageGames += 1;
+    if (leftRows.some(hasDamageData) && rightRows.some(hasDamageData)) matchup.damageGames += 1;
     leftRows.forEach((appearance) => matchup.leftPokemon.set(appearance.pokemonName, (matchup.leftPokemon.get(appearance.pokemonName) ?? 0) + 1));
     rightRows.forEach((appearance) => matchup.rightPokemon.set(appearance.pokemonName, (matchup.rightPokemon.get(appearance.pokemonName) ?? 0) + 1));
     teamMatchupMap.set(matchupKey, matchup);

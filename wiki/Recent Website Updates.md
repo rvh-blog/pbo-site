@@ -1,5 +1,28 @@
 # Recent Website Updates
 
+## September 11, 2026 - Experimental Stats Audit Polish
+
+- Reduced Team Stats and Visual Lab event payloads by grouping switch, drag,
+  and Terastallization counts on the server instead of sending every normalized
+  protocol row. Team-level reports now retain both sides of every qualifying
+  match.
+- Standardized replay damage coverage so appearances with recorded indirect
+  damage remain covered even when direct damage is unavailable. Demo URL
+  filters also accept their nonzero synthetic coach and Pokemon IDs.
+- Stabilized chart sizing during server rendering and added the five missing
+  Experimental Stats reports to the public sitemap.
+- Pokemon Profiles now explain advanced metrics, show covered-appearance and
+  percentile qualification counts, and link directly to glossary definitions.
+- Top Plays can expand beyond the first five rows, collapse again, and limit a
+  category to one record per match. Each supported play links to the matching
+  Battle Visualizer turn and its saved end-of-turn HP evidence.
+- Glossary search now covers metrics and visuals, provides a clear empty state,
+  and links available entries to their related reports.
+- Added a read-only usability smoke check covering Profiles, Top Plays,
+  Glossary, and battle-turn links. All Experimental Stats routes returned HTTP
+  200 in demo and live checks; TypeScript, targeted ESLint, build, and diff
+  verification passed.
+
 ## September 11, 2026 - Experimental Stats Visual Lab Depth and Responsiveness
 
 - Added the Visual Lab's signature performance, usage versus win rate, team

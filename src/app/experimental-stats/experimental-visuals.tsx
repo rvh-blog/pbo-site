@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, type ComponentProps } from "react";
 import {
   Bar,
   BarChart,
@@ -13,7 +13,7 @@ import {
   PolarRadiusAxis,
   Radar,
   RadarChart,
-  ResponsiveContainer,
+  ResponsiveContainer as RechartsResponsiveContainer,
   Scatter,
   ScatterChart,
   Tooltip,
@@ -24,6 +24,11 @@ import {
 import type { EntityAggregate, EnrichedAppearance, ExperimentalMatch } from "./experimental-stats-client";
 import { buildSignatureStats, type SignatureStatsRow } from "./experimental-signature-stats";
 import { buildTeamStats, buildTopPlays, type TopPlayRecord } from "./experimental-team-reports";
+
+type StableResponsiveContainerProps = ComponentProps<typeof RechartsResponsiveContainer>;
+function ResponsiveContainer({ initialDimension = { width: 1, height: 1 }, ...props }: StableResponsiveContainerProps) {
+  return <RechartsResponsiveContainer {...props} initialDimension={initialDimension} />;
+}
 
 const number = (value: number, digits = 0) => value.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const metricValue = (metric: { numerator: number; denominator: number }) => metric.denominator > 0 ? metric.numerator / metric.denominator : 0;
@@ -40,7 +45,7 @@ function VisualCard({ title, description, children, className = "" }: { title: s
 }
 
 function ChartBox({ children, height = 270 }: { children: React.ReactNode; height?: number }) {
-  return <div style={{ height }} className="w-full">{children}</div>;
+  return <div style={{ height, minWidth: 1, minHeight: 1 }} className="min-w-0 w-full">{children}</div>;
 }
 
 function TeamAxisTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: { value?: string } }) {

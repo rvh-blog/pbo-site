@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Link from "next/link";
 import type { ExperimentalAppearance, ExperimentalBattleEvent, ExperimentalMatch } from "./experimental-stats-client";
 
@@ -33,6 +34,7 @@ export type TeamStatsRow = {
 
 export type TopPlayRecord = {
   category: string;
+  turn?: number;
   value: number;
   valueLabel: string;
   detail: string;
@@ -155,8 +157,9 @@ export function buildTeamStats(matches: ExperimentalMatch[], selectedTeamIds: Se
         const eventTeam = eventTeamForMatch(match, event);
         if (!eventTeam || eventTeam.seasonCoachId !== team.seasonCoachId) continue;
         row.eventIds.add(match.id);
-        if (event.eventType === "switch" || event.eventType === "drag") row.switches += 1;
-        if (event.eventType === "terastallize") row.teraUses += 1;
+        const eventCount = event.count ?? 1;
+        if (event.eventType === "switch" || event.eventType === "drag") row.switches += eventCount;
+        if (event.eventType === "terastallize") row.teraUses += eventCount;
       }
     }
   }
@@ -248,7 +251,7 @@ export function buildTopPlays(matches: ExperimentalMatch[]) {
       for (const candidate of candidates) {
         const team = teamForPlayer(match, candidate.player);
         if (!team) continue;
-        hpSwings.push({ category: "HP swing", value: candidate.loss / 6, valueLabel: `${number(candidate.loss / 6, 1)}% HP`, detail: `${team.teamName} lost team HP at turn ${current.turn}`, match });
+        hpSwings.push({ category: "HP swing", turn: current.turn, value: candidate.loss / 6, valueLabel: `${number(candidate.loss / 6, 1)}% HP`, detail: `${team.teamName} lost team HP at turn ${current.turn}`, match });
       }
     }
 
@@ -258,13 +261,13 @@ export function buildTopPlays(matches: ExperimentalMatch[]) {
       const loser = winnerIsCoach1 ? match.coach2 : match.coach1;
       const winnerIsP1 = winnerIsCoach1 === match.p1IsCoach1;
       const lowPoint = snapshots.map((snapshot) => ({ snapshot, lead: winnerIsP1 ? snapshot.p1TotalHp - snapshot.p2TotalHp : snapshot.p2TotalHp - snapshot.p1TotalHp })).sort((a, b) => a.lead - b.lead)[0];
-      if (lowPoint && lowPoint.lead < 0) comebacks.push({ category: "Comeback", value: -lowPoint.lead / 6, valueLabel: `${number(-lowPoint.lead / 6, 1)}% deficit`, detail: `${winner.teamName} overcame ${loser.teamName} at turn ${lowPoint.snapshot.turn}`, match });
+      if (lowPoint && lowPoint.lead < 0) comebacks.push({ category: "Comeback", turn: lowPoint.snapshot.turn, value: -lowPoint.lead / 6, valueLabel: `${number(-lowPoint.lead / 6, 1)}% deficit`, detail: `${winner.teamName} overcame ${loser.teamName} at turn ${lowPoint.snapshot.turn}`, match });
     }
 
     const faint = firstFaint(match);
     if (faint?.player) {
       const victimTeam = teamForPlayer(match, faint.player);
-      earliestFaints.push({ category: "First faint", value: faint.turn, valueLabel: `Turn ${faint.turn}`, detail: `${faint.pokemon ?? "Pokemon"} from ${victimTeam?.teamName ?? "unknown team"}${faint.killer ? ` · ${faint.killer}${faint.move ? ` with ${faint.move}` : ""}` : ""}`, match });
+      earliestFaints.push({ category: "First faint", turn: faint.turn, value: faint.turn, valueLabel: `Turn ${faint.turn}`, detail: `${faint.pokemon ?? "Pokemon"} from ${victimTeam?.teamName ?? "unknown team"}${faint.killer ? ` · ${faint.killer}${faint.move ? ` with ${faint.move}` : ""}` : ""}`, match });
     }
 
     for (const appearance of match.pokemon) {
@@ -283,7 +286,32 @@ export function buildTopPlays(matches: ExperimentalMatch[]) {
 }
 
 function TopPlayList({ title, description, records }: { title: string; description: string; records: TopPlayRecord[] }) {
-  return <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><h3 className="font-pixel text-xs text-white">{title}</h3><p className="mt-1 text-[10px] leading-4 text-[var(--foreground-muted)]">{description}</p>{records.length ? <div className="mt-4 space-y-2">{records.slice(0, 5).map((record, index) => <Link key={`${record.match.id}-${record.detail}-${index}`} href={matchHref(record.match)} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3 transition-colors hover:border-violet-400/50"><span className="font-mono text-[10px] text-[var(--foreground-muted)]">#{index + 1}</span><span className="min-w-0"><strong className="block truncate text-xs text-white">{record.detail}</strong><span className="text-[9px] text-[var(--foreground-muted)]">{record.match.coach1.teamName} vs {record.match.coach2.teamName} · {record.match.seasonName} · {record.match.divisionName} · Week {record.match.week}</span></span><span className="whitespace-nowrap font-mono text-xs font-black text-violet-300">{record.valueLabel}</span></Link>)}</div> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No saved evidence is available in this scope.</p>}</div>;
+  const [visibleCount, setVisibleCount] = useState(5);
+  const [onePerMatch, setOnePerMatch] = useState(false);
+  const seen = new Set<number>();
+  const ranked = records.filter((record) => {
+    if (!onePerMatch) return true;
+    if (seen.has(record.match.id)) return false;
+    seen.add(record.match.id);
+    return true;
+  });
+  return <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
+    <h3 className="font-pixel text-xs text-white">{title}</h3>
+    <p className="mt-1 text-xs leading-5 text-[var(--foreground-muted)]">{description}</p>
+    <label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={onePerMatch} onChange={(event) => { setOnePerMatch(event.target.checked); setVisibleCount(5); }} />One record per match</label>
+    <p className="mt-2 text-xs text-[var(--foreground-muted)]" aria-live="polite">Showing {Math.min(visibleCount, ranked.length)} of {ranked.length} records</p>
+    {ranked.length ? <ol className="mt-4 space-y-2">{ranked.slice(0, visibleCount).map((record, index) => {
+      const query = new URLSearchParams({ season: String(record.match.seasonId), match: String(record.match.id) });
+      if (record.match.isDemo) query.set("demo", "1");
+      if (record.turn !== undefined) query.set("turn", String(record.turn));
+      const battleHref = `/experimental-stats/battle-visualizer?${query}${record.turn !== undefined ? "#battle-turn" : ""}`;
+      return <li key={`${record.match.id}-${record.detail}-${index}`} className="rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-3">
+        <div className="flex items-start gap-3"><span className="font-mono text-xs text-[var(--foreground-muted)]">#{index + 1}</span><div className="min-w-0 flex-1"><strong className="block break-words text-xs text-white">{record.detail}</strong><span className="text-xs text-[var(--foreground-muted)]">{record.match.coach1.teamName} vs {record.match.coach2.teamName} · {record.match.seasonName} · {record.match.divisionName} · Week {record.match.week}</span></div><span className="font-mono text-xs font-black text-violet-300">{record.valueLabel}</span></div>
+        <div className="mt-3 flex flex-wrap gap-4 text-xs"><Link href={matchHref(record.match)} className="text-cyan-300 underline">Match details</Link><Link href={battleHref} className="text-violet-300 underline">{record.turn !== undefined ? `View turn ${record.turn}` : "View battle"}</Link></div>
+      </li>;
+    })}</ol> : <p className="mt-4 text-xs text-[var(--foreground-muted)]">No saved evidence is available in this scope.</p>}
+    <div className="mt-4 flex gap-3">{visibleCount < ranked.length ? <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="btn-retro-secondary px-3 py-2 text-xs" aria-label={`Show more ${title.toLowerCase()}`}>Show more</button> : null}{visibleCount > 5 ? <button type="button" onClick={() => setVisibleCount(5)} className="px-3 py-2 text-xs text-cyan-300 underline">Show fewer</button> : null}</div>
+  </div>;
 }
 
 export function TopPlaysReport({ matches }: { matches: ExperimentalMatch[] }) {
