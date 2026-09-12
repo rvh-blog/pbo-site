@@ -1,5 +1,15 @@
 [
   {
+    "sourceKey": "2026-09-12-experimental-stats-coach-sorting-protocol-analytics",
+    "title": "Experimental Stats Sorting and Protocol Analytics",
+    "summary": "Coach Profiles can be ranked by any report metric, while Battle Visualizer protocol analytics now separates meaningful battle signals from raw transport noise.",
+    "publishedAt": "2026-09-12",
+    "changes": [
+      { "type": "improved", "text": "Added sortable Coach Profiles columns for coach, replay matches, win rate, damage, healing, setup, favorable events, and items, with reversible direction and unavailable values kept at the bottom." },
+      { "type": "fixed", "text": "Normalized Battle Visualizer protocol-event labels, removed transport, chat, timestamp, team-preview, and unknown lines from Event Density, and kept the complete raw stream searchable for audit." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-12-season11-backfill-runbook-fix",
     "title": "Season 11 Backfill Runbook Fix",
     "summary": "The documented Fly maintenance commands now run with the production volume and record the completed historical backfill.",

@@ -236,6 +236,55 @@ const HELD_ITEM_CATEGORY_STYLES: Record<HeldItemCategory, string> = {
   "Utility / other": "border-amber-400/25 bg-amber-500/10 text-amber-200",
   "Unknown / unrevealed": "border-slate-400/25 bg-slate-500/10 text-slate-200",
 };
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  move: "Moves",
+  damage: "Damage",
+  heal: "Healing",
+  switch: "Switches",
+  drag: "Forced switches",
+  replace: "Replacements",
+  faint: "Faints",
+  turn: "Turns",
+  status: "Status effects",
+  curestatus: "Status cures",
+  boost: "Stat boosts",
+  unboost: "Stat drops",
+  setboost: "Stat resets",
+  clearallboost: "Boost clears",
+  clearpositiveboost: "Positive boost clears",
+  clearnegativeboost: "Negative boost clears",
+  ability: "Ability events",
+  endability: "Ability ends",
+  item: "Item reveals",
+  enditem: "Items removed",
+  sidestart: "Side conditions",
+  sideend: "Side conditions ended",
+  weather: "Weather",
+  fieldstart: "Terrain starts",
+  fieldend: "Terrain ends",
+  startEffect: "Effects started",
+  endEffect: "Effects ended",
+  activate: "Effect activations",
+  formechange: "Form changes",
+  detailschange: "Form details",
+  terastallize: "Terastallization",
+  crit: "Critical hits",
+  critical: "Critical hits",
+  miss: "Misses",
+  immune: "Immunities",
+  supereffective: "Super-effective hits",
+  resisted: "Resisted hits",
+  fail: "Failed actions",
+  cant: "Unable to move",
+  hitcount: "Multi-hit results",
+  prepare: "Move preparation",
+  singleturn: "Temporary effects",
+  singlemove: "Single-move effects",
+  sethp: "HP updates",
+  win: "Battle results",
+};
+
+const eventTypeLabel = (eventType: string) => EVENT_TYPE_LABELS[eventType] ?? "Other protocol line";
 const classifyHeldItem = (item: string): HeldItemCategory => {
   const normalized = item.trim().toLowerCase().replace(/[\s_-]+/g, "");
   if (/^choice(?:band|scarf|specs)$/.test(normalized)) return "Choice items";
@@ -1411,21 +1460,28 @@ function EventAnalytics({ matches, selectedId }: { matches: ExperimentalMatch[];
   const [eventType, setEventType] = useState("all");
   const selected = matches.find((match) => match.id === selectedId) ?? matches[0];
   const events = selected?.battleEvents ?? [];
-  const eventTypes = [...new Set(events.map((event) => event.eventType))].sort();
+  const eventTypes = [...new Set(events.map((event) => eventTypeLabel(event.eventType)).filter((type) => type !== "Other protocol line"))].sort();
   const visibleEvents = events.filter((event) => {
-    if (eventType !== "all" && event.eventType !== eventType) return false;
+    if (eventType !== "all" && eventTypeLabel(event.eventType) !== eventType) return false;
     if (!eventQuery) return true;
     return `${event.rawLine} ${event.moveName ?? ""} ${event.statusName ?? ""} ${event.itemName ?? ""} ${event.abilityName ?? ""}`.toLowerCase().includes(eventQuery.toLowerCase());
-  });
+  }).map((event) => ({ ...event, eventType: eventTypeLabel(event.eventType) }));
   const counts = new Map<string, number>();
-  events.forEach((event) => counts.set(event.eventType, (counts.get(event.eventType) ?? 0) + 1));
+  // The raw stream intentionally keeps every Showdown protocol line for audit/search.
+  // Density is a summary, so only normalized battle signals belong here; transport,
+  // chat, timestamps, team-preview metadata, and unknown commands are left out.
+  events.forEach((event) => {
+    const label = eventTypeLabel(event.eventType);
+    if (label === "Other protocol line") return;
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  });
   const topTypes = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 14);
   const switches = events.filter((event) => event.eventType === "switch" || event.eventType === "drag").length;
   const moveAttempts = events.filter((event) => event.eventType === "move").length;
   const teraEvents = events.filter((event) => event.eventType === "terastallize").length;
   const statusEvents = events.filter((event) => event.eventType === "status" || event.eventType === "curestatus").length;
   const fieldEvents = events.filter((event) => ["weather", "fieldstart", "fieldend", "sidestart", "sideend"].includes(event.eventType)).length;
-  const rareTypes = ["terastallize", "formechange", "ability", "enditem", "critical", "crit", "miss", "immune", "supereffective", "resisted", "status", "boost", "unboost"];
+  const rareTypes = ["Terastallization", "Form changes", "Ability events", "Items removed", "Critical hits", "Misses", "Immunities", "Super-effective hits", "Resisted hits", "Status effects", "Stat boosts", "Stat drops"];
   if (!events.length) return <section className="poke-card border-amber-400/30 bg-amber-500/[0.06] p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Protocol event analytics</h2><div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4"><strong className="text-sm text-amber-100">Protocol events have not been generated for this replay.</strong><p className="mt-2 text-xs leading-5 text-amber-100/75">The battle may still have an HP timeline, faint markers, and Pokémon totals above. Move, switch, status, field, and Tera counts require the separate normalized-event backfill, so missing coverage is shown here instead of misleading zeroes.</p>{selected ? <p className="mt-2 text-[10px] text-amber-200/70">Selected replay: {selected.coach1.teamName} vs {selected.coach2.teamName} · {selected.seasonName} · Week {selected.week}</p> : null}</div></section>;
   return <section className="space-y-4"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Protocol event analytics</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Every stored line remains traceable to its raw Showdown source. Select a battle above for a single-battle view.</p></div><span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-bold text-cyan-200">{events.length.toLocaleString()} events</span></div><div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="Moves" value={moveAttempts.toLocaleString()} /><StatCard label="Switches" value={switches.toLocaleString()} /><StatCard label="Statuses" value={statusEvents.toLocaleString()} /><StatCard label="Field events" value={fieldEvents.toLocaleString()} /><StatCard label="Tera events" value={teraEvents.toLocaleString()} /></div><div className="mt-6 grid gap-5 lg:grid-cols-2"><div><h3 className="text-xs font-black uppercase text-white">Event density</h3><div className="mt-3 space-y-2">{topTypes.map(([type, count]) => <div key={type} className="grid grid-cols-[130px_1fr_48px] items-center gap-2 text-[10px]"><span className="truncate font-bold text-white">{type}</span><div className="h-2 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full bg-cyan-400" style={{ width: `${(count / (topTypes[0]?.[1] ?? 1)) * 100}%` }} /></div><span className="text-right font-mono">{count}</span></div>)}</div></div><div><h3 className="text-xs font-black uppercase text-white">Rare protocol signals</h3><div className="mt-3 grid grid-cols-2 gap-2">{rareTypes.map((type) => <div key={type} className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="text-[9px] uppercase text-[var(--foreground-muted)]">{type}</div><div className="mt-1 font-mono text-lg font-black text-violet-300">{counts.get(type) ?? 0}</div></div>)}</div></div></div></div>{selected ? <div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Turn-by-turn event stream</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Showing {Math.min(250, visibleEvents.length)} of {visibleEvents.length} matching events for {selected.coach1.teamName} vs {selected.coach2.teamName}.</p><div className="mt-4 grid gap-2 sm:grid-cols-[1fr_190px]"><input value={eventQuery} onChange={(event) => setEventQuery(event.target.value)} placeholder="Search raw lines, moves, statuses…" className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /><select value={eventType} onChange={(event) => setEventType(event.target.value)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs"><option value="all">All event types</option>{eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></div><div className="mt-4 max-h-[32rem] overflow-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[820px] text-[10px]"><thead className="sticky top-0 bg-[var(--background-secondary)] text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Turn</th><th>Type</th><th className="text-left">Actor</th><th className="text-left">Target</th><th className="text-left">Details</th><th className="text-left">Raw source</th></tr></thead><tbody>{visibleEvents.slice(-250).map((event) => <tr key={`${event.sequence}-${event.rawLine}`} className="border-t border-[var(--border)]"><td className="p-2 font-mono">{event.turn}</td><td className="font-bold text-cyan-200">{event.eventType}</td><td>{event.actorNickname ?? "—"}</td><td>{event.targetNickname ?? "—"}</td><td>{event.moveName ?? event.statusName ?? event.itemName ?? event.abilityName ?? event.fieldName ?? "—"}</td><td className="max-w-[420px] truncate font-mono text-[var(--foreground-muted)]" title={event.rawLine}>{event.rawLine}</td></tr>)}</tbody></table></div></div> : <div className="poke-card p-6 text-center text-xs text-[var(--foreground-muted)]">No normalized protocol events are available in this filtered scope yet. Run the replay backfill after applying the battle-events migration.</div>}</section>;
 }
