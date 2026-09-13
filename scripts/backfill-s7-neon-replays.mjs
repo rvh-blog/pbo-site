@@ -5,22 +5,39 @@ import {
   sunsetSourceAliasHints,
   sunsetSourceReviewHints,
 } from "./backfill-s7-sunset-replays-config.mjs";
+import {
+  stargazerManualReviewMatchHints,
+  stargazerReplayEntries,
+  stargazerSourceAliasHints,
+  stargazerSourceReviewHints,
+} from "./backfill-s7-stargazer-replays-config.mjs";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL =
   process.env.REPLAY_SCRAPE_URL || "http://127.0.0.1:3000/api/replay-scrape";
 const apply = process.argv.includes("--apply");
 const summaryOnly = process.argv.includes("--summary-only");
-const isSunsetBackfill = String(process.env.BACKFILL_DIVISION || "")
+const backfillDivision = String(process.env.BACKFILL_DIVISION || "neon")
   .trim()
-  .toLowerCase() === "sunset";
-const backfillDivisionName = isSunsetBackfill ? "sunset" : "neon";
-const backfillLabel = isSunsetBackfill ? "Sunset" : "Neon";
+  .toLowerCase();
+const isSunsetBackfill = backfillDivision === "sunset";
+const isStargazerBackfill = backfillDivision === "stargazer";
+const backfillDivisionName = backfillDivision;
+const backfillLabel =
+  backfillDivision === "sunset"
+    ? "Sunset"
+    : backfillDivision === "stargazer"
+      ? "Stargazer"
+      : "Neon";
 
 if (apply) {
   assertProductionWriteAllowed(
     DATABASE_PATH,
-    isSunsetBackfill ? "SUNSET_S7" : "NEON_S7"
+    isSunsetBackfill
+      ? "SUNSET_S7"
+      : isStargazerBackfill
+        ? "STARGAZER_S7"
+        : "NEON_S7"
   );
 }
 
@@ -34,8 +51,8 @@ function report(...args) {
   if (!summaryOnly) console.log(...args);
 }
 
-// Source order is retained from the Neon S7 Discord/Google Sheet dump. The
-// week hint disambiguates regular fixtures from the same team pairing in the
+// Source order is retained from each S7 Discord/Google Sheet dump. The week
+// hint disambiguates regular fixtures from the same team pairing in the
 // playoff bracket. The importer still verifies the fixture from replay teams.
 const replayEntries = [
   // Week 1
@@ -193,16 +210,24 @@ const manualReviewMatchHints = new Map([
 
 const activeReplayEntries = isSunsetBackfill
   ? sunsetReplayEntries
-  : replayEntries;
+  : isStargazerBackfill
+    ? stargazerReplayEntries
+    : replayEntries;
 const activeSourceReviewHints = isSunsetBackfill
   ? sunsetSourceReviewHints
-  : sourceReviewHints;
+  : isStargazerBackfill
+    ? stargazerSourceReviewHints
+    : sourceReviewHints;
 const activeSourceAliasHints = isSunsetBackfill
   ? sunsetSourceAliasHints
-  : new Map();
+  : isStargazerBackfill
+    ? stargazerSourceAliasHints
+    : new Map();
 const activeManualReviewMatchHints = isSunsetBackfill
   ? sunsetManualReviewMatchHints
-  : manualReviewMatchHints;
+  : isStargazerBackfill
+    ? stargazerManualReviewMatchHints
+    : manualReviewMatchHints;
 
 function nameKey(value) {
   return String(value || "")
