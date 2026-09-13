@@ -21,17 +21,17 @@ export function openMaintenanceDb(databasePath) {
   };
 }
 
-export function assertProductionWriteAllowed(databasePath) {
+export function assertProductionWriteAllowed(databasePath, confirmation = "SEASON11") {
   const normalizedPath = String(databasePath).replaceAll("\\", "/");
   if (normalizedPath !== "/data/pbo.db") return;
 
   if (
     process.env.ALLOW_PRODUCTION_BACKFILL !== "1" ||
-    process.env.BACKFILL_CONFIRM !== "SEASON11" ||
+    process.env.BACKFILL_CONFIRM !== confirmation ||
     process.env.BACKFILL_BACKUP_CONFIRMED !== "1"
   ) {
     throw new Error(
-      "Production writes require ALLOW_PRODUCTION_BACKFILL=1, BACKFILL_CONFIRM=SEASON11, and BACKFILL_BACKUP_CONFIRMED=1 after a verified backup.",
+      `Production writes require ALLOW_PRODUCTION_BACKFILL=1, BACKFILL_CONFIRM=${confirmation}, and BACKFILL_BACKUP_CONFIRMED=1 after a verified backup.`,
     );
   }
 }
