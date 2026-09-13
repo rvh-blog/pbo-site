@@ -11,15 +11,23 @@ import {
   stargazerSourceAliasHints,
   stargazerSourceReviewHints,
 } from "./backfill-s7-stargazer-replays-config.mjs";
+import {
+  neonS8ManualReviewMatchHints,
+  neonS8ReplayEntries,
+  neonS8SourceAliasHints,
+  neonS8SourceReviewHints,
+} from "./backfill-s8-neon-replays-config.mjs";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL =
   process.env.REPLAY_SCRAPE_URL || "http://127.0.0.1:3000/api/replay-scrape";
 const apply = process.argv.includes("--apply");
 const summaryOnly = process.argv.includes("--summary-only");
+const seasonNumber = Number.parseInt(process.env.BACKFILL_SEASON || "7", 10);
 const backfillDivision = String(process.env.BACKFILL_DIVISION || "neon")
   .trim()
   .toLowerCase();
+const isNeonS8Backfill = seasonNumber === 8 && backfillDivision === "neon";
 const isSunsetBackfill = backfillDivision === "sunset";
 const isStargazerBackfill = backfillDivision === "stargazer";
 const backfillDivisionName = backfillDivision;
@@ -33,11 +41,7 @@ const backfillLabel =
 if (apply) {
   assertProductionWriteAllowed(
     DATABASE_PATH,
-    isSunsetBackfill
-      ? "SUNSET_S7"
-      : isStargazerBackfill
-        ? "STARGAZER_S7"
-        : "NEON_S7"
+    `${backfillDivision.toUpperCase()}_S${seasonNumber}`
   );
 }
 
@@ -51,9 +55,10 @@ function report(...args) {
   if (!summaryOnly) console.log(...args);
 }
 
-// Source order is retained from each S7 Discord/Google Sheet dump. The week
-// hint disambiguates regular fixtures from the same team pairing in the
-// playoff bracket. The importer still verifies the fixture from replay teams.
+// Source order is retained from each season/division Discord/Google Sheet
+// dump. The week hint disambiguates regular fixtures from the same team
+// pairing in the playoff bracket. The importer still verifies the fixture
+// from replay teams.
 const replayEntries = [
   // Week 1
   { week: 1, url: "https://replay.pokemonshowdown.com/gen9draft-2229504708" },
@@ -208,26 +213,34 @@ const manualReviewMatchHints = new Map([
   ],
 ]);
 
-const activeReplayEntries = isSunsetBackfill
-  ? sunsetReplayEntries
-  : isStargazerBackfill
-    ? stargazerReplayEntries
-    : replayEntries;
-const activeSourceReviewHints = isSunsetBackfill
-  ? sunsetSourceReviewHints
-  : isStargazerBackfill
-    ? stargazerSourceReviewHints
-    : sourceReviewHints;
-const activeSourceAliasHints = isSunsetBackfill
-  ? sunsetSourceAliasHints
-  : isStargazerBackfill
-    ? stargazerSourceAliasHints
-    : new Map();
-const activeManualReviewMatchHints = isSunsetBackfill
-  ? sunsetManualReviewMatchHints
-  : isStargazerBackfill
-    ? stargazerManualReviewMatchHints
-    : manualReviewMatchHints;
+const activeReplayEntries = isNeonS8Backfill
+  ? neonS8ReplayEntries
+  : isSunsetBackfill
+    ? sunsetReplayEntries
+    : isStargazerBackfill
+      ? stargazerReplayEntries
+      : replayEntries;
+const activeSourceReviewHints = isNeonS8Backfill
+  ? neonS8SourceReviewHints
+  : isSunsetBackfill
+    ? sunsetSourceReviewHints
+    : isStargazerBackfill
+      ? stargazerSourceReviewHints
+      : sourceReviewHints;
+const activeSourceAliasHints = isNeonS8Backfill
+  ? neonS8SourceAliasHints
+  : isSunsetBackfill
+    ? sunsetSourceAliasHints
+    : isStargazerBackfill
+      ? stargazerSourceAliasHints
+      : new Map();
+const activeManualReviewMatchHints = isNeonS8Backfill
+  ? neonS8ManualReviewMatchHints
+  : isSunsetBackfill
+    ? sunsetManualReviewMatchHints
+    : isStargazerBackfill
+      ? stargazerManualReviewMatchHints
+      : manualReviewMatchHints;
 
 function nameKey(value) {
   return String(value || "")
@@ -480,11 +493,12 @@ for (const [table, column] of [
 }
 
 const season = await database.get(
-  "SELECT id, season_number FROM seasons WHERE season_number = 7 LIMIT 1"
+  "SELECT id, season_number FROM seasons WHERE season_number = ? LIMIT 1",
+  [seasonNumber]
 );
 if (!season) {
   database.client.close();
-  throw new Error("Season 7 was not found");
+  throw new Error(`Season ${seasonNumber} was not found`);
 }
 
 const division = await database.get(
@@ -493,7 +507,7 @@ const division = await database.get(
 );
 if (!division) {
   database.client.close();
-  throw new Error(`Season 7 ${backfillLabel} was not found`);
+  throw new Error(`Season ${seasonNumber} ${backfillLabel} was not found`);
 }
 
 const accepted = await acceptedNamesByPokemonId(database);
@@ -722,6 +736,12 @@ for (const entry of activeReplayEntries) {
   const team1Map = distinctMatch(replayTeam1, best.rows1, accepted);
   const team2Map = distinctMatch(replayTeam2, best.rows2, accepted);
   const mappedRows = [...team1Map.matches, ...team2Map.matches];
+  const newlyIntroducedRows = mappedRows.filter(({ row }) => row.id === null);
+  if (newlyIntroducedRows.length > 0) {
+    reasons.push(
+      `Replay included ${newlyIntroducedRows.map(({ pokemon }) => pokemon.name).join(", ")} not present in existing match Pokemon rows; added for review`
+    );
+  }
 
   if (replay.tier && !ALLOWED_FORMATS.has(replay.tier)) {
     reasons.push(`Unexpected replay format: ${replay.tier}`);
@@ -873,12 +893,12 @@ for (const entry of activeReplayEntries) {
   if (needsReview) {
     reviewed++;
     report(
-      `REVIEW ${apply ? "APPLIED" : "PLANNED"} S7 ${backfillLabel} W${entry.week} ${match.coach1_name} vs ${match.coach2_name}: ${note}`
+      `REVIEW ${apply ? "APPLIED" : "PLANNED"} S${seasonNumber} ${backfillLabel} W${entry.week} ${match.coach1_name} vs ${match.coach2_name}: ${note}`
     );
   } else {
     clean++;
     report(
-      `${apply ? "APPLIED" : "PLANNED"} S7 ${backfillLabel} W${entry.week} ${match.coach1_name} vs ${match.coach2_name}`
+      `${apply ? "APPLIED" : "PLANNED"} S${seasonNumber} ${backfillLabel} W${entry.week} ${match.coach1_name} vs ${match.coach2_name}`
     );
   }
 }
@@ -929,7 +949,7 @@ for (const { match } of candidates) {
   // without a supplied replay is still useful review information.
   if (match.is_forfeit) continue;
 
-  const message = `No replay was supplied for this completed ${backfillLabel} S7 match`;
+  const message = `No replay was supplied for this completed ${backfillLabel} S${seasonNumber} match`;
   missingReplays++;
   if (apply) {
     reviewStatements.push({
@@ -937,7 +957,7 @@ for (const { match } of candidates) {
       args: [message, message, message, match.id],
     });
   }
-  report(`REVIEW missing replay S7 ${backfillLabel} W${match.week} match ${match.id}`);
+  report(`REVIEW missing replay S${seasonNumber} ${backfillLabel} W${match.week} match ${match.id}`);
 }
 
 if (apply) await database.batch(reviewStatements);
