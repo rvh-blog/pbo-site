@@ -137,6 +137,27 @@ flags historical player aliases, parser conflicts, Illusion attribution, and
 Stargazer S7 force-win records through `matches.needs_review` and
 `matches.review_notes`.
 
+## Neon Season 8 Replay Backfill
+
+The application deployment includes the guarded Neon S8 replay command. It
+restores the supplied historical replay URLs and updates replay-derived match
+Pokemon fields, move usage, revealed items, Experimental Stats event context,
+normalized battle events, and replay-linked kill events. It preserves official
+winners and differentials.
+
+After deploying the code, use a quiet-window, backup-first run:
+
+```bash
+fly ssh console -C "node /app/dist/maintenance/backup-production-db.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s8-neon-replays.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=NEON_S8 BACKFILL_BACKUP_CONFIRMED=1 REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s8-neon-replays.mjs --apply"
+```
+
+The dry run should be reviewed before the explicit apply command. The command
+flags the Custom Game and Balanced Hackmons evidence, historical player aliases,
+parser conflicts, Illusion attribution, missing replay evidence, and Neon S8
+force-win records through `matches.needs_review` and `matches.review_notes`.
+
 ## Inspect Local DB
 
 Examples:

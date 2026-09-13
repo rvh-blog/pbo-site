@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-09-13-neon-s8-replay-backfill",
+    "title": "Neon S8 Replay Backfill",
+    "summary": "Historical Neon Season 8 replays now populate the complete replay-derived statistics record.",
+    "publishedAt": "2026-09-13",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Neon Season 8 replay evidence now restores move usage, item usage, Experimental Stats context, battle events, and replay-linked kill events while preserving official match results."
+      },
+      {
+        "type": "improved",
+        "text": "Historical aliases, nonstandard replay formats, parser conflicts, and force-win records are surfaced for manual review."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-13-stargazer-s7-replay-backfill",
     "title": "Stargazer S7 Replay Backfill",
     "summary": "Historical Stargazer Season 7 replays now populate the complete replay-derived statistics record.",
