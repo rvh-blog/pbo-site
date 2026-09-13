@@ -9,6 +9,7 @@ const entries = [
   "scripts/backfill-season11-hax.mjs",
   "scripts/backfill-mega-items.mjs",
   "scripts/backfill-s7-neon-replays.mjs",
+  "scripts/backfill-s7-sunset-replays.mjs",
 ];
 
 esbuild.build({

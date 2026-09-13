@@ -1,12 +1,28 @@
 import { openMaintenanceDb, assertProductionWriteAllowed } from "./maintenance-db.mjs";
+import {
+  sunsetManualReviewMatchHints,
+  sunsetReplayEntries,
+  sunsetSourceAliasHints,
+  sunsetSourceReviewHints,
+} from "./backfill-s7-sunset-replays-config.mjs";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL =
   process.env.REPLAY_SCRAPE_URL || "http://127.0.0.1:3000/api/replay-scrape";
 const apply = process.argv.includes("--apply");
 const summaryOnly = process.argv.includes("--summary-only");
+const isSunsetBackfill = String(process.env.BACKFILL_DIVISION || "")
+  .trim()
+  .toLowerCase() === "sunset";
+const backfillDivisionName = isSunsetBackfill ? "sunset" : "neon";
+const backfillLabel = isSunsetBackfill ? "Sunset" : "Neon";
 
-if (apply) assertProductionWriteAllowed(DATABASE_PATH, "NEON_S7");
+if (apply) {
+  assertProductionWriteAllowed(
+    DATABASE_PATH,
+    isSunsetBackfill ? "SUNSET_S7" : "NEON_S7"
+  );
+}
 
 const ALLOWED_FORMATS = new Set([
   "[Gen 9] Draft",
@@ -175,6 +191,19 @@ const manualReviewMatchHints = new Map([
   ],
 ]);
 
+const activeReplayEntries = isSunsetBackfill
+  ? sunsetReplayEntries
+  : replayEntries;
+const activeSourceReviewHints = isSunsetBackfill
+  ? sunsetSourceReviewHints
+  : sourceReviewHints;
+const activeSourceAliasHints = isSunsetBackfill
+  ? sunsetSourceAliasHints
+  : new Map();
+const activeManualReviewMatchHints = isSunsetBackfill
+  ? sunsetManualReviewMatchHints
+  : manualReviewMatchHints;
+
 function nameKey(value) {
   return String(value || "")
     .normalize("NFD")
@@ -184,6 +213,7 @@ function nameKey(value) {
     .replace(/^mega/, "")
     .replace(/mega(?:x|y|z)?$/, "")
     .replace(/(?:incarnate|average|standard|hero|disguised|busted)$/, "")
+    .replace(/^oricorio$/, "oricoriobaile")
     .replace(/^palafinhero$/, "palafin")
     .replace(/^mimikyu(?:disguised|busted)$/, "mimikyu")
     .replace(/^urshifu(?:rapidstrike|singlestrike)$/, "urshifu")
@@ -241,10 +271,11 @@ function distinctMatch(replayTeam, rows, accepted) {
     const replayKey = nameKey(pokemon.name);
     const row = rows.find(
       (candidate) =>
-        !used.has(candidate.id) && rowKeys(candidate, accepted).includes(replayKey)
+        !used.has(candidate.id ?? `${candidate.season_coach_id}:${candidate.pokemon_id}`) &&
+        rowKeys(candidate, accepted).includes(replayKey)
     );
     if (row) {
-      used.add(row.id);
+      used.add(row.id ?? `${row.season_coach_id}:${row.pokemon_id}`);
       matches.push({ row, pokemon });
     }
   }
@@ -432,12 +463,12 @@ if (!season) {
 }
 
 const division = await database.get(
-  "SELECT id, name FROM divisions WHERE season_id = ? AND lower(trim(name)) = 'neon' LIMIT 1",
-  [season.id]
+  "SELECT id, name FROM divisions WHERE season_id = ? AND lower(trim(name)) = ? LIMIT 1",
+  [season.id, backfillDivisionName]
 );
 if (!division) {
   database.client.close();
-  throw new Error("Season 7 Neon was not found");
+  throw new Error(`Season 7 ${backfillLabel} was not found`);
 }
 
 const accepted = await acceptedNamesByPokemonId(database);
@@ -463,6 +494,43 @@ const rowsByMatch = `
   JOIN pokemon p ON p.id = mp.pokemon_id
   WHERE mp.match_id = ?
 `;
+
+const rosterRows = await database.all(`
+  SELECT
+    r.season_coach_id, r.pokemon_id, p.name AS pokemon_name,
+    p.display_name AS pokemon_display_name
+  FROM rosters r
+  JOIN season_coaches sc ON sc.id = r.season_coach_id
+  JOIN pokemon p ON p.id = r.pokemon_id
+  WHERE sc.division_id = ?
+` , [division.id]);
+const rosterRowsByCoach = new Map();
+for (const row of rosterRows) {
+  const rows = rosterRowsByCoach.get(row.season_coach_id) || [];
+  rows.push(row);
+  rosterRowsByCoach.set(row.season_coach_id, rows);
+}
+
+function supplementMatchRows(match, rows, seasonCoachId) {
+  const existingPokemonIds = new Set(
+    rows
+      .filter((row) => row.season_coach_id === seasonCoachId)
+      .map((row) => row.pokemon_id)
+  );
+  const fallbackRows = (rosterRowsByCoach.get(seasonCoachId) || [])
+    .filter((row) => !existingPokemonIds.has(row.pokemon_id))
+    .map((row) => ({
+      ...row,
+      id: null,
+      match_id: match.id,
+      kills: 0,
+      deaths: 0,
+    }));
+  return [
+    ...rows.filter((row) => row.season_coach_id === seasonCoachId),
+    ...fallbackRows,
+  ];
+}
 
 const updateMatch = `
   UPDATE matches SET
@@ -490,6 +558,13 @@ const updatePokemon = `
   WHERE id = ?
 `;
 
+const insertMatchPokemon = `
+  INSERT INTO match_pokemon (
+    match_id, season_coach_id, pokemon_id, kills, deaths
+  ) VALUES (?, ?, ?, 0, 0)
+  RETURNING id
+`;
+
 const replayAlreadyUsed =
   "SELECT id FROM matches WHERE replay_url = ? AND id != ? LIMIT 1";
 const battleEventsEnabled = await tableExists(database, "battle_events");
@@ -505,9 +580,13 @@ const moveIdByName = new Map(
 
 const candidates = [];
 for (const match of matches) {
+  const rows = await database.all(rowsByMatch, [match.id]);
   candidates.push({
     match,
-    rows: await database.all(rowsByMatch, [match.id]),
+    rows: [
+      ...supplementMatchRows(match, rows, match.coach1_season_id),
+      ...supplementMatchRows(match, rows, match.coach2_season_id),
+    ],
   });
 }
 const seenMatchIds = new Set();
@@ -519,7 +598,7 @@ let updatedRows = 0;
 let storedEvents = 0;
 let missingReplays = 0;
 
-for (const entry of replayEntries) {
+for (const entry of activeReplayEntries) {
   if (seenUrls.has(entry.url)) {
     reviewed++;
     report(`REVIEW duplicate replay URL in manifest: ${entry.url}`);
@@ -656,8 +735,12 @@ for (const entry of replayEntries) {
   if (mappedRows.length < 12) {
     reasons.push(`Only ${mappedRows.length}/12 Pokemon rows mapped`);
   }
-  if (sourceReviewHints.has(entry.url)) {
-    reasons.push(sourceReviewHints.get(entry.url));
+  if (activeSourceReviewHints.has(entry.url)) {
+    reasons.push(activeSourceReviewHints.get(entry.url));
+  }
+  for (const username of [replay.p1Username, replay.p2Username]) {
+    const aliasHint = activeSourceAliasHints.get(nameKey(username));
+    if (aliasHint) reasons.push(aliasHint);
   }
 
   for (const { row, pokemon } of mappedRows) {
@@ -696,6 +779,20 @@ for (const entry of replayEntries) {
     // item, and Experimental Stats coverage is not silently discarded. The
     // official winner/differential remain untouched in the matches table.
     for (const { row, pokemon } of mappedRows) {
+      let rowId = row.id;
+      if (!rowId) {
+        const inserted = await database.get(insertMatchPokemon, [
+          match.id,
+          row.season_coach_id,
+          row.pokemon_id,
+        ]);
+        rowId = inserted?.id;
+      }
+      if (!rowId) {
+        throw new Error(
+          `Could not create match Pokemon row for match ${match.id} and Pokemon ${row.pokemon_id}`
+        );
+      }
       statements.push({
         sql: updatePokemon,
         args: [
@@ -721,7 +818,7 @@ for (const entry of replayEntries) {
           pokemon.hpRestored ?? null,
           JSON.stringify(pokemon.movesUsed || {}),
           JSON.stringify(pokemon.revealedItems || []),
-          row.id
+          rowId
         ],
       });
     }
@@ -751,12 +848,12 @@ for (const entry of replayEntries) {
   if (needsReview) {
     reviewed++;
     report(
-      `REVIEW ${apply ? "APPLIED" : "PLANNED"} S7 Neon W${entry.week} ${match.coach1_name} vs ${match.coach2_name}: ${note}`
+      `REVIEW ${apply ? "APPLIED" : "PLANNED"} S7 ${backfillLabel} W${entry.week} ${match.coach1_name} vs ${match.coach2_name}: ${note}`
     );
   } else {
     clean++;
     report(
-      `${apply ? "APPLIED" : "PLANNED"} S7 Neon W${entry.week} ${match.coach1_name} vs ${match.coach2_name}`
+      `${apply ? "APPLIED" : "PLANNED"} S7 ${backfillLabel} W${entry.week} ${match.coach1_name} vs ${match.coach2_name}`
     );
   }
 }
@@ -773,7 +870,7 @@ const markManualReview = `
 `;
 const reviewStatements = [];
 
-for (const [matchId, message] of manualReviewMatchHints) {
+for (const [matchId, message] of activeManualReviewMatchHints) {
   const match = matches.find(({ id }) => id === matchId);
   if (!match) {
     report(`REVIEW historical force-win hint targets missing match ${matchId}`);
@@ -807,7 +904,7 @@ for (const { match } of candidates) {
   // without a supplied replay is still useful review information.
   if (match.is_forfeit) continue;
 
-  const message = "No replay was supplied for this completed Neon S7 match";
+  const message = `No replay was supplied for this completed ${backfillLabel} S7 match`;
   missingReplays++;
   if (apply) {
     reviewStatements.push({
@@ -815,7 +912,7 @@ for (const { match } of candidates) {
       args: [message, message, message, match.id],
     });
   }
-  report(`REVIEW missing replay S7 Neon W${match.week} match ${match.id}`);
+  report(`REVIEW missing replay S7 ${backfillLabel} W${match.week} match ${match.id}`);
 }
 
 if (apply) await database.batch(reviewStatements);
@@ -823,7 +920,7 @@ database.client.close();
 
 console.log(
   [
-    `${apply ? "Applied" : "Planned"} ${replayEntries.length} supplied replay entries`,
+    `${apply ? "Applied" : "Planned"} ${activeReplayEntries.length} supplied replay entries`,
     `${clean} clean`,
     `${reviewed} reviewed`,
     `${updatedRows} Pokemon rows mapped`,
