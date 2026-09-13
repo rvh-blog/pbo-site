@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-09-13-stargazer-s7-replay-backfill",
+    "title": "Stargazer S7 Replay Backfill",
+    "summary": "Historical Stargazer Season 7 replays now populate the complete replay-derived statistics record.",
+    "publishedAt": "2026-09-13",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Stargazer Season 7 replay evidence now restores move usage, item usage, Experimental Stats context, battle events, and replay-linked kill events while preserving official match results."
+      },
+      {
+        "type": "improved",
+        "text": "Historical aliases, parser conflicts, Illusion attribution, and force-win records are surfaced for manual review."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-13-sunset-s7-replay-backfill",
     "title": "Sunset S7 Replay Backfill",
     "summary": "Historical Sunset Season 7 replays now populate the complete replay-derived statistics record.",
