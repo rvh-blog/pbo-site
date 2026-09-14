@@ -209,6 +209,28 @@ parser conflicts, missing replay evidence, force-win records, and any roster
 or differential mismatches through `matches.needs_review` and
 `matches.review_notes`.
 
+## Crystal Season 9 Replay Backfill
+
+The application deployment includes the guarded Crystal S9 replay command. It
+restores the supplied regular-season and playoff replay URLs and updates
+replay-derived match Pokemon fields, move usage, revealed items, Experimental
+Stats event context, normalized battle events, and replay-linked kill events.
+It preserves official winners and differentials. Crystal S9 uses the Paldea
+Dex Draft ruleset with Tera enabled and no Mega Pokemon or Mega items.
+
+After deploying the code, use a quiet-window, backup-first run:
+
+```bash
+fly ssh console -C "node /app/dist/maintenance/backup-production-db.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s9-crystal-replays.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=CRYSTAL_S9 BACKFILL_BACKUP_CONFIRMED=1 REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s9-crystal-replays.mjs --apply"
+```
+
+The dry run should be reviewed before the explicit apply command. The command
+flags parser K/D or differential conflicts, incomplete roster mappings, and
+missing replay evidence through `matches.needs_review` and
+`matches.review_notes`.
+
 ## Inspect Local DB
 
 Examples:

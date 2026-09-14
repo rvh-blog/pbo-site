@@ -35,6 +35,12 @@ import {
   neonS9SourceAliasHints,
   neonS9SourceReviewHints,
 } from "./backfill-s9-neon-replays-config.mjs";
+import {
+  crystalS9ManualReviewMatchHints,
+  crystalS9ReplayEntries,
+  crystalS9SourceAliasHints,
+  crystalS9SourceReviewHints,
+} from "./backfill-s9-crystal-replays-config.mjs";
 import { isMegaPokemonName } from "../src/lib/mega-stones.ts";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
@@ -48,6 +54,7 @@ const backfillDivision = String(process.env.BACKFILL_DIVISION || "neon")
   .toLowerCase();
 const isNeonS8Backfill = seasonNumber === 8 && backfillDivision === "neon";
 const isNeonS9Backfill = seasonNumber === 9 && backfillDivision === "neon";
+const isCrystalS9Backfill = seasonNumber === 9 && backfillDivision === "crystal";
 const isSunsetS8Backfill = seasonNumber === 8 && backfillDivision === "sunset";
 const isStargazerS8Backfill = seasonNumber === 8 && backfillDivision === "stargazer";
 const isSunsetBackfill = backfillDivision === "sunset";
@@ -58,6 +65,8 @@ const backfillLabel =
     ? "Sunset"
     : backfillDivision === "stargazer"
       ? "Stargazer"
+      : backfillDivision === "crystal"
+        ? "Crystal"
       : "Neon";
 
 if (apply) {
@@ -240,6 +249,8 @@ const activeReplayEntries = isNeonS8Backfill
   ? neonS8ReplayEntries
   : isNeonS9Backfill
     ? neonS9ReplayEntries
+    : isCrystalS9Backfill
+      ? crystalS9ReplayEntries
   : isSunsetS8Backfill
     ? sunsetS8ReplayEntries
     : isStargazerS8Backfill
@@ -253,6 +264,8 @@ const activeSourceReviewHints = isNeonS8Backfill
   ? neonS8SourceReviewHints
   : isNeonS9Backfill
     ? neonS9SourceReviewHints
+    : isCrystalS9Backfill
+      ? crystalS9SourceReviewHints
   : isSunsetS8Backfill
     ? sunsetS8SourceReviewHints
   : isStargazerS8Backfill
@@ -266,6 +279,8 @@ const activeSourceAliasHints = isNeonS8Backfill
   ? neonS8SourceAliasHints
   : isNeonS9Backfill
     ? neonS9SourceAliasHints
+    : isCrystalS9Backfill
+      ? crystalS9SourceAliasHints
   : isSunsetS8Backfill
     ? sunsetS8SourceAliasHints
   : isStargazerS8Backfill
@@ -279,6 +294,8 @@ const activeManualReviewMatchHints = isNeonS8Backfill
   ? neonS8ManualReviewMatchHints
   : isNeonS9Backfill
     ? neonS9ManualReviewMatchHints
+    : isCrystalS9Backfill
+      ? crystalS9ManualReviewMatchHints
   : isSunsetS8Backfill
     ? sunsetS8ManualReviewMatchHints
   : isStargazerS8Backfill
