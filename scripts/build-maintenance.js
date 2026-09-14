@@ -16,6 +16,7 @@ const entries = [
   "scripts/backfill-s8-neon-replays.mjs",
   "scripts/backfill-s8-sunset-replays.mjs",
   "scripts/backfill-s8-stargazer-replays.mjs",
+  "scripts/backfill-s9-neon-replays.mjs",
 ];
 
 esbuild.build({

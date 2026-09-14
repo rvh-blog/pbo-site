@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-09-13-neon-s9-replay-backfill",
+    "title": "Neon Season 9 Replay Backfill",
+    "summary": "Supplied Neon Season 9 replay history now populates replay-derived match statistics with replacement-aware review safeguards.",
+    "publishedAt": "2026-09-13",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added 56 supplied Neon Season 9 replays across the regular season and playoffs, including move usage, item evidence, Experimental Stats context, battle events, and replay-linked kill events."
+      },
+      {
+        "type": "improved",
+        "text": "Season 9 roster replacements, source aliases, form mismatches, official-stat conflicts, missing replay evidence, and the Seasons 5–10 no-Mega rule are surfaced for manual review without changing official results."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-13-libsql-maintenance-backfill",
     "title": "Portable Historical Maintenance",
     "summary": "The historical Move Usage backfill now uses the same portable SQLite client as the deployed maintenance tools.",
