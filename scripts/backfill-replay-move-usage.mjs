@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { assertProductionWriteAllowed } from "./maintenance-db.mjs";
 
 const MIN_SEASON = Number(process.env.MOVE_USAGE_MIN_SEASON || "5");
 const TARGET_SEASON = process.env.MOVE_USAGE_SEASON
@@ -11,6 +12,10 @@ const quiet = process.argv.includes("--quiet");
 const includeAlreadyTracked = process.argv.includes("--all");
 const reportChanges = process.argv.includes("--report-changes");
 const onlyZoroarkReplays = process.argv.includes("--zoroark-only");
+
+if (!dryRun) {
+  assertProductionWriteAllowed(DATABASE_PATH, "MOVE_USAGE");
+}
 
 function nameKey(value) {
   return String(value || "")
