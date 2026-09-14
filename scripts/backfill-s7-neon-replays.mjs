@@ -692,13 +692,13 @@ const updateMatch = `
 
 const updatePokemon = `
   UPDATE match_pokemon SET
-    kills = ?, deaths = ?, damage_dealt = ?, damage_dealt_indirect = ?,
-    damage_taken = ?, damage_taken_indirect = ?, turns_active = ?,
-    hazard_damage_taken = ?, setup_moves_used = ?, favorable_crits = ?,
-    favorable_misses = ?, favorable_flinches = ?, favorable_paralysis = ?,
-    favorable_freezes = ?, favorable_burns = ?, favorable_sleep = ?,
-    favorable_confusions = ?, favorable_confusion_self_hits = ?,
-    favorable_events = ?, hp_restored = ?, moves_used = ?, revealed_items = ?
+    damage_dealt = ?, damage_dealt_indirect = ?, damage_taken = ?,
+    damage_taken_indirect = ?, turns_active = ?, hazard_damage_taken = ?,
+    setup_moves_used = ?, favorable_crits = ?, favorable_misses = ?,
+    favorable_flinches = ?, favorable_paralysis = ?, favorable_freezes = ?,
+    favorable_burns = ?, favorable_sleep = ?, favorable_confusions = ?,
+    favorable_confusion_self_hits = ?, favorable_events = ?, hp_restored = ?,
+    moves_used = ?, revealed_items = ?
   WHERE id = ?
 `;
 
@@ -938,7 +938,8 @@ for (const entry of activeReplayEntries) {
 
     // Replay-derived fields are still stored on reviewed matches so move,
     // item, and Experimental Stats coverage is not silently discarded. The
-    // official winner/differential remain untouched in the matches table.
+    // official winner/differential and the recorded PBO K/D ledger remain
+    // untouched in the matches and match_pokemon tables.
     for (const { row, pokemon } of mappedRows) {
       let rowId = row.id;
       if (!rowId) {
@@ -957,8 +958,6 @@ for (const entry of activeReplayEntries) {
       statements.push({
         sql: updatePokemon,
         args: [
-          pokemon.kills ?? 0,
-          pokemon.deaths ?? 0,
           pokemon.damageDealt ?? null,
           pokemon.damageDealtIndirect ?? null,
           pokemon.damageTaken ?? null,
