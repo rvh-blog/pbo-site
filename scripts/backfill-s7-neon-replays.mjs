@@ -23,6 +23,12 @@ import {
   sunsetS8SourceAliasHints,
   sunsetS8SourceReviewHints,
 } from "./backfill-s8-sunset-replays-config.mjs";
+import {
+  stargazerS8ManualReviewMatchHints,
+  stargazerS8ReplayEntries,
+  stargazerS8SourceAliasHints,
+  stargazerS8SourceReviewHints,
+} from "./backfill-s8-stargazer-replays-config.mjs";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL =
@@ -35,6 +41,7 @@ const backfillDivision = String(process.env.BACKFILL_DIVISION || "neon")
   .toLowerCase();
 const isNeonS8Backfill = seasonNumber === 8 && backfillDivision === "neon";
 const isSunsetS8Backfill = seasonNumber === 8 && backfillDivision === "sunset";
+const isStargazerS8Backfill = seasonNumber === 8 && backfillDivision === "stargazer";
 const isSunsetBackfill = backfillDivision === "sunset";
 const isStargazerBackfill = backfillDivision === "stargazer";
 const backfillDivisionName = backfillDivision;
@@ -225,6 +232,8 @@ const activeReplayEntries = isNeonS8Backfill
   ? neonS8ReplayEntries
   : isSunsetS8Backfill
     ? sunsetS8ReplayEntries
+    : isStargazerS8Backfill
+      ? stargazerS8ReplayEntries
   : isSunsetBackfill
     ? sunsetReplayEntries
     : isStargazerBackfill
@@ -234,6 +243,8 @@ const activeSourceReviewHints = isNeonS8Backfill
   ? neonS8SourceReviewHints
   : isSunsetS8Backfill
     ? sunsetS8SourceReviewHints
+  : isStargazerS8Backfill
+    ? stargazerS8SourceReviewHints
   : isSunsetBackfill
     ? sunsetSourceReviewHints
     : isStargazerBackfill
@@ -243,6 +254,8 @@ const activeSourceAliasHints = isNeonS8Backfill
   ? neonS8SourceAliasHints
   : isSunsetS8Backfill
     ? sunsetS8SourceAliasHints
+  : isStargazerS8Backfill
+    ? stargazerS8SourceAliasHints
   : isSunsetBackfill
     ? sunsetSourceAliasHints
     : isStargazerBackfill
@@ -252,6 +265,8 @@ const activeManualReviewMatchHints = isNeonS8Backfill
   ? neonS8ManualReviewMatchHints
   : isSunsetS8Backfill
     ? sunsetS8ManualReviewMatchHints
+  : isStargazerS8Backfill
+    ? stargazerS8ManualReviewMatchHints
   : isSunsetBackfill
     ? sunsetManualReviewMatchHints
     : isStargazerBackfill

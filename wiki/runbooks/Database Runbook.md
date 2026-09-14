@@ -185,6 +185,30 @@ flags historical source-name aliases, parser conflicts, missing replay
 evidence, force-win records, and any roster or differential mismatches through
 `matches.needs_review` and `matches.review_notes`.
 
+## Stargazer Season 8 Replay Backfill
+
+The application deployment includes the guarded Stargazer S8 replay command.
+It restores the supplied historical replay URLs and updates replay-derived
+match Pokemon fields, move usage, revealed items, Experimental Stats event
+context, normalized battle events, and replay-linked kill events. It preserves
+official winners and differentials. Stargazer S8 uses the Seasons 5-10 Paldea
+Dex Draft ruleset with Tera enabled. Do not infer or backfill Mega Pokemon or
+Mega items for it.
+
+After deploying the code, use a quiet-window, backup-first run:
+
+```bash
+fly ssh console -C "node /app/dist/maintenance/backup-production-db.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s8-stargazer-replays.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=STARGAZER_S8 BACKFILL_BACKUP_CONFIRMED=1 REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s8-stargazer-replays.mjs --apply"
+```
+
+The dry run should be reviewed before the explicit apply command. The command
+flags historical source-name aliases, manually reconciled week assignments,
+parser conflicts, missing replay evidence, force-win records, and any roster
+or differential mismatches through `matches.needs_review` and
+`matches.review_notes`.
+
 ## Inspect Local DB
 
 Examples:
