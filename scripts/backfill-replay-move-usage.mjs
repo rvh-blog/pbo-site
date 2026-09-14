@@ -1,5 +1,4 @@
-import Database from "better-sqlite3";
-import { assertProductionWriteAllowed } from "./maintenance-db.mjs";
+import { openMaintenanceDb, assertProductionWriteAllowed } from "./maintenance-db.mjs";
 
 const MIN_SEASON = Number(process.env.MOVE_USAGE_MIN_SEASON || "5");
 const TARGET_SEASON = process.env.MOVE_USAGE_SEASON
@@ -107,21 +106,17 @@ async function scrapeReplay(replayUrl) {
   return payload;
 }
 
-const db = new Database(DATABASE_PATH);
-db.pragma("busy_timeout = 30000");
+const db = openMaintenanceDb(DATABASE_PATH);
 
-const tableExists = db.prepare(
-  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1"
-);
-if (tableExists.get("pokemon_name_aliases")) {
-  for (const row of db.prepare("SELECT pokemon_id, alias FROM pokemon_name_aliases").all()) {
+if (await db.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1", ["pokemon_name_aliases"])) {
+  for (const row of await db.all("SELECT pokemon_id, alias FROM pokemon_name_aliases")) {
     addAcceptedName(row.pokemon_id, row.alias);
   }
 }
-if (tableExists.get("pokemon_name_collapses")) {
-  for (const row of db.prepare(
+if (await db.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1", ["pokemon_name_collapses"])) {
+  for (const row of await db.all(
     "SELECT target_pokemon_id AS pokemon_id, source_name AS alias FROM pokemon_name_collapses"
-  ).all()) {
+  )) {
     addAcceptedName(row.pokemon_id, row.alias);
   }
 }
@@ -130,7 +125,7 @@ const seasonFilter = TARGET_SEASON === null
   ? "s.season_number >= ?"
   : "s.season_number = ?";
 const seasonValue = TARGET_SEASON ?? MIN_SEASON;
-const matches = db.prepare(`
+const matches = await db.all(`
   SELECT m.id, m.replay_url, m.coach1_season_id, m.coach2_season_id
   FROM matches m
   JOIN seasons s ON s.id = m.season_id
@@ -153,18 +148,17 @@ const matches = db.prepare(`
       )
     )`})
   ORDER BY m.id
-`).all(seasonValue);
+`, [seasonValue]);
 
-const rowsByMatch = db.prepare(`
+const rowsByMatch = `
   SELECT mp.id, mp.season_coach_id, mp.pokemon_id, mp.moves_used,
     p.name AS pokemon_name, p.display_name AS pokemon_display_name
   FROM match_pokemon mp
   JOIN pokemon p ON p.id = mp.pokemon_id
   WHERE mp.match_id = ?
-`);
+`;
 
-const updateMoveUsage = db.prepare("UPDATE match_pokemon SET moves_used = ? WHERE id = ?");
-const flagMatchReview = db.prepare(`
+const flagMatchReview = `
   UPDATE matches
   SET needs_review = 1,
       review_notes = CASE
@@ -173,7 +167,7 @@ const flagMatchReview = db.prepare(`
         ELSE review_notes || '; ' || ?
       END
   WHERE id = ?
-`);
+`;
 let processed = 0;
 let updated = 0;
 let unchanged = 0;
@@ -182,10 +176,10 @@ let unmatched = 0;
 
 for (const match of matches) {
   try {
-    const matchRows = rowsByMatch.all(match.id);
+    const matchRows = await db.all(rowsByMatch, [match.id]);
     if (matchRows.length === 0) {
       const note = "Move usage backfill: completed replay has no match Pokemon rows";
-      if (!dryRun) flagMatchReview.run(note, note, note, match.id);
+      if (!dryRun) await db.execute(flagMatchReview, [note, note, note, match.id]);
       console.warn(`REVIEW match ${match.id}: ${note}`);
       processed++;
       continue;
@@ -234,16 +228,15 @@ for (const match of matches) {
     }
 
     if (!dryRun) {
-      const transaction = db.transaction((updates) => {
-        for (const update of updates) {
-          updateMoveUsage.run(JSON.stringify(update.movesUsed), update.rowId);
-        }
-      });
-      transaction(updateRows);
+      const statements = updateRows.map((update) => ({
+        sql: "UPDATE match_pokemon SET moves_used = ? WHERE id = ?",
+        args: [JSON.stringify(update.movesUsed), update.rowId],
+      }));
       if (unmatchedNames.length > 0) {
         const note = `Move usage backfill: ${unmatchedNames.length} Pokemon row(s) could not be matched to the replay team (${unmatchedNames.join(", ")})`;
-        flagMatchReview.run(note, note, note, match.id);
+        statements.push({ sql: flagMatchReview, args: [note, note, note, match.id] });
       }
+      await db.batch(statements);
     }
 
     processed++;
@@ -264,7 +257,7 @@ for (const match of matches) {
   }
 }
 
-db.close();
+db.client.close();
 console.log(
   `Processed ${processed}/${matches.length} matches; ${dryRun ? "would update" : "updated"} ${updated} rows; unchanged ${unchanged}; unmatched ${unmatched}; failed ${failed}.`
 );
