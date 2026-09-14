@@ -1,5 +1,25 @@
 [
   {
+    "sourceKey": "2026-09-14-sunset-s9-replay-backfill",
+    "title": "Sunset Season 9 Replay Backfill",
+    "summary": "Supplied Sunset Season 9 replay history is ready to populate the complete replay-derived statistics record with review safeguards.",
+    "publishedAt": "2026-09-14",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added 56 Sunset Season 9 regular-season and playoff replay entries for move usage, item evidence, Experimental Stats context, normalized battle events, and replay-linked kill events."
+      },
+      {
+        "type": "improved",
+        "text": "Replacement-team aliases, source labels, parser conflicts, incomplete mappings, and official-stat disagreements are surfaced for manual review while official results remain unchanged."
+      },
+      {
+        "type": "fixed",
+        "text": "Ogerpon form names now match the base roster row when a historical replay exposes Teal, Wellspring, Hearthflame, or Cornerstone form evidence."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-13-neon-s9-replay-backfill",
     "title": "Neon Season 9 Replay Backfill",
     "summary": "Supplied Neon Season 9 replay history now populates replay-derived match statistics with replacement-aware review safeguards.",

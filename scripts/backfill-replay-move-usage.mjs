@@ -37,6 +37,7 @@ function generatedReplayKeys(value) {
   );
   if (battleStateBase !== key) keys.add(battleStateBase);
   if (key.startsWith("gourgeist")) keys.add("gourgeist");
+  if (/^ogerpon(?:teal|wellspring|hearthflame|cornerstone)$/.test(key)) keys.add("ogerpon");
   if (key === "floettemega") keys.add("floetteeternal");
   if (key === "urshifusinglestrike" || key === "urshifurapidstrike") keys.add("urshifu");
   return [...keys];
