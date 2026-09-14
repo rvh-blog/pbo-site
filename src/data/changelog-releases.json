@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-13-libsql-maintenance-backfill",
+    "title": "Portable Historical Maintenance",
+    "summary": "The historical Move Usage backfill now uses the same portable SQLite client as the deployed maintenance tools.",
+    "publishedAt": "2026-09-13",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Move Usage maintenance now runs correctly from the production bundle while retaining the explicit backup-confirmed write guard."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-13-guarded-historical-backfill",
     "title": "Guarded Historical Backfill Writes",
     "summary": "Historical replay statistics now require an explicit production write gate before maintenance data changes.",
