@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-09-13-historical-move-ogerpon-backfill",
+    "title": "Historical Move & Ogerpon Backfill",
+    "summary": "Historical replay move usage and required Ogerpon mask data now flow through the public stats surfaces.",
+    "publishedAt": "2026-09-13",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Battle Record Move Usage now includes completed replay data from Season 5 onward, with historical move sources available alongside the existing item usage records."
+      },
+      {
+        "type": "fixed",
+        "text": "Ogerpon-Wellspring, Ogerpon-Hearthflame, and Ogerpon-Cornerstone appearances now carry their required masks across replay, item usage, and Experimental Stats data while regular Teal Ogerpon remains unrestricted."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-13-neon-s8-replay-backfill",
     "title": "Neon S8 Replay Backfill",
     "summary": "Historical Neon Season 8 replays now populate the complete replay-derived statistics record.",
