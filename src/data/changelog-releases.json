@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-13-historical-backfill-maintenance-bundle",
+    "title": "Historical Backfill Maintenance",
+    "summary": "The production maintenance bundle now includes the historical replay move-usage repair command.",
+    "publishedAt": "2026-09-13",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Historical Move Usage backfills can now be run through the guarded production maintenance bundle alongside the Ogerpon mask repair."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-13-historical-move-ogerpon-backfill",
     "title": "Historical Move & Ogerpon Backfill",
     "summary": "Historical replay move usage and required Ogerpon mask data now flow through the public stats surfaces.",
