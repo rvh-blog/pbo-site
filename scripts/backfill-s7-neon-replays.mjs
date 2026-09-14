@@ -29,6 +29,13 @@ import {
   stargazerS8SourceAliasHints,
   stargazerS8SourceReviewHints,
 } from "./backfill-s8-stargazer-replays-config.mjs";
+import {
+  neonS9ManualReviewMatchHints,
+  neonS9ReplayEntries,
+  neonS9SourceAliasHints,
+  neonS9SourceReviewHints,
+} from "./backfill-s9-neon-replays-config.mjs";
+import { isMegaPokemonName } from "../src/lib/mega-stones.ts";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL =
@@ -40,6 +47,7 @@ const backfillDivision = String(process.env.BACKFILL_DIVISION || "neon")
   .trim()
   .toLowerCase();
 const isNeonS8Backfill = seasonNumber === 8 && backfillDivision === "neon";
+const isNeonS9Backfill = seasonNumber === 9 && backfillDivision === "neon";
 const isSunsetS8Backfill = seasonNumber === 8 && backfillDivision === "sunset";
 const isStargazerS8Backfill = seasonNumber === 8 && backfillDivision === "stargazer";
 const isSunsetBackfill = backfillDivision === "sunset";
@@ -230,6 +238,8 @@ const manualReviewMatchHints = new Map([
 
 const activeReplayEntries = isNeonS8Backfill
   ? neonS8ReplayEntries
+  : isNeonS9Backfill
+    ? neonS9ReplayEntries
   : isSunsetS8Backfill
     ? sunsetS8ReplayEntries
     : isStargazerS8Backfill
@@ -241,6 +251,8 @@ const activeReplayEntries = isNeonS8Backfill
       : replayEntries;
 const activeSourceReviewHints = isNeonS8Backfill
   ? neonS8SourceReviewHints
+  : isNeonS9Backfill
+    ? neonS9SourceReviewHints
   : isSunsetS8Backfill
     ? sunsetS8SourceReviewHints
   : isStargazerS8Backfill
@@ -252,6 +264,8 @@ const activeSourceReviewHints = isNeonS8Backfill
       : sourceReviewHints;
 const activeSourceAliasHints = isNeonS8Backfill
   ? neonS8SourceAliasHints
+  : isNeonS9Backfill
+    ? neonS9SourceAliasHints
   : isSunsetS8Backfill
     ? sunsetS8SourceAliasHints
   : isStargazerS8Backfill
@@ -263,6 +277,8 @@ const activeSourceAliasHints = isNeonS8Backfill
       : new Map();
 const activeManualReviewMatchHints = isNeonS8Backfill
   ? neonS8ManualReviewMatchHints
+  : isNeonS9Backfill
+    ? neonS9ManualReviewMatchHints
   : isSunsetS8Backfill
     ? sunsetS8ManualReviewMatchHints
   : isStargazerS8Backfill
@@ -807,6 +823,17 @@ for (const entry of activeReplayEntries) {
   }
   if (replay.zoroarkInvolved) {
     reasons.push("Zoroark/Illusion detected; KO and move attribution needs review");
+  }
+  if (
+    seasonNumber >= 5 &&
+    seasonNumber <= 10 &&
+    [...(replay.p1Team || []), ...(replay.p2Team || [])].some((pokemon) =>
+      isMegaPokemonName(String(pokemon.name || ""))
+    )
+  ) {
+    reasons.push(
+      "Replay contains a Mega Pokemon; Seasons 5–10 use Paldea Dex + Tera and do not use Mega Evolution"
+    );
   }
   if (mappedRows.length < 12) {
     reasons.push(`Only ${mappedRows.length}/12 Pokemon rows mapped`);
