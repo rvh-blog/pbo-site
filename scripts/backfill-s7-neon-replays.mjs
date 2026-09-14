@@ -41,6 +41,12 @@ import {
   crystalS9SourceAliasHints,
   crystalS9SourceReviewHints,
 } from "./backfill-s9-crystal-replays-config.mjs";
+import {
+  sunsetS9ManualReviewMatchHints,
+  sunsetS9ReplayEntries,
+  sunsetS9SourceAliasHints,
+  sunsetS9SourceReviewHints,
+} from "./backfill-s9-sunset-replays-config.mjs";
 import { isMegaPokemonName } from "../src/lib/mega-stones.ts";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
@@ -55,6 +61,7 @@ const backfillDivision = String(process.env.BACKFILL_DIVISION || "neon")
 const isNeonS8Backfill = seasonNumber === 8 && backfillDivision === "neon";
 const isNeonS9Backfill = seasonNumber === 9 && backfillDivision === "neon";
 const isCrystalS9Backfill = seasonNumber === 9 && backfillDivision === "crystal";
+const isSunsetS9Backfill = seasonNumber === 9 && backfillDivision === "sunset";
 const isSunsetS8Backfill = seasonNumber === 8 && backfillDivision === "sunset";
 const isStargazerS8Backfill = seasonNumber === 8 && backfillDivision === "stargazer";
 const isSunsetBackfill = backfillDivision === "sunset";
@@ -247,10 +254,12 @@ const manualReviewMatchHints = new Map([
 
 const activeReplayEntries = isNeonS8Backfill
   ? neonS8ReplayEntries
-  : isNeonS9Backfill
-    ? neonS9ReplayEntries
+    : isNeonS9Backfill
+      ? neonS9ReplayEntries
     : isCrystalS9Backfill
       ? crystalS9ReplayEntries
+    : isSunsetS9Backfill
+      ? sunsetS9ReplayEntries
   : isSunsetS8Backfill
     ? sunsetS8ReplayEntries
     : isStargazerS8Backfill
@@ -262,10 +271,12 @@ const activeReplayEntries = isNeonS8Backfill
       : replayEntries;
 const activeSourceReviewHints = isNeonS8Backfill
   ? neonS8SourceReviewHints
-  : isNeonS9Backfill
-    ? neonS9SourceReviewHints
+    : isNeonS9Backfill
+      ? neonS9SourceReviewHints
     : isCrystalS9Backfill
       ? crystalS9SourceReviewHints
+    : isSunsetS9Backfill
+      ? sunsetS9SourceReviewHints
   : isSunsetS8Backfill
     ? sunsetS8SourceReviewHints
   : isStargazerS8Backfill
@@ -277,10 +288,12 @@ const activeSourceReviewHints = isNeonS8Backfill
       : sourceReviewHints;
 const activeSourceAliasHints = isNeonS8Backfill
   ? neonS8SourceAliasHints
-  : isNeonS9Backfill
-    ? neonS9SourceAliasHints
+    : isNeonS9Backfill
+      ? neonS9SourceAliasHints
     : isCrystalS9Backfill
       ? crystalS9SourceAliasHints
+    : isSunsetS9Backfill
+      ? sunsetS9SourceAliasHints
   : isSunsetS8Backfill
     ? sunsetS8SourceAliasHints
   : isStargazerS8Backfill
@@ -292,10 +305,12 @@ const activeSourceAliasHints = isNeonS8Backfill
       : new Map();
 const activeManualReviewMatchHints = isNeonS8Backfill
   ? neonS8ManualReviewMatchHints
-  : isNeonS9Backfill
-    ? neonS9ManualReviewMatchHints
+    : isNeonS9Backfill
+      ? neonS9ManualReviewMatchHints
     : isCrystalS9Backfill
       ? crystalS9ManualReviewMatchHints
+    : isSunsetS9Backfill
+      ? sunsetS9ManualReviewMatchHints
   : isSunsetS8Backfill
     ? sunsetS8ManualReviewMatchHints
   : isStargazerS8Backfill
@@ -320,6 +335,17 @@ function nameKey(value) {
     .replace(/^mimikyu(?:disguised|busted)$/, "mimikyu")
     .replace(/^urshifu(?:rapidstrike|singlestrike)$/, "urshifu")
     .replace(/^gourgeist(?:average|small|large|super)$/, "gourgeist");
+}
+
+function nameKeys(value) {
+  const key = nameKey(value);
+  if (!key) return [];
+
+  const keys = [key];
+  if (/^ogerpon(?:teal|wellspring|hearthflame|cornerstone)$/.test(key)) {
+    keys.push("ogerpon");
+  }
+  return keys;
 }
 
 async function tableExists(database, name) {
@@ -362,7 +388,7 @@ function rowKeys(row, accepted) {
     row.pokemon_display_name,
     ...(accepted.get(row.pokemon_id) || []),
   ]
-    .flatMap((value) => [nameKey(value)])
+    .flatMap(nameKeys)
     .filter(Boolean);
 }
 
@@ -370,11 +396,11 @@ function distinctMatch(replayTeam, rows, accepted) {
   const used = new Set();
   const matches = [];
   for (const pokemon of replayTeam || []) {
-    const replayKey = nameKey(pokemon.name);
+    const replayKeys = new Set(nameKeys(pokemon.name));
     const row = rows.find(
       (candidate) =>
         !used.has(candidate.id ?? `${candidate.season_coach_id}:${candidate.pokemon_id}`) &&
-        rowKeys(candidate, accepted).includes(replayKey)
+        rowKeys(candidate, accepted).some((key) => replayKeys.has(key))
     );
     if (row) {
       used.add(row.id ?? `${row.season_coach_id}:${row.pokemon_id}`);
