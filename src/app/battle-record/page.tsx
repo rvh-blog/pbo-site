@@ -306,7 +306,7 @@ async function getPokemonMoveRecords(): Promise<{
     if (
       !row.match?.season
       || !row.match.division
-      || row.match.season.seasonNumber < 9
+      || row.match.season.seasonNumber < 5
       || row.match.winnerId === null
       || row.match.isForfeit
       || (row.match.winnerId !== row.match.coach1SeasonId && row.match.winnerId !== row.match.coach2SeasonId)
@@ -1052,7 +1052,7 @@ const getCachedBattleRecords = unstable_cache(
 
 const getCachedPokemonMoveRecords = unstable_cache(
   getPokemonMoveRecords,
-  ["battle-record-pokemon-moves-v1"],
+  ["battle-record-pokemon-moves-v2"],
   { revalidate: 60, tags: ["battle-record-public-data"] },
 );
 

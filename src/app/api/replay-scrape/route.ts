@@ -9,6 +9,7 @@ import { isGuaranteedHaxOutcome } from "@/lib/hax-rules";
 import { buildStoredBattleEvents, type StoredBattleEvent } from "@/lib/replay-events";
 import { IllusionMoveAttributionTracker } from "@/lib/illusion-move-attribution";
 import { getMegaStoneName, isMegaPokemonName } from "@/lib/mega-stones";
+import { getOgerponMaskName } from "@/lib/ogerpon-masks";
 import type { FavorableEvent } from "@/lib/favorable-events";
 
 interface PokemonStats {
@@ -497,6 +498,13 @@ export async function POST(request: NextRequest) {
       pokemon.revealedItems.push({ item: megaStone, turn: currentTurn, source: "assumed from Mega Evolution" });
     };
 
+    const assumeOgerponMask = (pokemon: PokemonStats | null, species: string) => {
+      if (!pokemon) return;
+      const mask = getOgerponMaskName(species);
+      if (!mask || pokemon.revealedItems.some((entry) => entry.item.toLowerCase() === mask.toLowerCase())) return;
+      pokemon.revealedItems.push({ item: mask, turn: currentTurn, source: "assumed from Ogerpon form" });
+    };
+
     const getOpponentActiveRef = (player: "p1" | "p2"): PlayerRef | null => {
       const opponent = player === "p1" ? "p2" : "p1";
       const nickname = opponent === "p1" ? p1ActivePokemon : p2ActivePokemon;
@@ -582,7 +590,7 @@ export async function POST(request: NextRequest) {
       if (!preserveReplayMegaForms) return;
 
       const pokemonName = normalizeReplayPokemonName(pokemonInfo, { preserveMegaForm: true, aliasMaps });
-      if (!isMegaPokemonName(pokemonName)) return;
+      if (!isMegaPokemonName(pokemonName) && !getOgerponMaskName(pokemonName)) return;
 
       const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
       const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
@@ -599,6 +607,7 @@ export async function POST(request: NextRequest) {
 
       if (pokemon) {
         assumeMegaStone(pokemon, pokemonName);
+        assumeOgerponMask(pokemon, pokemonName);
         const oldHp = previousName ? hpPercentMap.get(`${parsed.player}:${previousName}`) : undefined;
         pokemon.name = pokemonName;
         nicknameMap.set(parsed.nickname, pokemonName);
@@ -694,6 +703,7 @@ export async function POST(request: NextRequest) {
           };
 
           assumeMegaStone(stats, pokemonName);
+          assumeOgerponMask(stats, pokemonName);
 
           if (player === "p1") {
             result.p1Team.push(stats);
@@ -730,6 +740,7 @@ export async function POST(request: NextRequest) {
             }
 
             assumeMegaStone(pokemon ?? null, pokemonName);
+            assumeOgerponMask(pokemon ?? null, pokemonName);
 
             const pivotMoveInfo =
               currentTurn > 0 &&

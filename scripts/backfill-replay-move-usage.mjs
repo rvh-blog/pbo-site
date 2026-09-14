@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-const MIN_SEASON = Number(process.env.MOVE_USAGE_MIN_SEASON || "9");
+const MIN_SEASON = Number(process.env.MOVE_USAGE_MIN_SEASON || "5");
 const TARGET_SEASON = process.env.MOVE_USAGE_SEASON
   ? Number(process.env.MOVE_USAGE_SEASON)
   : null;
@@ -134,11 +134,18 @@ const matches = db.prepare(`
     AND m.replay_url IS NOT NULL
     AND m.replay_url != ''
     AND ${seasonFilter}
-    AND (${includeAlreadyTracked ? "1 = 1" : `EXISTS (
-      SELECT 1
-      FROM match_pokemon pending
-      WHERE pending.match_id = m.id
-        AND pending.moves_used IS NULL
+    AND (${includeAlreadyTracked ? "1 = 1" : `(
+      NOT EXISTS (
+        SELECT 1
+        FROM match_pokemon existing
+        WHERE existing.match_id = m.id
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM match_pokemon pending
+        WHERE pending.match_id = m.id
+          AND pending.moves_used IS NULL
+      )
     )`})
   ORDER BY m.id
 `).all(seasonValue);
@@ -152,6 +159,16 @@ const rowsByMatch = db.prepare(`
 `);
 
 const updateMoveUsage = db.prepare("UPDATE match_pokemon SET moves_used = ? WHERE id = ?");
+const flagMatchReview = db.prepare(`
+  UPDATE matches
+  SET needs_review = 1,
+      review_notes = CASE
+        WHEN review_notes IS NULL OR TRIM(review_notes) = '' THEN ?
+        WHEN instr(review_notes, ?) > 0 THEN review_notes
+        ELSE review_notes || '; ' || ?
+      END
+  WHERE id = ?
+`);
 let processed = 0;
 let updated = 0;
 let unchanged = 0;
@@ -160,11 +177,19 @@ let unmatched = 0;
 
 for (const match of matches) {
   try {
+    const matchRows = rowsByMatch.all(match.id);
+    if (matchRows.length === 0) {
+      const note = "Move usage backfill: completed replay has no match Pokemon rows";
+      if (!dryRun) flagMatchReview.run(note, note, note, match.id);
+      console.warn(`REVIEW match ${match.id}: ${note}`);
+      processed++;
+      continue;
+    }
+
     const replay = await scrapeReplay(match.replay_url);
     if (onlyZoroarkReplays && !replay.zoroarkInvolved) continue;
     const p1Team = Array.isArray(replay.p1Team) ? replay.p1Team : [];
     const p2Team = Array.isArray(replay.p2Team) ? replay.p2Team : [];
-    const matchRows = rowsByMatch.all(match.id);
     const coach1Rows = matchRows.filter((row) => row.season_coach_id === match.coach1_season_id);
     const coach2Rows = matchRows.filter((row) => row.season_coach_id === match.coach2_season_id);
     const p1IsCoach1 = teamScore(p1Team, coach1Rows) + teamScore(p2Team, coach2Rows)
@@ -175,10 +200,12 @@ for (const match of matches) {
     ]);
 
     const updateRows = [];
+    const unmatchedNames = [];
     for (const row of matchRows) {
       const replayPokemon = findTeamMatch(teamBySeasonCoach.get(row.season_coach_id) || [], row);
       if (!replayPokemon) {
         unmatched++;
+        unmatchedNames.push(row.pokemon_display_name || row.pokemon_name);
         console.warn(
           `UNMATCHED match ${match.id}: ${row.pokemon_display_name || row.pokemon_name}`
         );
@@ -186,7 +213,10 @@ for (const match of matches) {
       }
       // An empty object means the Pokemon was selected but never recorded a move.
       const movesUsed = normalizedMoveMap(replayPokemon.movesUsed || {});
-      if (moveMapsEqual(row.moves_used, movesUsed)) {
+      // Preserve NULL as a distinct state from an explicitly parsed Pokemon
+      // that never issued a move. This lets the backfill mark every matched
+      // roster row as processed, including unused bench Pokemon.
+      if (row.moves_used !== null && moveMapsEqual(row.moves_used, movesUsed)) {
         unchanged++;
         continue;
       }
@@ -205,6 +235,10 @@ for (const match of matches) {
         }
       });
       transaction(updateRows);
+      if (unmatchedNames.length > 0) {
+        const note = `Move usage backfill: ${unmatchedNames.length} Pokemon row(s) could not be matched to the replay team (${unmatchedNames.join(", ")})`;
+        flagMatchReview.run(note, note, note, match.id);
+      }
     }
 
     processed++;

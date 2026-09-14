@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { battleEvents, matches } from "@/lib/schema";
 import type { ExperimentalStatsDataset } from "@/app/experimental-stats/experimental-stats-client";
 import { createExperimentalDemoDataset } from "@/lib/experimental-stats-demo";
-import { inferMegaItemForRosterPokemon } from "@/lib/mega-item-inference";
+import { inferRequiredItemForRosterPokemon } from "@/lib/mega-item-inference";
 
 export type ExperimentalModuleSlug = "pokemon" | "coaches" | "compare" | "insights" | "trends" | "leaderboards" | "replays" | "battle-visualizer" | "rare-events" | "signature-stats" | "team-stats" | "top-plays" | "visuals" | "glossary";
 
@@ -361,18 +361,18 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
       const events = includeKeyEvents ? parseJsonArray<KeyEvent>(keyEventsJson) : [];
       const winEvent = events.find((event) => event.type === "win");
       const winnerIsCoach1 = match.winnerId === match.coach1.id;
-      const derivedMegaReviewNotes = match.matchPokemon.flatMap((entry) => {
+      const derivedItemReviewNotes = match.matchPokemon.flatMap((entry) => {
         if (!entry.pokemon) return [];
-        const inference = inferMegaItemForRosterPokemon({
+        const inference = inferRequiredItemForRosterPokemon({
           pokemonId: entry.pokemonId,
           name: entry.pokemon.name,
           displayName: entry.pokemon.displayName,
         }, entry.revealedItems ?? []);
-        return inference.conflict ? [inference.conflict] : [];
+        return inference.conflict ? [`${inference.itemKind} check: ${inference.conflict}`] : [];
       });
       const mergedReviewNotes = [
         match.reviewNotes?.trim() || "",
-        ...derivedMegaReviewNotes,
+        ...derivedItemReviewNotes,
       ].filter(Boolean).filter((note, index, notes) => notes.indexOf(note) === index).join("\n");
       return {
         id: match.id,
@@ -386,7 +386,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         playedAt: match.playedAt,
         replayUrl: match.replayUrl ?? "",
         zoroarkInvolved: Boolean(match.zoroarkInvolved),
-        needsReview: Boolean(match.needsReview) || derivedMegaReviewNotes.length > 0,
+        needsReview: Boolean(match.needsReview) || derivedItemReviewNotes.length > 0,
         reviewNotes: mergedReviewNotes || null,
         p1IsCoach1: winEvent?.player ? (winEvent.player === "p1") === winnerIsCoach1 : null,
         totalTurns: parsedSnapshots.length
@@ -439,7 +439,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         coach2: { seasonCoachId: match.coach2.id, coachId: match.coach2.coachId, coachName: match.coach2.coach?.name ?? "Unknown Coach", teamName: match.coach2.teamName, isActive: Boolean(match.coach2.isActive), replacedById: match.coach2.replacedById ?? null },
         pokemon: match.matchPokemon.flatMap((entry) => entry.pokemon ? (() => {
           const storedReveals = entry.revealedItems ?? [];
-          const megaInference = inferMegaItemForRosterPokemon({
+          const itemInference = inferRequiredItemForRosterPokemon({
             pokemonId: entry.pokemonId,
             name: entry.pokemon.name,
             displayName: entry.pokemon.displayName,
@@ -471,9 +471,9 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
           hpRestored: entry.hpRestored,
           movesUsed: entry.movesUsed ?? {},
           moveDataRecorded: entry.movesUsed !== null,
-          revealedItems: megaInference.revealedItems,
-          itemDataRecorded: entry.revealedItems !== null || megaInference.assumed,
-          itemDataInferred: megaInference.assumed,
+          revealedItems: itemInference.revealedItems,
+          itemDataRecorded: entry.revealedItems !== null || itemInference.assumed,
+          itemDataInferred: itemInference.assumed,
           }];
         })() : []),
       };

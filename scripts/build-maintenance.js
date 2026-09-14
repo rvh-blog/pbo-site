@@ -8,6 +8,7 @@ const entries = [
   "scripts/backup-production-db.mjs",
   "scripts/backfill-season11-hax.mjs",
   "scripts/backfill-mega-items.mjs",
+  "scripts/backfill-ogerpon-masks.mjs",
   "scripts/backfill-s7-neon-replays.mjs",
   "scripts/backfill-s7-sunset-replays.mjs",
   "scripts/backfill-s7-stargazer-replays.mjs",

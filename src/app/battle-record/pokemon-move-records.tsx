@@ -172,7 +172,7 @@ export function PokemonMoveRecords({
   return (
     <div>
       <div className="border-b-2 border-[var(--background-tertiary)] px-4 py-3 text-center text-base font-bold text-[var(--foreground-muted)] sm:px-6">
-        Actual move commands from completed, non-forfeit matches played in Season 9 and onward.
+        Actual move commands from completed, non-forfeit matches played in Season 5 and onward.
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b-2 border-[var(--background-tertiary)] px-4 py-3 sm:px-6">

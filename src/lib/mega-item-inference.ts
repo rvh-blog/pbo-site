@@ -1,5 +1,6 @@
 import { isTransferredItemReveal, isKnockedOffBerryReveal } from "@/lib/revealed-items";
 import { getMegaStoneName, isMegaPokemonName } from "@/lib/mega-stones";
+import { getOgerponMaskName } from "@/lib/ogerpon-masks";
 
 export type MegaItemReveal = {
   item: string;
@@ -26,6 +27,14 @@ export type MegaItemDataRow = {
   revealedItems?: MegaItemReveal[] | null;
 };
 
+export type RequiredItemInference = {
+  expectedItem: string | null;
+  itemKind: "Mega Stone" | "Ogerpon Mask" | null;
+  revealedItems: MegaItemReveal[];
+  assumed: boolean;
+  conflict: string | null;
+};
+
 /**
  * Sources beginning with "assumed" are derived evidence, not a replay item
  * reveal. They must not be treated as proof that a held item was observed.
@@ -42,14 +51,14 @@ function isCountableExplicitReveal(reveal: MegaItemReveal) {
 }
 
 /**
- * Infer the stone for a Mega row that was actually mapped to a historical
- * roster entry. Explicit replay evidence always wins; a contradictory item
- * is preserved and returned as a review conflict rather than overwritten.
+ * Infer a required held item for a row that was mapped to a historical roster
+ * entry. Explicit replay evidence always wins; a contradictory item is
+ * preserved and returned as a review conflict rather than overwritten.
  */
-export function inferMegaItemForRosterPokemon(
+export function inferRequiredItemForRosterPokemon(
   rosterPokemon: MegaRosterPokemon | null | undefined,
   storedReveals: MegaItemReveal[] | null | undefined,
-): MegaItemInference {
+): RequiredItemInference {
   const species = rosterPokemon?.displayName || rosterPokemon?.name || "";
   const revealedItems = [...(storedReveals ?? [])];
   // A parser may have observed the actual Mega evolution while the roster
@@ -58,12 +67,14 @@ export function inferMegaItemForRosterPokemon(
   const parserAssumedStone = revealedItems.find(
     (reveal) => isAssumedItemReveal(reveal.source) && /mega/i.test(reveal.source),
   )?.item ?? null;
-  const expectedStone = isMegaPokemonName(species) ? getMegaStoneName(species) : parserAssumedStone;
-  if (!expectedStone) {
-    return { expectedStone: null, revealedItems, assumed: false, conflict: null };
+  const expectedMask = getOgerponMaskName(species);
+  const expectedItem = expectedMask || (isMegaPokemonName(species) ? getMegaStoneName(species) : parserAssumedStone);
+  const itemKind = expectedMask ? "Ogerpon Mask" : expectedItem ? "Mega Stone" : null;
+  if (!expectedItem) {
+    return { expectedItem: null, itemKind: null, revealedItems, assumed: false, conflict: null };
   }
 
-  const expectedKey = expectedStone.toLowerCase();
+  const expectedKey = expectedItem.toLowerCase();
   const explicitReveals = revealedItems.filter(isCountableExplicitReveal);
   const assumedConflicts = revealedItems
     .filter((reveal) => isAssumedItemReveal(reveal.source))
@@ -74,30 +85,49 @@ export function inferMegaItemForRosterPokemon(
       .filter((item) => item.toLowerCase() !== expectedKey),
   )];
 
-  const hasExpectedStone = revealedItems.some(
+  const hasExpectedItem = revealedItems.some(
     (reveal) => reveal.item.trim().toLowerCase() === expectedKey,
   );
   let assumed = false;
-  if (!hasExpectedStone && conflictingItems.length === 0) {
+  if (!hasExpectedItem && conflictingItems.length === 0) {
     revealedItems.push({
-      item: expectedStone,
+      item: expectedItem,
       turn: 0,
-      source: "assumed from team roster",
+      source: itemKind === "Ogerpon Mask" ? "assumed from Ogerpon form" : "assumed from team roster",
     });
     assumed = true;
   }
 
   return {
-    expectedStone,
+    expectedItem,
+    itemKind,
     revealedItems,
     assumed,
     conflict: conflictingItems.length > 0
-      ? `${species} is rostered as a Mega and should hold ${expectedStone}, but the replay recorded ${conflictingItems.join(", ")}.`
+      ? `${species} should hold ${expectedItem}, but the replay recorded ${conflictingItems.join(", ")}.`
       : null,
   };
 }
 
-/** Apply the same inference to every saved replay row for a match. */
+/** Preserve the legacy Mega-only API for maintenance callers. */
+export function inferMegaItemForRosterPokemon(
+  rosterPokemon: MegaRosterPokemon | null | undefined,
+  storedReveals: MegaItemReveal[] | null | undefined,
+): MegaItemInference {
+  if (getOgerponMaskName(rosterPokemon?.displayName || rosterPokemon?.name || "")) {
+    return { expectedStone: null, revealedItems: [...(storedReveals ?? [])], assumed: false, conflict: null };
+  }
+
+  const inference = inferRequiredItemForRosterPokemon(rosterPokemon, storedReveals);
+  return {
+    expectedStone: inference.itemKind === "Mega Stone" ? inference.expectedItem : null,
+    revealedItems: inference.revealedItems,
+    assumed: inference.itemKind === "Mega Stone" && inference.assumed,
+    conflict: inference.itemKind === "Mega Stone" ? inference.conflict : null,
+  };
+}
+
+/** Apply Mega-stone and Ogerpon-mask inference to every saved replay row. */
 export function applyMegaItemInferenceToPokemonData<T extends MegaItemDataRow>(
   rows: T[],
   rostersByTeam: Map<number, Map<number, MegaRosterPokemon>>,
@@ -105,9 +135,9 @@ export function applyMegaItemInferenceToPokemonData<T extends MegaItemDataRow>(
   const reviewNotes: string[] = [];
   const pokemonData = rows.map((row) => {
     const rosterPokemon = rostersByTeam.get(row.seasonCoachId)?.get(row.pokemonId);
-    const inference = inferMegaItemForRosterPokemon(rosterPokemon, row.revealedItems);
+    const inference = inferRequiredItemForRosterPokemon(rosterPokemon, row.revealedItems);
     if (inference.conflict) {
-      reviewNotes.push(`Mega item check (team ${row.seasonCoachId}, Pokémon ${row.pokemonId}): ${inference.conflict}`);
+      reviewNotes.push(`${inference.itemKind || "Required item"} check (team ${row.seasonCoachId}, Pokémon ${row.pokemonId}): ${inference.conflict}`);
     }
     return { ...row, revealedItems: inference.revealedItems } as T;
   });

@@ -49,7 +49,7 @@ const getCachedMoveSourceRows = unstable_cache(
       isNotNull(matchPokemon.movesUsed),
     ),
   }),
-  ["battle-record-move-source-rows-v1"],
+  ["battle-record-move-source-rows-v2"],
   { revalidate: 60, tags: ["battle-record-public-data"] },
 );
 
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
       !row.movesUsed
       || !match?.season
       || !match.division
-      || match.season.seasonNumber < 9
+      || match.season.seasonNumber < 5
       || match.winnerId === null
       || match.isForfeit
       || (match.winnerId !== match.coach1SeasonId && match.winnerId !== match.coach2SeasonId)
