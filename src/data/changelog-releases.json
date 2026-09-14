@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-13-guarded-historical-backfill",
+    "title": "Guarded Historical Backfill Writes",
+    "summary": "Historical replay statistics now require an explicit production write gate before maintenance data changes.",
+    "publishedAt": "2026-09-13",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "The historical Move Usage maintenance command now enforces the same backup-confirmed production write guard as the Ogerpon mask repair."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-13-historical-backfill-maintenance-bundle",
     "title": "Historical Backfill Maintenance",
     "summary": "The production maintenance bundle now includes the historical replay move-usage repair command.",
