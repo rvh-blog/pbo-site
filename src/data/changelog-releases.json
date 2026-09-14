@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-09-14-stargazer-s9-replay-backfill",
+    "title": "Stargazer Season 9 Replay Backfill",
+    "summary": "Supplied Stargazer Season 9 replay history is ready to populate replay-derived statistics with review safeguards.",
+    "publishedAt": "2026-09-14",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added 52 Stargazer Season 9 regular-season and playoff replay entries for move usage, item evidence, Experimental Stats context, normalized battle events, and replay-linked kill events."
+      },
+      {
+        "type": "improved",
+        "text": "Source aliases, late-posted fixture context, parser conflicts, incomplete mappings, missing replay evidence, and official-stat disagreements are surfaced for manual review while official results remain unchanged."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-14-sunset-s9-replay-backfill",
     "title": "Sunset Season 9 Replay Backfill",
     "summary": "Supplied Sunset Season 9 replay history is ready to populate the complete replay-derived statistics record with review safeguards.",
