@@ -75,6 +75,10 @@ interpretation for Seasons 5–10 and Season 11 Weeks 1–5. They are intentiona
 not invoked by `start.sh`, so a machine restart cannot repeat a historical
 write unexpectedly.
 
+Historical Seasons 5-10 use the Paldea Dex Draft ruleset with Tera enabled.
+Their replay backfills may record Tera-related battle evidence, but Mega
+Pokemon and Mega-item inference is reserved for Season 11 only.
+
 ## Neon Season 7 Replay Backfill
 
 The Neon Season 7 maintenance command restores the supplied historical replay
@@ -157,6 +161,29 @@ The dry run should be reviewed before the explicit apply command. The command
 flags the Custom Game and Balanced Hackmons evidence, historical player aliases,
 parser conflicts, Illusion attribution, missing replay evidence, and Neon S8
 force-win records through `matches.needs_review` and `matches.review_notes`.
+
+## Sunset Season 8 Replay Backfill
+
+The application deployment includes the guarded Sunset S8 replay command. It
+restores the supplied historical replay URLs and updates replay-derived match
+Pokemon fields, move usage, revealed items, Experimental Stats event context,
+normalized battle events, and replay-linked kill events. It preserves official
+winners and differentials. Sunset S8 uses the Seasons 5-10 Paldea Dex Draft
+ruleset with Tera enabled. Do not infer or backfill Mega Pokemon or Mega items
+for it.
+
+After deploying the code, use a quiet-window, backup-first run:
+
+```bash
+fly ssh console -C "node /app/dist/maintenance/backup-production-db.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s8-sunset-replays.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=SUNSET_S8 BACKFILL_BACKUP_CONFIRMED=1 REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s8-sunset-replays.mjs --apply"
+```
+
+The dry run should be reviewed before the explicit apply command. The command
+flags historical source-name aliases, parser conflicts, missing replay
+evidence, force-win records, and any roster or differential mismatches through
+`matches.needs_review` and `matches.review_notes`.
 
 ## Inspect Local DB
 

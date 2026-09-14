@@ -17,6 +17,12 @@ import {
   neonS8SourceAliasHints,
   neonS8SourceReviewHints,
 } from "./backfill-s8-neon-replays-config.mjs";
+import {
+  sunsetS8ManualReviewMatchHints,
+  sunsetS8ReplayEntries,
+  sunsetS8SourceAliasHints,
+  sunsetS8SourceReviewHints,
+} from "./backfill-s8-sunset-replays-config.mjs";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "pbo.db";
 const SCRAPE_URL =
@@ -28,6 +34,7 @@ const backfillDivision = String(process.env.BACKFILL_DIVISION || "neon")
   .trim()
   .toLowerCase();
 const isNeonS8Backfill = seasonNumber === 8 && backfillDivision === "neon";
+const isSunsetS8Backfill = seasonNumber === 8 && backfillDivision === "sunset";
 const isSunsetBackfill = backfillDivision === "sunset";
 const isStargazerBackfill = backfillDivision === "stargazer";
 const backfillDivisionName = backfillDivision;
@@ -47,6 +54,7 @@ if (apply) {
 
 const ALLOWED_FORMATS = new Set([
   "[Gen 9] Draft",
+  // Seasons 5-10 used the Paldea Dex Draft ruleset with Tera enabled.
   "[Gen 9] Tera Preview Draft",
   "[Gen 9] Paldea Dex Draft",
 ]);
@@ -215,6 +223,8 @@ const manualReviewMatchHints = new Map([
 
 const activeReplayEntries = isNeonS8Backfill
   ? neonS8ReplayEntries
+  : isSunsetS8Backfill
+    ? sunsetS8ReplayEntries
   : isSunsetBackfill
     ? sunsetReplayEntries
     : isStargazerBackfill
@@ -222,6 +232,8 @@ const activeReplayEntries = isNeonS8Backfill
       : replayEntries;
 const activeSourceReviewHints = isNeonS8Backfill
   ? neonS8SourceReviewHints
+  : isSunsetS8Backfill
+    ? sunsetS8SourceReviewHints
   : isSunsetBackfill
     ? sunsetSourceReviewHints
     : isStargazerBackfill
@@ -229,6 +241,8 @@ const activeSourceReviewHints = isNeonS8Backfill
       : sourceReviewHints;
 const activeSourceAliasHints = isNeonS8Backfill
   ? neonS8SourceAliasHints
+  : isSunsetS8Backfill
+    ? sunsetS8SourceAliasHints
   : isSunsetBackfill
     ? sunsetSourceAliasHints
     : isStargazerBackfill
@@ -236,6 +250,8 @@ const activeSourceAliasHints = isNeonS8Backfill
       : new Map();
 const activeManualReviewMatchHints = isNeonS8Backfill
   ? neonS8ManualReviewMatchHints
+  : isSunsetS8Backfill
+    ? sunsetS8ManualReviewMatchHints
   : isSunsetBackfill
     ? sunsetManualReviewMatchHints
     : isStargazerBackfill
