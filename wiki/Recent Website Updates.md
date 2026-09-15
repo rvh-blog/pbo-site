@@ -1,5 +1,16 @@
 # Recent Website Updates
 
+## September 15, 2026 - Season 10 Replay Backfill Fix
+
+- Added a guarded Season 10 replay maintenance mode that discovers the replay
+  URLs already attached to canonical match rows and targets each one by exact
+  match id.
+- Reprocessing a replay now restores Experimental Stats fields, normalized
+  battle events, replay-linked kill events, move usage, and item evidence while
+  preserving official results, differentials, and the recorded PBO K/D ledger.
+- Parser conflicts, incomplete mappings, official-stat disagreements, and
+  missing replay evidence continue to be surfaced for manual review.
+
 ## September 12, 2026 - Experimental Stats Sorting and Protocol Analytics
 
 - Coach Profiles now has sortable report columns for coach, replay matches, win

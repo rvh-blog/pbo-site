@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-09-15-season10-replay-backfill-fix",
+    "title": "Season 10 Replay Backfill Fix",
+    "summary": "Season 10 replay evidence now feeds the complete Experimental Stats and battle-event pipeline.",
+    "publishedAt": "2026-09-15",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Added a guarded Season 10 maintenance mode that reprocesses each canonical replay URL by exact match id, restoring Experimental Stats fields, normalized battle events, replay-linked kill events, and synchronized move/item evidence without changing official results or the recorded PBO K/D ledger."
+      },
+      {
+        "type": "improved",
+        "text": "Season 10 replay conflicts, incomplete mappings, parser disagreements, and missing replay evidence remain visible through the existing manual-review workflow."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-14-automatic-backup-retention",
     "title": "Automatic Backup Retention",
     "summary": "Production database backups now keep a verified local recovery window without allowing historical copies to fill the storage volume.",
