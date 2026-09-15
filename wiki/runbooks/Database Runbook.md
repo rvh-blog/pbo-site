@@ -36,7 +36,12 @@ sqlite3 pbo.db "PRAGMA wal_checkpoint(TRUNCATE);" && fly machine start $(fly mac
 - Always checkpoint WAL before upload.
 - Upload removes remote DB files before upload.
 - Do not upload while admins or integrations may be writing.
-- Keep timestamped backups in `backups/`.
+- Keep timestamped backups in `backups/`. The production backup command keeps
+  the three newest verified `season11-backfill-*` directories and removes only
+  older local copies after the new database file passes size verification.
+- Set `BACKUP_RETENTION_COUNT` to a different positive count when a maintenance
+  window needs a longer local recovery history. Backups outside the generated
+  `season11-backfill-*` naming pattern are never pruned automatically.
 - Do not commit DB files or backups.
 
 ## Season 11 Replay Backfill
@@ -51,8 +56,10 @@ fly ssh console -C "env DATABASE_PATH=/data/pbo.db node /app/dist/maintenance/ba
 fly ssh console -C "env DATABASE_PATH=/data/pbo.db node /app/dist/maintenance/backfill-mega-items.mjs --season=11"
 ```
 
-The first command checkpoints WAL and creates a timestamped backup under
-`/data/backups`. The latter two are dry-run previews. Only after reviewing
+The first command checkpoints WAL, creates a timestamped backup under
+`/data/backups`, verifies the copied database, and prunes older generated local
+backups according to the retention policy above. The latter two are dry-run
+previews. Only after reviewing
 their counts during a quiet window should they be rerun with the explicit
 write flags and confirmation gate:
 
