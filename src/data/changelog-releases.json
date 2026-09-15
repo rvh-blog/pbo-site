@@ -1,5 +1,29 @@
 [
   {
+    "sourceKey": "2026-09-15-experimental-stats-replay-impact-home-layout",
+    "title": "Experimental Stats Replay Impact & Homepage Layout",
+    "summary": "Experimental Stats adds replay-backed probability, play impact, and usage context while the homepage uses a compact side-by-side battle layout.",
+    "publishedAt": "2026-09-15",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added replay-backed win probability, turn-level win probability added key plays, expected-versus-actual results, clutch/comeback context, and a searchable play-by-play center to the Experimental Stats Battle Visualizer."
+      },
+      {
+        "type": "added",
+        "text": "Compare now shows global usage, roster-eligible team usage, coverage counts, and most-used move context under the shared replay filters."
+      },
+      {
+        "type": "improved",
+        "text": "Synced Experimental Stats module descriptions, report navigation, glossary definitions and links, timeline labels, and server-side evidence loading for the new reports."
+      },
+      {
+        "type": "improved",
+        "text": "The homepage Battle Log and Upcoming Battles now share a side-by-side desktop row, with Upcoming Battles moved near the top of the page."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-15-mega-floette-replay-stat-fix",
     "title": "Mega Floette Replay Stat Fix",
     "summary": "Champions NatDex replay parsing now keeps Mega Floette statistics attached through form changes.",

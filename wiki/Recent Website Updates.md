@@ -1,5 +1,23 @@
 # Recent Website Updates
 
+## September 15, 2026 - Experimental Stats Replay Impact & Homepage Layout
+
+- Added replay-backed win probability to the Experimental Stats Battle
+  Visualizer using saved team HP snapshots. The report now also surfaces
+  turn-level win probability added (WPA) swings, key-play highlights,
+  expected-versus-recorded outcomes, and clutch/comeback context.
+- Added a searchable play-by-play center for normalized Showdown events with
+  event type, turn, actor, target, details, and raw-source traceability.
+- Compare now shows global usage and roster-eligible team usage with their
+  denominators, coverage, and most-used move context under the shared filters.
+- Synced Experimental Stats module descriptions, report navigation, glossary
+  definitions and links, timeline labels, and server-side evidence loading.
+- The homepage Battle Log and Upcoming Battles now sit side by side on desktop,
+  with the row moved near the top so both wide sections read more compactly.
+
+Verification: TypeScript, targeted ESLint, diff checks, and the production
+build pass. No matchup preview was added.
+
 ## September 15, 2026 - Mega Floette Replay Stat Fix
 
 - Fixed live replay parsing for Champions NatDex Mega Floette matches where

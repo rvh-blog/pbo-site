@@ -60,8 +60,11 @@ See also:
   browser reports, CSV exports, and the coverage glossary; advanced profile
   metrics expose covered-sample qualification and direct glossary links, Top
   Plays supports expandable one-record-per-match rankings with links to saved
-  Battle Visualizer turns, and glossary search covers both metrics and visuals;
-  protected by the admin Experimental Stats feature toggle)
+  Battle Visualizer turns, Compare exposes global and roster-eligible team
+  usage, and the Battle Visualizer includes replay-backed win probability,
+  WPA/key-play highlights, expected-versus-recorded outcomes, clutch/comeback
+  context, and a searchable play-by-play center; glossary search covers both
+  metrics and visuals; protected by the admin Experimental Stats feature toggle)
 - Normalized replay events: `src/lib/replay-events.ts`,
   `src/lib/battle-event-storage.ts`, `migrations/add-battle-events.sql`, and
   `scripts/backfill-battle-events.ts`; preserves every Showdown protocol line

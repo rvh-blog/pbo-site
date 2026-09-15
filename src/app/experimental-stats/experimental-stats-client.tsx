@@ -18,7 +18,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer as RechartsResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer as RechartsResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { HpChart } from "@/components/hp-chart";
 import { experimentalMetricGroups, experimentalVisualDefinitions } from "@/lib/experimental-stats";
 import { getDistinctHeldItemNames, isTransferredItemReveal } from "@/lib/revealed-items";
@@ -424,6 +424,75 @@ function aggregateEntities(appearances: EnrichedAppearance[], entity: "pokemon" 
   });
 }
 
+type PokemonUsageSummary = {
+  globalUsageMatches: number;
+  scopeMatches: number;
+  globalUsageRate: number;
+  teamUsageUsed: number;
+  teamUsageEligible: number;
+  teamUsageRate: number | null;
+};
+
+function buildPokemonUsageSummaries(
+  matches: ExperimentalMatch[],
+  rosterEligibility: NonNullable<ExperimentalStatsDataset["rosterEligibility"]>,
+) {
+  const matchIdsByPokemon = new Map<number, Set<number>>();
+  matches.forEach((match) => {
+    new Set(match.pokemon.map((appearance) => appearance.pokemonId)).forEach((pokemonId) => {
+      const matchIds = matchIdsByPokemon.get(pokemonId) ?? new Set<number>();
+      matchIds.add(match.id);
+      matchIdsByPokemon.set(pokemonId, matchIds);
+    });
+  });
+
+  const rosterWindowsByTeam = new Map<number, NonNullable<ExperimentalStatsDataset["rosterEligibility"]>>();
+  rosterEligibility.forEach((window) => {
+    const windows = rosterWindowsByTeam.get(window.seasonCoachId) ?? [];
+    windows.push(window);
+    rosterWindowsByTeam.set(window.seasonCoachId, windows);
+  });
+
+  const teamUsageByPokemon = new Map<number, { used: number; eligible: number }>();
+  matches.forEach((match) => {
+    [match.coach1, match.coach2].forEach((team) => {
+      const eligiblePokemonIds = new Set(
+        rosterWindowsByTeam.get(team.seasonCoachId)
+          ?.filter((window) => window.seasonId === match.seasonId
+            && match.week >= window.startWeek
+            && (window.endWeek === null || match.week < window.endWeek))
+          .map((window) => window.pokemonId),
+      );
+      if (!eligiblePokemonIds.size) return;
+      const usedPokemonIds = new Set(
+        match.pokemon
+          .filter((appearance) => appearance.seasonCoachId === team.seasonCoachId)
+          .map((appearance) => appearance.pokemonId),
+      );
+      eligiblePokemonIds.forEach((pokemonId) => {
+        const stats = teamUsageByPokemon.get(pokemonId) ?? { used: 0, eligible: 0 };
+        stats.eligible += 1;
+        if (usedPokemonIds.has(pokemonId)) stats.used += 1;
+        teamUsageByPokemon.set(pokemonId, stats);
+      });
+    });
+  });
+
+  return new Map<number, PokemonUsageSummary>(
+    [...matchIdsByPokemon.entries()].map(([pokemonId, matchIds]) => {
+      const teamUsage = teamUsageByPokemon.get(pokemonId);
+      return [pokemonId, {
+        globalUsageMatches: matchIds.size,
+        scopeMatches: matches.length,
+        globalUsageRate: rate(matchIds.size, matches.length) * 100,
+        teamUsageUsed: teamUsage?.used ?? 0,
+        teamUsageEligible: teamUsage?.eligible ?? 0,
+        teamUsageRate: teamUsage?.eligible ? rate(teamUsage.used, teamUsage.eligible) * 100 : null,
+      }];
+    }),
+  );
+}
+
 function percentile(value: number, values: number[]) {
   if (!values.length) return 0;
   return Math.round((values.filter((candidate) => candidate <= value).length / values.length) * 100);
@@ -772,11 +841,11 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           {module === "pokemon" && activePokemon ? <PokemonUsageReport rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} matches={filteredMatches} rosterEligibility={dataset.rosterEligibility ?? []} onSelect={setProfilePokemonId} /> : null}
           {module === "pokemon" && <PokemonProfiles rows={pokemonRows} active={activePokemon} appearances={activePokemonAppearances} qualificationText={qualificationText} minimumAppearances={deferredFilters.minimumAppearances} onSelect={setProfilePokemonId} />}
           {module === "coaches" && <CoachProfiles rows={coachRows} appearances={filteredAppearances} matches={coachReportMatches} seasonTeams={dataset.seasonTeams ?? []} />}
-          {module === "compare" && <CompareModule rows={pokemonRows} appearances={filteredAppearances} compareA={compareA} compareB={compareB} setCompareA={setCompareA} setCompareB={setCompareB} />}
+          {module === "compare" && <CompareModule rows={pokemonRows} appearances={filteredAppearances} matches={filteredMatches} rosterEligibility={dataset.rosterEligibility ?? []} compareA={compareA} compareB={compareB} setCompareA={setCompareA} setCompareB={setCompareB} />}
           {module === "rolling" && <ExpandedRollingModule pokemon={activePokemon} appearances={activePokemonAppearances} rows={pokemonRows} onSelect={setProfilePokemonId} />}
           {module === "leaderboard" && <PresetLeaderboardModule rows={leaderboardEntity === "pokemon" ? pokemonRows : coachRows} entity={leaderboardEntity} setEntity={setLeaderboardEntity} perAppearance={leaderboardRate} setPerAppearance={setLeaderboardRate} minimumAppearances={deferredFilters.minimumAppearances} matches={filteredMatches} appearances={filteredAppearances} />}
           {module === "replays" && <ReplaySearchModule matches={filteredMatches} />}
-          {module === "visualizer" && <><div className="space-y-2"><BattleVisualizer matches={filteredMatches} selectedId={visualMatchId} onSelect={selectVisualMatch} /><div className="poke-card px-4 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Timeline axes: Turn / turn range of first reveal · Item reveals / team HP remaining (%)</div></div><EventAnalytics matches={filteredMatches} selectedId={visualMatchId} /></>}
+          {module === "visualizer" && <><div className="space-y-2"><BattleVisualizer matches={filteredMatches} selectedId={visualMatchId} onSelect={selectVisualMatch} /><div className="poke-card px-4 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Timeline axes: Turn / saved turn snapshots · Probability / win % · Item reveals / team HP remaining (%)</div></div><EventAnalytics matches={filteredMatches} selectedId={visualMatchId} /></>}
           {module === "rare" && <><RareEventsModule matches={filteredMatches} appearances={filteredAppearances} /><EventRareRecords matches={filteredMatches} /></>}
           {module === "signature-stats" && <SignatureStatsReport appearances={filteredAppearances} minimumAppearances={deferredFilters.minimumAppearances} />}
           {module === "team-stats" && <TeamStatsReport matches={filteredMatches} selectedTeamIds={selectedTeamIds} seasonTeams={dataset.seasonTeams ?? []} />}
@@ -807,6 +876,7 @@ function PokemonUsageReport({ rows, active, appearances, matches, rosterEligibil
   const [usageSort, setUsageSort] = useState<PokemonUsageSortKey>(rosterEligibility.length ? "teamUsage" : "globalUsage");
   const [usageSortDirection, setUsageSortDirection] = useState<"asc" | "desc">("desc");
   const matchesById = new Map(matches.map((match) => [match.id, match]));
+  const usageSummaries = buildPokemonUsageSummaries(matches, rosterEligibility);
   const matchIdsByPokemon = new Map<number, Set<number>>();
   matches.forEach((match) => {
     new Set(match.pokemon.map((appearance) => appearance.pokemonId)).forEach((pokemonId) => {
@@ -815,37 +885,17 @@ function PokemonUsageReport({ rows, active, appearances, matches, rosterEligibil
       matchIdsByPokemon.set(pokemonId, matchIds);
     });
   });
-  const rosterWindowsByTeam = new Map<number, NonNullable<ExperimentalStatsDataset["rosterEligibility"]>>();
-  rosterEligibility.forEach((window) => {
-    const windows = rosterWindowsByTeam.get(window.seasonCoachId) ?? [];
-    windows.push(window);
-    rosterWindowsByTeam.set(window.seasonCoachId, windows);
-  });
-  const teamUsageByPokemon = new Map<number, { used: number; eligible: number }>();
-  matches.forEach((match) => {
-    [match.coach1, match.coach2].forEach((team) => {
-      const eligiblePokemonIds = new Set(rosterWindowsByTeam.get(team.seasonCoachId)?.filter((window) => window.seasonId === match.seasonId && match.week >= window.startWeek && (window.endWeek === null || match.week < window.endWeek)).map((window) => window.pokemonId));
-      if (!eligiblePokemonIds.size) return;
-      const usedPokemonIds = new Set(match.pokemon.filter((appearance) => appearance.seasonCoachId === team.seasonCoachId).map((appearance) => appearance.pokemonId));
-      eligiblePokemonIds.forEach((pokemonId) => {
-        const stats = teamUsageByPokemon.get(pokemonId) ?? { used: 0, eligible: 0 };
-        stats.eligible += 1;
-        if (usedPokemonIds.has(pokemonId)) stats.used += 1;
-        teamUsageByPokemon.set(pokemonId, stats);
-      });
-    });
-  });
   const unsortedUsageRows = rows.map((row) => {
     const evidenceMatches = [...(matchIdsByPokemon.get(row.id) ?? new Set<number>())].map((matchId) => matchesById.get(matchId)).filter((match): match is ExperimentalMatch => Boolean(match));
-    const teamUsage = teamUsageByPokemon.get(row.id);
+    const usage = usageSummaries.get(row.id);
     return {
       row,
       evidenceMatches,
-      globalUsageRate: rate(evidenceMatches.length, matches.length) * 100,
-      usageRate: rate(evidenceMatches.length, matches.length) * 100,
-      teamUsageRate: teamUsage?.eligible ? rate(teamUsage.used, teamUsage.eligible) * 100 : null,
-      teamUsageUsed: teamUsage?.used ?? 0,
-      teamUsageEligible: teamUsage?.eligible ?? 0,
+      globalUsageRate: usage?.globalUsageRate ?? 0,
+      usageRate: usage?.globalUsageRate ?? 0,
+      teamUsageRate: usage?.teamUsageRate ?? null,
+      teamUsageUsed: usage?.teamUsageUsed ?? 0,
+      teamUsageEligible: usage?.teamUsageEligible ?? 0,
       winRate: rate(row.wins, row.appearances) * 100,
     };
   });
@@ -1201,11 +1251,46 @@ function CompareItemSummaryCard({ name, summary, accent }: { name: string; summa
   return <div className={`rounded-xl border p-4 ${accentClass}`}><h3 className="text-xs font-black uppercase tracking-wide">Common items · {name}</h3><p className="mt-1 text-[10px] leading-4 text-[var(--foreground-muted)]">Most frequent saved item evidence for this Pokémon. Counts are appearances, not assumptions about every unseen game.</p>{summary.rows.length ? <div className="mt-3 space-y-2">{summary.rows.map((row) => <div key={row.item} className="flex items-start justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--background)] p-2 text-[10px]"><span className="min-w-0 truncate font-bold text-white" title={row.item}>{row.item}<small className="ml-1 text-[8px] font-normal text-[var(--foreground-muted)]">{row.category}</small></span><span className="shrink-0 font-mono text-[var(--foreground-muted)]">{row.count} app.{row.inferred ? <small className="ml-1 text-fuchsia-200">({row.inferred} inferred)</small> : null}</span></div>)}</div> : <p className="mt-3 text-xs text-[var(--foreground-muted)]">No item reveals are available.</p>}<div className="mt-3 border-t border-[var(--border)] pt-2 text-[9px] text-[var(--foreground-muted)]">Coverage: {summary.itemData}/{summary.appearances} appearances with item data · {summary.unknown} recorded with no reveal.</div></div>;
 }
 
-function CompareModule({ rows, appearances, compareA, compareB, setCompareA, setCompareB }: { rows: EntityAggregate[]; appearances: EnrichedAppearance[]; compareA: number | null; compareB: number | null; setCompareA: (id: number) => void; setCompareB: (id: number) => void }) {
+function CompareUsageSummaryCard({ name, row, usage, accent }: { name: string; row: EntityAggregate; usage: PokemonUsageSummary; accent: "cyan" | "fuchsia" }) {
+  const accentClass = accent === "cyan" ? "border-cyan-400/25 bg-cyan-500/[0.04]" : "border-fuchsia-400/25 bg-fuchsia-500/[0.04]";
+  const teamUsage = usage.teamUsageRate === null ? "—" : `${number(usage.teamUsageRate, 1)}%`;
+  return <div className={`rounded-xl border p-4 ${accentClass}`}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className={`text-[9px] font-black uppercase tracking-[0.16em] ${accent === "cyan" ? "text-cyan-300" : "text-fuchsia-300"}`}>Usage signals</p>
+        <h3 className="mt-1 truncate text-sm font-black text-white">{name}</h3>
+      </div>
+      <span className="shrink-0 rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[9px] font-mono text-[var(--foreground-muted)]">{row.appearances} team apps</span>
+    </div>
+    <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="rounded-lg border border-cyan-400/15 bg-cyan-400/[0.06] p-3">
+        <div className="text-[9px] font-black uppercase tracking-wide text-cyan-200">Global usage</div>
+        <div className="mt-1 font-mono text-lg font-black text-cyan-100">{number(usage.globalUsageRate, 1)}%</div>
+        <div className="mt-1 text-[9px] text-[var(--foreground-muted)]">{usage.globalUsageMatches}/{usage.scopeMatches} replay matches</div>
+      </div>
+      <div className="rounded-lg border border-fuchsia-400/15 bg-fuchsia-400/[0.06] p-3">
+        <div className="text-[9px] font-black uppercase tracking-wide text-fuchsia-200">Team usage</div>
+        <div className="mt-1 font-mono text-lg font-black text-fuchsia-100">{teamUsage}</div>
+        <div className="mt-1 text-[9px] text-[var(--foreground-muted)]">{usage.teamUsageRate === null ? "Roster data unavailable" : `${usage.teamUsageUsed}/${usage.teamUsageEligible} eligible team-games`}</div>
+      </div>
+    </div>
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3 text-[10px]">
+      <span className="font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Most-used move</span>
+      <span className="font-mono font-bold text-white">{row.mostUsedMove}</span>
+    </div>
+    <p className="mt-3 text-[9px] leading-4 text-[var(--foreground-muted)]">Global usage is match presence. Team usage counts only roster-eligible team-games, so roster changes affect its denominator.</p>
+  </div>;
+}
+
+function CompareModule({ rows, appearances, matches, rosterEligibility, compareA, compareB, setCompareA, setCompareB }: { rows: EntityAggregate[]; appearances: EnrichedAppearance[]; matches: ExperimentalMatch[]; rosterEligibility: NonNullable<ExperimentalStatsDataset["rosterEligibility"]>; compareA: number | null; compareB: number | null; setCompareA: (id: number) => void; setCompareB: (id: number) => void }) {
   const a = rows.find((row) => row.id === compareA) ?? rows[0];
   const b = rows.find((row) => row.id === compareB) ?? rows[1];
   if (!a || !b) return <EmptyState />;
   const selectorRows = [...rows].sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+  const usageSummaries = buildPokemonUsageSummaries(matches, rosterEligibility);
+  const emptyUsage: PokemonUsageSummary = { globalUsageMatches: 0, scopeMatches: matches.length, globalUsageRate: 0, teamUsageUsed: 0, teamUsageEligible: 0, teamUsageRate: null };
+  const aUsage = usageSummaries.get(a.id) ?? emptyUsage;
+  const bUsage = usageSummaries.get(b.id) ?? emptyUsage;
   const commonItems = (pokemonId: number) => {
     const pokemonAppearances = appearances.filter((appearance) => appearance.pokemonId === pokemonId);
     const itemCounts = new Map<string, { item: string; category: HeldItemCategory; count: number; inferred: number }>();
@@ -1224,6 +1309,8 @@ function CompareModule({ rows, appearances, compareA, compareB, setCompareA, set
   const aItems = commonItems(a.id);
   const bItems = commonItems(b.id);
   const metrics = [
+    { label: "Global usage", get: (row: EntityAggregate) => usageSummaries.get(row.id)?.globalUsageRate ?? null, suffix: "%" },
+    { label: "Team usage", get: (row: EntityAggregate) => usageSummaries.get(row.id)?.teamUsageRate ?? null, suffix: "%" },
     { label: "Win rate", get: (row: EntityAggregate) => coveredRate(row.wins * 100, row.appearances), suffix: "%" },
     { label: "Damage / app", get: (row: EntityAggregate) => coveredRate(row.damage, row.damageAppearances), suffix: "%" },
     { label: "Healing / app", get: (row: EntityAggregate) => coveredRate(row.healing, row.healingAppearances), suffix: "%" },
@@ -1239,11 +1326,21 @@ function CompareModule({ rows, appearances, compareA, compareB, setCompareA, set
   ];
   return (
     <section className="poke-card p-5 md:p-6">
-      <div className="mb-6"><h2 className="font-pixel text-sm text-white">Compare</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Side-by-side output under the same qualification and replay filters. Missing replay fields display as unknown.</p></div>
+      <div className="mb-6"><h2 className="font-pixel text-sm text-white">Compare</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Side-by-side usage, team usage, and output under the same qualification and replay filters. Missing replay fields display as unknown.</p></div>
       <div className="grid gap-3 sm:grid-cols-2"><select value={a.id} onChange={(event) => setCompareA(Number(event.target.value))} className="rounded-lg border-2 border-cyan-500/50 bg-[var(--background)] p-3 font-bold">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select><select value={b.id} onChange={(event) => setCompareB(Number(event.target.value))} className="rounded-lg border-2 border-fuchsia-500/50 bg-[var(--background)] p-3 font-bold">{selectorRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-2"><CompareUsageSummaryCard name={a.name} row={a} usage={aUsage} accent="cyan" /><CompareUsageSummaryCard name={b.name} row={b} usage={bUsage} accent="fuchsia" /></div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2"><CompareItemSummaryCard name={a.name} summary={aItems} accent="cyan" /><CompareItemSummaryCard name={b.name} summary={bItems} accent="fuchsia" /></div>
       <div className="mt-5 rounded-xl border border-amber-400/25 bg-amber-500/[0.05] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-xs font-black uppercase tracking-wide text-amber-100">How to read Favorable Events</h3><Link href="/experimental-stats/glossary#metric-favorable-event-rate" className="text-[9px] font-black uppercase tracking-wide text-amber-200 underline underline-offset-4">Metric definition</Link></div><p className="mt-2 text-[10px] leading-4 text-[var(--foreground-muted)]">Favorable Events are explicitly recorded crits, misses, flinches, opponent-applied secondary effects (status or stat drops), and logged turns blocked by sleep, freeze, or full paralysis. The comparison shows events per appearance with saved event data; missing event fields are unknown, not zero. Expanded event coverage starts in Season 11 Week 6; Seasons 5–10 and Season 11 Weeks 1–5 retain the legacy format.</p></div>
-      <div className="mt-6 space-y-4">{metrics.map((metric) => { const av = metric.get(a); const bv = metric.get(b); const max = Math.max(av ?? 0, bv ?? 0, 1); return <div key={metric.label}><div className="mb-1 flex justify-between gap-2 text-xs"><span className="font-mono text-cyan-400">{formatCovered(av, 1, metric.suffix)}</span><span className="text-center font-bold text-white">{metric.label}</span><span className="font-mono text-fuchsia-400">{formatCovered(bv, 1, metric.suffix)}</span></div><div className="grid grid-cols-2 gap-1"><div className="flex justify-end rounded-l-full bg-[var(--background-tertiary)]"><div className="h-3 rounded-l-full bg-cyan-500" style={{ width: `${((av ?? 0) / max) * 100}%` }} /></div><div className="rounded-r-full bg-[var(--background-tertiary)]"><div className="h-3 rounded-r-full bg-fuchsia-500" style={{ width: `${((bv ?? 0) / max) * 100}%` }} /></div></div></div>; })}</div>
+      <div className="mt-6">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-wide text-white">Usage &amp; performance comparison</h3>
+            <p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Bars meet at the center so the two selected Pokémon can be compared at a glance.</p>
+          </div>
+          <div className="flex gap-3 text-[9px] font-bold uppercase tracking-wide"><span className="text-cyan-400">{a.name}</span><span className="text-fuchsia-400">{b.name}</span></div>
+        </div>
+        <div className="mt-4 space-y-4">{metrics.map((metric) => { const av = metric.get(a); const bv = metric.get(b); const max = Math.max(av ?? 0, bv ?? 0, 1); return <div key={metric.label}><div className="mb-1 flex justify-between gap-2 text-xs"><span className="font-mono text-cyan-400">{formatCovered(av, 1, metric.suffix)}</span><span className="text-center font-bold text-white">{metric.label}</span><span className="font-mono text-fuchsia-400">{formatCovered(bv, 1, metric.suffix)}</span></div><div className="grid grid-cols-2 gap-1"><div className="flex justify-end rounded-l-full bg-[var(--background-tertiary)]"><div className="h-3 rounded-l-full bg-cyan-500" style={{ width: `${((av ?? 0) / max) * 100}%` }} /></div><div className="rounded-r-full bg-[var(--background-tertiary)]"><div className="h-3 rounded-r-full bg-fuchsia-500" style={{ width: `${((bv ?? 0) / max) * 100}%` }} /></div></div></div>; })}</div>
+      </div>
     </section>
   );
 }
@@ -1320,6 +1417,210 @@ function MatchPokemonBoxScore({ match }: { match: ExperimentalMatch }) {
   return <div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Pokémon box score</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Compact saved replay summary; dashes indicate fields that were not recorded. <span className="text-emerald-300">Green KOs</span>, <span className="text-red-300">red deaths</span>, <span className="text-cyan-300">cyan damage</span>, <span className="text-emerald-300">green healing</span>, <span className="text-violet-300">violet turns</span>, and <span className="text-amber-200">amber item evidence</span>.</p><div className="mt-5 grid gap-5 xl:grid-cols-2">{teams.map((team) => <div key={team.seasonCoachId} className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)]"><div className="border-b border-[var(--border)] p-3"><strong className="text-sm text-white">{team.teamName}</strong><span className={`ml-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${match.winnerId === team.seasonCoachId ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-300" : "border-red-400/35 bg-red-400/10 text-red-300"}`}>{match.winnerId === team.seasonCoachId ? "WIN" : "LOSS"}</span></div><div className="divide-y divide-[var(--border)]">{match.pokemon.filter((appearance) => appearance.seasonCoachId === team.seasonCoachId).map((appearance) => <div key={appearance.pokemonId} className="p-3"><div className="flex flex-wrap items-center gap-3">{appearance.spriteUrl ? <Image src={appearance.spriteUrl} alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" /> : null}<div className="min-w-0 flex-1"><div className="font-bold text-white">{appearance.pokemonName}</div><div className="mt-1 truncate text-[9px] text-[var(--foreground-muted)]">{appearance.moveDataRecorded ? Object.keys(appearance.movesUsed).join(", ") || "No moves recorded" : "Moves unknown"}</div></div><div className="grid w-full grid-cols-4 gap-2 text-center text-[10px] sm:w-auto sm:gap-3"><span className="font-mono"><span className="font-black text-emerald-300">{appearance.kills}</span><span className="text-[var(--foreground-subtle)]">-</span><span className="font-black text-red-300">{appearance.deaths}</span><small className="block text-[8px] text-[var(--foreground-muted)]">K–D</small></span><span className={hasDamageData(appearance) ? "font-mono font-black text-cyan-300" : "font-mono font-black text-[var(--foreground-subtle)]"}>{hasDamageData(appearance) ? `${number(totalDamage(appearance))}%` : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">DMG</small></span><span className={appearance.hpRestored !== null ? "font-mono font-black text-emerald-300" : "font-mono font-black text-[var(--foreground-subtle)]"}>{appearance.hpRestored !== null ? `${number(appearance.hpRestored)}%` : "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">HEAL</small></span><span className={appearance.turnsActive !== null ? "font-mono font-black text-violet-300" : "font-mono font-black text-[var(--foreground-subtle)]"}>{appearance.turnsActive ?? "—"}<small className="block text-[8px] text-[var(--foreground-muted)]">TURNS</small></span></div></div><div className="mt-2 break-words text-[9px] text-amber-200"><span className="font-black uppercase tracking-wide text-amber-300">Item evidence:</span> {distinctHeldItemReveals(appearance).map((item) => item.item).join(", ") || (appearance.itemDataRecorded ? "Item unrevealed" : "Item data unavailable")}</div></div>)}</div></div>)}</div></div>;
 }
 
+type BattleProbabilityPoint = {
+  turn: number;
+  team1Probability: number;
+  team2Probability: number;
+  team1Hp: number;
+  team2Hp: number;
+  isFinalOutcome?: boolean;
+};
+
+function buildBattleProbabilitySeries(match: ExperimentalMatch): BattleProbabilityPoint[] {
+  const snapshots = [...match.turnSnapshots]
+    .filter((snapshot) => Number.isFinite(snapshot.turn) && Number.isFinite(snapshot.p1TotalHp) && Number.isFinite(snapshot.p2TotalHp))
+    .sort((a, b) => a.turn - b.turn);
+  if (!snapshots.length) return [];
+
+  const firstSnapshot = snapshots[0];
+  const timeline = firstSnapshot.turn === 0
+    ? snapshots
+    : [{ turn: 0, p1TotalHp: 600, p2TotalHp: 600 }, ...snapshots];
+  const p1Winner = match.p1IsCoach1 === null || match.winnerId === null
+    ? null
+    : match.winnerId === (match.p1IsCoach1 ? match.coach1.seasonCoachId : match.coach2.seasonCoachId);
+  const lastTurn = timeline[timeline.length - 1]?.turn ?? 0;
+
+  return timeline.map((snapshot, index) => {
+    const totalHp = Math.max(0, snapshot.p1TotalHp) + Math.max(0, snapshot.p2TotalHp);
+    const hpShare = totalHp > 0 ? (Math.max(0, snapshot.p1TotalHp) / totalHp) * 100 : p1Winner === null ? 50 : p1Winner ? 100 : 0;
+    const p1Probability = index === timeline.length - 1 && lastTurn > 0 && p1Winner !== null
+      ? p1Winner ? 99 : 1
+      : Math.min(99, Math.max(1, Math.round(hpShare)));
+    const team1Probability = match.p1IsCoach1 === false ? 100 - p1Probability : p1Probability;
+    return {
+      turn: snapshot.turn,
+      team1Probability,
+      team2Probability: 100 - team1Probability,
+      team1Hp: match.p1IsCoach1 === false ? snapshot.p2TotalHp : snapshot.p1TotalHp,
+      team2Hp: match.p1IsCoach1 === false ? snapshot.p1TotalHp : snapshot.p2TotalHp,
+      isFinalOutcome: index === timeline.length - 1 && lastTurn > 0 && p1Winner !== null,
+    };
+  });
+}
+
+function BattleProbabilityPanel({ match }: { match: ExperimentalMatch }) {
+  const orientationKnown = match.p1IsCoach1 !== null;
+  const team1Name = orientationKnown ? match.coach1.teamName : "Replay Player 1";
+  const team2Name = orientationKnown ? match.coach2.teamName : "Replay Player 2";
+  const series = buildBattleProbabilitySeries(match);
+  const latest = series[series.length - 1];
+  const team1Color = "#22d3ee";
+  const team2Color = "#e879f9";
+
+  return <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 md:p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="rounded-md bg-red-500 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-white">Replay model</span>
+          <h3 className="font-pixel text-xs text-white">Win probability</h3>
+        </div>
+        <p className="mt-2 max-w-2xl text-[10px] leading-4 text-[var(--foreground-muted)]">A replay-backed estimate of each team&apos;s chance to win at the end of every saved turn, using the team HP balance as the signal.</p>
+      </div>
+      <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-cyan-200">{series.length ? `${series.length} snapshots` : "No HP snapshots"}</span>
+    </div>
+    {!latest ? <div className="mt-5 rounded-lg border border-amber-400/30 bg-amber-500/10 p-4 text-xs text-amber-100">Win probability is unavailable for this replay because no turn-by-turn team HP snapshots were saved.</div> : <>
+      <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-end gap-3">
+        <div>
+          <div className="truncate text-[10px] font-black uppercase tracking-wide" style={{ color: team1Color }}>{team1Name}</div>
+          <div className="mt-1 font-mono text-2xl font-black text-white">{latest.team1Probability}%</div>
+        </div>
+        <div className="pb-1 text-center text-[9px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Turn {latest.turn}</div>
+        <div className="text-right">
+          <div className="truncate text-[10px] font-black uppercase tracking-wide" style={{ color: team2Color }}>{team2Name}</div>
+          <div className="mt-1 font-mono text-2xl font-black text-white">{latest.team2Probability}%</div>
+        </div>
+      </div>
+      <div className="mt-4 h-56 rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-2 sm:h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 24 }}>
+            <defs>
+              <linearGradient id="battle-probability-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={team1Color} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={team1Color} stopOpacity={0.03} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" />
+            <XAxis dataKey="turn" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} tickLine={{ stroke: "var(--background-tertiary)" }} axisLine={{ stroke: "var(--background-tertiary)" }} label={{ value: "Turn", position: "insideBottom", offset: -12, fill: "var(--foreground-muted)", fontSize: 10 }} />
+            <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} tickFormatter={(value) => `${value}%`} tickLine={{ stroke: "var(--background-tertiary)" }} axisLine={{ stroke: "var(--background-tertiary)" }} />
+            <Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--background-tertiary)", borderRadius: "8px", fontSize: "11px" }} labelFormatter={(turn) => turn === 0 ? "Battle Start" : `Turn ${turn}`} formatter={(value) => [`${value}%`, `${team1Name} win probability`]} />
+            <Area type="monotone" dataKey="team1Probability" stroke={team1Color} strokeWidth={2} fill="url(#battle-probability-fill)" dot={false} activeDot={{ r: 4, fill: team1Color }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[9px] text-[var(--foreground-muted)]"><span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-cyan-400" />{team1Name} probability</span><span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-fuchsia-400" />{team2Name} probability is the complement</span></div>
+      <p className="mt-3 text-[9px] leading-4 text-[var(--foreground-subtle)]">Retrospective HP-balance heuristic, not betting odds or a pre-match forecast. Final values are anchored to the recorded winner when player-to-team attribution is available.</p>
+      <BattleImpactPanel match={match} series={series} />
+    </>}
+  </div>;
+}
+
+type BattleImpactTurn = {
+  turn: number;
+  delta: number;
+  hpSwing: number;
+  leadingTeam: string;
+  eventText: string;
+};
+
+function buildBattleImpactTurns(match: ExperimentalMatch, series: BattleProbabilityPoint[], team1Name: string, team2Name: string): BattleImpactTurn[] {
+  return series.slice(1).map((point, index) => {
+    const previous = series[index];
+    if (point.isFinalOutcome) return null;
+    const delta = point.team1Probability - previous.team1Probability;
+    const hpSwing = Math.round(Math.abs((point.team1Hp - previous.team1Hp) - (point.team2Hp - previous.team2Hp)));
+    if (!delta && !hpSwing) return null;
+    const eventText = match.keyEvents
+      .filter((event) => event.turn === point.turn && event.type !== "win")
+      .slice(0, 2)
+      .map((event) => event.type === "faint" ? `${event.pokemon ?? "Unknown Pokémon"} fainted` : event.type)
+      .join(" / ") || "Team HP balance shifted";
+    return { turn: point.turn, delta, hpSwing, leadingTeam: delta >= 0 ? team1Name : team2Name, eventText };
+  }).filter((impact): impact is BattleImpactTurn => Boolean(impact)).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || b.hpSwing - a.hpSwing);
+}
+
+function buildBattleOutcomeSummary(match: ExperimentalMatch, series: BattleProbabilityPoint[], team1Name: string, team2Name: string) {
+  const modelSeries = series.filter((point) => !point.isFinalOutcome);
+  const lastModelPoint = modelSeries[modelSeries.length - 1] ?? series[series.length - 1];
+  const expectedTeam1 = lastModelPoint ? lastModelPoint.team1Probability >= 50 : null;
+  const actualTeam1 = match.p1IsCoach1 === null || match.winnerId === null ? null : match.winnerId === match.coach1.seasonCoachId;
+  return {
+    expectedName: expectedTeam1 === null ? null : expectedTeam1 ? team1Name : team2Name,
+    expectedProbability: expectedTeam1 === null || !lastModelPoint ? null : expectedTeam1 ? lastModelPoint.team1Probability : lastModelPoint.team2Probability,
+    actualName: actualTeam1 === null ? null : actualTeam1 ? team1Name : team2Name,
+    aligned: expectedTeam1 === null || actualTeam1 === null ? null : expectedTeam1 === actualTeam1,
+  };
+}
+
+function buildBattleClutchSummary(match: ExperimentalMatch, series: BattleProbabilityPoint[], team1Name: string, team2Name: string) {
+  const actualTeam1 = match.p1IsCoach1 === null || match.winnerId === null ? null : match.winnerId === match.coach1.seasonCoachId;
+  if (actualTeam1 === null) return null;
+  const modelSeries = series.filter((point) => !point.isFinalOutcome);
+  if (!modelSeries.length) return null;
+  const winningProbability = (point: BattleProbabilityPoint) => actualTeam1 ? point.team1Probability : point.team2Probability;
+  const lowestPoint = modelSeries.reduce((lowest, point) => winningProbability(point) < winningProbability(lowest) ? point : lowest, modelSeries[0]);
+  const trailingSwings = modelSeries.slice(1).map((point, index) => {
+    const previous = modelSeries[index];
+    return { point, previous, delta: winningProbability(point) - winningProbability(previous) };
+  }).filter((swing) => winningProbability(swing.previous) < 50 && swing.delta > 0).sort((a, b) => b.delta - a.delta);
+  const largestTrailingSwing = trailingSwings[0];
+  return {
+    winnerName: actualTeam1 ? team1Name : team2Name,
+    lowestProbability: winningProbability(lowestPoint),
+    lowestTurn: lowestPoint.turn,
+    comeback: winningProbability(lowestPoint) < 50,
+    largestTrailingSwing: largestTrailingSwing ? { turn: largestTrailingSwing.point.turn, delta: largestTrailingSwing.delta } : null,
+  };
+}
+
+function BattleImpactPanel({ match, series }: { match: ExperimentalMatch; series: BattleProbabilityPoint[] }) {
+  if (!series.length) return null;
+  const orientationKnown = match.p1IsCoach1 !== null;
+  const team1Name = orientationKnown ? match.coach1.teamName : "Replay Player 1";
+  const team2Name = orientationKnown ? match.coach2.teamName : "Replay Player 2";
+  const impacts = buildBattleImpactTurns(match, series, team1Name, team2Name);
+  const outcome = buildBattleOutcomeSummary(match, series, team1Name, team2Name);
+  const clutch = buildBattleClutchSummary(match, series, team1Name, team2Name);
+  const biggestImpact = impacts[0];
+  const signed = (value: number) => `${value > 0 ? "+" : ""}${number(value)} pp`;
+
+  return <div className="mt-5 rounded-xl border border-violet-400/25 bg-violet-500/[0.04] p-4 md:p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h3 className="font-pixel text-xs text-white">Battle impact &amp; key plays</h3>
+        <p className="mt-2 text-[10px] leading-4 text-[var(--foreground-muted)]">Turn-level win probability added, expected-vs-recorded outcome, and clutch context from this replay.</p>
+      </div>
+      <span className="rounded-full border border-violet-400/25 bg-violet-400/10 px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-violet-200">Replay evidence</span>
+    </div>
+    <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
+        <div className="text-[9px] font-black uppercase tracking-wide text-cyan-200">Expected vs actual</div>
+        <div className="mt-2 text-sm font-black text-white">{outcome.expectedName ?? "Unavailable"}</div>
+        <div className="mt-1 text-[9px] text-[var(--foreground-muted)]">Pre-finish estimate: {outcome.expectedProbability === null ? "unknown" : `${number(outcome.expectedProbability)}%`}</div>
+        <div className="mt-2 text-[10px] text-[var(--foreground-muted)]">Actual: <span className="font-bold text-white">{outcome.actualName ?? "Attribution unavailable"}</span></div>
+        <div className={`mt-2 text-[9px] font-black uppercase ${outcome.aligned === null ? "text-[var(--foreground-muted)]" : outcome.aligned ? "text-emerald-300" : "text-amber-200"}`}>{outcome.aligned === null ? "Needs player mapping" : outcome.aligned ? "Model aligned" : "Upset result"}</div>
+      </div>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
+        <div className="text-[9px] font-black uppercase tracking-wide text-fuchsia-200">Clutch / comeback</div>
+        <div className="mt-2 text-sm font-black text-white">{clutch ? clutch.comeback ? "Comeback win" : "Held the lead" : "Unavailable"}</div>
+        <div className="mt-1 text-[9px] text-[var(--foreground-muted)]">{clutch ? `${clutch.winnerName} reached ${number(clutch.lowestProbability)}% at Turn ${clutch.lowestTurn}` : "Winner-to-player attribution is missing."}</div>
+        {clutch?.largestTrailingSwing ? <div className="mt-2 text-[10px] text-emerald-300">Largest trailing gain: {signed(clutch.largestTrailingSwing.delta)} at T{clutch.largestTrailingSwing.turn}</div> : null}
+      </div>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
+        <div className="text-[9px] font-black uppercase tracking-wide text-violet-200">Largest WPA swing</div>
+        <div className="mt-2 text-sm font-black text-white">{biggestImpact ? signed(biggestImpact.delta) : "Unavailable"}</div>
+        <div className="mt-1 text-[9px] text-[var(--foreground-muted)]">{biggestImpact ? `${biggestImpact.leadingTeam} gained momentum at Turn ${biggestImpact.turn}` : "No measurable turn-to-turn swing."}</div>
+        {biggestImpact ? <div className="mt-2 text-[10px] text-[var(--foreground-muted)]">HP differential movement: {number(biggestImpact.hpSwing)} points</div> : null}
+      </div>
+    </div>
+    <div className="mt-5">
+      <div className="flex flex-wrap items-end justify-between gap-2"><h4 className="text-[10px] font-black uppercase tracking-wide text-white">Key plays</h4><span className="text-[9px] text-[var(--foreground-muted)]">Largest recorded turn swings</span></div>
+      {impacts.length ? <div className="mt-3 space-y-2">{impacts.slice(0, 5).map((impact) => <div key={`${impact.turn}-${impact.delta}-${impact.eventText}`} className="grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 sm:grid-cols-[1fr_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-[var(--background-tertiary)] px-2 py-1 text-[9px] font-mono text-[var(--foreground-muted)]">T{impact.turn}</span><strong className="text-[10px] text-white">{impact.leadingTeam}</strong></div><div className="mt-1 text-[9px] text-[var(--foreground-muted)]">{impact.eventText}</div></div><div className={`font-mono text-sm font-black ${impact.delta >= 0 ? "text-cyan-300" : "text-fuchsia-300"}`}>{signed(impact.delta)}</div></div>)}</div> : <p className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 text-[10px] text-[var(--foreground-muted)]">No key-play swings are available from the saved timeline.</p>}
+    </div>
+    <p className="mt-4 text-[9px] leading-4 text-[var(--foreground-subtle)]">WPA is the change between consecutive saved end-of-turn probability estimates. The recorded final-result anchor is excluded from swing rankings so it does not create an artificial key play.</p>
+  </div>;
+}
+
 function BattleVisualizer({ matches, selectedId, onSelect }: { matches: ExperimentalMatch[]; selectedId: number | null; onSelect: (id: number) => void }) {
   const searchParams = useSearchParams();
   const requestedTurn = Number(searchParams.get("turn"));
@@ -1332,7 +1633,7 @@ function BattleVisualizer({ matches, selectedId, onSelect }: { matches: Experime
   const itemBuckets = [{ label: "1–5", min: 1, max: 5 }, { label: "6–10", min: 6, max: 10 }, { label: "11–15", min: 11, max: 15 }, { label: "16+", min: 16, max: 999 }].map((bucket) => ({ turn: bucket.label, reveals: heldItemRevealTurns.filter((turn) => turn >= bucket.min && turn <= bucket.max).length }));
   const chartEvents = match.keyEvents.filter((event): event is typeof event & { player: "p1" | "p2" } => (event.type === "faint" || event.type === "win") && Boolean(event.player)).map((event) => ({ ...event, type: event.type as "faint" | "win" }));
   const orientationKnown = match.p1IsCoach1 !== null;
-  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Battle visualizer</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Team HP, faint order, and item timing from saved replay evidence.</p></div><div className="flex max-w-full flex-wrap items-center justify-end gap-2"><select value={match.id} onChange={(event) => onSelect(Number(event.target.value))} className="max-w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{eligible.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.coach1.teamName} vs {candidate.coach2.teamName} · {candidate.seasonName} · {candidate.divisionName} · W{candidate.week}</option>)}</select>{!match.isDemo && match.replayUrl ? <Link href={match.replayUrl} target="_blank" rel="noopener noreferrer" className="btn-retro-secondary shrink-0 px-3 py-2 text-center text-[9px]">Open replay</Link> : null}</div></div>{!orientationKnown ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">The saved replay lacks a winner-to-player mapping event, so the HP lines are labeled by replay player rather than attributed to teams.</div> : null}<div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><HpChart turnSnapshots={match.turnSnapshots} keyEvents={chartEvents} team1Name={orientationKnown ? match.coach1.teamName : "Replay Player 1"} team2Name={orientationKnown ? match.coach2.teamName : "Replay Player 2"} team1Color="#22d3ee" team2Color="#e879f9" p1IsCoach1={match.p1IsCoach1 ?? true} /></div><div className="mt-4 flex flex-wrap gap-2">{match.keyEvents.filter((event) => event.type === "faint").sort((a, b) => a.turn - b.turn).map((event, index) => <span key={`${event.turn}-${index}`} className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] text-red-200">T{event.turn} · {event.pokemon ?? "Unknown"} fainted</span>)}</div></div>{focusedSnapshot ? <div id="battle-turn" className="poke-card scroll-mt-24 p-5"><h3 className="font-pixel text-xs text-white">Selected play · Turn {focusedSnapshot.turn}</h3><p className="mt-3 text-sm">Replay Player 1: {number(focusedSnapshot.p1TotalHp / 6, 1)}% team HP · Replay Player 2: {number(focusedSnapshot.p2TotalHp / 6, 1)}% team HP</p><p className="mt-2 text-xs text-[var(--foreground-muted)]">Saved end-of-turn HP, normalized to a six-Pokémon team. See the full timeline above.</p></div> : null}<MatchPokemonBoxScore match={match} /><div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Item reveal timeline</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">First explicit saved held-item reveals; transferred Trick and Switcheroo items are excluded and unrevealed items remain unknown.</p><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={itemBuckets} margin={{ bottom: 24, left: 18 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis dataKey="turn" stroke="var(--foreground-muted)" label={{ value: "Turn", position: "insideBottom", offset: -16, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis allowDecimals={false} stroke="var(--foreground-muted)" label={{ value: "Item reveals", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="reveals" fill="#a78bfa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div></section>;
+  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Battle visualizer</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Win probability, WPA key plays, clutch context, team HP, faint order, and item timing from saved replay evidence.</p></div><div className="flex max-w-full flex-wrap items-center justify-end gap-2"><select value={match.id} onChange={(event) => onSelect(Number(event.target.value))} className="max-w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{eligible.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.coach1.teamName} vs {candidate.coach2.teamName} · {candidate.seasonName} · {candidate.divisionName} · W{candidate.week}</option>)}</select>{!match.isDemo && match.replayUrl ? <Link href={match.replayUrl} target="_blank" rel="noopener noreferrer" className="btn-retro-secondary shrink-0 px-3 py-2 text-center text-[9px]">Open replay</Link> : null}</div></div>{!orientationKnown ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">The saved replay lacks a winner-to-player mapping event, so the HP lines are labeled by replay player rather than attributed to teams.</div> : null}<BattleProbabilityPanel match={match} /><div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><HpChart turnSnapshots={match.turnSnapshots} keyEvents={chartEvents} team1Name={orientationKnown ? match.coach1.teamName : "Replay Player 1"} team2Name={orientationKnown ? match.coach2.teamName : "Replay Player 2"} team1Color="#22d3ee" team2Color="#e879f9" p1IsCoach1={match.p1IsCoach1 ?? true} /></div><div className="mt-4 flex flex-wrap gap-2">{match.keyEvents.filter((event) => event.type === "faint").sort((a, b) => a.turn - b.turn).map((event, index) => <span key={`${event.turn}-${index}`} className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] text-red-200">T{event.turn} · {event.pokemon ?? "Unknown"} fainted</span>)}</div></div>{focusedSnapshot ? <div id="battle-turn" className="poke-card scroll-mt-24 p-5"><h3 className="font-pixel text-xs text-white">Selected play · Turn {focusedSnapshot.turn}</h3><p className="mt-3 text-sm">Replay Player 1: {number(focusedSnapshot.p1TotalHp / 6, 1)}% team HP · Replay Player 2: {number(focusedSnapshot.p2TotalHp / 6, 1)}% team HP</p><p className="mt-2 text-xs text-[var(--foreground-muted)]">Saved end-of-turn HP, normalized to a six-Pokémon team. See the full timeline above.</p></div> : null}<MatchPokemonBoxScore match={match} /><div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Item reveal timeline</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">First explicit saved held-item reveals; transferred Trick and Switcheroo items are excluded and unrevealed items remain unknown.</p><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={itemBuckets} margin={{ bottom: 24, left: 18 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis dataKey="turn" stroke="var(--foreground-muted)" label={{ value: "Turn", position: "insideBottom", offset: -16, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis allowDecimals={false} stroke="var(--foreground-muted)" label={{ value: "Item reveals", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="reveals" fill="#a78bfa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div></section>;
 }
 
 function RareEventsModule({ matches, appearances }: { matches: ExperimentalMatch[]; appearances: EnrichedAppearance[] }) {
@@ -1482,8 +1783,8 @@ function EventAnalytics({ matches, selectedId }: { matches: ExperimentalMatch[];
   const statusEvents = events.filter((event) => event.eventType === "status" || event.eventType === "curestatus").length;
   const fieldEvents = events.filter((event) => ["weather", "fieldstart", "fieldend", "sidestart", "sideend"].includes(event.eventType)).length;
   const rareTypes = ["Terastallization", "Form changes", "Ability events", "Items removed", "Critical hits", "Misses", "Immunities", "Super-effective hits", "Resisted hits", "Status effects", "Stat boosts", "Stat drops"];
-  if (!events.length) return <section className="poke-card border-amber-400/30 bg-amber-500/[0.06] p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Protocol event analytics</h2><div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4"><strong className="text-sm text-amber-100">Protocol events have not been generated for this replay.</strong><p className="mt-2 text-xs leading-5 text-amber-100/75">The battle may still have an HP timeline, faint markers, and Pokémon totals above. Move, switch, status, field, and Tera counts require the separate normalized-event backfill, so missing coverage is shown here instead of misleading zeroes.</p>{selected ? <p className="mt-2 text-[10px] text-amber-200/70">Selected replay: {selected.coach1.teamName} vs {selected.coach2.teamName} · {selected.seasonName} · Week {selected.week}</p> : null}</div></section>;
-  return <section className="space-y-4"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Protocol event analytics</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Every stored line remains traceable to its raw Showdown source. Select a battle above for a single-battle view.</p></div><span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-bold text-cyan-200">{events.length.toLocaleString()} events</span></div><div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="Moves" value={moveAttempts.toLocaleString()} /><StatCard label="Switches" value={switches.toLocaleString()} /><StatCard label="Statuses" value={statusEvents.toLocaleString()} /><StatCard label="Field events" value={fieldEvents.toLocaleString()} /><StatCard label="Tera events" value={teraEvents.toLocaleString()} /></div><div className="mt-6 grid gap-5 lg:grid-cols-2"><div><h3 className="text-xs font-black uppercase text-white">Event density</h3><div className="mt-3 space-y-2">{topTypes.map(([type, count]) => <div key={type} className="grid grid-cols-[130px_1fr_48px] items-center gap-2 text-[10px]"><span className="truncate font-bold text-white">{type}</span><div className="h-2 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full bg-cyan-400" style={{ width: `${(count / (topTypes[0]?.[1] ?? 1)) * 100}%` }} /></div><span className="text-right font-mono">{count}</span></div>)}</div></div><div><h3 className="text-xs font-black uppercase text-white">Rare protocol signals</h3><div className="mt-3 grid grid-cols-2 gap-2">{rareTypes.map((type) => <div key={type} className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="text-[9px] uppercase text-[var(--foreground-muted)]">{type}</div><div className="mt-1 font-mono text-lg font-black text-violet-300">{counts.get(type) ?? 0}</div></div>)}</div></div></div></div>{selected ? <div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Turn-by-turn event stream</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Showing {Math.min(250, visibleEvents.length)} of {visibleEvents.length} matching events for {selected.coach1.teamName} vs {selected.coach2.teamName}.</p><div className="mt-4 grid gap-2 sm:grid-cols-[1fr_190px]"><input value={eventQuery} onChange={(event) => setEventQuery(event.target.value)} placeholder="Search raw lines, moves, statuses…" className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /><select value={eventType} onChange={(event) => setEventType(event.target.value)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs"><option value="all">All event types</option>{eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></div><div className="mt-4 max-h-[32rem] overflow-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[820px] text-[10px]"><thead className="sticky top-0 bg-[var(--background-secondary)] text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Turn</th><th>Type</th><th className="text-left">Actor</th><th className="text-left">Target</th><th className="text-left">Details</th><th className="text-left">Raw source</th></tr></thead><tbody>{visibleEvents.slice(-250).map((event) => <tr key={`${event.sequence}-${event.rawLine}`} className="border-t border-[var(--border)]"><td className="p-2 font-mono">{event.turn}</td><td className="font-bold text-cyan-200">{event.eventType}</td><td>{event.actorNickname ?? "—"}</td><td>{event.targetNickname ?? "—"}</td><td>{event.moveName ?? event.statusName ?? event.itemName ?? event.abilityName ?? event.fieldName ?? "—"}</td><td className="max-w-[420px] truncate font-mono text-[var(--foreground-muted)]" title={event.rawLine}>{event.rawLine}</td></tr>)}</tbody></table></div></div> : <div className="poke-card p-6 text-center text-xs text-[var(--foreground-muted)]">No normalized protocol events are available in this filtered scope yet. Run the replay backfill after applying the battle-events migration.</div>}</section>;
+  if (!events.length) return <section className="poke-card border-amber-400/30 bg-amber-500/[0.06] p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Play-by-play center</h2><div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4"><strong className="text-sm text-amber-100">Protocol events have not been generated for this replay.</strong><p className="mt-2 text-xs leading-5 text-amber-100/75">The battle may still have an HP timeline, faint markers, and Pokémon totals above. Move, switch, status, field, and Tera counts require the separate normalized-event backfill, so missing coverage is shown here instead of misleading zeroes.</p>{selected ? <p className="mt-2 text-[10px] text-amber-200/70">Selected replay: {selected.coach1.teamName} vs {selected.coach2.teamName} · {selected.seasonName} · Week {selected.week}</p> : null}</div></section>;
+  return <section className="space-y-4"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Play-by-play center</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Every stored line remains traceable to its raw Showdown source. Select a battle above for a single-battle view.</p></div><span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-bold text-cyan-200">{events.length.toLocaleString()} events</span></div><div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="Moves" value={moveAttempts.toLocaleString()} /><StatCard label="Switches" value={switches.toLocaleString()} /><StatCard label="Statuses" value={statusEvents.toLocaleString()} /><StatCard label="Field events" value={fieldEvents.toLocaleString()} /><StatCard label="Tera events" value={teraEvents.toLocaleString()} /></div><div className="mt-6 grid gap-5 lg:grid-cols-2"><div><h3 className="text-xs font-black uppercase text-white">Event density</h3><div className="mt-3 space-y-2">{topTypes.map(([type, count]) => <div key={type} className="grid grid-cols-[130px_1fr_48px] items-center gap-2 text-[10px]"><span className="truncate font-bold text-white">{type}</span><div className="h-2 overflow-hidden rounded-full bg-[var(--background-tertiary)]"><div className="h-full bg-cyan-400" style={{ width: `${(count / (topTypes[0]?.[1] ?? 1)) * 100}%` }} /></div><span className="text-right font-mono">{count}</span></div>)}</div></div><div><h3 className="text-xs font-black uppercase text-white">Rare protocol signals</h3><div className="mt-3 grid grid-cols-2 gap-2">{rareTypes.map((type) => <div key={type} className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3"><div className="text-[9px] uppercase text-[var(--foreground-muted)]">{type}</div><div className="mt-1 font-mono text-lg font-black text-violet-300">{counts.get(type) ?? 0}</div></div>)}</div></div></div></div>{selected ? <div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Play-by-play event stream</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">Showing {Math.min(250, visibleEvents.length)} of {visibleEvents.length} matching events for {selected.coach1.teamName} vs {selected.coach2.teamName}.</p><div className="mt-4 grid gap-2 sm:grid-cols-[1fr_190px]"><input value={eventQuery} onChange={(event) => setEventQuery(event.target.value)} placeholder="Search raw lines, moves, statuses…" className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs" /><select value={eventType} onChange={(event) => setEventType(event.target.value)} className="rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs"><option value="all">All event types</option>{eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></div><div className="mt-4 max-h-[32rem] overflow-auto rounded-xl border border-[var(--border)]"><table className="w-full min-w-[820px] text-[10px]"><thead className="sticky top-0 bg-[var(--background-secondary)] text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="p-2 text-left">Turn</th><th>Type</th><th className="text-left">Actor</th><th className="text-left">Target</th><th className="text-left">Details</th><th className="text-left">Raw source</th></tr></thead><tbody>{visibleEvents.slice(-250).map((event) => <tr key={`${event.sequence}-${event.rawLine}`} className="border-t border-[var(--border)]"><td className="p-2 font-mono">{event.turn}</td><td className="font-bold text-cyan-200">{event.eventType}</td><td>{event.actorNickname ?? "—"}</td><td>{event.targetNickname ?? "—"}</td><td>{event.moveName ?? event.statusName ?? event.itemName ?? event.abilityName ?? event.fieldName ?? "—"}</td><td className="max-w-[420px] truncate font-mono text-[var(--foreground-muted)]" title={event.rawLine}>{event.rawLine}</td></tr>)}</tbody></table></div></div> : <div className="poke-card p-6 text-center text-xs text-[var(--foreground-muted)]">No normalized protocol events are available in this filtered scope yet. Run the replay backfill after applying the battle-events migration.</div>}</section>;
 }
 
 function EventRareRecords({ matches }: { matches: ExperimentalMatch[] }) {
@@ -1510,6 +1811,11 @@ const glossaryReports: Record<string, string> = {
   "Team and top-play reports": "team-stats",
 };
 
+const battleGlossaryMetrics = new Set(["Battle win probability", "Win probability added", "Expected versus actual result", "Clutch / comeback indicator", "Key-play highlights", "Play-by-play center"]);
+const battleGlossaryVisuals = new Set(["Battle win probability", "Win probability added", "Key-play highlights", "Expected versus actual result", "Clutch / comeback card", "Play-by-play center"]);
+const relatedGlossaryReport = (metricName: string, groupName: string) => battleGlossaryMetrics.has(metricName) ? "battle-visualizer" : metricName === "Largest comeback deficit" || metricName === "Longest active Pokemon appearance" ? "top-plays" : glossaryReports[groupName];
+const relatedGlossaryVisual = (visualName: string) => visualName === "Rare Event Explorer" ? "rare-events" : battleGlossaryVisuals.has(visualName) || ["Item reveal timeline", "Battle event timeline"].includes(visualName) ? "battle-visualizer" : visualName === "Status dashboard" ? "pokemon" : "visuals";
+
 type GlossaryModuleProps = { search: string; setSearch: (value: string) => void };
 
 function GlossaryModuleLegacy({ search, setSearch }: GlossaryModuleProps) {
@@ -1518,7 +1824,7 @@ function GlossaryModuleLegacy({ search, setSearch }: GlossaryModuleProps) {
   const visuals = experimentalVisualDefinitions.filter((visual) => !query || `${visual.name} ${visual.description}`.toLowerCase().includes(query));
   const counts = experimentalMetricGroups.flatMap((group) => group.metrics).reduce((result, metric) => ({ ...result, [metric.availability]: result[metric.availability] + 1 }), { available: 0, partial: 0, "event-storage": 0 });
   const badge = (availability: "available" | "partial" | "event-storage") => availability === "available" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : availability === "partial" ? "bg-amber-500/10 text-amber-200 border-amber-500/30" : "bg-slate-500/10 text-slate-300 border-slate-500/30";
-  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Metric glossary and coverage</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">“Available” has a report calculated from saved replay evidence. “Partial” uses a narrower saved proxy. “Protocol report pending” means normalized events may support it, but the calculation or backfill coverage has not yet been validated for an official report.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><StatCard label="Available" value={String(counts.available)} /><StatCard label="Partial" value={String(counts.partial)} /><StatCard label="Protocol reports pending" value={String(counts["event-storage"])} /></div><div className="relative mt-5"><Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--foreground-muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search metrics and visuals" placeholder="Search metrics and visuals…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] py-2 pl-10 pr-3 text-sm outline-none focus:border-[var(--primary)]" /></div></div>{!groups.length && !visuals.length ? <div role="status" className="poke-card p-5 text-sm">No metrics or visuals match “{search}”. <button type="button" onClick={() => setSearch("")} className="text-cyan-300 underline">Clear search</button></div> : null}{groups.map((group) => <div key={group.label} data-glossary-group={group.label} className="poke-card p-5"><h3 className="font-pixel text-xs text-white">{group.label}</h3><div className="mt-4 grid gap-2">{group.metrics.map((metric) => <div key={metric.name} id={glossaryId(metric.name)} className="scroll-mt-24 grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 md:grid-cols-[minmax(190px,0.8fr)_auto_minmax(260px,1.2fr)] md:items-center"><span className="text-xs font-bold text-white">{metric.name}</span><span className={`w-fit rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide ${badge(metric.availability)}`}>{metric.availability === "event-storage" ? "Protocol report pending" : metric.availability}</span><span className="text-[10px] leading-4 text-[var(--foreground-muted)]">{metric.definition}{metric.availability !== "event-storage" && glossaryReports[group.label] ? <Link href={`/experimental-stats/${metric.name === "Largest comeback deficit" || metric.name === "Longest active Pokemon appearance" ? "top-plays" : glossaryReports[group.label]}`} className="mt-2 block text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</span></div>)}</div></div>)}<div className="poke-card p-5"><h3 className="font-pixel text-xs text-white">Niche visuals</h3>{!visuals.length ? <p className="mt-3 text-xs text-[var(--foreground-muted)]">No visuals match this search.</p> : null}<div className="mt-4 grid gap-3 md:grid-cols-2">{visuals.map((visual) => <div key={visual.name} className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex items-center justify-between gap-2"><strong className="text-sm text-white">{visual.name}</strong><span className={`rounded-full border px-2 py-1 text-[8px] font-black uppercase ${badge(visual.availability)}`}>{visual.availability === "event-storage" ? "Protocol report pending" : visual.availability}</span></div><p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">{visual.description}</p>{visual.availability !== "event-storage" ? <Link href={`/experimental-stats/${visual.name === "Rare Event Explorer" ? "rare-events" : ["Item reveal timeline", "Battle event timeline"].includes(visual.name) ? "battle-visualizer" : visual.name === "Status dashboard" ? "pokemon" : "visuals"}`} className="mt-3 inline-block text-xs text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</div>)}</div></div></section>;
+  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Metric glossary and coverage</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">“Available” has a report calculated from saved replay evidence. “Partial” uses a narrower saved proxy. “Protocol report pending” means normalized events may support it, but the calculation or backfill coverage has not yet been validated for an official report.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><StatCard label="Available" value={String(counts.available)} /><StatCard label="Partial" value={String(counts.partial)} /><StatCard label="Protocol reports pending" value={String(counts["event-storage"])} /></div><div className="relative mt-5"><Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--foreground-muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search metrics and visuals" placeholder="Search metrics and visuals…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] py-2 pl-10 pr-3 text-sm outline-none focus:border-[var(--primary)]" /></div></div>{!groups.length && !visuals.length ? <div role="status" className="poke-card p-5 text-sm">No metrics or visuals match “{search}”. <button type="button" onClick={() => setSearch("")} className="text-cyan-300 underline">Clear search</button></div> : null}{groups.map((group) => <div key={group.label} data-glossary-group={group.label} className="poke-card p-5"><h3 className="font-pixel text-xs text-white">{group.label}</h3><div className="mt-4 grid gap-2">{group.metrics.map((metric) => <div key={metric.name} id={glossaryId(metric.name)} className="scroll-mt-24 grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 md:grid-cols-[minmax(190px,0.8fr)_auto_minmax(260px,1.2fr)] md:items-center"><span className="text-xs font-bold text-white">{metric.name}</span><span className={`w-fit rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide ${badge(metric.availability)}`}>{metric.availability === "event-storage" ? "Protocol report pending" : metric.availability}</span><span className="text-[10px] leading-4 text-[var(--foreground-muted)]">{metric.definition}{metric.availability !== "event-storage" && glossaryReports[group.label] ? <Link href={`/experimental-stats/${relatedGlossaryReport(metric.name, group.label)}`} className="mt-2 block text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</span></div>)}</div></div>)}<div className="poke-card p-5"><h3 className="font-pixel text-xs text-white">Niche visuals</h3>{!visuals.length ? <p className="mt-3 text-xs text-[var(--foreground-muted)]">No visuals match this search.</p> : null}<div className="mt-4 grid gap-3 md:grid-cols-2">{visuals.map((visual) => <div key={visual.name} className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex items-center justify-between gap-2"><strong className="text-sm text-white">{visual.name}</strong><span className={`rounded-full border px-2 py-1 text-[8px] font-black uppercase ${badge(visual.availability)}`}>{visual.availability === "event-storage" ? "Protocol report pending" : visual.availability}</span></div><p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">{visual.description}</p>{visual.availability !== "event-storage" ? <Link href={`/experimental-stats/${relatedGlossaryVisual(visual.name)}`} className="mt-3 inline-block text-xs text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</div>)}</div></div></section>;
 }
 
 function GlossaryModule(props: GlossaryModuleProps) {

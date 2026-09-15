@@ -17,7 +17,7 @@ export function SyncedHeightGrid({
 }: SyncedHeightGridProps) {
   return (
     <>
-      <div className={`synced-home-grid order-5${rightContent ? "" : " single-column"}`}>
+      <div className={`synced-home-grid order-3${rightContent ? "" : " single-column"}`}>
         {/* Left Column: Battle Log */}
         <div>{leftContent}</div>
 
