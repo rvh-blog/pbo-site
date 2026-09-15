@@ -9,6 +9,7 @@ export const SITE_SETTING_KEYS = {
   recentDraftPicksHidden: "recent_draft_picks_hidden",
   playoffCalculatorSearchEnabled: "playoff_calculator_search_enabled",
   experimentalStatsEnabled: "experimental_stats_enabled",
+  tradeBlockEnabled: "trade_block_enabled",
   infinityDivisionReleased: "infinity_division_released",
 } as const;
 
@@ -39,6 +40,7 @@ async function loadSiteFeatureSettings() {
     recentDraftPicksHidden: settingsMap.get(SITE_SETTING_KEYS.recentDraftPicksHidden) === "true",
     playoffCalculatorSearchEnabled: settingsMap.get(SITE_SETTING_KEYS.playoffCalculatorSearchEnabled) === "true",
     experimentalStatsEnabled: settingsMap.get(SITE_SETTING_KEYS.experimentalStatsEnabled) === "true",
+    tradeBlockEnabled: settingsMap.get(SITE_SETTING_KEYS.tradeBlockEnabled) !== "false",
   };
 }
 

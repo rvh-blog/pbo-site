@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { LeagueLink as Link } from "@/components/league-context";
 import { db } from "@/lib/db";
 import { divisions, seasonCoaches, seasons } from "@/lib/schema";
 import { desc, eq, inArray } from "drizzle-orm";
+import { getSiteFeatureSettings } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +119,9 @@ async function getListings(): Promise<{ seasonName: string; listings: Listing[];
 }
 
 export default async function TradeBlockPage() {
+  const featureSettings = await getSiteFeatureSettings();
+  if (!featureSettings.tradeBlockEnabled) notFound();
+
   const { seasonName, listings, usingDemoData } = await getListings();
 
   return (

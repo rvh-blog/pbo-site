@@ -20,6 +20,7 @@ interface AuthUser {
 
 interface FeatureSettings {
   experimentalStatsEnabled: boolean;
+  tradeBlockEnabled: boolean;
 }
 
 const navItems = [
@@ -71,6 +72,7 @@ export function Navigation() {
   const [isLightMode, setIsLightMode] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
     experimentalStatsEnabled: false,
+    tradeBlockEnabled: true,
   });
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const projectMewReleased = isProjectMewReleased();
@@ -174,6 +176,7 @@ export function Navigation() {
         const data = await res.json();
         setFeatureSettings({
           experimentalStatsEnabled: Boolean(data.experimentalStatsEnabled),
+          tradeBlockEnabled: data.tradeBlockEnabled !== false,
         });
       } catch {
         // Keep features visible if settings cannot be loaded.
@@ -184,6 +187,9 @@ export function Navigation() {
   }, []);
 
   const visibleNavItems = navItems;
+  const visibleMatchPrepLinks = matchPrepLinks.filter(
+    (item) => item.href !== "/trade-block" || featureSettings.tradeBlockEnabled,
+  );
   const visiblePboStatsLinks = pboStatsLinks.filter(
     (item) => item.href !== "/experimental-stats" || featureSettings.experimentalStatsEnabled,
   );
@@ -330,7 +336,7 @@ export function Navigation() {
                   </button>
                   <div className="invisible absolute left-1/2 top-full z-50 w-44 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                     <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
-                      {matchPrepLinks.map((subItem) => {
+                      {visibleMatchPrepLinks.map((subItem) => {
                         const subActive = pathname === subItem.href || pathname.startsWith(`${subItem.href}/`);
                         return (
                           <Link
@@ -709,7 +715,7 @@ export function Navigation() {
         )}
         {tabletMatchPrepOpen && (
           <div className="container mx-auto flex gap-1 overflow-x-auto border-t border-[var(--background-tertiary)] px-4 py-1.5 sm:px-6" role="menu" aria-label="Game Prep">
-            {matchPrepLinks.map((subItem) => (
+            {visibleMatchPrepLinks.map((subItem) => (
               <Link
                 key={subItem.href}
                 href={subItem.href}
@@ -916,7 +922,7 @@ export function Navigation() {
                     </button>
                     {mobileMatchPrepOpen && (
                       <div className="ml-4 space-y-1 border-l-2 border-[var(--background-tertiary)] pl-3">
-                        {matchPrepLinks.map((subItem) => (
+                        {visibleMatchPrepLinks.map((subItem) => (
                           <Link
                             key={subItem.href}
                             href={subItem.href}

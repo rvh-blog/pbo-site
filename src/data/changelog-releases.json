@@ -1,5 +1,37 @@
 [
   {
+    "sourceKey": "2026-09-15-mega-floette-replay-stat-fix",
+    "title": "Mega Floette Replay Stat Fix",
+    "summary": "Champions NatDex replay parsing now keeps Mega Floette statistics attached through form changes.",
+    "publishedAt": "2026-09-15",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Fixed Floette-Eternal to Floette-Mega form tracking so playoff replay results correctly record deaths, kills, move usage, damage, healing, and Floettite evidence."
+      },
+      {
+        "type": "improved",
+        "text": "Applied shared form-family matching across replay stat attribution and confirmed the saved Season 11 mismatch was limited to two playoff matches."
+      }
+    ]
+  },
+  {
+    "sourceKey": "2026-09-15-trade-block-visibility-toggle",
+    "title": "Trade Block Visibility Toggle",
+    "summary": "Admins can now turn the public Trade Block page on or off from the dashboard.",
+    "publishedAt": "2026-09-15",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added a persisted Trade Block page toggle under Admin Dashboard > Visibility Controls."
+      },
+      {
+        "type": "improved",
+        "text": "When disabled, Trade Block is removed from navigation and the sitemap and direct public visits return unavailable; enabling it restores the page without changing roster data."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-15-season10-replay-backfill-fix",
     "title": "Season 10 Replay Backfill Fix",
     "summary": "Season 10 replay evidence now feeds the complete Experimental Stats and battle-event pipeline.",

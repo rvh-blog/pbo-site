@@ -16,6 +16,7 @@ const MEGA_STONE_NAMES: Record<string, string> = {
   camerupt: "Cameruptite",
   charizard: "Charizardite",
   diancie: "Diancite",
+  floette: "Floettite",
   gallade: "Galladite",
   gardevoir: "Gardevoirite",
   gengar: "Gengarite",

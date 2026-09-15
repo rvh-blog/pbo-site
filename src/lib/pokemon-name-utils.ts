@@ -365,7 +365,13 @@ export function normalizePokemonName(name: string): string {
   if (normalized.startsWith("Shellos-")) normalized = "Shellos";
   if (normalized.startsWith("Vivillon-")) normalized = "Vivillon";
   if (normalized.startsWith("Furfrou-")) normalized = "Furfrou";
-  if (normalized.startsWith("Floette-") && normalized !== "Floette-Eternal") normalized = "Floette";
+  // Floette-Mega is a real drafted Champions form. Keep it distinct from
+  // ordinary Floette forms while still collapsing decorative flower forms.
+  if (
+    normalized.startsWith("Floette-") &&
+    normalized !== "Floette-Eternal" &&
+    normalized !== "Floette-Mega"
+  ) normalized = "Floette";
   if (normalized.startsWith("Flabebe-")) normalized = "Flabebe";
   if (normalized.startsWith("Xerneas-")) normalized = "Xerneas";
   if (normalized.startsWith("Pikachu-") && normalized !== "Pikachu-Gmax" && normalized !== "Pikachu-Starter") normalized = "Pikachu";

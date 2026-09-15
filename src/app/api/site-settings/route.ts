@@ -8,6 +8,7 @@ export async function GET() {
     return NextResponse.json({
       recentDraftPicksHidden: settings.recentDraftPicksHidden,
       experimentalStatsEnabled: settings.experimentalStatsEnabled,
+      tradeBlockEnabled: settings.tradeBlockEnabled,
     });
   } catch (error) {
     console.error("Error fetching site feature settings:", error);

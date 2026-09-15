@@ -568,6 +568,7 @@ export default async function AdminDashboard() {
           <HomepageVisibilityCard
             initialRecentDraftPicksHidden={featureSettings.recentDraftPicksHidden}
             initialPlayoffCalculatorSearchEnabled={featureSettings.playoffCalculatorSearchEnabled}
+            initialTradeBlockEnabled={featureSettings.tradeBlockEnabled}
           />
         </CardContent>
       </Card>

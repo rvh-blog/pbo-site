@@ -5,14 +5,18 @@ import { useState, useTransition } from "react";
 export function HomepageVisibilityCard({
   initialRecentDraftPicksHidden,
   initialPlayoffCalculatorSearchEnabled,
+  initialTradeBlockEnabled,
 }: {
   initialRecentDraftPicksHidden: boolean;
   initialPlayoffCalculatorSearchEnabled: boolean;
+  initialTradeBlockEnabled: boolean;
 }) {
   const [recentDraftPicksHidden, setRecentDraftPicksHidden] = useState(initialRecentDraftPicksHidden);
   const [playoffCalculatorSearchEnabled, setPlayoffCalculatorSearchEnabled] = useState(initialPlayoffCalculatorSearchEnabled);
+  const [tradeBlockEnabled, setTradeBlockEnabled] = useState(initialTradeBlockEnabled);
   const [recentDraftPicksError, setRecentDraftPicksError] = useState<string | null>(null);
   const [playoffCalculatorError, setPlayoffCalculatorError] = useState<string | null>(null);
+  const [tradeBlockError, setTradeBlockError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function toggleRecentDraftPicks() {
@@ -54,6 +58,27 @@ export function HomepageVisibilityCard({
       }
 
       setPlayoffCalculatorSearchEnabled(nextValue);
+    });
+  }
+
+  function toggleTradeBlock() {
+    const nextValue = !tradeBlockEnabled;
+    setTradeBlockError(null);
+
+    startTransition(async () => {
+      const response = await fetch("/api/admin/pick-ems", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tradeBlockEnabled: nextValue }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setTradeBlockError(data?.error || "Failed to update Trade Block visibility");
+        return;
+      }
+
+      setTradeBlockEnabled(nextValue);
     });
   }
 
@@ -122,6 +147,39 @@ export function HomepageVisibilityCard({
         </div>
         <p className="mt-3 text-xs text-[var(--foreground-subtle)]">
           Current status: {recentDraftPicksHidden ? "hidden" : "visible"}
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-[var(--background-tertiary)] p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">Trade Block page</p>
+            <p className="text-sm text-[var(--foreground-muted)]">
+              Controls whether the public Trade Block page and its navigation links are available.
+            </p>
+            {tradeBlockError && <p className="mt-2 text-sm text-[var(--error)]">{tradeBlockError}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={toggleTradeBlock}
+            disabled={isPending}
+            aria-pressed={tradeBlockEnabled}
+            className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+              tradeBlockEnabled ? "bg-green-600" : "bg-red-600"
+            }`}
+          >
+            <span
+              className={`absolute top-1 h-6 w-6 rounded-full bg-white transition-transform ${
+                tradeBlockEnabled ? "left-7" : "left-1"
+              }`}
+            />
+            <span className="sr-only">
+              {tradeBlockEnabled ? "Hide Trade Block page" : "Show Trade Block page"}
+            </span>
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-[var(--foreground-subtle)]">
+          Current status: {tradeBlockEnabled ? "visible" : "hidden from public pages"}
         </p>
       </div>
     </div>
