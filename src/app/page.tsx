@@ -1646,7 +1646,7 @@ export default async function Home() {
             </div>
           </div>
         }
-        fullWidthContent={
+        rightContent={
           <UpcomingBattlesPanel
             battles={upcomingBattles}
           />
