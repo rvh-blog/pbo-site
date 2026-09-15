@@ -50,11 +50,14 @@ Current controls:
 
 - Recent Draft Picks: hides or shows the Recent Draft Picks panel on the public home page.
 - Playoff Calculator Search: hides or shows the search-only playoff calculator result without adding it to navigation.
+- Trade Block page: turns the public Trade Block page and its navigation links on or off without changing roster data.
 
 These controls are stored in `site_settings` as `recent_draft_picks_hidden` and
-`playoff_calculator_search_enabled`. The home page and search route read them
-through `src/lib/site-settings.ts`. The playoff calculator is hidden from
-search by default until an admin enables it.
+`playoff_calculator_search_enabled`/`trade_block_enabled`. The home page,
+navigation, Trade Block route, and sitemap read them through
+`src/lib/site-settings.ts`. The playoff calculator is hidden from search by
+default until an admin enables it, while Trade Block is enabled by default for
+backward compatibility.
 
 Relevant files:
 

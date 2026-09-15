@@ -10,6 +10,7 @@ import { buildStoredBattleEvents, type StoredBattleEvent } from "@/lib/replay-ev
 import { IllusionMoveAttributionTracker } from "@/lib/illusion-move-attribution";
 import { getMegaStoneName, isMegaPokemonName } from "@/lib/mega-stones";
 import { getOgerponMaskName } from "@/lib/ogerpon-masks";
+import { findBuiltInPokemonNameMatch } from "@/lib/replay-roster-matching-core";
 import type { FavorableEvent } from "@/lib/favorable-events";
 
 interface PokemonStats {
@@ -461,7 +462,9 @@ export async function POST(request: NextRequest) {
       const nicknameMap = parsed.player === "p1" ? p1NicknameMap : p2NicknameMap;
       const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
       const pokemonName = nicknameMap.get(parsed.nickname);
-      return pokemonName ? team.find((p) => p.name === pokemonName) || null : null;
+      return pokemonName
+        ? findBuiltInPokemonNameMatch(team, pokemonName, (pokemon) => pokemon) || null
+        : null;
     };
 
     const getPokemonNameByRef = (
@@ -597,12 +600,11 @@ export async function POST(request: NextRequest) {
       const previousName = nicknameMap.get(parsed.nickname);
       let pokemon = team.find((p) => p.name === previousName) || team.find((p) => p.name === pokemonName);
 
-      if (!pokemon && previousName) {
-        pokemon = team.find(
-          (p) =>
-            pokemonName.startsWith(p.name + "-") ||
-            p.name.startsWith(previousName + "-")
-        );
+      if (!pokemon) {
+        // Showdown can represent Mega Floette as Floette-Eternal before the
+        // evolution and Floette-Mega afterward. Match the same form family
+        // used by roster matching so the parser keeps one stat slot.
+        pokemon = findBuiltInPokemonNameMatch(team, pokemonName, (candidate) => candidate);
       }
 
       if (pokemon) {
@@ -728,14 +730,24 @@ export async function POST(request: NextRequest) {
 
             // Handle form changes: if exact name not found, find a base form match
             if (!pokemon) {
-              const baseMatch = team.find(
-                (p) =>
-                  pokemonName.startsWith(p.name + "-") &&
-                  !team.some((t) => t.name === pokemonName)
-              );
-              if (baseMatch) {
-                baseMatch.name = pokemonName;
-                pokemon = baseMatch;
+              const formMatch = findBuiltInPokemonNameMatch(team, pokemonName, (candidate) => candidate);
+              if (formMatch) {
+                const previousName = formMatch.name;
+                formMatch.name = pokemonName;
+                pokemon = formMatch;
+
+                const oldHp = hpPercentMap.get(`${parsed.player}:${previousName}`);
+                if (oldHp !== undefined) {
+                  hpPercentMap.delete(`${parsed.player}:${previousName}`);
+                  hpPercentMap.set(`${parsed.player}:${pokemonName}`, oldHp);
+                }
+
+                const oldActiveKey = `${parsed.player}:${previousName}`;
+                const turns = activeTurnsByPokemon.get(oldActiveKey);
+                if (turns) {
+                  activeTurnsByPokemon.delete(oldActiveKey);
+                  activeTurnsByPokemon.set(`${parsed.player}:${pokemonName}`, turns);
+                }
               }
             }
 
@@ -1515,7 +1527,9 @@ export async function POST(request: NextRequest) {
             if (parsed && damageAmount > 0) {
               const targetTeam = parsed.player === "p1" ? result.p1Team : result.p2Team;
               const targetName = (parsed.player === "p1" ? p1NicknameMap : p2NicknameMap).get(parsed.nickname);
-              const targetPokemon = targetTeam.find((p) => p.name === targetName);
+              const targetPokemon = targetName
+                ? findBuiltInPokemonNameMatch(targetTeam, targetName, (candidate) => candidate)
+                : undefined;
               if (targetPokemon) {
                 targetPokemon.damageTakenIndirect += damageAmount;
                 if (isHazardDamageCause(lastFaintSource)) {
@@ -1547,7 +1561,9 @@ export async function POST(request: NextRequest) {
               if (indirectSource) {
                 const sourceTeam = indirectSource.player === "p1" ? result.p1Team : result.p2Team;
                 const sourceName = (indirectSource.player === "p1" ? p1NicknameMap : p2NicknameMap).get(indirectSource.nickname);
-                const sourcePokemon = sourceTeam.find((p) => p.name === sourceName);
+                const sourcePokemon = sourceName
+                  ? findBuiltInPokemonNameMatch(sourceTeam, sourceName, (candidate) => candidate)
+                  : undefined;
                 if (sourcePokemon) {
                   sourcePokemon.damageDealtIndirect += damageAmount;
                 }
@@ -1569,7 +1585,9 @@ export async function POST(request: NextRequest) {
             if (parsed && damageAmount > 0) {
               const targetTeam = parsed.player === "p1" ? result.p1Team : result.p2Team;
               const targetName = (parsed.player === "p1" ? p1NicknameMap : p2NicknameMap).get(parsed.nickname);
-              const targetPokemon = targetTeam.find((p) => p.name === targetName);
+              const targetPokemon = targetName
+                ? findBuiltInPokemonNameMatch(targetTeam, targetName, (candidate) => candidate)
+                : undefined;
               if (targetPokemon) {
                 targetPokemon.damageTaken += damageAmount;
               }
@@ -1577,7 +1595,9 @@ export async function POST(request: NextRequest) {
               if (lastDamageDealer) {
                 const attackerTeam = lastDamageDealer.player === "p1" ? result.p1Team : result.p2Team;
                 const attackerName = (lastDamageDealer.player === "p1" ? p1NicknameMap : p2NicknameMap).get(lastDamageDealer.nickname);
-                const attackerPokemon = attackerTeam.find((p) => p.name === attackerName);
+                const attackerPokemon = attackerName
+                  ? findBuiltInPokemonNameMatch(attackerTeam, attackerName, (candidate) => candidate)
+                  : undefined;
                 if (attackerPokemon) {
                   attackerPokemon.damageDealt += damageAmount;
                 }
@@ -1614,7 +1634,7 @@ export async function POST(request: NextRequest) {
 
               if (healAmount > 0 && pokemonName) {
                 const team = parsed.player === "p1" ? result.p1Team : result.p2Team;
-                const pokemon = team.find((p) => p.name === pokemonName);
+                const pokemon = findBuiltInPokemonNameMatch(team, pokemonName, (candidate) => candidate);
                 if (pokemon) {
                   pokemon.hpRestored += healAmount;
                 }
@@ -1635,7 +1655,7 @@ export async function POST(request: NextRequest) {
 
             // Increment deaths
             if (pokemonName) {
-              const pokemon = team.find((p) => p.name === pokemonName);
+              const pokemon = findBuiltInPokemonNameMatch(team, pokemonName, (candidate) => candidate);
               if (pokemon) {
                 pokemon.deaths++;
               }
@@ -1746,7 +1766,7 @@ export async function POST(request: NextRequest) {
               const killerName = killerMap.get(killer.nickname);
 
               if (killerName) {
-                const killerPokemon = killerTeam.find((p) => p.name === killerName);
+                const killerPokemon = findBuiltInPokemonNameMatch(killerTeam, killerName, (candidate) => candidate);
                 if (killerPokemon) {
                   killerPokemon.kills++;
                 }

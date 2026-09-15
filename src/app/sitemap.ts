@@ -44,6 +44,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       "/experimental-stats/glossary",
     );
   }
+  if (featureSettings.tradeBlockEnabled) {
+    staticRoutes.push("/trade-block");
+  }
 
   const [publicSeasons, publicCoaches] = await Promise.all([
     db.query.seasons.findMany({

@@ -47,6 +47,11 @@ server-side bot matching fallback. Regression coverage checks every stored Mega
 form, including X/Y/Z and custom Champions variants; Floette-Eternal is handled
 as the visible pre-Mega form for Floette-Mega.
 
+The live replay scraper also applies the same form-family matching while
+accumulating stats. This keeps `Floette-Eternal` and `Floette-Mega` tied to one
+nickname/stat slot across details-change and switch events, so faint, kill,
+move, damage, healing, and Mega-stone evidence are not lost after evolution.
+
 Held-item usage is observational. The parser records explicit item events and
 effects, while leaderboard aggregation excludes a Pokemon/item pairing revealed
 only after that Pokemon received the item through Trick or Switcheroo. A berry

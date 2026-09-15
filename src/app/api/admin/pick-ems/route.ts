@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       recentDraftPicksHidden,
       playoffCalculatorSearchEnabled,
       experimentalStatsEnabled,
+      tradeBlockEnabled,
     } = body;
 
     const updates: { key: string; value: string }[] = [];
@@ -62,6 +63,10 @@ export async function POST(request: NextRequest) {
 
     if (experimentalStatsEnabled !== undefined) {
       updates.push({ key: SITE_SETTING_KEYS.experimentalStatsEnabled, value: String(experimentalStatsEnabled) });
+    }
+
+    if (tradeBlockEnabled !== undefined) {
+      updates.push({ key: SITE_SETTING_KEYS.tradeBlockEnabled, value: String(tradeBlockEnabled) });
     }
 
     for (const update of updates) {

@@ -1,5 +1,22 @@
 # Recent Website Updates
 
+## September 15, 2026 - Mega Floette Replay Stat Fix
+
+- Fixed live replay parsing for Champions NatDex Mega Floette matches where
+  Showdown transitions from `Floette-Eternal` to `Floette-Mega`.
+- Deaths, kills, move usage, damage, healing, and `Floettite` evidence now stay
+  attached to the same drafted Pokémon slot through the form change.
+- Audited Season 11 records and found the affected zero-death mismatch only in
+  the Sunset and Infinity quarterfinals; no regular-season match showed it.
+
+## September 15, 2026 - Trade Block Visibility Toggle
+
+- Added an admin-controlled Trade Block page toggle under the dashboard
+  Visibility Controls section.
+- Disabling the page removes its navigation and sitemap entries and makes the
+  public route unavailable; enabling it restores the page and preserves all
+  roster data.
+
 ## September 15, 2026 - Season 10 Replay Backfill Fix
 
 - Added a guarded Season 10 replay maintenance mode that discovers the replay
