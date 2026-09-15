@@ -298,6 +298,30 @@ through `matches.needs_review` and `matches.review_notes`. Replay-derived rows
 are still stored on reviewed matches so the public Experimental Stats, Move
 Usage, and Item Usage pages retain the available evidence.
 
+## Season 10 Replay Backfill Fix
+
+Season 10 replay URLs are already attached to the canonical match rows. The
+guarded S10 command discovers those URLs and carries each canonical match id
+through the shared importer, restoring Experimental Stats fields, normalized
+battle events, replay-linked kill events, move usage, and item evidence without
+changing official winners, differentials, or the recorded PBO K/D ledger. Set
+`BACKFILL_DIVISION` to one of `stargazer`, `sunset`, `crystal`, or `neon` and run
+each division separately.
+
+After deploying the code, use a quiet-window, backup-first run:
+
+```bash
+fly ssh console -C "node /app/dist/maintenance/backup-production-db.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db BACKFILL_SEASON=10 BACKFILL_DIVISION=stargazer REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s10-replays.mjs"
+fly ssh console -C "env DATABASE_PATH=/data/pbo.db BACKFILL_SEASON=10 BACKFILL_DIVISION=stargazer ALLOW_PRODUCTION_BACKFILL=1 BACKFILL_CONFIRM=STARGAZER_S10 BACKFILL_BACKUP_CONFIRMED=1 REPLAY_SCRAPE_URL=http://127.0.0.1:3000/api/replay-scrape node /app/dist/maintenance/backfill-s10-replays.mjs --apply"
+```
+
+Repeat the dry-run/apply pair with `sunset`/`SUNSET_S10`, `crystal`/
+`CRYSTAL_S10`, and `neon`/`NEON_S10`. Review each dry-run before applying it.
+The importer stores replay-derived rows even when a conflict requires review;
+the existing review flags make parser conflicts, incomplete mappings, official
+stat disagreements, and missing replay evidence visible for manual follow-up.
+
 ## See Also
 
 - [[Production Safety Runbook]]

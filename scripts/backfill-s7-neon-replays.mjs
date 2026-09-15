@@ -71,6 +71,7 @@ const isSunsetS9Backfill = seasonNumber === 9 && backfillDivision === "sunset";
 const isStargazerS9Backfill = seasonNumber === 9 && backfillDivision === "stargazer";
 const isSunsetS8Backfill = seasonNumber === 8 && backfillDivision === "sunset";
 const isStargazerS8Backfill = seasonNumber === 8 && backfillDivision === "stargazer";
+const isSeason10Backfill = seasonNumber === 10;
 const isSunsetBackfill = backfillDivision === "sunset";
 const isStargazerBackfill = backfillDivision === "stargazer";
 const backfillDivisionName = backfillDivision;
@@ -259,8 +260,10 @@ const manualReviewMatchHints = new Map([
   ],
 ]);
 
-const activeReplayEntries = isNeonS8Backfill
-  ? neonS8ReplayEntries
+let activeReplayEntries = isSeason10Backfill
+  ? []
+  : isNeonS8Backfill
+    ? neonS8ReplayEntries
     : isNeonS9Backfill
       ? neonS9ReplayEntries
     : isCrystalS9Backfill
@@ -278,8 +281,10 @@ const activeReplayEntries = isNeonS8Backfill
     : isStargazerBackfill
       ? stargazerReplayEntries
       : replayEntries;
-const activeSourceReviewHints = isNeonS8Backfill
-  ? neonS8SourceReviewHints
+const activeSourceReviewHints = isSeason10Backfill
+  ? new Map()
+  : isNeonS8Backfill
+    ? neonS8SourceReviewHints
     : isNeonS9Backfill
       ? neonS9SourceReviewHints
     : isCrystalS9Backfill
@@ -297,8 +302,10 @@ const activeSourceReviewHints = isNeonS8Backfill
     : isStargazerBackfill
       ? stargazerSourceReviewHints
       : sourceReviewHints;
-const activeSourceAliasHints = isNeonS8Backfill
-  ? neonS8SourceAliasHints
+const activeSourceAliasHints = isSeason10Backfill
+  ? new Map()
+  : isNeonS8Backfill
+    ? neonS8SourceAliasHints
     : isNeonS9Backfill
       ? neonS9SourceAliasHints
     : isCrystalS9Backfill
@@ -316,8 +323,10 @@ const activeSourceAliasHints = isNeonS8Backfill
     : isStargazerBackfill
       ? stargazerSourceAliasHints
       : new Map();
-const activeManualReviewMatchHints = isNeonS8Backfill
-  ? neonS8ManualReviewMatchHints
+const activeManualReviewMatchHints = isSeason10Backfill
+  ? new Map()
+  : isNeonS8Backfill
+    ? neonS8ManualReviewMatchHints
     : isNeonS9Backfill
       ? neonS9ManualReviewMatchHints
     : isCrystalS9Backfill
@@ -631,6 +640,21 @@ const matches = await database.all(`
     ORDER BY m.week, m.id
   `, [season.id, division.id]);
 
+// Season 10 already has its replay URLs attached to the canonical match
+// records. Build entries from those rows and carry the match id through the
+// importer so replay evidence is applied to the exact fixture it came from.
+// This avoids reconstructing a historical source manifest and prevents a
+// repeated team pairing in the playoff bracket from being misidentified.
+if (isSeason10Backfill) {
+  activeReplayEntries = matches
+    .filter((match) => !match.is_forfeit && match.winner_id && match.replay_url)
+    .map((match) => ({
+      week: match.week,
+      url: match.replay_url,
+      matchId: match.id,
+    }));
+}
+
 const rowsByMatch = `
   SELECT
     mp.*, p.name AS pokemon_name, p.display_name AS pokemon_display_name
@@ -763,10 +787,15 @@ for (const entry of activeReplayEntries) {
     continue;
   }
 
-  const hintedCandidates = candidates.filter(
-    ({ match }) => match.week === entry.week
+  const hasDirectMatchId = Number.isInteger(entry.matchId);
+  const hintedCandidates = candidates.filter(({ match }) =>
+    hasDirectMatchId ? match.id === entry.matchId : match.week === entry.week
   );
-  const pool = hintedCandidates.length > 0 ? hintedCandidates : candidates;
+  const pool = hasDirectMatchId
+    ? hintedCandidates
+    : hintedCandidates.length > 0
+      ? hintedCandidates
+      : candidates;
   const scored = pool
     .map(({ match, rows }) => {
       const rows1 = rows.filter(
@@ -797,7 +826,11 @@ for (const entry of activeReplayEntries) {
   const second = scored[1];
   const reasons = [];
   if (!hintedCandidates.length) {
-    reasons.push(`No fixture matched source week hint ${entry.week}`);
+    reasons.push(
+      hasDirectMatchId
+        ? `No fixture matched exact source match id ${entry.matchId}`
+        : `No fixture matched source week hint ${entry.week}`
+    );
   }
   if (!best || best.score < 8) {
     reasons.push(`Low roster mapping confidence (${best?.score || 0}/12)`);
