@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-14-automatic-backup-retention",
+    "title": "Automatic Backup Retention",
+    "summary": "Production database backups now keep a verified local recovery window without allowing historical copies to fill the storage volume.",
+    "publishedAt": "2026-09-14",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "The production backup command verifies each new database copy, keeps the three newest generated local backups by default, and prunes only older season11-backfill directories while preserving the active database, uploads, and specially named backups."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-14-stargazer-s9-replay-backfill",
     "title": "Stargazer Season 9 Replay Backfill",
     "summary": "Supplied Stargazer Season 9 replay history is ready to populate replay-derived statistics with review safeguards.",
