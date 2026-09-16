@@ -569,6 +569,7 @@ export default async function AdminDashboard() {
             initialRecentDraftPicksHidden={featureSettings.recentDraftPicksHidden}
             initialPlayoffCalculatorSearchEnabled={featureSettings.playoffCalculatorSearchEnabled}
             initialTradeBlockEnabled={featureSettings.tradeBlockEnabled}
+            initialSpeedToursEnabled={featureSettings.speedToursEnabled}
           />
         </CardContent>
       </Card>

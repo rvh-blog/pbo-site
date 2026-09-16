@@ -39,6 +39,9 @@ See also:
 - Playoff Hub: `src/app/playoffs` (season-filtered playoff-only KOs, team
   differential, fantasy-formula MVP, usage, champions, promotions, and links
   to historical brackets)
+- Speed Tours: `src/app/speed-tours` (admin-toggleable off-season events with
+  filtered eight-round drafting, 45-second resolution phases, isolated team
+  budgets, poison/reselection handling, and past event brackets)
 - Full-bracket pick-ems: `src/components/playoff-bracket-picks.tsx` and
   `src/app/api/playoff-bracket-picks/route.ts` (persisted separately from
   weekly reward pick-ems and locked when quarterfinals begin)
@@ -138,6 +141,9 @@ Feature notes:
 - Users: `src/app/admin/users`
 - Discord config: `src/app/admin/discord`
 - Pick-ems admin: `src/app/admin/pick-ems`
+- Speed Tours admin: `src/app/admin/speed-tours` (event creation, coach
+  registration, round criteria, round control, and single/double-elimination
+  bracket results)
 - Engagement admin: `src/app/admin/engagement`
 - Admin audit log: `src/app/admin/audit-log`
 - Admin changelog editor: `src/app/admin/changelog`
@@ -169,6 +175,8 @@ Admin notes:
 - Preferences: `src/app/api/preferences`
 - Search/export/health: `src/app/api/search`, `src/app/api/export`, `src/app/api/health`
 - Broadcast: `src/app/api/broadcast`
+- Speed Tours: `src/app/api/speed-tours/route.ts` and
+  `src/app/api/admin/speed-tours/route.ts`
 - Wiglett: `src/app/api/integrations/wiglett`
 
 ## Core Services
@@ -189,6 +197,9 @@ Admin notes:
 - Damage calc helpers: `src/lib/damage-calc.ts`
 - Session/auth helpers: `src/lib/session.ts`, `src/lib/auth.ts`
 - League poll service: `src/lib/polls.ts`
+- Speed Tours service: `src/lib/speed-tours.ts` (criteria, timers, concurrent
+  submission locking, duplicate/poison/fallback resolution, isolated budgets,
+  and bracket progression)
 
 ## Discord Bot
 

@@ -10,6 +10,7 @@ export const SITE_SETTING_KEYS = {
   playoffCalculatorSearchEnabled: "playoff_calculator_search_enabled",
   experimentalStatsEnabled: "experimental_stats_enabled",
   tradeBlockEnabled: "trade_block_enabled",
+  speedToursEnabled: "speed_tours_enabled",
   infinityDivisionReleased: "infinity_division_released",
 } as const;
 
@@ -41,6 +42,7 @@ async function loadSiteFeatureSettings() {
     playoffCalculatorSearchEnabled: settingsMap.get(SITE_SETTING_KEYS.playoffCalculatorSearchEnabled) === "true",
     experimentalStatsEnabled: settingsMap.get(SITE_SETTING_KEYS.experimentalStatsEnabled) === "true",
     tradeBlockEnabled: settingsMap.get(SITE_SETTING_KEYS.tradeBlockEnabled) !== "false",
+    speedToursEnabled: settingsMap.get(SITE_SETTING_KEYS.speedToursEnabled) === "true",
   };
 }
 

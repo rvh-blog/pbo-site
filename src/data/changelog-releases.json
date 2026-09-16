@@ -1,5 +1,25 @@
 [
   {
+    "sourceKey": "2026-09-16-speed-tours",
+    "title": "Speed Tours",
+    "summary": "Admin-toggleable off-season Speed Tours with timed drafting, isolated budgets, and dedicated brackets.",
+    "publishedAt": "2026-09-16",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added hidden-by-default Speed Tours with admin-created events, six criteria-controlled rounds, two unrestricted rounds, 45-second phases, duplicate resolution, poison choices, reselection, fallback pricing, and 90-point team budgets."
+      },
+      {
+        "type": "added",
+        "text": "Added isolated Speed Tour team, pick, bracket, score, and game-report storage that does not feed regular-season or playoff matches, standings, Elo, betting, pick-ems, or seasonal statistics."
+      },
+      {
+        "type": "added",
+        "text": "Added public and admin event rooms plus single- and double-elimination bracket progression with past event browsing."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-15-experimental-stats-replay-impact-home-layout",
     "title": "Experimental Stats Replay Impact & Homepage Layout",
     "summary": "Experimental Stats adds replay-backed probability, play impact, and usage context while the homepage uses a compact side-by-side battle layout.",

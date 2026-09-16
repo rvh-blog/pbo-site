@@ -9,6 +9,7 @@ export async function GET() {
       recentDraftPicksHidden: settings.recentDraftPicksHidden,
       experimentalStatsEnabled: settings.experimentalStatsEnabled,
       tradeBlockEnabled: settings.tradeBlockEnabled,
+      speedToursEnabled: settings.speedToursEnabled,
     });
   } catch (error) {
     console.error("Error fetching site feature settings:", error);

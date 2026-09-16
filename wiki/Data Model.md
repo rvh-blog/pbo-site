@@ -65,6 +65,35 @@ Key rules:
 - A match's `seasonId`, `divisionId`, `coach1SeasonId`, `coach2SeasonId`, and `winnerId` must all agree.
 - The DB enforces that referenced IDs exist, but it does not always enforce that they belong to the same match/division/season.
 
+## Speed Tours: Isolated Off-Season Events
+
+Speed Tours are separate off-season competitions. They must not be represented
+as regular-season or playoff matches and must not change seasonal rosters,
+transactions, standings, Elo, betting, pick-em rewards, or regular-season
+Pokemon statistics.
+
+The dedicated Speed Tours tables are:
+
+- `speed_tours`: event status, price-source season, 90-point budget, round
+  count, current round, and bracket format.
+- `speed_tour_coaches`: participating persistent `coaches.id` rows and each
+  event-specific remaining budget. Its `id` is the event participant key; it
+  is not a `season_coaches.id`.
+- `speed_tour_rounds`: one row per round with criteria, phase, server-side
+  phase deadline, and fallback price cap.
+- `speed_tour_submissions`: stage-scoped draft, poison, reselection, and
+  fallback choices.
+- `speed_tour_selections`: finalized event picks and prices, with unique
+  event-level Pokemon ownership.
+- `speed_tour_bracket_matches`: isolated single/double-elimination matchups,
+  scores, winners, bracket stage, and game reports.
+
+Rounds 1–6 preserve the admin criteria through duplicate resolution, poison,
+reselection, and price-cap fallback. Rounds 7–8 are unrestricted except for
+remaining budget and already-selected Pokemon. Bracket scores and reports stay
+in `speed_tour_bracket_matches`; they do not enter the regular `matches` table
+or its result/stat cascades.
+
 ## Pokemon And Prices
 
 `pokemon`, `moves`, and `abilities` are global reference data.
