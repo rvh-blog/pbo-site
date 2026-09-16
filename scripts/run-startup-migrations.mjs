@@ -5,6 +5,86 @@ const client = createClient({ url: `file:${dbPath}` });
 
 const migrations = [
   {
+    id: "2026-09-16-speed-tours-v1",
+    statements: [
+      `CREATE TABLE IF NOT EXISTS speed_tours (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'lobby',
+        price_season_id INTEGER NOT NULL REFERENCES seasons(id),
+        budget INTEGER NOT NULL DEFAULT 90,
+        total_rounds INTEGER NOT NULL DEFAULT 8,
+        current_round INTEGER NOT NULL DEFAULT 1,
+        bracket_format TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_speed_tours_status ON speed_tours(status)",
+      `CREATE TABLE IF NOT EXISTS speed_tour_coaches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        speed_tour_id INTEGER NOT NULL REFERENCES speed_tours(id) ON DELETE CASCADE,
+        coach_id INTEGER NOT NULL REFERENCES coaches(id),
+        remaining_budget INTEGER NOT NULL DEFAULT 90,
+        created_at TEXT NOT NULL
+      )`,
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_speed_tour_coaches_tour_coach ON speed_tour_coaches(speed_tour_id, coach_id)",
+      "CREATE INDEX IF NOT EXISTS idx_speed_tour_coaches_coach_id ON speed_tour_coaches(coach_id)",
+      `CREATE TABLE IF NOT EXISTS speed_tour_rounds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        speed_tour_id INTEGER NOT NULL REFERENCES speed_tours(id) ON DELETE CASCADE,
+        round_number INTEGER NOT NULL,
+        phase TEXT NOT NULL DEFAULT 'waiting',
+        criteria TEXT,
+        phase_ends_at TEXT,
+        fallback_price_cap INTEGER,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_speed_tour_rounds_tour_round ON speed_tour_rounds(speed_tour_id, round_number)",
+      "CREATE INDEX IF NOT EXISTS idx_speed_tour_rounds_tour_phase ON speed_tour_rounds(speed_tour_id, phase)",
+      `CREATE TABLE IF NOT EXISTS speed_tour_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        round_id INTEGER NOT NULL REFERENCES speed_tour_rounds(id) ON DELETE CASCADE,
+        participant_id INTEGER NOT NULL REFERENCES speed_tour_coaches(id) ON DELETE CASCADE,
+        stage TEXT NOT NULL,
+        pokemon_id INTEGER NOT NULL REFERENCES pokemon(id),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_speed_tour_submissions_round_participant_stage ON speed_tour_submissions(round_id, participant_id, stage)",
+      "CREATE INDEX IF NOT EXISTS idx_speed_tour_submissions_round_pokemon ON speed_tour_submissions(round_id, pokemon_id)",
+      `CREATE TABLE IF NOT EXISTS speed_tour_selections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        speed_tour_id INTEGER NOT NULL REFERENCES speed_tours(id) ON DELETE CASCADE,
+        round_id INTEGER NOT NULL REFERENCES speed_tour_rounds(id) ON DELETE CASCADE,
+        participant_id INTEGER NOT NULL REFERENCES speed_tour_coaches(id) ON DELETE CASCADE,
+        pokemon_id INTEGER NOT NULL REFERENCES pokemon(id),
+        price INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_speed_tour_selections_round_participant ON speed_tour_selections(round_id, participant_id)",
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_speed_tour_selections_tour_pokemon ON speed_tour_selections(speed_tour_id, pokemon_id)",
+      `CREATE TABLE IF NOT EXISTS speed_tour_bracket_matches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        speed_tour_id INTEGER NOT NULL REFERENCES speed_tours(id) ON DELETE CASCADE,
+        bracket_round INTEGER NOT NULL,
+        bracket_position INTEGER NOT NULL,
+        participant_one_id INTEGER REFERENCES speed_tour_coaches(id),
+        participant_two_id INTEGER REFERENCES speed_tour_coaches(id),
+        winner_participant_id INTEGER REFERENCES speed_tour_coaches(id),
+        score_one INTEGER,
+        score_two INTEGER,
+        game_report TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_speed_tour_bracket_tour_round ON speed_tour_bracket_matches(speed_tour_id, bracket_round, bracket_position)",
+    ],
+  },
+  {
     id: "2026-09-12-favorable-event-context-v2",
     statements: [
       {
@@ -18,6 +98,15 @@ const migrations = [
       {
         sql: "ALTER TABLE match_pokemon ADD COLUMN favorable_events TEXT",
         whenMissingColumn: { table: "match_pokemon", column: "favorable_events" },
+      },
+    ],
+  },
+  {
+    id: "2026-09-16-speed-tours-bracket-stage-v1",
+    statements: [
+      {
+        sql: "ALTER TABLE speed_tour_bracket_matches ADD COLUMN bracket_stage TEXT NOT NULL DEFAULT 'winners'",
+        whenMissingColumn: { table: "speed_tour_bracket_matches", column: "bracket_stage" },
       },
     ],
   },

@@ -21,11 +21,13 @@ interface AuthUser {
 interface FeatureSettings {
   experimentalStatsEnabled: boolean;
   tradeBlockEnabled: boolean;
+  speedToursEnabled: boolean;
 }
 
 const navItems = [
   { href: "/seasons", label: "Seasons" },
   { href: "/coaches", label: "Coaches" },
+  { href: "/speed-tours", label: "Speed Tours" },
   { href: "/matchup-prep", label: "Game Prep" },
   { href: "/pick-ems", label: "Pick-Ems" },
   { href: "/fantasy", label: "Fantasy" },
@@ -43,6 +45,11 @@ const matchPrepLinks = [
 const seasonsLinks = [
   { href: "/seasons", label: "All Seasons" },
   { href: "/playoffs", label: "Playoff Hub" },
+];
+
+const speedToursLinks = [
+  { href: "/speed-tours", label: "Current Speed Tours" },
+  { href: "/speed-tours?past=true", label: "Past Speed Tours" },
 ];
 
 const pboStatsLinks = [
@@ -64,15 +71,18 @@ export function Navigation() {
   const [showProjectMewPrompt, setShowProjectMewPrompt] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
   const [mobileSeasonsOpen, setMobileSeasonsOpen] = useState(false);
+  const [mobileSpeedToursOpen, setMobileSpeedToursOpen] = useState(false);
   const [mobileMatchPrepOpen, setMobileMatchPrepOpen] = useState(false);
   const [mobilePboStatsOpen, setMobilePboStatsOpen] = useState(false);
   const [tabletSeasonsOpen, setTabletSeasonsOpen] = useState(false);
+  const [tabletSpeedToursOpen, setTabletSpeedToursOpen] = useState(false);
   const [tabletMatchPrepOpen, setTabletMatchPrepOpen] = useState(false);
   const [tabletPboStatsOpen, setTabletPboStatsOpen] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
     experimentalStatsEnabled: false,
     tradeBlockEnabled: true,
+    speedToursEnabled: false,
   });
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const projectMewReleased = isProjectMewReleased();
@@ -177,6 +187,7 @@ export function Navigation() {
         setFeatureSettings({
           experimentalStatsEnabled: Boolean(data.experimentalStatsEnabled),
           tradeBlockEnabled: data.tradeBlockEnabled !== false,
+          speedToursEnabled: data.speedToursEnabled === true,
         });
       } catch {
         // Keep features visible if settings cannot be loaded.
@@ -186,7 +197,9 @@ export function Navigation() {
     fetchFeatureSettings();
   }, []);
 
-  const visibleNavItems = navItems;
+  const visibleNavItems = navItems.filter(
+    (item) => item.href !== "/speed-tours" || featureSettings.speedToursEnabled,
+  );
   const visibleMatchPrepLinks = matchPrepLinks.filter(
     (item) => item.href !== "/trade-block" || featureSettings.tradeBlockEnabled,
   );
@@ -276,6 +289,8 @@ export function Navigation() {
               ? matchPrepActive
               : item.href === "/seasons"
                 ? seasonsActive
+              : item.href === "/speed-tours"
+                ? pathname.startsWith("/speed-tours")
               : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
 
             if (item.href === "/seasons") {
@@ -311,6 +326,22 @@ export function Navigation() {
                           {subItem.label}
                         </Link>
                       ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.href === "/speed-tours") {
+              return (
+                <div key={item.href} className="group relative">
+                  <button type="button" aria-haspopup="menu" className={`inline-flex items-center gap-1 font-bold uppercase text-sm tracking-wide transition-all ${pathname.startsWith("/speed-tours") ? "text-[var(--foreground)] underline decoration-yellow-300 decoration-2 underline-offset-4" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline hover:decoration-yellow-300 hover:decoration-2 hover:underline-offset-4"}`}>
+                    {item.label}
+                    <svg className="h-3 w-3 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" /></svg>
+                  </button>
+                  <div className="invisible absolute left-1/2 top-full z-50 w-52 -translate-x-1/2 pt-3 opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                    <div className="overflow-hidden rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1 shadow-xl" role="menu">
+                      {speedToursLinks.map((subItem) => <Link key={subItem.href} href={subItem.href} role="menuitem" className={`block rounded px-3 py-2 text-xs font-bold uppercase transition-colors ${pathname === "/speed-tours" && subItem.href === "/speed-tours" ? "bg-[var(--background-tertiary)] text-white" : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"}`}>{subItem.label}</Link>)}
                     </div>
                   </div>
                 </div>
@@ -596,6 +627,8 @@ export function Navigation() {
               ? matchPrepActive
               : item.href === "/seasons"
                 ? seasonsActive
+              : item.href === "/speed-tours"
+                ? pathname.startsWith("/speed-tours")
               : item.href === "/leaderboards"
                 ? pboStatsActive
                 : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -622,6 +655,14 @@ export function Navigation() {
                   <svg className={`h-3 w-3 transition-transform ${tabletSeasonsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
                   </svg>
+                </button>
+              );
+            }
+
+            if (item.href === "/speed-tours") {
+              return (
+                <button key={item.href} type="button" onClick={() => { setTabletSpeedToursOpen((open) => !open); setTabletSeasonsOpen(false); setTabletMatchPrepOpen(false); setTabletPboStatsOpen(false); }} aria-haspopup="menu" aria-expanded={tabletSpeedToursOpen} className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${isActive ? "bg-[var(--background-tertiary)] text-[var(--foreground)]" : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"}`}>
+                  {item.label}<svg className={`h-3 w-3 transition-transform ${tabletSpeedToursOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" /></svg>
                 </button>
               );
             }
@@ -711,6 +752,11 @@ export function Navigation() {
                 {subItem.label}
               </Link>
             ))}
+          </div>
+        )}
+        {tabletSpeedToursOpen && (
+          <div className="container mx-auto flex gap-1 overflow-x-auto border-t border-[var(--background-tertiary)] px-4 py-1.5 sm:px-6" role="menu" aria-label="Speed Tours">
+            {speedToursLinks.map((subItem) => <Link key={subItem.href} href={subItem.href} role="menuitem" onClick={() => setTabletSpeedToursOpen(false)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold uppercase transition-colors ${pathname === "/speed-tours" && subItem.href === "/speed-tours" ? "bg-[var(--background-tertiary)] text-white" : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"}`}>{subItem.label}</Link>)}
           </div>
         )}
         {tabletMatchPrepOpen && (
@@ -845,12 +891,14 @@ export function Navigation() {
 
             {visibleNavItems.map((item) => {
               const isActive = item.href === "/matchup-prep"
-                ? matchPrepActive
+              ? matchPrepActive
                 : item.href === "/seasons"
                   ? seasonsActive
+                : item.href === "/speed-tours"
+                  ? pathname.startsWith("/speed-tours")
                 : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
 
-              if (item.href === "/seasons") {
+            if (item.href === "/seasons") {
                 return (
                   <div key={item.href}>
                     <button
@@ -892,6 +940,17 @@ export function Navigation() {
                         ))}
                       </div>
                     )}
+                  </div>
+                );
+            }
+
+              if (item.href === "/speed-tours") {
+                return (
+                  <div key={item.href}>
+                    <button type="button" onClick={() => { setMobileSpeedToursOpen((open) => !open); setMobileSeasonsOpen(false); setMobileMatchPrepOpen(false); setMobilePboStatsOpen(false); }} aria-haspopup="menu" aria-label="Toggle Speed Tours menu" aria-expanded={mobileSpeedToursOpen} className={`flex w-full items-center justify-between rounded-lg px-4 py-3 font-bold uppercase text-sm tracking-wide transition-all ${isActive ? "bg-[var(--background-tertiary)] text-[var(--foreground)]" : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)]"}`}>
+                      {item.label}<svg className={`h-4 w-4 transition-transform ${mobileSpeedToursOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" /></svg>
+                    </button>
+                    {mobileSpeedToursOpen && <div className="ml-4 space-y-1 border-l-2 border-[var(--background-tertiary)] pl-3">{speedToursLinks.map((subItem) => <Link key={subItem.href} href={subItem.href} onClick={() => setMobileMenuOpen(false)} className={`block rounded-lg px-4 py-2 text-xs font-bold uppercase transition-colors ${pathname === "/speed-tours" && subItem.href === "/speed-tours" ? "bg-[var(--background-tertiary)] text-white" : "text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)] hover:text-white"}`}>{subItem.label}</Link>)}</div>}
                   </div>
                 );
               }

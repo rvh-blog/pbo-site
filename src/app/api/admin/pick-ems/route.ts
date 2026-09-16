@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
       playoffCalculatorSearchEnabled,
       experimentalStatsEnabled,
       tradeBlockEnabled,
+      speedToursEnabled,
     } = body;
 
     const updates: { key: string; value: string }[] = [];
@@ -67,6 +68,10 @@ export async function POST(request: NextRequest) {
 
     if (tradeBlockEnabled !== undefined) {
       updates.push({ key: SITE_SETTING_KEYS.tradeBlockEnabled, value: String(tradeBlockEnabled) });
+    }
+
+    if (speedToursEnabled !== undefined) {
+      updates.push({ key: SITE_SETTING_KEYS.speedToursEnabled, value: String(speedToursEnabled) });
     }
 
     for (const update of updates) {

@@ -1,5 +1,23 @@
 # Recent Website Updates
 
+## September 16, 2026 - Speed Tours
+
+- Added an admin-toggleable Speed Tours feature for isolated off-season events;
+  it is hidden by default from public navigation and direct public access.
+- Added eight-round, 90-point drafting with six criteria-controlled rounds,
+  unrestricted rounds 7–8, 45-second server-controlled phases, duplicate
+  resolution, poison choices, reselection, and price-cap fallback.
+- Added public and admin event rooms showing criteria, timers, filtered boards,
+  participating teams, budgets, picks, past events, and bracket state.
+- Added isolated single- and double-elimination brackets with scores and game
+  reports. Speed Tour data does not write to regular-season/playoff matches,
+  rosters, standings, Elo, betting, pick-ems, or seasonal statistics.
+- Added startup migrations for the dedicated Speed Tour tables and bracket
+  stage metadata.
+
+Verification: TypeScript, targeted ESLint, temporary-copy migration testing,
+`git diff --check`, and the production build pass.
+
 ## September 15, 2026 - Experimental Stats Replay Impact & Homepage Layout
 
 - Added replay-backed win probability to the Experimental Stats Battle

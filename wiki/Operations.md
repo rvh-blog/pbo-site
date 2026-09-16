@@ -95,6 +95,19 @@ instead of during website and bot database imports.
 
 `start.sh` starts the Discord bot only when `DISCORD_BOT_TOKEN` is set. Bot failure does not kill the web app. If Next.js exits, the container shuts down.
 
+### Speed Tours
+
+Speed Tours are hidden from public navigation and direct public access by
+default. An authenticated admin can enable them from Admin Dashboard >
+Visibility Controls. The setting is stored as `speed_tours_enabled`; disabling
+it returns the public page and public API to an unavailable state without
+deleting event data.
+
+Speed Tour events, picks, budgets, bracket scores, and reports use dedicated
+tables and are intentionally separate from seasonal/playoff match data. The
+admin control page is `/admin/speed-tours`; the public event room is
+`/speed-tours`, with past events available through its Speed Tours menu.
+
 ## Production Database
 
 The production SQLite database lives on the Fly volume at:
@@ -175,6 +188,13 @@ npm run events:backfill -- --apply
 The first command is a dry run. Backfill downloads only replay URLs that do
 not already have normalized rows, preserves every raw protocol line, and does
 not alter match results or Pokémon aggregates.
+
+Speed Tours are applied by the idempotent startup migrations
+`2026-09-16-speed-tours-v1` and `2026-09-16-speed-tours-bracket-stage-v1`.
+They create only the dedicated `speed_tour_*` tables and should be verified
+against a copied local database before deployment. Do not upload a local
+database to production just to apply these schema changes; the normal startup
+migration applies them when the new release starts.
 
 ## Elo Recalculation
 

@@ -1556,6 +1556,96 @@ export const siteSettings = sqliteTable("site_settings", {
   updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
 });
 
+// Speed Tours are isolated off-season events. They intentionally do not write
+// to seasonal rosters, transactions, standings, or match-result cascades.
+export const speedTours = sqliteTable("speed_tours", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("lobby"),
+  priceSeasonId: integer("price_season_id").notNull().references(() => seasons.id),
+  budget: integer("budget").notNull().default(90),
+  totalRounds: integer("total_rounds").notNull().default(8),
+  currentRound: integer("current_round").notNull().default(1),
+  bracketFormat: text("bracket_format"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_speed_tours_status").on(table.status),
+]);
+
+export const speedTourCoaches = sqliteTable("speed_tour_coaches", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  speedTourId: integer("speed_tour_id").notNull().references(() => speedTours.id, { onDelete: "cascade" }),
+  coachId: integer("coach_id").notNull().references(() => coaches.id),
+  remainingBudget: integer("remaining_budget").notNull().default(90),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_speed_tour_coaches_tour_coach").on(table.speedTourId, table.coachId),
+  index("idx_speed_tour_coaches_coach_id").on(table.coachId),
+]);
+
+export const speedTourRounds = sqliteTable("speed_tour_rounds", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  speedTourId: integer("speed_tour_id").notNull().references(() => speedTours.id, { onDelete: "cascade" }),
+  roundNumber: integer("round_number").notNull(),
+  phase: text("phase").notNull().default("waiting"),
+  criteria: text("criteria", { mode: "json" }).$type<Record<string, unknown> | null>(),
+  phaseEndsAt: text("phase_ends_at"),
+  fallbackPriceCap: integer("fallback_price_cap"),
+  startedAt: text("started_at"),
+  completedAt: text("completed_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_speed_tour_rounds_tour_round").on(table.speedTourId, table.roundNumber),
+  index("idx_speed_tour_rounds_tour_phase").on(table.speedTourId, table.phase),
+]);
+
+export const speedTourSubmissions = sqliteTable("speed_tour_submissions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  roundId: integer("round_id").notNull().references(() => speedTourRounds.id, { onDelete: "cascade" }),
+  participantId: integer("participant_id").notNull().references(() => speedTourCoaches.id, { onDelete: "cascade" }),
+  stage: text("stage").notNull(),
+  pokemonId: integer("pokemon_id").notNull().references(() => pokemon.id),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_speed_tour_submissions_round_participant_stage").on(table.roundId, table.participantId, table.stage),
+  index("idx_speed_tour_submissions_round_pokemon").on(table.roundId, table.pokemonId),
+]);
+
+export const speedTourSelections = sqliteTable("speed_tour_selections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  speedTourId: integer("speed_tour_id").notNull().references(() => speedTours.id, { onDelete: "cascade" }),
+  roundId: integer("round_id").notNull().references(() => speedTourRounds.id, { onDelete: "cascade" }),
+  participantId: integer("participant_id").notNull().references(() => speedTourCoaches.id, { onDelete: "cascade" }),
+  pokemonId: integer("pokemon_id").notNull().references(() => pokemon.id),
+  price: integer("price").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_speed_tour_selections_round_participant").on(table.roundId, table.participantId),
+  uniqueIndex("idx_speed_tour_selections_tour_pokemon").on(table.speedTourId, table.pokemonId),
+]);
+
+export const speedTourBracketMatches = sqliteTable("speed_tour_bracket_matches", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  speedTourId: integer("speed_tour_id").notNull().references(() => speedTours.id, { onDelete: "cascade" }),
+  bracketRound: integer("bracket_round").notNull(),
+  bracketPosition: integer("bracket_position").notNull(),
+  bracketStage: text("bracket_stage").notNull().default("winners"),
+  participantOneId: integer("participant_one_id").references(() => speedTourCoaches.id),
+  participantTwoId: integer("participant_two_id").references(() => speedTourCoaches.id),
+  winnerParticipantId: integer("winner_participant_id").references(() => speedTourCoaches.id),
+  scoreOne: integer("score_one"),
+  scoreTwo: integer("score_two"),
+  gameReport: text("game_report"),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_speed_tour_bracket_tour_round").on(table.speedTourId, table.bracketRound, table.bracketPosition),
+]);
+
 export const polls = sqliteTable("polls", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   question: text("question").notNull(),
