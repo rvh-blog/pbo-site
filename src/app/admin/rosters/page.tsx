@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -70,6 +71,11 @@ interface SeasonCoach {
 interface ExistingTeam {
   teamName: string;
   teamLogoUrl: string | null;
+}
+
+async function getApiError(response: Response, fallback: string): Promise<string> {
+  const data = await response.json().catch(() => ({}));
+  return typeof data.error === "string" ? data.error : fallback;
 }
 
 function sortRosterByPrice(roster: RosterEntry[] | undefined) {
@@ -251,7 +257,7 @@ export default function AdminRostersPage() {
     e.preventDefault();
     if (!newEntry.coachId || !newEntry.divisionId || !newEntry.teamName) return;
 
-    await fetch("/api/rosters", {
+    const response = await fetch("/api/rosters", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -262,6 +268,10 @@ export default function AdminRostersPage() {
         teamLogoUrl: newEntry.teamLogoUrl || null,
       }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to add coach to season"));
+      return;
+    }
 
     setNewEntry({ coachId: "", divisionId: "", teamName: "", teamLogoUrl: "" });
     setExistingTeams([]);
@@ -310,7 +320,7 @@ export default function AdminRostersPage() {
     e.preventDefault();
     if (!addToRoster.seasonCoachId || !addToRoster.pokemonId) return;
 
-    await fetch("/api/rosters", {
+    const response = await fetch("/api/rosters", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -321,6 +331,10 @@ export default function AdminRostersPage() {
         isTeraCaptain: addToRoster.isTeraCaptain,
       }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to add Pokemon to roster"));
+      return;
+    }
 
     setAddToRoster({ ...addToRoster, pokemonId: "", price: "", isTeraCaptain: false });
     if (selectedSeason) {
@@ -329,7 +343,11 @@ export default function AdminRostersPage() {
   }
 
   async function handleRemoveFromRoster(rosterId: number) {
-    await fetch(`/api/rosters?rosterId=${rosterId}`, { method: "DELETE" });
+    const response = await fetch(`/api/rosters?rosterId=${rosterId}`, { method: "DELETE" });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to remove Pokemon from roster"));
+      return;
+    }
     if (selectedSeason) {
       fetchSeasonCoaches(selectedSeason.id);
     }
@@ -370,7 +388,7 @@ export default function AdminRostersPage() {
     e.preventDefault();
     if (!editingTeam) return;
 
-    await fetch("/api/rosters", {
+    const response = await fetch("/api/rosters", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -381,6 +399,10 @@ export default function AdminRostersPage() {
         teamLogoUrl: editTeamForm.teamLogoUrl || null,
       }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to update team"));
+      return;
+    }
 
     setEditingTeam(null);
     if (selectedSeason) {
@@ -666,9 +688,11 @@ export default function AdminRostersPage() {
                           }`}
                         >
                           {team.teamLogoUrl && (
-                            <img
+                            <Image
                               src={team.teamLogoUrl}
                               alt={team.teamName}
+                              width={24}
+                              height={24}
                               className="w-6 h-6 object-contain"
                             />
                           )}
@@ -728,9 +752,11 @@ export default function AdminRostersPage() {
                 {newEntry.teamLogoUrl && (
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-[var(--foreground-muted)]">Preview:</span>
-                    <img
+                    <Image
                       src={newEntry.teamLogoUrl}
                       alt="Logo preview"
+                      width={40}
+                      height={40}
                       className="w-10 h-10 object-contain rounded"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
@@ -889,9 +915,11 @@ export default function AdminRostersPage() {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           {sc.teamLogoUrl && (
-                            <img
+                            <Image
                               src={sc.teamLogoUrl}
                               alt={sc.teamName}
+                              width={40}
+                              height={40}
                               className="w-10 h-10 object-contain rounded"
                             />
                           )}
@@ -957,9 +985,11 @@ export default function AdminRostersPage() {
                             }`}
                           >
                             {r.pokemon?.spriteUrl && (
-                              <img
+                              <Image
                                 src={r.pokemon.spriteUrl}
                                 alt={r.pokemon.displayName || r.pokemon.name}
+                                width={24}
+                                height={24}
                                 className="w-6 h-6 object-contain"
                               />
                             )}
@@ -1043,9 +1073,11 @@ export default function AdminRostersPage() {
               {editTeamForm.teamLogoUrl && (
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-[var(--foreground-muted)]">Preview:</span>
-                  <img
+                  <Image
                     src={editTeamForm.teamLogoUrl}
                     alt="Logo preview"
+                    width={40}
+                    height={40}
                     className="w-10 h-10 object-contain rounded"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = "none";
@@ -1211,9 +1243,11 @@ export default function AdminRostersPage() {
                 {replacementForm.newTeamLogoUrl && (
                   <div className="mt-3 flex items-center gap-3">
                     <span className="text-sm text-[var(--foreground-muted)]">Preview:</span>
-                    <img
+                    <Image
                       src={replacementForm.newTeamLogoUrl}
                       alt="Logo preview"
+                      width={40}
+                      height={40}
                       className="w-10 h-10 object-contain rounded"
                     />
                     <Button

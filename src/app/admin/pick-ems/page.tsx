@@ -32,6 +32,15 @@ interface Coach {
   id: number;
   name: string;
   pboCoin: number;
+  isMod?: boolean;
+  seasonCoaches?: {
+    isActive?: boolean | null;
+    division?: {
+      season?: {
+        isCurrent?: boolean | null;
+      } | null;
+    } | null;
+  }[];
 }
 
 interface TriviaReward {
@@ -42,6 +51,9 @@ interface TriviaReward {
   createdAt: string;
   coach: { id: number; name: string };
 }
+
+const MIN_PAYOUT_AMOUNT = 20;
+const MAX_PAYOUT_AMOUNT = 1000;
 
 export default function AdminBettingPage() {
   const [settings, setSettings] = useState<BettingSettings>({
@@ -63,8 +75,8 @@ export default function AdminBettingPage() {
 
   // Trivia rewards state
   const [coaches, setCoaches] = useState<Coach[]>([]);
-  const [selectedCoachId, setSelectedCoachId] = useState<number | "">("");
-  const [triviaAmount, setTriviaAmount] = useState<number>(10);
+  const [selectedCoachIds, setSelectedCoachIds] = useState<number[]>([]);
+  const [triviaAmount, setTriviaAmount] = useState<string>(String(MIN_PAYOUT_AMOUNT));
   const [triviaReason, setTriviaReason] = useState<string>("");
   const [awardingTrivia, setAwardingTrivia] = useState(false);
   const [triviaSuccess, setTriviaSuccess] = useState<string | null>(null);
@@ -87,6 +99,8 @@ export default function AdminBettingPage() {
     if (selectedWeek !== null && divisions.length > 0) {
       fetchMatchesForWeek();
     }
+    // The fetch function intentionally uses the current week/division context.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWeek, divisions]);
 
   async function fetchSettings() {
@@ -239,12 +253,24 @@ export default function AdminBettingPage() {
   }
 
   async function awardTriviaReward() {
-    if (!selectedCoachId || !triviaAmount || !triviaReason.trim()) return;
-
-    const selectedCoach = coaches.find((coach) => coach.id === selectedCoachId);
+    const amount = Number(triviaAmount);
     if (
-      triviaAmount >= 250 &&
-      !window.confirm(`Award ${triviaAmount} PBO Coin to ${selectedCoach?.name || "this coach"}?`)
+      selectedCoachIds.length === 0 ||
+      !Number.isInteger(amount) ||
+      amount < MIN_PAYOUT_AMOUNT ||
+      amount > MAX_PAYOUT_AMOUNT ||
+      !triviaReason.trim()
+    ) {
+      return;
+    }
+
+    const selectedCoaches = coaches.filter((coach) => selectedCoachIds.includes(coach.id));
+    const totalCoins = amount * selectedCoachIds.length;
+    if (
+      amount >= 250 &&
+      !window.confirm(
+        `Award ${amount} PBO Coin to ${selectedCoachIds.length} coaches? Total payout: ${totalCoins} PBO Coins.`
+      )
     ) {
       return;
     }
@@ -257,8 +283,8 @@ export default function AdminBettingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          coachId: selectedCoachId,
-          amount: triviaAmount,
+          coachIds: selectedCoachIds,
+          amount,
           reason: triviaReason.trim(),
           awardedBy: "Admin", // Could be dynamic if we track who's logged in
         }),
@@ -266,9 +292,11 @@ export default function AdminBettingPage() {
 
       if (res.ok) {
         const data = await res.json();
-        setTriviaSuccess(`Awarded ${triviaAmount} coins to ${selectedCoach?.name}. New balance: ${data.newBalance}`);
-        setSelectedCoachId("");
-        setTriviaAmount(10);
+        setTriviaSuccess(
+          `Awarded ${amount} coins to ${data.count ?? selectedCoaches.length} coaches. Total payout: ${data.totalCoins ?? totalCoins}.`
+        );
+        setSelectedCoachIds([]);
+        setTriviaAmount(String(MIN_PAYOUT_AMOUNT));
         setTriviaReason("");
         fetchRecentRewards();
         fetchCoaches(); // Refresh coin balances
@@ -318,6 +346,27 @@ export default function AdminBettingPage() {
     } finally {
       setTogglingTwitchBadge(false);
     }
+  }
+
+  const currentCoachIds = coaches
+    .filter((coach) =>
+      coach.seasonCoaches?.some(
+        (seasonCoach) =>
+          seasonCoach.isActive !== false &&
+          seasonCoach.division?.season?.isCurrent === true
+      )
+    )
+    .map((coach) => coach.id);
+  const currentAdminIds = coaches
+    .filter((coach) => coach.isMod === true)
+    .map((coach) => coach.id);
+
+  function selectCoachGroup(coachIds: number[]) {
+    if (coachIds.length > 100) {
+      window.alert(`This group has ${coachIds.length} coaches. Select no more than 100 at a time.`);
+      return;
+    }
+    setSelectedCoachIds(coachIds);
   }
 
   if (loading) {
@@ -419,7 +468,7 @@ export default function AdminBettingPage() {
       {/* Trivia Rewards Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Trivia Rewards</CardTitle>
+          <CardTitle>PBO Coin Payout</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-[var(--foreground-muted)]">
@@ -429,30 +478,64 @@ export default function AdminBettingPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* Coach Selector */}
             <div>
-              <label className="block text-sm font-medium text-white mb-1">Coach</label>
+              <label className="block text-sm font-medium text-white mb-1">
+                Coaches (up to 100)
+              </label>
               <select
-                value={selectedCoachId}
-                onChange={(e) => setSelectedCoachId(e.target.value ? parseInt(e.target.value) : "")}
-                className="w-full px-3 py-2 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded-lg text-white"
+                multiple
+                size={6}
+                value={selectedCoachIds.map(String)}
+                onChange={(e) => {
+                  const ids = Array.from(e.target.selectedOptions, (option) => Number(option.value));
+                  if (ids.length > 100) {
+                    window.alert("You can select up to 100 coaches at a time.");
+                    return;
+                  }
+                  setSelectedCoachIds(ids);
+                }}
+                disabled={awardingTrivia}
+                className="h-40 w-full px-3 py-2 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded-lg text-white"
               >
-                <option value="">Select a coach...</option>
+                <option value="" disabled>Select one or more coaches...</option>
                 {coaches.map((coach) => (
                   <option key={coach.id} value={coach.id}>
                     {coach.name} ({coach.pboCoin} coins)
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-[var(--foreground-subtle)]">
+                {selectedCoachIds.length} of 100 coaches selected. Hold Ctrl (Windows) or Command (Mac) to select multiple.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => selectCoachGroup(currentCoachIds)}
+                  disabled={awardingTrivia || currentCoachIds.length === 0}
+                  className="rounded border border-[var(--background-tertiary)] px-2 py-1 text-xs font-medium text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Select All Current Coaches ({currentCoachIds.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectCoachGroup(currentAdminIds)}
+                  disabled={awardingTrivia || currentAdminIds.length === 0}
+                  className="rounded border border-[var(--background-tertiary)] px-2 py-1 text-xs font-medium text-[var(--foreground-muted)] transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Select All Current Admins ({currentAdminIds.length})
+                </button>
+              </div>
             </div>
 
             {/* Amount Input */}
             <div>
-              <label className="block text-sm font-medium text-white mb-1">Amount (10-500)</label>
+              <label className="block text-sm font-medium text-white mb-1">Amount (20-1000)</label>
               <input
                 type="number"
-                min={10}
-                max={500}
+                min={MIN_PAYOUT_AMOUNT}
+                max={MAX_PAYOUT_AMOUNT}
+                step={1}
                 value={triviaAmount}
-                onChange={(e) => setTriviaAmount(Math.min(500, Math.max(10, parseInt(e.target.value) || 10)))}
+                onChange={(e) => setTriviaAmount(e.target.value)}
                 className="w-full px-3 py-2 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded-lg text-white"
               />
             </div>
@@ -473,7 +556,14 @@ export default function AdminBettingPage() {
             <div className="flex items-end">
               <button
                 onClick={awardTriviaReward}
-                disabled={awardingTrivia || !selectedCoachId || !triviaReason.trim()}
+                disabled={
+                  awardingTrivia ||
+                  selectedCoachIds.length === 0 ||
+                  !Number.isInteger(Number(triviaAmount)) ||
+                  Number(triviaAmount) < MIN_PAYOUT_AMOUNT ||
+                  Number(triviaAmount) > MAX_PAYOUT_AMOUNT ||
+                  !triviaReason.trim()
+                }
                 className="w-full px-4 py-2 bg-[var(--accent)] text-white font-bold rounded-lg hover:bg-[var(--accent)]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {awardingTrivia ? "Awarding..." : "Award Coins"}

@@ -99,6 +99,7 @@ interface Match {
   coach1Differential: number;
   coach2Differential: number;
   isForfeit: boolean;
+  playedAt: string | null;
   replayUrl: string | null;
   needsReview: boolean;
   reviewNotes: string | null;
@@ -177,6 +178,14 @@ type MatchPokemonPayload = {
 };
 
 type TabType = "schedule" | "results" | "playoffs";
+type MatchFilter = "all" | "pending" | "completed" | "forfeit" | "review";
+
+type SaveMatchOptions = {
+  openNextReview?: boolean;
+  needsReview?: boolean;
+  clearReviewNotes?: boolean;
+  keepOpen?: boolean;
+};
 
 type ScheduleEntry = { week: number; team1: string; team2: string };
 
@@ -196,6 +205,55 @@ function createEmptyPokemonEntries(): PokemonEntry[] {
   return Array.from({ length: 6 }, () => ({ pokemonId: "", kills: "0", deaths: "0" }));
 }
 
+function isHistoricalStatsSeason(seasonNumber: number | undefined) {
+  return seasonNumber !== undefined && seasonNumber >= 5 && seasonNumber <= 10;
+}
+
+function getMatchStatus(match: Match): "review" | "pending" | "forfeit" | "missing-replay" | "missing-pokemon" | "complete" {
+  if (match.needsReview) return "review";
+  if (!isCompletedMatchResult(match.winnerId, match.isForfeit)) return "pending";
+  if (match.isForfeit) return "forfeit";
+  if (!match.replayUrl?.trim()) return "missing-replay";
+  if (!match.matchPokemon?.length) return "missing-pokemon";
+  return "complete";
+}
+
+function getMatchStatusLabel(status: ReturnType<typeof getMatchStatus>) {
+  switch (status) {
+    case "review": return "Needs Review";
+    case "pending": return "Needs Result";
+    case "forfeit": return "Forfeit";
+    case "missing-replay": return "Missing Replay";
+    case "missing-pokemon": return "Missing Pokemon";
+    case "complete": return "Complete";
+  }
+}
+
+function getMatchStatusClasses(status: ReturnType<typeof getMatchStatus>) {
+  switch (status) {
+    case "review": return "bg-yellow-400 text-black";
+    case "pending": return "bg-[var(--warning)]/20 text-[var(--warning)]";
+    case "forfeit": return "bg-[var(--warning)] text-black";
+    case "missing-replay": return "bg-orange-400/20 text-orange-200";
+    case "missing-pokemon": return "bg-purple-400/20 text-purple-200";
+    case "complete": return "bg-[var(--success)]/20 text-[var(--success)]";
+  }
+}
+
+function formatMatchDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function summarizePokemonStats(entries: Array<{ pokemonId?: number | string; kills: number | string; deaths: number | string }>) {
+  return {
+    rows: entries.filter((entry) => entry.pokemonId === undefined || String(entry.pokemonId) !== "").length,
+    kills: entries.reduce((total, entry) => total + (Number(entry.kills) || 0), 0),
+    deaths: entries.reduce((total, entry) => total + (Number(entry.deaths) || 0), 0),
+  };
+}
+
 export default function AdminMatchesPage() {
   const [activeTab, setActiveTab] = useState<TabType>("results");
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -207,15 +265,18 @@ export default function AdminMatchesPage() {
   const [playoffMatches, setPlayoffMatches] = useState<PlayoffMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchSearch, setMatchSearch] = useState("");
+  const [matchFilter, setMatchFilter] = useState<MatchFilter>("all");
+  const autoOpenedContextRef = useRef<string | null>(null);
 
   // Schedule CSV upload
   const [scheduleCsvFile, setScheduleCsvFile] = useState("");
   const [scheduleCsvError, setScheduleCsvError] = useState("");
   const [schedulePreview, setSchedulePreview] = useState<Array<{ week: number; team1: string; team2: string }>>([]);
   const scheduleFileRef = useRef<HTMLInputElement>(null);
+  const resultEditorRef = useRef<HTMLDivElement>(null);
+  const seasonDivisionRef = useRef<HTMLDivElement>(null);
 
   // Match result entry
-  const [selectedWeek, setSelectedWeek] = useState<string>("");
   const [selectedFixture, setSelectedFixture] = useState<Match | null>(null);
   const [selectedPlayoffFixture, setSelectedPlayoffFixture] = useState<PlayoffMatch | null>(null);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
@@ -300,10 +361,43 @@ export default function AdminMatchesPage() {
       fetchMatches();
       fetchPlayoffMatches();
     }
+    // These loaders intentionally capture the selected context for this refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSeason, selectedDivision]);
+
+  // If data finished loading while the admin was on another tab, open the next
+  // pending result when they return to Results.
+  useEffect(() => {
+    if (activeTab !== "results" || !selectedSeason || matches.length === 0) return;
+    const contextKey = `${selectedSeason.id}:${selectedDivision?.id || "all"}`;
+    if (autoOpenedContextRef.current === contextKey) return;
+
+    const nextPendingMatch = [...matches]
+      .filter((match) => !isCompletedMatchResult(match.winnerId, match.isForfeit))
+      .sort((a, b) => a.week - b.week || a.id - b.id)[0];
+    if (!nextPendingMatch) return;
+
+    autoOpenedContextRef.current = contextKey;
+    openMatchForEditing(nextPendingMatch, false);
+    // openMatchForEditing is intentionally invoked only once per season/division context.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, matches, selectedDivision, selectedSeason]);
+
+  useEffect(() => {
+    try {
+      if (selectedSeason) {
+        window.localStorage.setItem("pbo-admin-season-id", String(selectedSeason.id));
+      }
+      if (selectedDivision) {
+        window.localStorage.setItem("pbo-admin-division-id", String(selectedDivision.id));
+      }
+    } catch {
+      // Local storage is only a convenience; the page still works without it.
+    }
   }, [selectedSeason, selectedDivision]);
 
   useEffect(() => {
-    if (!selectedSeason || selectedSeason.seasonNumber < 5 || selectedSeason.seasonNumber > 9) {
+    if (!selectedSeason || !isHistoricalStatsSeason(selectedSeason.seasonNumber)) {
       setHistoricalPokemonPool([]);
       return;
     }
@@ -344,15 +438,28 @@ export default function AdminMatchesPage() {
         setPlayoffForm((prev) => ({ ...prev, bracketPosition: available.toString() }));
       }
     }
-  }, [playoffMatches, selectedDivision, playoffForm.round]);
+  }, [playoffMatches, selectedDivision, playoffForm.bracketPosition, playoffForm.round]);
 
   async function fetchSeasons() {
     const res = await fetch("/api/seasons");
     const data = await res.json();
-    setSeasons(data);
-    const current = data.find((s: Season) => s.isCurrent);
+    const availableSeasons: Season[] = Array.isArray(data) ? data : [];
+    setSeasons(availableSeasons);
+    const current = availableSeasons.find((s) => s.isCurrent) || availableSeasons[0];
     if (current) {
       setSelectedSeason(current);
+      let savedDivisionId: number | null = null;
+      try {
+        const parsed = Number(window.localStorage.getItem("pbo-admin-division-id"));
+        savedDivisionId = Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+      } catch {
+        savedDivisionId = null;
+      }
+      setSelectedDivision(
+        current.divisions.find((division) => division.id === savedDivisionId) ||
+        current.divisions[0] ||
+        null
+      );
     }
     setLoading(false);
   }
@@ -364,14 +471,28 @@ export default function AdminMatchesPage() {
     setSeasonCoaches(Array.isArray(data) ? data : []);
   }
 
-  async function fetchMatches() {
-    if (!selectedSeason) return;
+  async function fetchMatches(): Promise<Match[]> {
+    if (!selectedSeason) return [];
     let url = `/api/matches?seasonId=${selectedSeason.id}`;
     if (selectedDivision) {
       url += `&divisionId=${selectedDivision.id}`;
     }
     const res = await fetch(url);
-    setMatches(await res.json());
+    const data = await res.json();
+    const nextMatches = Array.isArray(data) ? data : [];
+    setMatches(nextMatches);
+
+    const contextKey = `${selectedSeason.id}:${selectedDivision?.id || "all"}`;
+    if (activeTab === "results" && autoOpenedContextRef.current !== contextKey) {
+      autoOpenedContextRef.current = contextKey;
+      const nextPendingMatch = [...nextMatches]
+        .filter((match) => !isCompletedMatchResult(match.winnerId, match.isForfeit))
+        .sort((a, b) => a.week - b.week || a.id - b.id)[0];
+      if (nextPendingMatch) {
+        openMatchForEditing(nextPendingMatch, false);
+      }
+    }
+    return nextMatches;
   }
 
   async function fetchPlayoffMatches() {
@@ -595,19 +716,33 @@ export default function AdminMatchesPage() {
       return;
     }
 
-    await Promise.all(validSchedule.map((match) =>
-      fetch("/api/matches", {
+    try {
+      const response = await fetch("/api/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          seasonId: selectedSeason.id,
-          divisionId: selectedDivision.id,
-          week: match.week,
-          coach1SeasonId: match.coach1SeasonId,
-          coach2SeasonId: match.coach2SeasonId,
+          action: "bulkSchedule",
+          matches: validSchedule.map((match) => ({
+            seasonId: selectedSeason.id,
+            divisionId: selectedDivision.id,
+            week: match.week,
+            coach1SeasonId: match.coach1SeasonId,
+            coach2SeasonId: match.coach2SeasonId,
+          })),
         }),
-      })
-    ));
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setScheduleCsvError(result.error || "Failed to upload schedule");
+        return;
+      }
+      if (result.skippedCount > 0) {
+        alert(`Added ${result.createdCount} matches. Skipped ${result.skippedCount} matches that already existed.`);
+      }
+    } catch {
+      setScheduleCsvError("Schedule upload failed. Please try again.");
+      return;
+    }
 
     setSchedulePreview([]);
     setScheduleCsvFile("");
@@ -626,26 +761,6 @@ export default function AdminMatchesPage() {
 
   const regularWeeks = [...new Set(matches.map((m) => m.week))].filter((w) => w <= 100).sort((a, b) => a - b);
   const playoffRounds = [...new Set(playoffMatches.map((pm) => pm.round))].sort((a, b) => a - b);
-
-  const weekOptions = [
-    ...regularWeeks.map((w) => ({ value: `week-${w}`, label: `Week ${w}` })),
-    ...playoffRounds.map((r) => ({ value: `playoff-${r}`, label: getRoundName(r) })),
-  ];
-
-  const isPlayoffRound = selectedWeek.startsWith("playoff-");
-  const selectedValue = parseInt(selectedWeek.split("-")[1]) || 0;
-
-  const fixturesForWeek = isPlayoffRound
-    ? []
-    : matches.filter(
-        (m) => m.week === selectedValue && (!selectedDivision || m.divisionId === selectedDivision.id)
-      );
-
-  const playoffFixturesForRound = isPlayoffRound
-    ? playoffMatches.filter(
-        (pm) => pm.round === selectedValue && (!selectedDivision || pm.divisionId === selectedDivision.id)
-      )
-    : [];
 
   function findMatchForPlayoff(playoffMatch: PlayoffMatch): Match | undefined {
     const playoffWeek = 100 + playoffMatch.round;
@@ -728,11 +843,97 @@ export default function AdminMatchesPage() {
     );
   }
 
+  function openMatchForEditing(match: Match, scrollToEditor = false) {
+    setEditingMatch(match);
+    setSelectedFixture(null);
+    setSelectedPlayoffFixture(null);
+    loadMatchForm(match);
+    fetchTimeSyncedRosters(match.coach1SeasonId, match.coach2SeasonId, match.week);
+
+    if (scrollToEditor) {
+      requestAnimationFrame(() => {
+        resultEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }
+
+  function selectMatchFromPicker(value: string) {
+    if (!value) {
+      setSelectedFixture(null);
+      setSelectedPlayoffFixture(null);
+      setEditingMatch(null);
+      resetForm();
+      return;
+    }
+
+    if (value.startsWith("match-")) {
+      const match = matches.find((entry) => entry.id === Number(value.slice("match-".length)));
+      if (!match) return;
+      setSelectedFixture(match);
+      setEditingMatch(null);
+      setSelectedPlayoffFixture(null);
+      loadMatchForm(match);
+      fetchTimeSyncedRosters(match.coach1SeasonId, match.coach2SeasonId, match.week);
+      return;
+    }
+
+    const playoffMatch = playoffMatches.find(
+      (entry) => entry.id === Number(value.slice("playoff-".length))
+    );
+    if (!playoffMatch) return;
+    if (!playoffMatch.higherSeedId || !playoffMatch.lowerSeedId) {
+      alert("Both teams must be set in the playoff bracket before entering results.");
+      return;
+    }
+
+    setSelectedPlayoffFixture(playoffMatch);
+    setSelectedFixture(null);
+    setEditingMatch(null);
+    const existingMatch = findMatchForPlayoff(playoffMatch);
+    if (existingMatch) {
+      loadMatchForm(existingMatch);
+    } else {
+      resetForm();
+    }
+    fetchTimeSyncedRosters(playoffMatch.higherSeedId, playoffMatch.lowerSeedId, 100 + playoffMatch.round);
+  }
+
+  async function handleClearReviewFlag() {
+    const match = selectedFixture || editingMatch;
+    if (!match) return;
+    if (!confirm("Clear the review flag? This keeps the match result and stats unchanged.")) return;
+
+    const reviewIndex = reviewMatches.findIndex((reviewMatch) => reviewMatch.id === match.id);
+    const nextReviewId = reviewIndex >= 0 && reviewMatches.length > 1
+      ? reviewMatches[(reviewIndex + 1) % reviewMatches.length]?.id
+      : undefined;
+    const res = await fetch("/api/matches", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: match.id, needsReview: false, reviewNotes: null }),
+    });
+    if (!res.ok) {
+      alert("Failed to clear the review flag.");
+      return;
+    }
+
+    const refreshedMatches = await fetchMatches();
+    const nextReviewMatch = nextReviewId
+      ? refreshedMatches.find((reviewMatch) => reviewMatch.id === nextReviewId)
+      : undefined;
+    if (nextReviewMatch) {
+      openMatchForEditing(nextReviewMatch, true);
+      return;
+    }
+
+    setSelectedFixture(null);
+    setEditingMatch(null);
+    resetForm();
+  }
+
   function getSelectablePokemon(rosters: RosterEntry[] | undefined): Pokemon[] {
     const rosterPokemon = (rosters || []).map((entry) => entry.pokemon);
-    const isHistoricalBackfillSeason = selectedSeason
-      && selectedSeason.seasonNumber >= 5
-      && selectedSeason.seasonNumber <= 9;
+    const isHistoricalBackfillSeason = isHistoricalStatsSeason(selectedSeason?.seasonNumber);
 
     if (!isHistoricalBackfillSeason) return rosterPokemon;
 
@@ -751,9 +952,25 @@ export default function AdminMatchesPage() {
     return entry?.displayName || entry?.name || "";
   }
 
-  async function handleSaveMatchResult() {
+  async function handleSaveMatchResult(options?: SaveMatchOptions) {
     const match = selectedFixture || editingMatch;
     const playoffMatch = selectedPlayoffFixture;
+    const openNextReview = options?.openNextReview === true;
+    const saveNeedsReview = options?.needsReview ?? matchForm.needsReview;
+    const saveReviewNotes = options?.clearReviewNotes
+      ? null
+      : matchForm.reviewNotes.trim() || null;
+    const currentReviewIndex = match
+      ? reviewMatches.findIndex((reviewMatch) => reviewMatch.id === match.id)
+      : -1;
+    const nextReviewId = currentReviewIndex >= 0 && reviewMatches.length > 1
+      ? reviewMatches[(currentReviewIndex + 1) % reviewMatches.length]?.id
+      : undefined;
+
+    if (saveNeedsReview && !saveReviewNotes) {
+      alert("Add a review reason before keeping this match flagged.");
+      return;
+    }
 
     if (playoffMatch && !match) {
       const existingMatch = findMatchForPlayoff(playoffMatch);
@@ -841,6 +1058,7 @@ export default function AdminMatchesPage() {
             `Result: ${resultName}`,
             `Score differential: ${parseInt(matchForm.coach1Differential) || 0} / ${parseInt(matchForm.coach2Differential) || 0}`,
             `Pokemon stat rows: ${pokemonData.length}`,
+            ...(isHistoricalStatsSeason(selectedSeason?.seasonNumber) ? ["Historical correction: Seasons 5–10"] : []),
             "Affected data: match result, standings, ELO dependencies, playoff advancement, bets, and pick-ems.",
           ].join("\n")
         )
@@ -848,8 +1066,9 @@ export default function AdminMatchesPage() {
         return;
       }
 
+      let matchResponse: Response;
       if (existingMatch) {
-        await fetch("/api/matches", {
+        matchResponse = await fetch("/api/matches", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -859,8 +1078,8 @@ export default function AdminMatchesPage() {
             coach2Differential: parseInt(matchForm.coach2Differential) || 0,
             isForfeit: matchForm.isForfeit,
             replayUrl: matchForm.replayUrl || null,
-            needsReview: matchForm.needsReview,
-            reviewNotes: matchForm.reviewNotes || null,
+            needsReview: saveNeedsReview,
+            reviewNotes: saveReviewNotes,
             pokemonData,
             startedAt: matchTimingData.startedAt,
             endedAt: matchTimingData.endedAt,
@@ -871,7 +1090,7 @@ export default function AdminMatchesPage() {
           }),
         });
       } else {
-        await fetch("/api/matches", {
+        matchResponse = await fetch("/api/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -885,8 +1104,8 @@ export default function AdminMatchesPage() {
             coach2Differential: parseInt(matchForm.coach2Differential) || 0,
             isForfeit: matchForm.isForfeit,
             replayUrl: matchForm.replayUrl || null,
-            needsReview: matchForm.needsReview,
-            reviewNotes: matchForm.reviewNotes || null,
+            needsReview: saveNeedsReview,
+            reviewNotes: saveReviewNotes,
             pokemonData,
             startedAt: matchTimingData.startedAt,
             endedAt: matchTimingData.endedAt,
@@ -898,6 +1117,13 @@ export default function AdminMatchesPage() {
         });
       }
 
+      const matchResult = await matchResponse.json().catch(() => ({}));
+      if (!matchResponse.ok) {
+        alert(matchResult.error || "Failed to save playoff match result.");
+        return;
+      }
+      if (matchResult.needsFullRecalc) setNeedsFullRecalc(true);
+
       if (matchForm.winnerId) {
         const winnerId = parseInt(matchForm.winnerId);
         const higherSeedWins = winnerId === playoffMatch.higherSeedId
@@ -907,7 +1133,7 @@ export default function AdminMatchesPage() {
           ? Math.abs(parseInt(matchForm.coach2Differential))
           : 0;
 
-        await fetch("/api/playoffs", {
+        const playoffResponse = await fetch("/api/playoffs", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -917,8 +1143,16 @@ export default function AdminMatchesPage() {
             lowerSeedWins,
           }),
         });
+        const playoffResult = await playoffResponse.json().catch(() => ({}));
+        if (!playoffResponse.ok) {
+          alert(playoffResult.error || "Match saved, but playoff advancement failed.");
+          return;
+        }
 
-        await propagatePlayoffWinner(playoffMatch, winnerId);
+        if (!(await propagatePlayoffWinner(playoffMatch, winnerId))) {
+          alert("Match saved, but the next playoff slot could not be updated.");
+          return;
+        }
       }
 
       setSelectedPlayoffFixture(null);
@@ -1013,6 +1247,7 @@ export default function AdminMatchesPage() {
           `Score differential: ${parseInt(matchForm.coach1Differential) || 0} / ${parseInt(matchForm.coach2Differential) || 0}`,
           `Pokemon stat rows: ${pokemonData.length}`,
           `Replay attached: ${matchForm.replayUrl ? "yes" : "no"}`,
+          ...(isHistoricalStatsSeason(selectedSeason?.seasonNumber) ? ["Historical correction: Seasons 5–10"] : []),
           "Affected data: match result, standings, ELO dependencies, bets, and pick-ems.",
         ].join("\n")
       )
@@ -1030,8 +1265,8 @@ export default function AdminMatchesPage() {
         coach2Differential: parseInt(matchForm.coach2Differential) || 0,
         isForfeit: matchForm.isForfeit,
         replayUrl: matchForm.replayUrl || null,
-        needsReview: matchForm.needsReview,
-        reviewNotes: matchForm.reviewNotes || null,
+        needsReview: saveNeedsReview,
+        reviewNotes: saveReviewNotes,
         pokemonData,
         startedAt: matchTimingData.startedAt,
         endedAt: matchTimingData.endedAt,
@@ -1043,13 +1278,22 @@ export default function AdminMatchesPage() {
     });
 
     const result = await res.json();
+    if (!res.ok) {
+      alert(result.error || "Failed to save match result.");
+      return;
+    }
     if (result.needsFullRecalc) setNeedsFullRecalc(true);
 
     if (match.week >= 101) {
       const playoffRound = match.week - 100;
 
       const playoffRes = await fetch(`/api/playoffs?seasonId=${match.seasonId}&divisionId=${match.divisionId}`);
-      const freshPlayoffs: PlayoffMatch[] = await playoffRes.json();
+      const playoffData = await playoffRes.json().catch(() => []);
+      if (!playoffRes.ok) {
+        alert(playoffData.error || "Match saved, but playoff data could not be loaded.");
+        return;
+      }
+      const freshPlayoffs: PlayoffMatch[] = Array.isArray(playoffData) ? playoffData : [];
 
       const playoffEntry = freshPlayoffs.find(
         (pm) =>
@@ -1068,7 +1312,7 @@ export default function AdminMatchesPage() {
           ? Math.abs(parseInt(isCoach1HigherSeed ? matchForm.coach2Differential : matchForm.coach1Differential))
           : 0;
 
-        await fetch("/api/playoffs", {
+        const playoffResponse = await fetch("/api/playoffs", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1078,17 +1322,35 @@ export default function AdminMatchesPage() {
             lowerSeedWins,
           }),
         });
+        const playoffResult = await playoffResponse.json().catch(() => ({}));
+        if (!playoffResponse.ok) {
+          alert(playoffResult.error || "Match saved, but playoff advancement failed.");
+          return;
+        }
 
-        await propagatePlayoffWinner(playoffEntry, winnerId);
+        if (!(await propagatePlayoffWinner(playoffEntry, winnerId))) {
+          alert("Match saved, but the next playoff slot could not be updated.");
+          return;
+        }
       }
 
       fetchPlayoffMatches();
     }
 
+    const refreshedMatches = await fetchMatches();
+    if (openNextReview && nextReviewId) {
+      const nextReviewMatch = refreshedMatches.find((reviewMatch) => reviewMatch.id === nextReviewId);
+      if (nextReviewMatch) {
+        openMatchForEditing(nextReviewMatch, true);
+        return;
+      }
+    }
+
+    if (options?.keepOpen) return;
+
     setSelectedFixture(null);
     setEditingMatch(null);
     resetForm();
-    fetchMatches();
   }
 
   function resetForm() {
@@ -1370,62 +1632,71 @@ export default function AdminMatchesPage() {
     }
   }
 
-  async function propagatePlayoffWinner(playoffMatch: PlayoffMatch, winnerId: number) {
-    const { round, bracketPosition, divisionId, seasonId } = playoffMatch;
+  async function propagatePlayoffWinner(playoffMatch: PlayoffMatch, winnerId: number): Promise<boolean> {
+    try {
+      const { round, bracketPosition, divisionId, seasonId } = playoffMatch;
 
-    let nextRound: number;
-    let nextPosition: number;
-    let isHigherSeedSlot: boolean;
+      let nextRound: number;
+      let nextPosition: number;
+      let isHigherSeedSlot: boolean;
 
-    if (round === 1) {
-      nextRound = 2;
-      nextPosition = bracketPosition <= 2 ? 1 : 2;
-      isHigherSeedSlot = bracketPosition === 1 || bracketPosition === 3;
-    } else if (round === 2) {
-      nextRound = 3;
-      nextPosition = 1;
-      isHigherSeedSlot = bracketPosition === 1;
-    } else {
-      return;
-    }
-
-    const res = await fetch(`/api/playoffs?seasonId=${seasonId}&divisionId=${divisionId}`);
-    const freshPlayoffs: PlayoffMatch[] = await res.json();
-
-    const divisionPlayoffs = freshPlayoffs.filter(
-      (pm) => pm.round === nextRound && pm.bracketPosition === nextPosition
-    );
-
-    if (divisionPlayoffs.length > 0) {
-      const nextMatch = divisionPlayoffs[0];
-      const updateData: Record<string, unknown> = { id: nextMatch.id };
-      if (isHigherSeedSlot) {
-        updateData.higherSeedId = winnerId;
+      if (round === 1) {
+        nextRound = 2;
+        nextPosition = bracketPosition <= 2 ? 1 : 2;
+        isHigherSeedSlot = bracketPosition === 1 || bracketPosition === 3;
+      } else if (round === 2) {
+        nextRound = 3;
+        nextPosition = 1;
+        isHigherSeedSlot = bracketPosition === 1;
       } else {
-        updateData.lowerSeedId = winnerId;
+        return true;
       }
-      await fetch("/api/playoffs", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updateData),
-      });
-    } else {
-      const createData: Record<string, unknown> = {
-        seasonId,
-        divisionId,
-        round: nextRound,
-        bracketPosition: nextPosition,
-      };
-      if (isHigherSeedSlot) {
-        createData.higherSeedId = winnerId;
+
+      const res = await fetch(`/api/playoffs?seasonId=${seasonId}&divisionId=${divisionId}`);
+      const playoffData = await res.json().catch(() => []);
+      if (!res.ok || !Array.isArray(playoffData)) return false;
+      const freshPlayoffs: PlayoffMatch[] = playoffData;
+
+      const divisionPlayoffs = freshPlayoffs.filter(
+        (pm) => pm.round === nextRound && pm.bracketPosition === nextPosition
+      );
+
+      if (divisionPlayoffs.length > 0) {
+        const nextMatch = divisionPlayoffs[0];
+        const updateData: Record<string, unknown> = { id: nextMatch.id };
+        if (isHigherSeedSlot) {
+          updateData.higherSeedId = winnerId;
+        } else {
+          updateData.lowerSeedId = winnerId;
+        }
+        const response = await fetch("/api/playoffs", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateData),
+        });
+        return response.ok;
       } else {
-        createData.lowerSeedId = winnerId;
+        const createData: Record<string, unknown> = {
+          seasonId,
+          divisionId,
+          round: nextRound,
+          bracketPosition: nextPosition,
+        };
+        if (isHigherSeedSlot) {
+          createData.higherSeedId = winnerId;
+        } else {
+          createData.lowerSeedId = winnerId;
+        }
+        const response = await fetch("/api/playoffs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(createData),
+        });
+        return response.ok;
       }
-      await fetch("/api/playoffs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createData),
-      });
+    } catch (error) {
+      console.error("Failed to propagate playoff winner:", error);
+      return false;
     }
   }
 
@@ -1466,42 +1737,6 @@ export default function AdminMatchesPage() {
     }
   }
 
-  async function handleAddPlayoffMatch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedSeason || !selectedDivision) return;
-
-    await fetch("/api/playoffs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        seasonId: selectedSeason.id,
-        divisionId: selectedDivision.id,
-        round: parseInt(playoffForm.round),
-        bracketPosition: parseInt(playoffForm.bracketPosition),
-        higherSeedId: playoffForm.higherSeedId ? parseInt(playoffForm.higherSeedId) : null,
-        lowerSeedId: playoffForm.lowerSeedId ? parseInt(playoffForm.lowerSeedId) : null,
-      }),
-    });
-
-    setPlayoffForm({ round: "1", bracketPosition: "1", higherSeedId: "", lowerSeedId: "" });
-    fetchPlayoffMatches();
-    fetchMatches();
-  }
-
-  async function handleDeletePlayoffMatch(id: number) {
-    if (!confirm("Delete this playoff match?")) return;
-    const res = await fetch(`/api/playoffs?id=${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const text = await res.text();
-      alert(`Failed to delete: ${text || 'Unknown error'}`);
-      return;
-    }
-    const result = await res.json();
-    if (result.needsFullRecalc) setNeedsFullRecalc(true);
-    setPlayoffMatches((prev) => prev.filter((pm) => pm.id !== id));
-    await Promise.all([fetchPlayoffMatches(), fetchMatches()]);
-  }
-
   const coachesInDivision = selectedDivision
     ? seasonCoaches.filter((sc) => sc.divisionId === selectedDivision.id)
     : seasonCoaches;
@@ -1510,16 +1745,65 @@ export default function AdminMatchesPage() {
     : null;
   const displayedMatches = useMemo(() => {
     const query = matchSearch.trim().toLowerCase();
-    if (!query) return matches;
-    return matches.filter((match) =>
-      match.week.toString().includes(query) ||
-      match.division?.name.toLowerCase().includes(query) ||
-      match.coach1?.teamName.toLowerCase().includes(query) ||
-      match.coach2?.teamName.toLowerCase().includes(query) ||
-      match.coach1?.coach?.name.toLowerCase().includes(query) ||
-      match.coach2?.coach?.name.toLowerCase().includes(query)
-    );
-  }, [matches, matchSearch]);
+    return [...matches]
+      .filter((match) => {
+        const matchesSearch = !query ||
+          match.week.toString().includes(query) ||
+          match.division?.name.toLowerCase().includes(query) ||
+          match.coach1?.teamName.toLowerCase().includes(query) ||
+          match.coach2?.teamName.toLowerCase().includes(query) ||
+          match.coach1?.coach?.name.toLowerCase().includes(query) ||
+          match.coach2?.coach?.name.toLowerCase().includes(query);
+        const completed = isCompletedMatchResult(match.winnerId, match.isForfeit);
+        const matchesFilter =
+          matchFilter === "all" ||
+          (matchFilter === "pending" && !completed) ||
+          (matchFilter === "completed" && completed) ||
+          (matchFilter === "forfeit" && match.isForfeit) ||
+          (matchFilter === "review" && match.needsReview);
+        return matchesSearch && matchesFilter;
+      })
+      .sort((a, b) => {
+        if (a.needsReview !== b.needsReview) return a.needsReview ? -1 : 1;
+        const aCompleted = isCompletedMatchResult(a.winnerId, a.isForfeit);
+        const bCompleted = isCompletedMatchResult(b.winnerId, b.isForfeit);
+        if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+        return a.week - b.week || a.id - b.id;
+      });
+  }, [matches, matchFilter, matchSearch]);
+  const reviewMatches = useMemo(
+    () => matches
+      .filter((match) => match.needsReview)
+      .sort((a, b) => a.week - b.week || a.id - b.id),
+    [matches]
+  );
+  const currentReviewIndex = (selectedFixture || editingMatch)
+    ? reviewMatches.findIndex((match) => match.id === (selectedFixture || editingMatch)?.id)
+    : -1;
+  const reviewTarget = reviewMatches.length > 0
+    ? reviewMatches[currentReviewIndex >= 0 ? (currentReviewIndex + 1) % reviewMatches.length : 0]
+    : null;
+  const nextPendingMatch = [...matches]
+    .filter((match) => !isCompletedMatchResult(match.winnerId, match.isForfeit))
+    .sort((a, b) => a.week - b.week || a.id - b.id)[0] || null;
+  const selectedMatchSelectorValue = selectedPlayoffFixture
+    ? `playoff-${selectedPlayoffFixture.id}`
+    : (selectedFixture || editingMatch)
+      ? `match-${(selectedFixture || editingMatch)!.id}`
+      : "";
+  const historicalCorrectionPreview = isHistoricalStatsSeason(selectedSeason?.seasonNumber) && (selectedFixture || editingMatch)
+    ? {
+        before: summarizePokemonStats((selectedFixture || editingMatch)!.matchPokemon),
+        after: summarizePokemonStats([...team1Pokemon, ...team2Pokemon]),
+      }
+    : null;
+  const matchFilterCounts: Record<MatchFilter, number> = {
+    all: matches.length,
+    pending: matches.filter((match) => !isCompletedMatchResult(match.winnerId, match.isForfeit)).length,
+    completed: matches.filter((match) => isCompletedMatchResult(match.winnerId, match.isForfeit)).length,
+    forfeit: matches.filter((match) => match.isForfeit).length,
+    review: matches.filter((match) => match.needsReview).length,
+  };
 
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
@@ -1577,9 +1861,9 @@ export default function AdminMatchesPage() {
       </div>
 
       {/* Season/Division Selector */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap items-center gap-4">
+      <Card ref={seasonDivisionRef} className="!p-4">
+        <CardContent className="pt-0">
+          <div className="flex flex-wrap items-end gap-3">
             <div>
               <Label>Season</Label>
               <Select
@@ -1587,9 +1871,14 @@ export default function AdminMatchesPage() {
                 onChange={(e) => {
                   const season = seasons.find((s) => s.id === parseInt(e.target.value));
                   setSelectedSeason(season || null);
-                  setSelectedDivision(null);
+                  setSelectedDivision(season?.divisions[0] || null);
+                  setSelectedFixture(null);
+                  setSelectedPlayoffFixture(null);
+                  setEditingMatch(null);
+                  resetForm();
+                  autoOpenedContextRef.current = null;
                 }}
-                className="w-48"
+                className="w-full sm:w-48"
               >
                 <option value="">Select season</option>
                 {seasons.map((s) => (
@@ -1607,8 +1896,13 @@ export default function AdminMatchesPage() {
                   onChange={(e) => {
                     const div = selectedSeason.divisions.find((d) => d.id === parseInt(e.target.value));
                     setSelectedDivision(div || null);
+                    setSelectedFixture(null);
+                    setSelectedPlayoffFixture(null);
+                    setEditingMatch(null);
+                    resetForm();
+                    autoOpenedContextRef.current = null;
                   }}
-                  className="w-48"
+                  className="w-full sm:w-48"
                 >
                   <option value="">Select a division</option>
                   <optgroup label={selectedSeason.name}>
@@ -1628,11 +1922,17 @@ export default function AdminMatchesPage() {
                     if (!confirm(`Are you sure you want to ${newValue ? "show" : "hide"} the schedule on the public site?`)) return;
                     setSeasons(seasons.map((s) => s.id === selectedSeason.id ? { ...s, isSchedulePublic: newValue } : s));
                     setSelectedSeason({ ...selectedSeason, isSchedulePublic: newValue });
-                    await fetch("/api/seasons", {
+                    const response = await fetch("/api/seasons", {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ id: selectedSeason.id, isSchedulePublic: newValue }),
                     });
+                    if (!response.ok) {
+                      const result = await response.json().catch(() => ({}));
+                      setSeasons(seasons.map((s) => s.id === selectedSeason.id ? { ...s, isSchedulePublic: !newValue } : s));
+                      setSelectedSeason({ ...selectedSeason, isSchedulePublic: !newValue });
+                      alert(result.error || "Failed to update schedule visibility.");
+                    }
                   }}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     (selectedSeason.isSchedulePublic ?? true)
@@ -1754,7 +2054,33 @@ export default function AdminMatchesPage() {
           {/* Results Tab */}
           {activeTab === "results" && (
             <>
-              <Card>
+              {reviewMatches.length > 0 && (
+                <Card className="sticky top-3 z-30 border-yellow-400/50 bg-yellow-400/10 shadow-lg">
+                  <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-yellow-200/80">Review Queue</p>
+                      <p className="font-semibold text-yellow-100">
+                        {reviewMatches.length} match{reviewMatches.length === 1 ? "" : "es"} need review
+                      </p>
+                      <p className="text-sm text-yellow-200/70">
+                        {currentReviewIndex >= 0
+                          ? `Reviewing ${currentReviewIndex + 1} of ${reviewMatches.length}`
+                          : "Open the next flagged match to begin."}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="shrink-0 bg-yellow-500 text-black hover:bg-yellow-400"
+                      onClick={() => reviewTarget && openMatchForEditing(reviewTarget, true)}
+                    >
+                      {currentReviewIndex >= 0 ? "Next Review" : "Review Next"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card ref={resultEditorRef}>
                 <CardHeader>
                   <CardTitle>
                     {editingMatch ? `Edit Match: Week ${editingMatch.week}` : "Enter Match Result"}
@@ -1762,84 +2088,61 @@ export default function AdminMatchesPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {!editingMatch && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Select Week / Playoff Round</Label>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <div className="min-w-0 flex-1">
+                        <Label>Select Match</Label>
                         <Select
-                          value={selectedWeek}
-                          onChange={(e) => {
-                            setSelectedWeek(e.target.value);
-                            setSelectedFixture(null);
-                          }}
+                          value={selectedMatchSelectorValue}
+                          onChange={(e) => selectMatchFromPicker(e.target.value)}
+                          disabled={matches.length === 0 && playoffMatches.length === 0}
                         >
-                          <option value="">Choose week or round</option>
-                          {weekOptions.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
+                          <option value="">Choose a match</option>
+                          {regularWeeks.map((week) => {
+                            const weekMatches = matches
+                              .filter((match) => match.week === week)
+                              .sort((a, b) => a.id - b.id);
+                            if (weekMatches.length === 0) return null;
+                            return (
+                              <optgroup key={`week-${week}`} label={`Week ${week}`}>
+                                {weekMatches.map((match) => (
+                                  <option key={match.id} value={`match-${match.id}`}>
+                                    {match.needsReview ? "⚠ REVIEW — " : ""}
+                                    {match.coach1?.teamName} vs {match.coach2?.teamName}
+                                    {isCompletedMatchResult(match.winnerId, match.isForfeit) ? " (completed)" : " (needs result)"}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            );
+                          })}
+                          {playoffRounds.map((round) => {
+                            const roundMatches = playoffMatches.filter((match) => match.round === round);
+                            return (
+                              <optgroup key={`playoff-${round}`} label={getRoundName(round)}>
+                                {roundMatches.map((playoffMatch) => {
+                                  const existingMatch = findMatchForPlayoff(playoffMatch);
+                                  return (
+                                    <option key={playoffMatch.id} value={`playoff-${playoffMatch.id}`}>
+                                      {playoffMatch.higherSeed?.teamName || "TBD"} vs {playoffMatch.lowerSeed?.teamName || "TBD"}
+                                      {existingMatch?.needsReview ? " ⚠ REVIEW" : existingMatch?.winnerId ? " (completed)" : " (needs result)"}
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            );
+                          })}
                         </Select>
+                        <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                          Reviews are marked with ⚠ and pending matches are shown first in the list below.
+                        </p>
                       </div>
-                      <div>
-                        <Label>Select Fixture</Label>
-                        {isPlayoffRound ? (
-                          <Select
-                            value={selectedPlayoffFixture?.id || ""}
-                            onChange={(e) => {
-                              const pm = playoffFixturesForRound.find((p) => p.id === parseInt(e.target.value));
-                              if (pm) {
-                                if (!pm.higherSeedId || !pm.lowerSeedId) {
-                                  return alert("Both teams must be set in the playoff bracket before entering results.");
-                                }
-                                setSelectedPlayoffFixture(pm);
-                                setSelectedFixture(null);
-                                setEditingMatch(null);
-                                const existingMatch = findMatchForPlayoff(pm);
-                                if (existingMatch) {
-                                  loadMatchForm(existingMatch);
-                                } else {
-                                  resetForm();
-                                }
-                                fetchTimeSyncedRosters(pm.higherSeedId, pm.lowerSeedId, 100 + pm.round);
-                              }
-                            }}
-                            disabled={!selectedWeek}
-                          >
-                            <option value="">Choose playoff fixture</option>
-                            {playoffFixturesForRound.map((pm) => {
-                              const existingMatch = findMatchForPlayoff(pm);
-                              return (
-                                <option key={pm.id} value={pm.id}>
-                                  {pm.higherSeed?.teamName || "TBD"} vs {pm.lowerSeed?.teamName || "TBD"}
-                                  {existingMatch?.winnerId ? " (completed)" : ""}
-                                </option>
-                              );
-                            })}
-                          </Select>
-                        ) : (
-                          <Select
-                            value={selectedFixture?.id || ""}
-                            onChange={(e) => {
-                              const match = fixturesForWeek.find((m) => m.id === parseInt(e.target.value));
-                              if (match) {
-                                setSelectedFixture(match);
-                                setEditingMatch(null);
-                                setSelectedPlayoffFixture(null);
-                                loadMatchForm(match);
-                                fetchTimeSyncedRosters(match.coach1SeasonId, match.coach2SeasonId, match.week);
-                              }
-                            }}
-                            disabled={!selectedWeek}
-                          >
-                            <option value="">Choose fixture</option>
-                            {fixturesForWeek.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.needsReview ? "⚠ REVIEW — " : ""}
-                                {m.coach1?.teamName} vs {m.coach2?.teamName}
-                                {m.winnerId ? " (completed)" : ""}
-                              </option>
-                            ))}
-                          </Select>
-                        )}
-                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => nextPendingMatch && openMatchForEditing(nextPendingMatch, true)}
+                        disabled={!nextPendingMatch}
+                        className="shrink-0"
+                      >
+                        Enter Next Result
+                      </Button>
                     </div>
                   )}
 
@@ -1851,6 +2154,33 @@ export default function AdminMatchesPage() {
                             ? `${selectedPlayoffFixture.higherSeed?.teamName} vs ${selectedPlayoffFixture.lowerSeed?.teamName}`
                             : `${(selectedFixture || editingMatch)?.coach1?.teamName} vs ${(selectedFixture || editingMatch)?.coach2?.teamName}`}
                         </p>
+                        {(selectedFixture || editingMatch) && (
+                          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-[var(--foreground-muted)]">
+                            <span>Week {(selectedFixture || editingMatch)?.week}</span>
+                            <span>{(selectedFixture || editingMatch)?.division?.name}</span>
+                            {matchForm.needsReview && (
+                              <span className="rounded bg-yellow-400 px-2 py-0.5 font-semibold text-black">Needs Review</span>
+                            )}
+                            {matchForm.replayUrl && (
+                              <a
+                                href={matchForm.replayUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[var(--primary)] underline hover:text-[var(--foreground)]"
+                              >
+                                Open Replay
+                              </a>
+                            )}
+                            {(selectedFixture || editingMatch)?.playedAt && (
+                              <span>Recorded {formatMatchDate((selectedFixture || editingMatch)?.playedAt)}</span>
+                            )}
+                          </div>
+                        )}
+                        {(selectedFixture || editingMatch)?.needsReview && matchForm.reviewNotes && (
+                          <p className="mt-2 text-center text-xs text-yellow-200">
+                            Review reason: {matchForm.reviewNotes}
+                          </p>
+                        )}
                         {selectedPlayoffFixture && (
                           <p className="text-center text-sm text-[var(--primary)]">
                             {getRoundName(selectedPlayoffFixture.round)}
@@ -1877,7 +2207,11 @@ export default function AdminMatchesPage() {
                             disabled={scraping || !matchForm.replayUrl}
                             variant="outline"
                           >
-                            {scraping ? "Scraping..." : "Scrape Data"}
+                            {scraping
+                              ? "Scraping..."
+                              : matchForm.needsReview || (selectedFixture || editingMatch)?.needsReview
+                                ? "Re-scrape Replay"
+                                : "Scrape Data"}
                           </Button>
                         </div>
                         {scrapeError && (
@@ -1900,18 +2234,21 @@ export default function AdminMatchesPage() {
                           ? "border-yellow-400 bg-yellow-400/15"
                           : "border-[var(--card-border)] bg-[var(--card)]"
                       }`}>
-                        <label className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                          <input
-                            type="checkbox"
-                            checked={matchForm.needsReview}
-                            onChange={(event) => setMatchForm({
-                              ...matchForm,
-                              needsReview: event.target.checked,
-                            })}
-                          />
-                          Hold for review and highlight this game in yellow
-                        </label>
-                        <Label className="mt-3">Review reason</Label>
+                        <Label>Review Status</Label>
+                        <Select
+                          value={matchForm.needsReview ? "review" : "approved"}
+                          onChange={(event) => setMatchForm({
+                            ...matchForm,
+                            needsReview: event.target.value === "review",
+                          })}
+                        >
+                          <option value="approved">Approved / Ready</option>
+                          <option value="review">Needs Review</option>
+                        </Select>
+                        <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                          Flagged matches stay in the review queue until approved.
+                        </p>
+                        <Label className="mt-3">Review reason{matchForm.needsReview ? " *" : ""}</Label>
                         <TextArea
                           value={matchForm.reviewNotes}
                           onChange={(event) => setMatchForm({
@@ -1920,6 +2257,7 @@ export default function AdminMatchesPage() {
                           })}
                           placeholder="Explain the replay, score, roster, format, or kill-attribution issue."
                           rows={3}
+                          required={matchForm.needsReview}
                         />
                       </div>
 
@@ -2016,7 +2354,7 @@ export default function AdminMatchesPage() {
                                       <span className="w-16 text-center">Deaths</span>
                                     </div>
                                   </div>
-                                  {selectedSeason && selectedSeason.seasonNumber >= 5 && selectedSeason.seasonNumber <= 9 && (
+                                  {selectedSeason && isHistoricalStatsSeason(selectedSeason.seasonNumber) && (
                                     <p className="mb-2 text-xs text-[var(--foreground-muted)]">
                                       Full Pokemon pool enabled for historical stat corrections.
                                     </p>
@@ -2092,7 +2430,7 @@ export default function AdminMatchesPage() {
                                       <span className="w-16 text-center">Deaths</span>
                                     </div>
                                   </div>
-                                  {selectedSeason && selectedSeason.seasonNumber >= 5 && selectedSeason.seasonNumber <= 9 && (
+                                  {selectedSeason && isHistoricalStatsSeason(selectedSeason.seasonNumber) && (
                                     <p className="mb-2 text-xs text-[var(--foreground-muted)]">
                                       Full Pokemon pool enabled for historical stat corrections.
                                     </p>
@@ -2174,7 +2512,54 @@ export default function AdminMatchesPage() {
                           {" | "}
                           {matchForm.replayUrl ? "replay attached" : "no replay"}
                         </div>
-                        <Button onClick={handleSaveMatchResult}>Save Result</Button>
+                        {historicalCorrectionPreview && (
+                          <div className="w-full rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
+                            <span className="font-semibold">Historical correction (Season 5–10):</span>{" "}
+                            Before {historicalCorrectionPreview.before.rows} rows / {historicalCorrectionPreview.before.kills} K / {historicalCorrectionPreview.before.deaths} D
+                            {" → "}
+                            After {historicalCorrectionPreview.after.rows} rows / {historicalCorrectionPreview.after.kills} K / {historicalCorrectionPreview.after.deaths} D
+                          </div>
+                        )}
+                        {(selectedFixture || editingMatch)?.needsReview ? (
+                          <>
+                            <Button
+                              type="button"
+                              className="bg-green-600 text-white hover:bg-green-500"
+                              onClick={() => handleSaveMatchResult({ needsReview: false, clearReviewNotes: true, openNextReview: true })}
+                            >
+                              Approve &amp; Save
+                            </Button>
+                            <Button
+                              type="button"
+                              className="bg-yellow-500 text-black hover:bg-yellow-400"
+                              onClick={() => handleSaveMatchResult({ openNextReview: true })}
+                            >
+                              Save &amp; Open Next
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => handleSaveMatchResult({ needsReview: true, keepOpen: true })}
+                            >
+                              Keep Flagged
+                            </Button>
+                            <Button type="button" variant="outline" onClick={handleClearReviewFlag}>
+                              Clear Flag
+                            </Button>
+                            {matchForm.replayUrl && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleScrapeReplay}
+                                disabled={scraping}
+                              >
+                                {scraping ? "Re-scraping..." : "Re-scrape Replay"}
+                              </Button>
+                            )}
+                          </>
+                        ) : (
+                          <Button onClick={() => handleSaveMatchResult()}>Save Result</Button>
+                        )}
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -2205,25 +2590,74 @@ export default function AdminMatchesPage() {
                       onChange={(event) => setMatchSearch(event.target.value)}
                       placeholder="Search week, division, team, or coach"
                     />
+                    <div className="mt-3 flex flex-wrap gap-2" aria-label="Match status filters">
+                      {([
+                        ["all", "All"],
+                        ["pending", "Pending"],
+                        ["completed", "Completed"],
+                        ["forfeit", "Forfeit"],
+                        ["review", "Needs Review"],
+                      ] as Array<[MatchFilter, string]>).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={matchFilter === value}
+                          onClick={() => setMatchFilter(value)}
+                          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            matchFilter === value
+                              ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                              : "border-[var(--card-border)] text-[var(--foreground-muted)] hover:border-[var(--primary)] hover:text-[var(--foreground)]"
+                          }`}
+                        >
+                          {label} ({matchFilterCounts[value]})
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   {matches.length === 0 ? (
-                    <p className="text-[var(--foreground-muted)] text-center py-4">
-                      No matches scheduled. Upload a schedule first.
-                    </p>
+                    <div className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--background-secondary)] p-6 text-center">
+                      <p className="text-[var(--foreground-muted)]">
+                        {selectedDivision ? "No matches scheduled for this division yet." : "Select a division to view and manage matches."}
+                      </p>
+                      {selectedDivision ? (
+                        <Button className="mt-4" onClick={() => setActiveTab("schedule")}>
+                          Upload Schedule
+                        </Button>
+                      ) : (
+                        <Button
+                          className="mt-4"
+                          variant="outline"
+                          onClick={() => seasonDivisionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                        >
+                          Select a Division
+                        </Button>
+                      )}
+                    </div>
                   ) : displayedMatches.length === 0 ? (
-                    <p className="text-[var(--foreground-muted)] text-center py-4">
-                      No matches match that search.
-                    </p>
+                    <div className="rounded-lg border border-dashed border-[var(--card-border)] p-6 text-center">
+                      <p className="text-[var(--foreground-muted)]">No matches match these filters.</p>
+                      <Button
+                        className="mt-4"
+                        variant="outline"
+                        onClick={() => {
+                          setMatchSearch("");
+                          setMatchFilter("all");
+                        }}
+                      >
+                        Clear Filters
+                      </Button>
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       {displayedMatches.map((match) => {
                         const hasResult = isCompletedMatchResult(match.winnerId, match.isForfeit);
                         const isDoubleLoss = isDoubleForfeitResult(match.winnerId, match.isForfeit);
+                        const matchStatus = getMatchStatus(match);
 
                         return (
                         <div
                           key={match.id}
-                          className={`flex items-center justify-between p-3 rounded-lg ${
+                          className={`flex flex-col gap-3 rounded-lg p-3 sm:flex-row sm:items-center sm:justify-between ${
                             match.needsReview
                               ? "bg-yellow-400/15 border-2 border-yellow-400"
                               : hasResult
@@ -2262,40 +2696,41 @@ export default function AdminMatchesPage() {
                                 {isDoubleLoss ? "DOUBLE LOSS" : "FF"}
                               </span>
                             )}
-                            {match.needsReview && (
-                              <span
-                                className="rounded bg-yellow-400 px-2 py-0.5 text-xs font-bold text-black"
-                                title={match.reviewNotes || "This match needs review"}
-                              >
-                                REVIEW
-                              </span>
-                            )}
+                            <span
+                              className={`rounded px-2 py-0.5 text-xs font-semibold ${getMatchStatusClasses(matchStatus)}`}
+                              title={match.reviewNotes || undefined}
+                            >
+                              {getMatchStatusLabel(matchStatus)}
+                            </span>
                             {match.needsReview && match.reviewNotes && (
                               <span className="max-w-xl text-xs text-yellow-200">
                                 {match.reviewNotes}
                               </span>
                             )}
-                            {!hasResult && (
-                              <span className="px-2 py-0.5 text-xs rounded bg-[var(--warning)]/20 text-[var(--warning)]">
-                                Pending
+                            {match.replayUrl && (
+                              <a
+                                href={match.replayUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs text-[var(--primary)] underline hover:text-[var(--foreground)]"
+                              >
+                                Replay
+                              </a>
+                            )}
+                            {match.playedAt && (
+                              <span className="text-xs text-[var(--foreground-muted)]">
+                                Recorded {formatMatchDate(match.playedAt)}
                               </span>
                             )}
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex shrink-0 gap-2">
                             <Button
                               type="button"
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                setEditingMatch(match);
-                                setSelectedFixture(null);
-                                setSelectedPlayoffFixture(null);
-                                setSelectedWeek(`week-${match.week}`);
-                                loadMatchForm(match);
-                                fetchTimeSyncedRosters(match.coach1SeasonId, match.coach2SeasonId, match.week);
-                              }}
+                              onClick={() => openMatchForEditing(match, true)}
                             >
-                              Edit
+                              {match.needsReview ? "Review" : "Edit"}
                             </Button>
                             <Button type="button" size="sm" variant="destructive" onClick={() => handleDeleteMatch(match.id)}>
                               Delete
@@ -2490,8 +2925,8 @@ function PlayoffBracketBuilder({
           });
         } else if (hasTeams) {
           // Create new
-          await fetch("/api/playoffs", {
-            method: "POST",
+      const response = await fetch("/api/playoffs", {
+        method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               seasonId,
@@ -2501,9 +2936,10 @@ function PlayoffBracketBuilder({
               higherSeedId: slot.higherSeedId ? parseInt(slot.higherSeedId) : null,
               lowerSeedId: slot.lowerSeedId ? parseInt(slot.lowerSeedId) : null,
             }),
-          });
-        }
-      }
+      });
+      return response.ok;
+    }
+  }
       await onSaved();
     } catch (err) {
       alert(`Error saving bracket: ${err}`);

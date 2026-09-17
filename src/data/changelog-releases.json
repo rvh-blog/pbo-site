@@ -1,5 +1,29 @@
 [
   {
+    "sourceKey": "2026-09-17-admin-operations-payouts",
+    "title": "Admin Operations, Match Review, and PBO Coin Payouts",
+    "summary": "Streamlined admin match workflows, sequential review tools, secure admin APIs, and multi-recipient PBO Coin payouts.",
+    "publishedAt": "2026-09-17",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added PBO Coin Payouts with one-to-100 recipient selection, All Current Coaches and All Current Admins shortcuts, and 20-to-1,000 coin validation with a working amount input."
+      },
+      {
+        "type": "improved",
+        "text": "Streamlined Match Management with current-context defaults, remembered season/division selection, Enter Next Result, guided fixture selection, status labels, filters, and clearer empty states."
+      },
+      {
+        "type": "added",
+        "text": "Added a sticky sequential Review Queue with Review Next, Approve & Save, Save & Open Next, Keep Flagged, Clear Flag, and Re-scrape Replay actions, required review notes, and Seasons 5-10 historical before/after previews."
+      },
+      {
+        "type": "fixed",
+        "text": "Hardened admin route authorization and write error handling, added atomic duplicate-safe bulk schedule uploads and batched transaction counts, and preserved a single end-of-batch Elo recalculation workflow for historical reviews."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-16-speed-tours",
     "title": "Speed Tours",
     "summary": "Admin-toggleable off-season Speed Tours with timed drafting, isolated budgets, and dedicated brackets.",

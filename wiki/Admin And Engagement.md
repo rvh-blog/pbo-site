@@ -105,14 +105,64 @@ Relevant files:
 - `src/app/api/admin/poll/route.ts`
 - `src/app/api/poll/route.ts`
 
-## PBO Coin Admin
+## PBO Coin Admin Payouts
 
-Admins can grant PBO Coin in larger ranges than before:
+`Admin -> PBO Coin Payout` supports one-to-100 recipients in a single payout.
+Admins can choose individual players/admins or use bulk actions for **All
+Current Coaches** and **All Current Admins**.
 
-- Minimum grant amount: 10
-- Maximum grant amount: 500
+- Minimum admin payout: 20 PBO Coin
+- Maximum admin payout: 1,000 PBO Coin
+- The amount field accepts normal typing and keyboard number controls.
+- Payouts are recorded with the authenticated admin identity rather than a
+  client-supplied name.
 
-Match participation rewards were increased so players receive 10 PBO Coin for playing their games.
+This admin payout range is separate from match participation rewards and other
+automated reward rules. Currency lives on both:
+
+- `coaches.pboCoin`
+- `users.pboCoin`
+
+Be careful to update the correct table for the account type involved.
+
+Relevant files:
+
+- `src/app/admin/pick-ems/page.tsx`
+- `src/app/api/admin/trivia-rewards/route.ts`
+
+## Match Management Review Queue
+
+`Admin -> Matches` opens the current season and division by default, remembers
+the selected context, and can open the next pending result automatically. The
+guided result flow combines week/round and fixture selection and exposes an
+**Enter Next Result** action.
+
+The Results view includes status labels for Needs Review, Needs Result, Forfeit,
+Missing Replay, Missing Pokemon, and Complete. Filters cover All, Pending,
+Completed, Forfeit, and Needs Review. When no data is available, the page
+offers the next useful action, such as selecting a division or uploading a
+schedule.
+
+Flagged matches appear in a sticky Review Queue with team names, week, review
+reason, replay link, and recorded time. Review actions include Review Next,
+Approve & Save, Save & Open Next, Keep Flagged, Clear Flag, and Re-scrape Replay.
+Flagging requires a review note and uses a direct status selector.
+
+For Seasons 5-10, the editor shows a before/after Pokemon-stat preview and
+labels saves as historical corrections. Admins can work through multiple old
+matches and recalculate Elo once after the review batch.
+
+Schedule CSV uploads are sent as one atomic bulk operation with duplicate
+protection. Admin API handlers enforce moderator authorization independently of
+the page shell, and admin forms surface failed writes instead of silently
+advancing.
+
+Relevant files:
+
+- `src/app/admin/matches/page.tsx`
+- `src/app/api/matches/route.ts`
+- `src/app/admin/transactions/page.tsx`
+- `src/app/api/transactions/route.ts`
 
 New coach starting PBO Coin should be 150.
 

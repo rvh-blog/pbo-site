@@ -4,9 +4,15 @@ import { discordGuilds, discordChannels, divisions, seasons } from "@/lib/schema
 import { and, eq, desc } from "drizzle-orm";
 import { compareDivisionNames } from "@/lib/division-order";
 import { ensureMilestoneChannelColumn } from "@/lib/milestones";
+import { getSession } from "@/lib/session";
 
 // GET - Fetch Discord configuration
 export async function GET(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   await ensureMilestoneChannelColumn();
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
@@ -80,6 +86,11 @@ export async function GET(request: NextRequest) {
 
 // POST - Create or update Discord configuration
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     await ensureMilestoneChannelColumn();
     const body = await request.json();

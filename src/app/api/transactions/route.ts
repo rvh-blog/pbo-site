@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { transactions, rosters, seasonCoaches, pokemon, seasonPokemonPrices } from "@/lib/schema";
+import { transactions, seasonCoaches, pokemon, seasonPokemonPrices, divisions } from "@/lib/schema";
 import { eq, and, or, desc } from "drizzle-orm";
 import {
   getTransactionCounts,
@@ -14,13 +14,42 @@ import {
   executeBulkFATransaction,
   undoTransaction,
 } from "@/lib/transaction-service";
+import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const seasonId = searchParams.get("seasonId");
   const seasonCoachId = searchParams.get("seasonCoachId");
   const type = searchParams.get("type");
   const action = searchParams.get("action");
+
+  // Get transaction counts for every active team in a season in one request.
+  // The service still owns the counting rules; this avoids an N+1 browser request pattern.
+  if (action === "counts" && seasonId) {
+    const conditions = [
+      eq(divisions.seasonId, parseInt(seasonId)),
+      eq(seasonCoaches.isActive, true),
+    ];
+    if (searchParams.get("divisionId")) {
+      conditions.push(eq(seasonCoaches.divisionId, parseInt(searchParams.get("divisionId")!)));
+    }
+
+    const activeTeams = await db
+      .select({ id: seasonCoaches.id })
+      .from(seasonCoaches)
+      .innerJoin(divisions, eq(seasonCoaches.divisionId, divisions.id))
+      .where(and(...conditions));
+
+    const countEntries = await Promise.all(
+      activeTeams.map(async ({ id }) => [id, await getTransactionCounts(id)] as const)
+    );
+    return NextResponse.json(Object.fromEntries(countEntries));
+  }
 
   // Get transaction counts for a coach
   if (action === "counts" && seasonCoachId) {
@@ -55,7 +84,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Get transactions with filters
-  let query: Parameters<typeof db.query.transactions.findMany>[0] = {
+  const query: Parameters<typeof db.query.transactions.findMany>[0] = {
     with: {
       seasonCoach: {
         with: {
@@ -145,6 +174,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { action, ...data } = body;
@@ -396,6 +430,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

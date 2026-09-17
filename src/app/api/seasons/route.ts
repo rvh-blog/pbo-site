@@ -50,6 +50,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { name, seasonNumber, draftBudget, isCurrent, isPublic, movesetFormat, divisionNames, draftBoard } = body;
 
@@ -106,6 +111,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { id, name, seasonNumber, draftBudget, isCurrent, isPublic, isSchedulePublic, movesetFormat, divisions: divisionUpdates, draftBoard } = body;
 
@@ -186,6 +196,11 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

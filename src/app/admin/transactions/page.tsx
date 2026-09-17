@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -112,6 +113,9 @@ export default function AdminTransactionsPage() {
 
   // Transaction counts per team
   const [teamCounts, setTeamCounts] = useState<Record<number, TransactionCounts>>({});
+  const [error, setError] = useState<string | null>(null);
+  const seasonDataRequestRef = useRef(0);
+  const freeAgentsRequestRef = useRef(0);
 
   // Bulk editor state
   const [showBulkEditor, setShowBulkEditor] = useState(false);
@@ -132,88 +136,115 @@ export default function AdminTransactionsPage() {
     notes: "",
   });
 
-  async function fetchSeasons() {
-    const res = await fetch("/api/seasons");
-    const data = await res.json();
-    setSeasons(data);
-    const current = data.find((s: Season) => s.isCurrent);
-    if (current) {
-      setSelectedSeason(current);
-    }
-    setLoading(false);
-  }
+  const fetchSeasons = useCallback(async () => {
+    try {
+      const res = await fetch("/api/seasons");
+      if (!res.ok) throw new Error("Failed to load seasons");
 
-  async function fetchFreeAgents(seasonId: number, divisionId?: number) {
+      const data = await res.json();
+      const availableSeasons: Season[] = Array.isArray(data) ? data : [];
+      setSeasons(availableSeasons);
+      const current = availableSeasons.find((s) => s.isCurrent) || availableSeasons[0];
+      if (current) {
+        setSelectedSeason(current);
+        setSelectedDivision(current.divisions?.[0] || null);
+      }
+      setError(null);
+    } catch (fetchError) {
+      console.error("Failed to load transaction seasons:", fetchError);
+      setError("Unable to load seasons. Please refresh and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchFreeAgents = useCallback(async (seasonId: number, divisionId?: number) => {
+    const requestId = ++freeAgentsRequestRef.current;
     const url = divisionId
       ? `/api/transactions?action=freeAgents&seasonId=${seasonId}&divisionId=${divisionId}`
       : `/api/transactions?action=freeAgents&seasonId=${seasonId}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    setFreeAgents(data);
-  }
 
-  async function fetchSeasonData(seasonId: number) {
-    // Fetch season coaches, transactions, and season prices in parallel
-    // Free agents will be fetched separately based on division selection
-    const [coachesRes, txRes, pricesRes] = await Promise.all([
-      fetch(`/api/rosters?seasonId=${seasonId}`),
-      fetch(`/api/transactions?seasonId=${seasonId}`),
-      fetch(`/api/transactions?action=seasonPrices&seasonId=${seasonId}`),
-    ]);
-
-    const coachesData = await coachesRes.json();
-    const txData = await txRes.json();
-    const pricesData = await pricesRes.json();
-
-    // Build a map of pokemonId -> season price data for quick lookups
-    const priceMap = new Map<number, SeasonPokemonPrice>();
-    for (const p of pricesData) {
-      priceMap.set(p.pokemonId, {
-        pokemonId: p.pokemonId,
-        price: p.price,
-        teraCaptainCost: p.teraCaptainCost,
-        teraBanned: p.teraBanned,
-      });
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to load free agents");
+      const data = await res.json();
+      if (requestId !== freeAgentsRequestRef.current) return;
+      setFreeAgents(Array.isArray(data) ? data : []);
+    } catch (fetchError) {
+      if (requestId !== freeAgentsRequestRef.current) return;
+      console.error("Failed to load free agents:", fetchError);
+      setError("Unable to load the free-agent pool.");
     }
-    setSeasonPrices(priceMap);
+  }, []);
 
-    // Filter active coaches only
-    const activeCoaches = Array.isArray(coachesData)
-      ? coachesData.filter((sc: SeasonCoach) => sc.isActive)
-      : [];
-    setSeasonCoaches(activeCoaches);
-    setTransactions(txData);
+  const fetchSeasonData = useCallback(async (seasonId: number) => {
+    const requestId = ++seasonDataRequestRef.current;
 
-    // Fetch transaction counts for each team in parallel.
-    const countEntries = await Promise.all(
-      activeCoaches.map(async (coach: SeasonCoach) => {
-        const countRes = await fetch(`/api/transactions?action=counts&seasonCoachId=${coach.id}`);
-        return [coach.id, await countRes.json()] as const;
-      })
-    );
-    const counts = Object.fromEntries(countEntries);
-    setTeamCounts(counts);
-  }
+    try {
+      // Fetch season coaches, transactions, prices, and all transaction counts
+      // without issuing one browser request per team.
+      const [coachesRes, txRes, pricesRes, countsRes] = await Promise.all([
+        fetch(`/api/rosters?seasonId=${seasonId}`),
+        fetch(`/api/transactions?seasonId=${seasonId}`),
+        fetch(`/api/transactions?action=seasonPrices&seasonId=${seasonId}`),
+        fetch(`/api/transactions?action=counts&seasonId=${seasonId}`),
+      ]);
 
-  useEffect(() => {
-    fetchSeasons();
+      if (![coachesRes, txRes, pricesRes, countsRes].every((res) => res.ok)) {
+        throw new Error("Failed to load transaction data");
+      }
+
+      const coachesData = await coachesRes.json();
+      const txData = await txRes.json();
+      const pricesData = await pricesRes.json();
+      const countsData = await countsRes.json();
+
+      if (requestId !== seasonDataRequestRef.current) return;
+
+      const priceMap = new Map<number, SeasonPokemonPrice>();
+      for (const p of Array.isArray(pricesData) ? pricesData : []) {
+        priceMap.set(p.pokemonId, {
+          pokemonId: p.pokemonId,
+          price: p.price,
+          teraCaptainCost: p.teraCaptainCost,
+          teraBanned: p.teraBanned,
+        });
+      }
+      setSeasonPrices(priceMap);
+
+      const activeCoaches = Array.isArray(coachesData)
+        ? coachesData.filter((sc: SeasonCoach) => sc.isActive)
+        : [];
+      setSeasonCoaches(activeCoaches);
+      setTransactions(Array.isArray(txData) ? txData : []);
+      setTeamCounts(countsData && typeof countsData === "object" ? countsData : {});
+      setError(null);
+    } catch (fetchError) {
+      if (requestId !== seasonDataRequestRef.current) return;
+      console.error("Failed to load transaction data:", fetchError);
+      setError("Unable to load transaction data. Please refresh and try again.");
+    }
   }, []);
 
   useEffect(() => {
+    void fetchSeasons();
+  }, [fetchSeasons]);
+
+  useEffect(() => {
     if (selectedSeason) {
-      fetchSeasonData(selectedSeason.id);
+      void fetchSeasonData(selectedSeason.id);
     }
-  }, [selectedSeason]);
+  }, [fetchSeasonData, selectedSeason]);
 
   // Refetch free agents when division changes (FA pool is division-specific)
   useEffect(() => {
     if (selectedSeason && selectedDivision) {
-      fetchFreeAgents(selectedSeason.id, selectedDivision.id);
+      void fetchFreeAgents(selectedSeason.id, selectedDivision.id);
     } else if (selectedSeason) {
       // No division selected - fetch all (for display purposes, but require division for transactions)
-      fetchFreeAgents(selectedSeason.id);
+      void fetchFreeAgents(selectedSeason.id);
     }
-  }, [selectedDivision, selectedSeason]);
+  }, [fetchFreeAgents, selectedDivision, selectedSeason]);
 
 
   // Get teams for P2P (sorted alphabetically)
@@ -347,9 +378,9 @@ export default function AdminTransactionsPage() {
         }),
       });
 
-      const result = await res.json();
-      if (result.error) {
-        alert(`Error: ${result.error}`);
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || result.error) {
+        alert(`Error: ${result.error || "Request failed"}`);
         return;
       }
 
@@ -363,7 +394,7 @@ export default function AdminTransactionsPage() {
         notes: "",
       });
       fetchSeasonData(selectedSeason.id);
-    } catch (error) {
+    } catch {
       alert("Trade failed");
     }
   }
@@ -380,16 +411,16 @@ export default function AdminTransactionsPage() {
         method: "DELETE",
       });
 
-      const result = await res.json();
-      if (result.error) {
-        alert(`Error: ${result.error}`);
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || result.error) {
+        alert(`Error: ${result.error || "Request failed"}`);
         return;
       }
 
       if (selectedSeason) {
         fetchSeasonData(selectedSeason.id);
       }
-    } catch (error) {
+    } catch {
       alert("Undo failed");
     }
   }
@@ -512,6 +543,11 @@ export default function AdminTransactionsPage() {
         <p className="text-[var(--foreground-muted)]">
           Manage mid-season roster changes: FA pickups, P2P trades, and tera swaps
         </p>
+        {error && (
+          <p className="mt-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200" role="alert">
+            {error}
+          </p>
+        )}
       </div>
 
       {/* Season & Division Selector */}
@@ -525,7 +561,7 @@ export default function AdminTransactionsPage() {
                 onChange={(e) => {
                   const season = seasons.find((s) => s.id === parseInt(e.target.value));
                   setSelectedSeason(season || null);
-                  setSelectedDivision(null); // Reset division when season changes
+                  setSelectedDivision(season?.divisions?.[0] || null);
                 }}
                 className="w-48"
               >
@@ -646,7 +682,7 @@ export default function AdminTransactionsPage() {
                               }`}
                             >
                               {r.pokemon?.spriteUrl && (
-                                <img src={r.pokemon.spriteUrl} alt="" className="w-5 h-5" />
+                                <Image src={r.pokemon.spriteUrl} alt="" width={20} height={20} className="w-5 h-5" />
                               )}
                               {r.pokemon?.displayName || r.pokemon?.name}
                               {r.isTeraCaptain && <span className="text-[var(--accent)] text-xs">TC</span>}
@@ -691,7 +727,7 @@ export default function AdminTransactionsPage() {
                             return (
                               <div key={rid} className="flex items-center gap-1 px-2 py-1 rounded text-sm bg-[var(--card)]">
                                 {roster.pokemon?.spriteUrl && (
-                                  <img src={roster.pokemon.spriteUrl} alt="" className="w-5 h-5" />
+                                  <Image src={roster.pokemon.spriteUrl} alt="" width={20} height={20} className="w-5 h-5" />
                                 )}
                                 <span>{roster.pokemon?.displayName || roster.pokemon?.name}</span>
                                 <button
@@ -780,7 +816,7 @@ export default function AdminTransactionsPage() {
                               }`}
                             >
                               {r.pokemon?.spriteUrl && (
-                                <img src={r.pokemon.spriteUrl} alt="" className="w-5 h-5" />
+                                <Image src={r.pokemon.spriteUrl} alt="" width={20} height={20} className="w-5 h-5" />
                               )}
                               {r.pokemon?.displayName || r.pokemon?.name}
                               {r.isTeraCaptain && <span className="text-[var(--accent)] text-xs">TC</span>}
@@ -825,7 +861,7 @@ export default function AdminTransactionsPage() {
                             return (
                               <div key={rid} className="flex items-center gap-1 px-2 py-1 rounded text-sm bg-[var(--card)]">
                                 {roster.pokemon?.spriteUrl && (
-                                  <img src={roster.pokemon.spriteUrl} alt="" className="w-5 h-5" />
+                                  <Image src={roster.pokemon.spriteUrl} alt="" width={20} height={20} className="w-5 h-5" />
                                 )}
                                 <span>{roster.pokemon?.displayName || roster.pokemon?.name}</span>
                                 <button

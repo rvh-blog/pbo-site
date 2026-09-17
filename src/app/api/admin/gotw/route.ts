@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { compareDivisions } from "@/lib/division-order";
-import { matches, divisions, seasons } from "@/lib/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { matches, seasons } from "@/lib/schema";
+import { eq, and } from "drizzle-orm";
 import { awardGotwBonus, reverseGotwBonus } from "@/lib/pick-em-rewards";
+import { getSession } from "@/lib/session";
 
 // GET - Fetch divisions and matches for GOTW selection
 export async function GET(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const seasonId = searchParams.get("seasonId");
@@ -76,6 +82,11 @@ export async function GET(request: NextRequest) {
 
 // POST - Set or unset GOTW for a match
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { matchId, isGameOfTheWeek } = body;

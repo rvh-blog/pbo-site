@@ -4,8 +4,14 @@ import { coaches, seasonCoaches, eloHistory } from "@/lib/schema";
 import { STARTING_COACH_COINS } from "@/lib/coin-config";
 import { eq } from "drizzle-orm";
 import { extractYouTubePlaylistId } from "@/lib/youtube-playlists";
+import { getSession } from "@/lib/session";
 
 export async function GET() {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const allCoaches = await db.query.coaches.findMany({
     with: {
       seasonCoaches: {
@@ -38,6 +44,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { name, eloRating } = body;
 
@@ -61,6 +72,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { id, name, eloRating, mergeFromId, youtubePlaylistId } = body;
 
@@ -138,6 +154,11 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

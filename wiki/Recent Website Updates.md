@@ -1,5 +1,33 @@
 # Recent Website Updates
 
+## September 17, 2026 - Admin Operations, Match Review, and PBO Coin Payouts
+
+- Renamed the admin reward tool to **PBO Coin Payout**. Admins can award 20 to
+  1,000 coins to one or multiple recipients, select up to 100 players/admins,
+  select all current coaches, select all current admins, and type or use the
+  amount input controls normally.
+- Streamlined Match Management by defaulting to the current season and
+  division, remembering the selected context across Schedule, Results, and
+  Playoffs, opening the next pending result, and adding an **Enter Next Result**
+  action with a guided week/round and fixture flow.
+- Added pending/completed/forfeit/needs-review filters and clear match status
+  labels, including Missing Replay and Missing Pokemon, plus more useful empty
+  states and tighter selector cards.
+- Added a sticky Review Queue that keeps flagged matches at the top and lets
+  admins review in sequence with Review Next, Approve & Save, Save & Open Next,
+  Keep Flagged, Clear Flag, and Re-scrape Replay actions. Flagging now requires
+  a review note, and the editor exposes review status directly.
+- Added historical correction previews for Seasons 5-10 and a workflow that
+  allows multiple historical results to be reviewed before recalculating Elo
+  once at the end.
+- Hardened admin API authorization inside route handlers, uses the authenticated
+  admin identity for payout audit attribution, batches schedule creation
+  atomically with duplicate protection, batches transaction counts, and adds
+  consistent error handling for admin writes.
+
+Verification: TypeScript, targeted ESLint, the production build, API auth smoke
+test, and `git diff --check` pass. No production database writes were made.
+
 ## September 16, 2026 - Speed Tours
 
 - Added an admin-toggleable Speed Tours feature for isolated off-season events;
