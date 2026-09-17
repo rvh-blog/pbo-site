@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { matches, matchPokemon, eloHistory, playoffMatches, bets, killBets, deathBets, killEvents } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { updateEloForMatch } from "@/lib/elo-service";
 import { resolveBetsForMatch, refundBetsForMatch, awardMatchCoins } from "@/lib/betting";
 import { resolveKillBetsForMatch, refundKillBetsForMatch } from "@/lib/kill-betting";
@@ -23,6 +23,26 @@ import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-resul
 import { replaceBattleEvents } from "@/lib/battle-event-storage";
 import { getCoachRoster } from "@/bot/services/match-service";
 import { applyMegaItemInferenceToPokemonData, type MegaRosterPokemon } from "@/lib/mega-item-inference";
+
+function getReviewStateError(needsReview: unknown, reviewNotes: unknown) {
+  if (needsReview === true && (typeof reviewNotes !== "string" || reviewNotes.trim() === "")) {
+    return "A review reason is required when a match is flagged";
+  }
+  return null;
+}
+
+interface ScheduleRow {
+  seasonId: number;
+  divisionId: number;
+  week: number;
+  coach1SeasonId: number;
+  coach2SeasonId: number;
+}
+
+function getScheduleMatchKey(row: ScheduleRow) {
+  const [firstCoachId, secondCoachId] = [row.coach1SeasonId, row.coach2SeasonId].sort((a, b) => a - b);
+  return `${row.seasonId}:${row.divisionId}:${row.week}:${firstCoachId}:${secondCoachId}`;
+}
 
 async function refreshFantasyStatsForResult(seasonId: number, week: number) {
   await refreshFantasyWeeklyStatsForWeek(seasonId, week);
@@ -310,7 +330,118 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
+
+  if (body.action === "bulkSchedule") {
+    const rawRows: unknown = body.matches;
+    if (!Array.isArray(rawRows) || rawRows.length === 0 || rawRows.length > 1000) {
+      return NextResponse.json(
+        { error: "Provide between 1 and 1000 schedule matches" },
+        { status: 400 }
+      );
+    }
+
+    const scheduleRows: ScheduleRow[] = [];
+    for (const [index, rawRow] of rawRows.entries()) {
+      if (!rawRow || typeof rawRow !== "object") {
+        return NextResponse.json({ error: `Invalid schedule row ${index + 1}` }, { status: 400 });
+      }
+
+      const row = rawRow as Record<string, unknown>;
+      const values = {
+        seasonId: row.seasonId,
+        divisionId: row.divisionId,
+        week: row.week,
+        coach1SeasonId: row.coach1SeasonId,
+        coach2SeasonId: row.coach2SeasonId,
+      };
+      const hasValidNumbers = Object.values(values).every(
+        (value) => typeof value === "number" && Number.isInteger(value) && value > 0
+      );
+      if (
+        !hasValidNumbers ||
+        typeof values.week !== "number" ||
+        typeof values.coach1SeasonId !== "number" ||
+        typeof values.coach2SeasonId !== "number" ||
+        values.week > 100 ||
+        values.coach1SeasonId === values.coach2SeasonId
+      ) {
+        return NextResponse.json({ error: `Invalid schedule row ${index + 1}` }, { status: 400 });
+      }
+
+      scheduleRows.push(values as ScheduleRow);
+    }
+
+    const firstRow = scheduleRows[0];
+    if (scheduleRows.some((row) => row.seasonId !== firstRow.seasonId || row.divisionId !== firstRow.divisionId)) {
+      return NextResponse.json(
+        { error: "Bulk schedule rows must belong to one season and division" },
+        { status: 400 }
+      );
+    }
+
+    const existingMatches = await db.query.matches.findMany({
+      where: and(
+        eq(matches.seasonId, firstRow.seasonId),
+        eq(matches.divisionId, firstRow.divisionId)
+      ),
+      columns: {
+        seasonId: true,
+        divisionId: true,
+        week: true,
+        coach1SeasonId: true,
+        coach2SeasonId: true,
+      },
+    });
+    const existingKeys = new Set(existingMatches.map(getScheduleMatchKey));
+    const rowsToInsert = scheduleRows.filter((row) => {
+      const key = getScheduleMatchKey(row);
+      if (existingKeys.has(key)) return false;
+      existingKeys.add(key);
+      return true;
+    });
+
+    const inserted = rowsToInsert.length > 0
+      ? await db.transaction((tx) =>
+          tx.insert(matches).values(rowsToInsert.map((row) => ({
+            ...row,
+            winnerId: null,
+            coach1Differential: 0,
+            coach2Differential: 0,
+            isForfeit: false,
+            needsReview: false,
+            playedAt: null,
+          }))).returning({ id: matches.id })
+        )
+      : [];
+
+    await logAdminAudit({
+      session,
+      action: "match_schedule_bulk_create",
+      entityType: "match",
+      entityId: null,
+      summary: `Added ${inserted.length} scheduled matches${scheduleRows.length - inserted.length ? `; skipped ${scheduleRows.length - inserted.length} existing` : ""}`,
+      details: {
+        seasonId: firstRow.seasonId,
+        divisionId: firstRow.divisionId,
+        requested: scheduleRows.length,
+        created: inserted.length,
+        skipped: scheduleRows.length - inserted.length,
+      },
+    });
+    revalidatePublicMatchData();
+
+    return NextResponse.json({
+      success: true,
+      createdCount: inserted.length,
+      skippedCount: scheduleRows.length - inserted.length,
+    });
+  }
+
   const {
     seasonId,
     divisionId,
@@ -332,6 +463,11 @@ export async function POST(request: NextRequest) {
     battleEvents, // Normalized, raw-line-backed replay protocol events
     zoroarkInvolved, // Boolean flag for Zoroark games (inaccurate K/D warning)
   } = body;
+
+  const reviewStateError = getReviewStateError(needsReview, reviewNotes);
+  if (reviewStateError) {
+    return NextResponse.json({ error: reviewStateError }, { status: 400 });
+  }
 
   if (!seasonId || !divisionId || !coach1SeasonId || !coach2SeasonId) {
     return NextResponse.json(
@@ -521,6 +657,10 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const {
     id,
@@ -539,6 +679,11 @@ export async function PUT(request: NextRequest) {
     battleEvents,
     zoroarkInvolved, // Boolean flag for Zoroark games (inaccurate K/D warning)
   } = body;
+
+  const reviewStateError = getReviewStateError(needsReview, reviewNotes);
+  if (reviewStateError) {
+    return NextResponse.json({ error: reviewStateError }, { status: 400 });
+  }
 
   if (!id) {
     return NextResponse.json({ error: "Match ID is required" }, { status: 400 });
@@ -860,6 +1005,10 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

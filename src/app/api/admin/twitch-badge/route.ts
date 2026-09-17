@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { coachPurchases, storeItems } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
+import { getSession } from "@/lib/session";
 
 const TWITCH_BADGE_SLUG = "twitch-badge";
 
 export async function GET() {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const item = await db.query.storeItems.findFirst({
       where: eq(storeItems.slug, TWITCH_BADGE_SLUG),
@@ -35,6 +41,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { coachId, grant } = body;

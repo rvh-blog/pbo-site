@@ -110,6 +110,10 @@ async function validatePlayoffTeams(teamIds: Array<number | null | undefined>) {
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const {
     seasonId,
@@ -266,6 +270,10 @@ async function ensurePlayoffBracketStructure(seasonId: number, divisionId: numbe
 
 export async function PUT(request: NextRequest) {
   const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const {
     id,
@@ -413,6 +421,10 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

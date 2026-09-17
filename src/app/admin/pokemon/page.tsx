@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -42,6 +43,11 @@ interface PokemonCollapse {
   targetName?: string;
   normalizedTargetName?: string;
   source?: "hardcoded";
+}
+
+async function getApiError(response: Response, fallback: string): Promise<string> {
+  const data = await response.json().catch(() => ({}));
+  return typeof data.error === "string" ? data.error : fallback;
 }
 
 const POKEMON_TYPES = [
@@ -156,7 +162,7 @@ export default function AdminPokemonPage() {
 
     const types = [newPokemon.type1, newPokemon.type2].filter(Boolean);
 
-    await fetch("/api/pokemon", {
+    const response = await fetch("/api/pokemon", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -164,6 +170,10 @@ export default function AdminPokemonPage() {
         types,
       }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to add Pokemon"));
+      return;
+    }
 
     setNewPokemon({ name: "", type1: "", type2: "" });
     fetchPokemon(selectedSeason || undefined);
@@ -172,7 +182,7 @@ export default function AdminPokemonPage() {
   async function handleUpdatePrice(pokemonId: number, price: string) {
     if (!selectedSeason) return;
 
-    await fetch("/api/pokemon", {
+    const response = await fetch("/api/pokemon", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -181,6 +191,10 @@ export default function AdminPokemonPage() {
         price: parseInt(price) || 0,
       }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to update Pokemon price"));
+      return;
+    }
 
     fetchPokemon(selectedSeason);
   }
@@ -188,9 +202,13 @@ export default function AdminPokemonPage() {
   async function handleDeletePokemon(id: number) {
     if (!confirm("Are you sure you want to delete this Pokemon?")) return;
 
-    await fetch(`/api/pokemon?id=${id}`, {
+    const response = await fetch(`/api/pokemon?id=${id}`, {
       method: "DELETE",
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to delete Pokemon"));
+      return;
+    }
 
     fetchPokemon(selectedSeason || undefined);
   }
@@ -404,9 +422,11 @@ export default function AdminPokemonPage() {
                       }`}
                     >
                       {poke.spriteUrl && (
-                        <img
+                        <Image
                           src={poke.spriteUrl}
                           alt=""
+                          width={32}
+                          height={32}
                           className="h-8 w-8 object-contain"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = "none";
@@ -575,9 +595,11 @@ export default function AdminPokemonPage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     {selectedAliasPokemon.spriteUrl && (
-                      <img
+                      <Image
                         src={selectedAliasPokemon.spriteUrl}
                         alt=""
+                        width={40}
+                        height={40}
                         className="h-10 w-10 object-contain"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
@@ -666,9 +688,11 @@ export default function AdminPokemonPage() {
                   className="flex items-center gap-3 p-3 rounded-lg bg-[var(--background-secondary)]"
                 >
                   {poke.spriteUrl && (
-                    <img
+                    <Image
                       src={poke.spriteUrl}
                       alt={poke.displayName || poke.name}
+                      width={48}
+                      height={48}
                       className="w-12 h-12 pixelated"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";

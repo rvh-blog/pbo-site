@@ -308,6 +308,11 @@ export async function GET(request: NextRequest) {
 
 // Add a season coach (assign coach to division)
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { action, ...data } = body;
 
@@ -740,6 +745,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const rosterId = searchParams.get("rosterId");
   const seasonCoachId = searchParams.get("seasonCoachId");

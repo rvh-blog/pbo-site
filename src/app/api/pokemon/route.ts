@@ -4,6 +4,7 @@ import { pokemon, seasonPokemonPrices } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { customPokemonAliasesForRow, getPokemonAliasMaps } from "@/lib/pokemon-name-aliases";
 import { isHiddenPublicPokemonForm } from "@/lib/pokemon-name-utils";
+import { getSession } from "@/lib/session";
 
 const READ_CACHE_HEADERS = {
   "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
@@ -23,6 +24,11 @@ export async function GET(request: NextRequest) {
   } as const;
 
   if (view === "admin") {
+    const session = await getSession();
+    if (!session?.isMod) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (!seasonId) {
       const allPokemon = await db.query.pokemon.findMany({ columns: compactColumns });
       return NextResponse.json(allPokemon, { headers: READ_CACHE_HEADERS });
@@ -135,6 +141,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { name, types, spriteUrl } = body;
 
@@ -162,6 +173,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { id, name, types, spriteUrl, seasonId, price } = body;
 
@@ -212,6 +228,11 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

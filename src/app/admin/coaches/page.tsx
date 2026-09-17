@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -250,11 +251,16 @@ export default function AdminCoachesPage() {
     e.preventDefault();
     if (!newCoachName.trim()) return;
 
-    await fetch("/api/coaches", {
+    const response = await fetch("/api/coaches", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newCoachName.trim() }),
     });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      alert(data.error || "Failed to add coach");
+      return;
+    }
 
     setNewCoachName("");
     fetchCoaches();
@@ -302,9 +308,14 @@ export default function AdminCoachesPage() {
       return;
     }
 
-    await fetch(`/api/coaches?id=${id}`, {
+    const response = await fetch(`/api/coaches?id=${id}`, {
       method: "DELETE",
     });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      alert(data.error || "Failed to delete coach");
+      return;
+    }
 
     fetchCoaches();
   }
@@ -564,9 +575,11 @@ export default function AdminCoachesPage() {
                                   className="flex items-center gap-2 p-2 rounded bg-[var(--background-tertiary)]"
                                 >
                                   {sc.teamLogoUrl ? (
-                                    <img
+                                    <Image
                                       src={sc.teamLogoUrl}
                                       alt={sc.teamName}
+                                      width={32}
+                                      height={32}
                                       className="w-8 h-8 object-contain rounded"
                                     />
                                   ) : (

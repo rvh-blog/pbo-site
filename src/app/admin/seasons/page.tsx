@@ -35,6 +35,11 @@ interface DraftBoardEntry {
 
 type MovesetFormat = "scarlet-violet" | "national-dex";
 
+async function getApiError(response: Response, fallback: string): Promise<string> {
+  const data = await response.json().catch(() => ({}));
+  return typeof data.error === "string" ? data.error : fallback;
+}
+
 export default function AdminSeasonsPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +188,7 @@ export default function AdminSeasonsPage() {
       return;
     }
 
-    await fetch("/api/seasons", {
+    const response = await fetch("/api/seasons", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -192,6 +197,10 @@ export default function AdminSeasonsPage() {
         draftBoard: newSeasonDraftBoard.length > 0 ? newSeasonDraftBoard : undefined,
       }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to create season"));
+      return;
+    }
 
     setNewSeason({
       name: "",
@@ -217,7 +226,7 @@ export default function AdminSeasonsPage() {
       return;
     }
 
-    await fetch("/api/seasons", {
+    const response = await fetch("/api/seasons", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -237,6 +246,10 @@ export default function AdminSeasonsPage() {
         draftBoard: editDraftBoard.length > 0 ? editDraftBoard : undefined,
       }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to update season"));
+      return;
+    }
 
     setEditingId(null);
     setEditSeason(null);
@@ -249,20 +262,28 @@ export default function AdminSeasonsPage() {
   }
 
   async function handleTogglePublic(id: number, currentValue: boolean) {
-    await fetch("/api/seasons", {
+    const response = await fetch("/api/seasons", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, isPublic: !currentValue }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to update season visibility"));
+      return;
+    }
     fetchSeasons();
   }
 
   async function handleSetCurrent(id: number) {
-    await fetch("/api/seasons", {
+    const response = await fetch("/api/seasons", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, isCurrent: true }),
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to set current season"));
+      return;
+    }
     fetchSeasons();
   }
 
@@ -274,9 +295,13 @@ export default function AdminSeasonsPage() {
     )
       return;
 
-    await fetch(`/api/seasons?id=${id}`, {
+    const response = await fetch(`/api/seasons?id=${id}`, {
       method: "DELETE",
     });
+    if (!response.ok) {
+      alert(await getApiError(response, "Failed to delete season"));
+      return;
+    }
     fetchSeasons();
   }
 

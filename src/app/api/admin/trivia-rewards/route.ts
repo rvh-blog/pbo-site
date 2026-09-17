@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { triviaRewards, coaches, seasons } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
+import { getSession } from "@/lib/session";
+
+const MAX_COACHES_PER_PAYOUT = 100;
+const MIN_PAYOUT_AMOUNT = 20;
+const MAX_PAYOUT_AMOUNT = 1000;
 
 export async function GET() {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     // Get all trivia rewards for the current season
     const currentSeason = await db.query.seasons.findFirst({
@@ -33,20 +43,50 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.isMod) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
-    const { coachId, amount, reason, awardedBy } = body;
+    const { amount, reason } = body;
+    const rawCoachIds = Array.isArray(body.coachIds)
+      ? body.coachIds
+      : body.coachId !== undefined
+        ? [body.coachId]
+        : [];
 
-    if (!coachId || typeof coachId !== "number") {
+    if (
+      rawCoachIds.length === 0 ||
+      rawCoachIds.length > MAX_COACHES_PER_PAYOUT ||
+      !rawCoachIds.every(
+        (coachId: unknown) =>
+          typeof coachId === "number" && Number.isInteger(coachId) && coachId > 0
+      )
+    ) {
       return NextResponse.json(
-        { error: "coachId is required" },
+        { error: `Select between 1 and ${MAX_COACHES_PER_PAYOUT} coaches` },
         { status: 400 }
       );
     }
 
-    if (!amount || typeof amount !== "number" || amount < 10 || amount > 500) {
+    const coachIds = rawCoachIds as number[];
+    if (new Set(coachIds).size !== coachIds.length) {
       return NextResponse.json(
-        { error: "amount must be between 10 and 500" },
+        { error: "Each coach can only be selected once" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof amount !== "number" ||
+      !Number.isInteger(amount) ||
+      amount < MIN_PAYOUT_AMOUNT ||
+      amount > MAX_PAYOUT_AMOUNT
+    ) {
+      return NextResponse.json(
+        { error: `amount must be a whole number between ${MIN_PAYOUT_AMOUNT} and ${MAX_PAYOUT_AMOUNT}` },
         { status: 400 }
       );
     }
@@ -70,40 +110,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the coach
-    const coach = await db.query.coaches.findFirst({
-      where: eq(coaches.id, coachId),
+    // Get all selected coaches before applying the batch.
+    const selectedCoaches = await db.query.coaches.findMany({
+      where: inArray(coaches.id, coachIds),
     });
 
-    if (!coach) {
+    if (selectedCoaches.length !== coachIds.length) {
       return NextResponse.json(
-        { error: "Coach not found" },
+        { error: "One or more selected coaches could not be found" },
         { status: 404 }
       );
     }
 
-    // Award the coins
-    await db
-      .update(coaches)
-      .set({ pboCoin: coach.pboCoin + amount })
-      .where(eq(coaches.id, coachId));
+    const rewards = await db.transaction(async (tx) => {
+      await tx
+        .update(coaches)
+        .set({ pboCoin: sql`${coaches.pboCoin} + ${amount}` })
+        .where(inArray(coaches.id, coachIds));
 
-    // Record the reward
-    const [reward] = await db
-      .insert(triviaRewards)
-      .values({
-        coachId,
-        seasonId: currentSeason.id,
-        amount,
-        reason: reason.trim(),
-        awardedBy: awardedBy || null,
-      })
-      .returning();
+      return tx
+        .insert(triviaRewards)
+        .values(
+          coachIds.map((coachId) => ({
+            coachId,
+            seasonId: currentSeason.id,
+            amount,
+            reason: reason.trim(),
+            awardedBy: session.name,
+          }))
+        )
+        .returning();
+    });
+
+    const totalCoins = amount * coachIds.length;
+    const previousBalance = selectedCoaches[0]?.pboCoin ?? 0;
 
     return NextResponse.json({
       success: true,
-      reward,
-      newBalance: coach.pboCoin + amount,
+      count: coachIds.length,
+      totalCoins,
+      rewards,
+      reward: rewards[0],
+      newBalance: coachIds.length === 1 ? previousBalance + amount : null,
     });
   } catch (error) {
     console.error("Error awarding trivia reward:", error);
