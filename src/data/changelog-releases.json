@@ -23,6 +23,14 @@
       },
       {
         "type": "improved",
+        "text": "Poison Pill choices now stay hidden during secondary drafting, are revealed after the phase resolves, and force affected teams into the five-point fallback phase; round results also show failed initial pick attempts."
+      },
+      {
+        "type": "improved",
+        "text": "Speed Tour drafting now requires at least one point per Pokémon, reserves one point for every future round when limiting pick cost, and uses more compact round and bracket layouts."
+      },
+      {
+        "type": "improved",
         "text": "Admin PBO Coin Payouts now use a searchable coach checklist with Select visible and Clear visible actions while preserving the 100-coach limit."
       }
     ]
