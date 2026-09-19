@@ -76,6 +76,7 @@ export default function AdminBettingPage() {
   // Trivia rewards state
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [selectedCoachIds, setSelectedCoachIds] = useState<number[]>([]);
+  const [coachSearch, setCoachSearch] = useState("");
   const [triviaAmount, setTriviaAmount] = useState<string>(String(MIN_PAYOUT_AMOUNT));
   const [triviaReason, setTriviaReason] = useState<string>("");
   const [awardingTrivia, setAwardingTrivia] = useState(false);
@@ -361,12 +362,31 @@ export default function AdminBettingPage() {
     .filter((coach) => coach.isMod === true)
     .map((coach) => coach.id);
 
+  const visibleCoaches = coaches.filter((coach) => {
+    const query = coachSearch.trim().toLowerCase();
+    return !query || coach.name.toLowerCase().includes(query);
+  });
+
   function selectCoachGroup(coachIds: number[]) {
     if (coachIds.length > 100) {
       window.alert(`This group has ${coachIds.length} coaches. Select no more than 100 at a time.`);
       return;
     }
     setSelectedCoachIds(coachIds);
+  }
+
+  function selectVisibleCoaches() {
+    const mergedIds = [...new Set([...selectedCoachIds, ...visibleCoaches.map((coach) => coach.id)])];
+    if (mergedIds.length > 100) {
+      window.alert(`Selecting all visible coaches would select ${mergedIds.length}. Select no more than 100 at a time.`);
+      return;
+    }
+    setSelectedCoachIds(mergedIds);
+  }
+
+  function clearVisibleCoaches() {
+    const visibleIds = new Set(visibleCoaches.map((coach) => coach.id));
+    setSelectedCoachIds((current) => current.filter((id) => !visibleIds.has(id)));
   }
 
   if (loading) {
@@ -481,30 +501,61 @@ export default function AdminBettingPage() {
               <label className="block text-sm font-medium text-white mb-1">
                 Coaches (up to 100)
               </label>
-              <select
-                multiple
-                size={6}
-                value={selectedCoachIds.map(String)}
-                onChange={(e) => {
-                  const ids = Array.from(e.target.selectedOptions, (option) => Number(option.value));
-                  if (ids.length > 100) {
-                    window.alert("You can select up to 100 coaches at a time.");
-                    return;
-                  }
-                  setSelectedCoachIds(ids);
-                }}
+              <input
+                type="search"
+                value={coachSearch}
+                onChange={(e) => setCoachSearch(e.target.value)}
+                placeholder="Search coaches by name..."
+                aria-label="Search coaches"
                 disabled={awardingTrivia}
-                className="h-40 w-full px-3 py-2 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded-lg text-white"
-              >
-                <option value="" disabled>Select one or more coaches...</option>
-                {coaches.map((coach) => (
-                  <option key={coach.id} value={coach.id}>
-                    {coach.name} ({coach.pboCoin} coins)
-                  </option>
-                ))}
-              </select>
+                className="w-full px-3 py-2 bg-[var(--background-secondary)] border border-[var(--background-tertiary)] rounded-lg text-white placeholder:text-[var(--foreground-subtle)]"
+              />
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-[var(--foreground-muted)]">
+                <span>{visibleCoaches.length} coach{visibleCoaches.length === 1 ? "" : "es"} shown</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={selectVisibleCoaches}
+                    disabled={awardingTrivia || visibleCoaches.length === 0}
+                    className="font-medium text-[var(--accent)] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Select visible
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearVisibleCoaches}
+                    disabled={awardingTrivia || visibleCoaches.length === 0}
+                    className="font-medium text-[var(--foreground-muted)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Clear visible
+                  </button>
+                </div>
+              </div>
+              <div className="mt-1 h-40 overflow-y-auto rounded-lg border border-[var(--background-tertiary)] bg-[var(--background-secondary)] p-1">
+                {visibleCoaches.length > 0 ? visibleCoaches.map((coach) => {
+                  const checked = selectedCoachIds.includes(coach.id);
+                  return (
+                    <label
+                      key={coach.id}
+                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-white hover:bg-[var(--background-tertiary)]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={awardingTrivia || (!checked && selectedCoachIds.length >= 100)}
+                        onChange={() => {
+                          setSelectedCoachIds((current) => checked ? current.filter((id) => id !== coach.id) : [...current, coach.id]);
+                        }}
+                        className="h-4 w-4 accent-[var(--accent)]"
+                      />
+                      <span className="min-w-0 flex-1 truncate">{coach.name}</span>
+                      <span className="text-xs text-[var(--foreground-muted)]">{coach.pboCoin} coins</span>
+                    </label>
+                  );
+                }) : <p className="p-3 text-sm text-[var(--foreground-muted)]">No coaches match your search.</p>}
+              </div>
               <p className="mt-1 text-xs text-[var(--foreground-subtle)]">
-                {selectedCoachIds.length} of 100 coaches selected. Hold Ctrl (Windows) or Command (Mac) to select multiple.
+                {selectedCoachIds.length} of 100 coaches selected. Check or uncheck coaches above; selections stay active while you search.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
