@@ -13,6 +13,13 @@
   criteria form for the ensuing round.
 - Drafting candidates are sorted by cost from highest to lowest and now include
   Pokémon name search plus a link to the referenced season's draft board.
+- Speed Tour rooms now refresh lobby teams and active phases automatically, so
+  coach joins, picks, and admin-started rounds appear without a page refresh.
+- Poison Pill targeting now allows a poisoner to target a Pokémon selected by a
+  secondary-phase participant. Successful Poison Pill matches are shown to all
+  participants and identify the teams forced into the five-point fallback.
+- Round transitions show a results popup listing each participant's drafted
+  Pokémon and any teams that still need secondary or fallback selection.
 
 ## September 17, 2026 - Admin Operations, Match Review, and PBO Coin Payouts
 

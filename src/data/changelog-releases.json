@@ -2,7 +2,7 @@
   {
     "sourceKey": "2026-09-18-speed-tour-flow-controls",
     "title": "Speed Tour Registration and Draft Flow",
-    "summary": "Speed Tours now support coach opt-in, combined Poison Pill and secondary drafting, host controls, and a faster searchable draft board.",
+    "summary": "Speed Tours now support coach opt-in, live lobby and round updates, combined Poison Pill and secondary drafting, host controls, and a faster searchable draft board.",
     "publishedAt": "2026-09-18",
     "changes": [
       {
@@ -16,6 +16,10 @@
       {
         "type": "improved",
         "text": "Speed Tour candidate boards now sort from highest to lowest cost, support Pokémon name search, and link to the referenced season draft board."
+      },
+      {
+        "type": "improved",
+        "text": "Speed Tour rooms now update without manual refreshes, show round-result popups, and preserve visible Poison Pill results for teams forced into fallback."
       }
     ]
   },

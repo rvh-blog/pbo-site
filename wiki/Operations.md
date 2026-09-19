@@ -110,6 +110,11 @@ admin control page is `/admin/speed-tours`; the public event room is
 Logged-in coaches opt into the registration lobby before Round 1. Admin hosts
 can resolve the current phase, force the next round, remove participants, or
 end an event from the admin page.
+The public room updates lobby rosters and active phases automatically. When the
+initial phase resolves, participants see a round-results notice listing drafted
+Pokemon and any teams that need secondary selection. Poison Pill targets can be
+matched to affected secondary picks and remain visible in the round summary,
+including when fallback is forced.
 
 ## Production Database
 

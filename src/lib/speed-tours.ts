@@ -37,6 +37,20 @@ export type SpeedTourCriteria = {
 
 export type SpeedTourPhase = "waiting" | "draft" | "secondary" | "fallback" | "complete";
 export type SpeedTourViewerAction = "pick" | "poison" | "secondary" | "fallback" | null;
+export type SpeedTourPoisonResult = {
+  pokemonId: number;
+  pokemonName: string;
+  poisonerNames: string[];
+  affectedParticipantNames: string[];
+  successful: boolean;
+};
+export type SpeedTourRoundSummary = {
+  roundNumber: number;
+  phase: "secondary" | "fallback" | "complete";
+  selections: Array<{ participantName: string; pokemonName: string; price: number }>;
+  pendingParticipantNames: string[];
+  poisonResults: SpeedTourPoisonResult[];
+};
 
 type SpeedTourRow = typeof speedTours.$inferSelect;
 type SpeedTourRoundRow = typeof speedTourRounds.$inferSelect;
@@ -221,6 +235,71 @@ async function getRoundSubmissions(roundId: number, stage?: string) {
     .where(stage ? and(eq(speedTourSubmissions.roundId, roundId), eq(speedTourSubmissions.stage, stage)) : eq(speedTourSubmissions.roundId, roundId));
 }
 
+async function getPoisonResults(tour: SpeedTourRow, round: SpeedTourRoundRow): Promise<SpeedTourPoisonResult[]> {
+  const phase = normalizedPhase(round);
+  if (round.roundNumber > 6 || !["secondary", "fallback", "complete"].includes(phase)) return [];
+
+  const [submissions, participants] = await Promise.all([
+    db.select({
+      participantId: speedTourSubmissions.participantId,
+      stage: speedTourSubmissions.stage,
+      pokemonId: speedTourSubmissions.pokemonId,
+      pokemonName: pokemon.displayName,
+      pokemonFallbackName: pokemon.name,
+    }).from(speedTourSubmissions)
+      .innerJoin(pokemon, eq(pokemon.id, speedTourSubmissions.pokemonId))
+      .where(eq(speedTourSubmissions.roundId, round.id)),
+    getParticipants(tour.id),
+  ]);
+  const participantNames = new Map(participants.map((participant) => [participant.id, participant.name]));
+  const secondarySubmissions = submissions.filter((submission) => ["secondary", "secondary_resolved"].includes(submission.stage));
+  const results = new Map<number, SpeedTourPoisonResult>();
+
+  for (const submission of submissions.filter((entry) => entry.stage === "poison")) {
+    const result = results.get(submission.pokemonId) ?? {
+      pokemonId: submission.pokemonId,
+      pokemonName: submission.pokemonName || submission.pokemonFallbackName,
+      poisonerNames: [],
+      affectedParticipantNames: [],
+      successful: false,
+    };
+    const poisonerName = participantNames.get(submission.participantId);
+    if (poisonerName && !result.poisonerNames.includes(poisonerName)) result.poisonerNames.push(poisonerName);
+    for (const affectedSubmission of secondarySubmissions.filter((entry) => entry.pokemonId === submission.pokemonId)) {
+      const affectedName = participantNames.get(affectedSubmission.participantId);
+      if (affectedName && !result.affectedParticipantNames.includes(affectedName)) result.affectedParticipantNames.push(affectedName);
+    }
+    result.successful = result.affectedParticipantNames.length > 0;
+    results.set(submission.pokemonId, result);
+  }
+
+  return [...results.values()];
+}
+
+function buildRoundSummary(
+  roundNumber: number,
+  phase: SpeedTourRoundSummary["phase"],
+  participants: Array<{ id: number; name: string }>,
+  selections: Array<{ participantId: number; roundNumber: number; pokemonName: string | null; pokemonFallbackName: string; price: number }>,
+  poisonResults: SpeedTourPoisonResult[],
+): SpeedTourRoundSummary {
+  const roundSelections = selections.filter((selection) => selection.roundNumber === roundNumber);
+  const selectedParticipantIds = new Set(roundSelections.map((selection) => selection.participantId));
+  return {
+    roundNumber,
+    phase,
+    selections: roundSelections.map((selection) => ({
+      participantName: participants.find((participant) => participant.id === selection.participantId)?.name ?? "Unknown participant",
+      pokemonName: selection.pokemonName || selection.pokemonFallbackName,
+      price: selection.price,
+    })),
+    pendingParticipantNames: participants
+      .filter((participant) => !selectedParticipantIds.has(participant.id))
+      .map((participant) => participant.name),
+    poisonResults,
+  };
+}
+
 async function getParticipantAction(tour: SpeedTourRow, round: SpeedTourRoundRow, participantId: number): Promise<SpeedTourViewerAction> {
   const phase = normalizedPhase(round);
   if (phase === "draft") return "pick";
@@ -255,7 +334,19 @@ async function getCandidateBoard(tour: SpeedTourRow, round: SpeedTourRoundRow, p
   const currentStage = submissionStage(round, viewerAction);
   const selectedIds = new Set(selections.map((selection) => selection.pokemonId));
   const unavailableThisRound = new Set<number>();
-  if (normalizedPhase(round) !== "draft") {
+  const phase = normalizedPhase(round);
+  if (phase === "secondary") {
+    for (const submission of roundSubmissions) {
+      const blocksViewer = submission.stage === "draft"
+        || submission.stage === "poison"
+        || (viewerAction !== "poison" && submission.stage === "secondary");
+      if (blocksViewer) unavailableThisRound.add(submission.pokemonId);
+    }
+  } else if (phase === "fallback") {
+    for (const submission of roundSubmissions) {
+      if (submission.stage !== "secondary_resolved") unavailableThisRound.add(submission.pokemonId);
+    }
+  } else if (phase !== "draft") {
     for (const submission of roundSubmissions) unavailableThisRound.add(submission.pokemonId);
   }
   const currentSubmission = participantId
@@ -321,7 +412,7 @@ async function startSecondary(round: SpeedTourRoundRow) {
 }
 
 async function startFallback(tour: SpeedTourRow, round: SpeedTourRoundRow) {
-  const existingStage = stageKey(round);
+  const existingStage = normalizedPhase(round) === "secondary" ? "secondary" : stageKey(round);
   let cap = round.fallbackPriceCap ?? 5;
   const [candidates, selections] = await Promise.all([getPriceCandidates(tour), getAllSelections(tour.id)]);
   const criteria = round.roundNumber <= 6 ? parseCriteria(round.criteria) : null;
@@ -339,7 +430,11 @@ async function startFallback(tour: SpeedTourRow, round: SpeedTourRoundRow) {
     if (nextPrice !== undefined) cap = nextPrice;
   }
 
-  await clearStageSubmissions(round.id, existingStage);
+  if (existingStage === "secondary") {
+    await db.update(speedTourSubmissions).set({ stage: "secondary_resolved", updatedAt: nowIso() }).where(and(eq(speedTourSubmissions.roundId, round.id), eq(speedTourSubmissions.stage, "secondary")));
+  } else {
+    await clearStageSubmissions(round.id, existingStage);
+  }
   await db.update(speedTourRounds).set({
     phase: "fallback",
     fallbackPriceCap: cap,
@@ -852,10 +947,23 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
     db.select().from(speedTourBracketMatches).where(eq(speedTourBracketMatches.speedTourId, tour.id)).orderBy(asc(speedTourBracketMatches.bracketRound), asc(speedTourBracketMatches.bracketPosition)),
     db.select({ id: seasons.id, name: seasons.name, seasonNumber: seasons.seasonNumber }).from(seasons).where(eq(seasons.id, tour.priceSeasonId)).limit(1).then((rows) => rows[0] ?? null),
   ]);
+  const previousRound = round && normalizedPhase(round) === "waiting" && round.roundNumber > 1
+    ? await db.select().from(speedTourRounds).where(and(eq(speedTourRounds.speedTourId, tour.id), eq(speedTourRounds.roundNumber, round.roundNumber - 1))).limit(1).then((rows) => rows[0] ?? null)
+    : null;
   const viewerParticipant = viewerCoachId ? participants.find((participant) => participant.coachId === viewerCoachId) ?? null : null;
   const board = round && viewerParticipant && round.phase !== "waiting" && round.phase !== "complete"
     ? await getCandidateBoard(tour, round, viewerParticipant.id)
     : { board: [], currentSubmission: null, viewerAction: null };
+  const phase = round ? normalizedPhase(round) : null;
+  const poisonResults = round ? await getPoisonResults(tour, round) : [];
+  const previousPoisonResults = previousRound ? await getPoisonResults(tour, previousRound) : [];
+  const roundSummary = round && phase === "secondary"
+    ? buildRoundSummary(round.roundNumber, "secondary", participants, selections, poisonResults)
+    : round && phase === "fallback"
+      ? buildRoundSummary(round.roundNumber, "fallback", participants, selections, poisonResults)
+      : round && phase === "waiting" && previousRound
+        ? buildRoundSummary(previousRound.roundNumber, "complete", participants, selections, previousPoisonResults)
+        : null;
   const registrationOpen = await registrationIsOpen(tour);
   const bracketParticipantIds = new Set(bracket.flatMap((match) => [match.participantOneId, match.participantTwoId, match.winnerParticipantId].filter((id): id is number => id !== null)));
   const participantName = new Map(participants.map((participant) => [participant.id, participant.name]));
@@ -873,6 +981,7 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
       priceSeasonId: tour.priceSeasonId,
       priceSeasonName: priceSeason?.name ?? `Season ${priceSeason?.seasonNumber ?? ""}`.trim(),
       registrationOpen,
+      roundSummary,
       participants: participants.map((participant) => ({
         ...participant,
         selections: selections.filter((selection) => selection.participantId === participant.id).map((selection) => ({
@@ -893,6 +1002,7 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
         fallbackPriceCap: round.fallbackPriceCap,
         submittedPokemonId: board.currentSubmission?.pokemonId ?? null,
         viewerAction: board.viewerAction,
+        poisonResults,
       } : null,
       candidates: board.board,
       bracket: bracket.map((match) => ({
