@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Candidate = {
   id: number;
@@ -38,6 +39,9 @@ type TourData = {
     totalRounds: number;
     budget: number;
     bracketFormat: string | null;
+    priceSeasonId: number;
+    priceSeasonName: string;
+    registrationOpen: boolean;
     participants: Array<{
       id: number;
       coachId: number;
@@ -45,7 +49,7 @@ type TourData = {
       remainingBudget: number;
       selections: Array<{ id: number; roundNumber: number; pokemonId: number; name: string; spriteUrl: string | null; price: number }>;
     }>;
-    round: { id: number; number: number; phase: string; criteria: Criteria; phaseEndsAt: string | null; fallbackPriceCap: number | null; submittedPokemonId: number | null } | null;
+    round: { id: number; number: number; phase: string; criteria: Criteria; phaseEndsAt: string | null; fallbackPriceCap: number | null; submittedPokemonId: number | null; viewerAction: "pick" | "poison" | "secondary" | "fallback" | null } | null;
     candidates: Candidate[];
     bracket: Array<{
       id: number;
@@ -63,6 +67,9 @@ type TourData = {
       status: string;
     }>;
     viewerParticipantId: number | null;
+    viewerCoachId: number | null;
+    viewerCanJoin: boolean;
+    viewerCanLeave: boolean;
   } | null;
   serverNow: number;
 };
@@ -73,8 +80,7 @@ function typeName(type: string) {
 
 function phaseLabel(phase: string) {
   if (phase === "draft") return "Initial pick";
-  if (phase === "poison") return "Poison phase";
-  if (phase === "reselect") return "Secondary pick";
+  if (phase === "secondary") return "Poison Pill / Secondary pick";
   if (phase === "fallback") return "Fallback pick";
   if (phase === "complete") return "Round complete";
   return "Waiting for admin";
@@ -102,6 +108,7 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const load = useCallback(async (nextTourId = tourId) => {
     const query = nextTourId ? `?tourId=${nextTourId}` : "";
@@ -142,13 +149,38 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   const pastTours = data?.tours.filter((tour) => tour.status === "completed" || tour.status === "archived") ?? [];
   const currentRound = selected?.round;
   const viewer = selected?.viewerParticipantId ? selected.participants.find((participant) => participant.id === selected.viewerParticipantId) ?? null : null;
-  const poisonEligible = Boolean(viewer && currentRound && viewer.selections.some((selection) => selection.roundNumber === currentRound.number));
-  const isPickPhase = currentRound && ["draft", "reselect", "fallback"].includes(currentRound.phase);
+  const visibleCandidates = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!selected || !query) return selected?.candidates ?? [];
+    return selected.candidates.filter((candidate) => candidate.displayName.toLowerCase().includes(query) || candidate.name.toLowerCase().includes(query));
+  }, [searchTerm, selected]);
+  useEffect(() => setSearchTerm(""), [selected?.id, currentRound?.id, currentRound?.phase]);
   useEffect(() => {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(null), 8000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  async function updateRegistration(action: "join" | "leave") {
+    if (!selected || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/speed-tours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tourId: selected.id, action }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Registration could not be updated");
+      setData(result.data);
+      setNotice(action === "join" ? "You joined the Speed Tour." : "You left the Speed Tour.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Registration could not be updated");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function submit(pokemonId: number, action: "pick" | "poison") {
     if (!selected || submitting) return;
@@ -163,8 +195,9 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Choice could not be submitted");
       setData(result.data);
-      if (action === "poison") setNotice("Poison successful: choice submitted.");
-      else setNotice("Choice submitted. The server will resolve the round when everyone has locked in.");
+      if (action === "poison") setNotice("Poison Pill submitted.");
+      else if (currentRound?.viewerAction === "secondary") setNotice("Secondary pick submitted.");
+      else setNotice("Choice submitted. The server will resolve the phase when everyone has locked in.");
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Choice could not be submitted";
       setError(message);
@@ -203,23 +236,38 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
         <div className="space-y-6">
           <section className="poke-card p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div><p className="text-xs font-bold uppercase tracking-widest text-[var(--foreground-muted)]">Current event</p><h2 className="mt-1 text-xl font-black text-white">{selected.name}</h2></div>
-              <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-2 text-right"><p className="text-[10px] uppercase text-[var(--foreground-muted)]">Budget</p><p className="font-mono text-lg font-black text-[var(--accent)]">90 points</p></div>
+              <div><p className="text-xs font-bold uppercase tracking-widest text-[var(--foreground-muted)]">Current event</p><h2 className="mt-1 text-xl font-black text-white">{selected.name}</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Using {selected.priceSeasonName} prices</p></div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {selected.viewerCanJoin && <button type="button" disabled={submitting} onClick={() => updateRegistration("join")} className="btn-retro px-4 py-3 text-xs disabled:opacity-50">Join Speed Tour</button>}
+                {selected.viewerCanLeave && <button type="button" disabled={submitting} onClick={() => updateRegistration("leave")} className="rounded-lg border border-[var(--error)]/50 px-4 py-3 text-xs font-bold text-[var(--error)] disabled:opacity-50">Leave Speed Tour</button>}
+                <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-2 text-right"><p className="text-[10px] uppercase text-[var(--foreground-muted)]">Budget</p><p className="font-mono text-lg font-black text-[var(--accent)]">{viewer?.remainingBudget ?? selected.budget} points</p></div>
+              </div>
             </div>
+            {selected.registrationOpen && !selected.viewerCoachId && <p className="mt-4 rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/10 p-3 text-sm text-[var(--primary-light)]">Log in with a coach account to join this Speed Tour before Round 1 starts.</p>}
             {currentRound ? (
               <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
                 <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-4"><div className="flex flex-wrap items-center gap-3"><span className="rounded-full bg-[var(--primary)]/20 px-2 py-1 text-xs font-bold text-[var(--primary-light)]">Round {currentRound.number} / {selected.totalRounds}</span><span className="text-sm font-bold text-white">{phaseLabel(currentRound.phase)}</span>{currentRound.fallbackPriceCap !== null && <span className="text-xs text-[var(--warning)]">Price cap: {currentRound.fallbackPriceCap}</span>}</div><p className="mt-3 text-sm text-[var(--foreground-muted)]">{formatCriteria(currentRound.criteria)}</p></div>
                 <div className="flex min-w-32 items-center justify-center rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-4 text-center"><div><p className="text-[10px] uppercase text-[var(--foreground-muted)]">Clock</p><p className={`font-mono text-3xl font-black ${secondsLeft !== null && secondsLeft <= 10 ? "text-[var(--error)]" : "text-white"}`}>{secondsLeft === null ? "—" : `${secondsLeft}s`}</p></div></div>
               </div>
             ) : <p className="mt-5 text-sm text-[var(--foreground-muted)]">Waiting for the first round to be started by the admin.</p>}
+            {currentRound?.viewerAction === "poison" && <div className="mt-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-sm text-[var(--warning)]"><b>Your first pick succeeded.</b> Select one remaining Pokémon as your Poison Pill. Coaches making secondary picks cannot receive that Pokémon.</div>}
+            {currentRound?.viewerAction === "secondary" && <div className="mt-4 rounded-lg border border-[var(--primary)]/40 bg-[var(--primary)]/10 p-3 text-sm text-[var(--primary-light)]"><b>Your first pick did not lock in.</b> Choose a secondary Pokémon now. This can happen after a duplicate choice or when the first timer expires without a submission.</div>}
           </section>
 
           <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="poke-card overflow-hidden p-0">
-              <div className="border-b border-[var(--background-tertiary)] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-pixel text-sm text-white">Draft board</h2><span className="text-xs text-[var(--foreground-muted)]">{selected.candidates.length} eligible Pokémon</span></div><p className="mt-1 text-xs text-[var(--foreground-muted)]">{currentRound?.phase === "poison" ? "Choose a Pokémon to poison for coaches still resolving." : "Your board is filtered by the round rules, remaining budget, and locked choices."}</p></div>
-              {selected.viewerParticipantId && currentRound?.phase === "poison" && !poisonEligible && <div className="m-4 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/10 p-3 text-sm text-[var(--warning)]">Only coaches with a successful initial pick can poison a Pokémon this phase.</div>}
-              {!selected.viewerParticipantId && currentRound && currentRound.phase !== "waiting" && <div className="m-4 rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/10 p-3 text-sm text-[var(--primary-light)]">Log in as a participating coach to submit a pick. Spectators can still watch the board and teams.</div>}
-              {selected.candidates.length ? <div className="grid max-h-[680px] grid-cols-2 gap-3 overflow-y-auto p-4 sm:grid-cols-3">{selected.candidates.map((candidate) => <div key={candidate.id} className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)] p-3"><div className="flex items-center gap-2">{candidate.spriteUrl ? <Image src={candidate.spriteUrl} alt="" width={48} height={48} className="h-12 w-12 object-contain" /> : <div className="h-12 w-12" />}<div className="min-w-0"><p className="truncate text-sm font-bold text-white">{candidate.displayName}</p><p className="font-mono text-xs text-[var(--accent)]">{candidate.price} pts</p></div></div><div className="mt-2 flex flex-wrap gap-1">{candidate.types.map((type) => <span key={type} className="rounded bg-[var(--background-tertiary)] px-1.5 py-0.5 text-[9px] uppercase text-[var(--foreground-muted)]">{type}</span>)}</div>{selected.viewerParticipantId && ((isPickPhase && currentRound?.phase !== "waiting") || (currentRound?.phase === "poison" && poisonEligible)) ? <button type="button" disabled={submitting || (currentRound?.phase === "poison" && !poisonEligible)} onClick={() => submit(candidate.id, currentRound?.phase === "poison" ? "poison" : "pick")} className="mt-3 min-h-10 w-full rounded-lg bg-[var(--primary)] px-2 text-xs font-black uppercase text-white transition hover:bg-[var(--primary-hover)] disabled:opacity-50">{currentRound?.phase === "poison" ? "Poison" : selected.round?.submittedPokemonId === candidate.id ? "Locked in" : "Select"}</button> : null}</div>)}</div> : <div className="p-10 text-center text-sm text-[var(--foreground-muted)]">No Pokémon currently meet the active rules and budget constraints.</div>}
+              <div className="border-b border-[var(--background-tertiary)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div><h2 className="font-pixel text-sm text-white">Draft board</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Sorted by cost from highest to lowest.</p></div>
+                  <Link href={`/seasons/${selected.priceSeasonId}/draft`} className="rounded-lg border border-[var(--accent)]/40 px-3 py-2 text-xs font-bold text-[var(--accent)] hover:bg-[var(--accent)]/10">View {selected.priceSeasonName} board</Link>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search Pokémon" aria-label="Search eligible Pokémon" className="min-h-10 flex-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] px-3 text-sm text-white placeholder:text-[var(--foreground-subtle)]" />
+                  <span className="text-xs text-[var(--foreground-muted)]">{visibleCandidates.length}{searchTerm.trim() ? ` of ${selected.candidates.length}` : ""} eligible Pokémon</span>
+                </div>
+              </div>
+              {!selected.viewerParticipantId && currentRound && currentRound.phase !== "waiting" && <div className="m-4 rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/10 p-3 text-sm text-[var(--primary-light)]">Join before Round 1 and log in as that coach to submit a pick. Spectators can still watch the teams.</div>}
+              {visibleCandidates.length ? <div className="grid max-h-[680px] grid-cols-2 gap-3 overflow-y-auto p-4 sm:grid-cols-3">{visibleCandidates.map((candidate) => <div key={candidate.id} className="rounded-xl border border-[var(--background-tertiary)] bg-[var(--background)] p-3"><div className="flex items-center gap-2">{candidate.spriteUrl ? <Image src={candidate.spriteUrl} alt="" width={48} height={48} className="h-12 w-12 object-contain" /> : <div className="h-12 w-12" />}<div className="min-w-0"><p className="truncate text-sm font-bold text-white">{candidate.displayName}</p><p className="font-mono text-xs text-[var(--accent)]">{candidate.price} pts</p></div></div><div className="mt-2 flex flex-wrap gap-1">{candidate.types.map((type) => <span key={type} className="rounded bg-[var(--background-tertiary)] px-1.5 py-0.5 text-[9px] uppercase text-[var(--foreground-muted)]">{type}</span>)}</div>{selected.viewerParticipantId && currentRound?.viewerAction ? <button type="button" disabled={submitting} onClick={() => submit(candidate.id, currentRound.viewerAction === "poison" ? "poison" : "pick")} className="mt-3 min-h-10 w-full rounded-lg bg-[var(--primary)] px-2 text-xs font-black uppercase text-white transition hover:bg-[var(--primary-hover)] disabled:opacity-50">{selected.round?.submittedPokemonId === candidate.id ? "Locked in" : currentRound.viewerAction === "poison" ? "Poison Pill" : "Select"}</button> : null}</div>)}</div> : <div className="p-10 text-center text-sm text-[var(--foreground-muted)]">{searchTerm.trim() ? `No eligible Pokémon match “${searchTerm.trim()}”.` : "No Pokémon currently meet the active rules and budget constraints."}</div>}
             </div>
 
             <div className="space-y-6">

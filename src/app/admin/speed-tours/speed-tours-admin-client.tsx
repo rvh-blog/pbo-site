@@ -20,6 +20,7 @@ type AdminTour = {
   totalRounds: number;
   budget: number;
   bracketFormat: string | null;
+  registrationOpen: boolean;
   participants: Array<{ id: number; coachId: number; name: string; remainingBudget: number; selections: Array<{ id: number; roundNumber: number; name: string; price: number }> }>;
   round: { id: number; number: number; phase: string; criteria: Criteria; phaseEndsAt: string | null; fallbackPriceCap: number | null; submittedPokemonId: number | null } | null;
   bracket: Array<{ id: number; bracketRound: number; bracketPosition: number; bracketStage: string; participantOneId: number | null; participantTwoId: number | null; participantOneName: string; participantTwoName: string; winnerParticipantId: number | null; scoreOne: number | null; scoreTwo: number | null; gameReport: string | null; status: string }>;
@@ -27,7 +28,6 @@ type AdminTour = {
 
 type AdminData = {
   tours: AdminTour[];
-  coaches: Array<{ id: number; name: string }>;
   seasons: Array<{ id: number; name: string; seasonNumber: number }>;
 };
 
@@ -39,7 +39,6 @@ export function SpeedToursAdminClient() {
   const [selectedTourId, setSelectedTourId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [priceSeasonId, setPriceSeasonId] = useState<number | "">("");
-  const [coachIds, setCoachIds] = useState<number[]>([]);
   const [type, setType] = useState("");
   const [stat, setStat] = useState("");
   const [min, setMin] = useState("");
@@ -60,6 +59,11 @@ export function SpeedToursAdminClient() {
   }, [selectedTourId]);
 
   useEffect(() => { load().catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load Speed Tours")).finally(() => setLoading(false)); }, [load]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => load().catch(() => undefined), 3000);
+    return () => window.clearInterval(interval);
+  }, [load]);
 
   const selectedTour = useMemo(() => data?.tours.find((tour) => tour.id === selectedTourId) ?? null, [data, selectedTourId]);
 
@@ -101,12 +105,12 @@ export function SpeedToursAdminClient() {
 
       <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
         <Card>
-          <CardHeader><CardTitle>Create Speed Tour</CardTitle><p className="text-sm text-[var(--foreground-muted)]">The event remains in a lobby until you start round 1.</p></CardHeader>
+          <CardHeader><CardTitle>Create Speed Tour</CardTitle><p className="text-sm text-[var(--foreground-muted)]">The event remains in a registration lobby so coaches can opt in before Round 1 starts.</p></CardHeader>
           <CardContent className="space-y-4">
             <label className="block text-sm font-bold text-white">Event name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Water Week Speed Tour" className="mt-1 w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm" /></label>
             <label className="block text-sm font-bold text-white">Price source<select value={priceSeasonId} onChange={(event) => setPriceSeasonId(Number(event.target.value) || "")} className="mt-1 w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm"><option value="">Select season</option>{data?.seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select></label>
-            <div><p className="text-sm font-bold text-white">Participants</p><div className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-lg border border-[var(--card-border)] p-2">{data?.coaches.map((coach) => <label key={coach.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"><input type="checkbox" checked={coachIds.includes(coach.id)} onChange={(event) => setCoachIds((current) => event.target.checked ? [...current, coach.id] : current.filter((id) => id !== coach.id))} />{coach.name}</label>)}</div></div>
-            <button type="button" disabled={saving || !name.trim() || !priceSeasonId || !coachIds.length} onClick={() => post({ action: "create", name, priceSeasonId, coachIds }, "Speed Tour created")} className="btn-retro w-full px-4 py-3 text-xs disabled:opacity-50">Create event</button>
+            <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-3 text-xs text-[var(--foreground-muted)]">After creation, logged-in coaches join from the public Speed Tours room. Registration closes when Round 1 starts.</div>
+            <button type="button" disabled={saving || !name.trim() || !priceSeasonId} onClick={() => post({ action: "create", name, priceSeasonId }, "Speed Tour created")} className="btn-retro w-full px-4 py-3 text-xs disabled:opacity-50">Create event</button>
           </CardContent>
         </Card>
 
@@ -116,8 +120,20 @@ export function SpeedToursAdminClient() {
             <select value={selectedTourId ?? ""} onChange={(event) => setSelectedTourId(Number(event.target.value) || null)} className="min-h-11 w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 text-sm"><option value="">Select event</option>{data?.tours.map((tour) => <option key={tour.id} value={tour.id}>{tour.name} · {tour.status}</option>)}</select>
             {selectedTour ? <>
               <div className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-4"><div className="flex flex-wrap justify-between gap-3"><div><p className="text-xs uppercase text-[var(--foreground-muted)]">Round</p><p className="text-lg font-black text-white">{selectedTour.currentRound} / {selectedTour.totalRounds}</p></div><div><p className="text-xs uppercase text-[var(--foreground-muted)]">Phase</p><p className="text-lg font-black text-[var(--accent)]">{selectedTour.round?.phase ?? "waiting"}</p></div><div><p className="text-xs uppercase text-[var(--foreground-muted)]">Teams</p><p className="text-lg font-black text-white">{selectedTour.participants.length}</p></div></div></div>
+              <div className="rounded-lg border border-[var(--card-border)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><h3 className="font-bold text-white">Participants</h3><p className="text-xs text-[var(--foreground-muted)]">{selectedTour.registrationOpen ? "Registration is open on the public Speed Tours page." : "Registration is closed."}</p></div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTour.round && !["waiting", "complete"].includes(selectedTour.round.phase) && <><button type="button" disabled={saving} onClick={() => post({ action: "force-advance", tourId: selectedTour.id }, "Current phase resolved")} className="btn-retro-secondary px-3 py-2 text-xs disabled:opacity-50">Resolve phase now</button><button type="button" disabled={saving} onClick={() => { if (window.confirm("Force the next round? Participants without a successful pick will skip this team slot.")) post({ action: "force-next-round", tourId: selectedTour.id }, "Advanced to the next round"); }} className="btn-retro-secondary px-3 py-2 text-xs disabled:opacity-50">Force next round</button></>}
+                    {!['completed', 'archived'].includes(selectedTour.status) && <button type="button" disabled={saving} onClick={() => { if (window.confirm(`End ${selectedTour.name}? Active drafting will stop immediately.`)) post({ action: "end-tour", tourId: selectedTour.id }, "Speed Tour ended"); }} className="rounded-lg border border-[var(--error)]/60 px-3 py-2 text-xs font-bold text-[var(--error)] disabled:opacity-50">End Speed Tour</button>}
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {selectedTour.participants.length ? selectedTour.participants.map((participant) => <div key={participant.id} className="flex items-center justify-between gap-3 rounded-lg bg-[var(--background)] px-3 py-2"><div><p className="text-sm font-bold text-white">{participant.name}</p><p className="text-[10px] text-[var(--foreground-muted)]">{participant.remainingBudget} points left · {participant.selections.length} picks</p></div><button type="button" disabled={saving || selectedTour.bracket.length > 0} onClick={() => { if (window.confirm(`Remove ${participant.name} from ${selectedTour.name}? Their Speed Tour picks will also be removed.`)) post({ action: "remove-participant", tourId: selectedTour.id, participantId: participant.id }, `${participant.name} removed`); }} className="rounded border border-[var(--error)]/40 px-2 py-1 text-[10px] font-bold uppercase text-[var(--error)] disabled:opacity-40">Remove</button></div>) : <p className="text-sm text-[var(--foreground-subtle)]">No coaches have joined yet.</p>}
+                </div>
+              </div>
               {selectedTour.round?.phase === "waiting" && selectedTour.currentRound <= 6 && <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-bold text-white">Type restriction<select value={type} onChange={(event) => setType(event.target.value)} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm"><option value="">Any type</option>{TYPES.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label><label className="text-sm font-bold text-white">Stat filter<select value={stat} onChange={(event) => setStat(event.target.value)} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm"><option value="">No stat threshold</option>{STATS.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label><label className="text-sm font-bold text-white">Minimum<input value={min} onChange={(event) => setMin(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label><label className="text-sm font-bold text-white">Maximum<input value={max} onChange={(event) => setMax(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label><label className="text-sm font-bold text-white">Maximum price<input value={priceMax} onChange={(event) => setPriceMax(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label></div>}
-              {selectedTour.round?.phase === "waiting" && <button type="button" disabled={saving} onClick={() => post({ action: "start-round", tourId: selectedTour.id, criteria: selectedTour.currentRound <= 6 ? criteriaPayload() : null }, `Round ${selectedTour.currentRound} started`)} className="btn-retro px-4 py-3 text-xs disabled:opacity-50">Start round {selectedTour.currentRound}{selectedTour.currentRound > 6 ? " (unrestricted)" : ""}</button>}
+              {selectedTour.round?.phase === "waiting" && <button type="button" disabled={saving || !selectedTour.participants.length || selectedTour.status === "completed"} onClick={() => post({ action: "start-round", tourId: selectedTour.id, criteria: selectedTour.currentRound <= 6 ? criteriaPayload() : null }, `Round ${selectedTour.currentRound} started`)} className="btn-retro px-4 py-3 text-xs disabled:opacity-50">Start round {selectedTour.currentRound}{selectedTour.currentRound > 6 ? " (unrestricted)" : ""}</button>}
               <div className="rounded-lg border border-[var(--card-border)] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-white">Bracket</h3><p className="text-xs text-[var(--foreground-muted)]">Available after all eight team slots are filled. Score and game-report fields stay inside Speed Tours.</p></div><div className="flex gap-2"><select value={bracketFormat} onChange={(event) => setBracketFormat(event.target.value as "single" | "double")} className="rounded border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 text-xs"><option value="single">Single elimination</option><option value="double">Double elimination</option></select><button type="button" disabled={saving} onClick={() => post({ action: "create-bracket", tourId: selectedTour.id, format: bracketFormat }, "Bracket created")} className="btn-retro-secondary px-3 py-2 text-xs disabled:opacity-50">Create bracket</button></div></div>
                 {selectedTour.bracket.length ? <div className="mt-4 space-y-3">{selectedTour.bracket.map((match) => <BracketResultEditor key={match.id} match={match} participants={selectedTour.participants} saving={saving} onSave={(body) => post({ action: "bracket-result", ...body }, "Bracket result saved")} />)}</div> : <p className="mt-3 text-sm text-[var(--foreground-subtle)]">No bracket created yet.</p>}
               </div>

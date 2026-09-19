@@ -81,18 +81,20 @@ The dedicated Speed Tours tables are:
   is not a `season_coaches.id`.
 - `speed_tour_rounds`: one row per round with criteria, phase, server-side
   phase deadline, and fallback price cap.
-- `speed_tour_submissions`: stage-scoped draft, poison, reselection, and
-  fallback choices.
+- `speed_tour_submissions`: stage-scoped initial draft, Poison Pill, secondary,
+  and fallback choices.
 - `speed_tour_selections`: finalized event picks and prices, with unique
   event-level Pokemon ownership.
 - `speed_tour_bracket_matches`: isolated single/double-elimination matchups,
   scores, winners, bracket stage, and game reports.
 
-Rounds 1–6 preserve the admin criteria through duplicate resolution, poison,
-reselection, and price-cap fallback. Rounds 7–8 are unrestricted except for
-remaining budget and already-selected Pokemon. Bracket scores and reports stay
-in `speed_tour_bracket_matches`; they do not enter the regular `matches` table
-or its result/stat cascades.
+Coaches opt into a lobby through the public Speed Tours room before Round 1.
+Rounds 1–6 preserve the admin criteria through duplicate resolution, a combined
+Poison Pill/secondary phase, and price-cap fallback only when a participant is
+still missing a pick. Rounds 7–8 are unrestricted except for remaining budget
+and already-selected Pokemon. Bracket scores and reports stay in
+`speed_tour_bracket_matches`; they do not enter the regular `matches` table or
+its result/stat cascades.
 
 ## Pokemon And Prices
 

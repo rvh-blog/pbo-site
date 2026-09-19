@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
-import { getSpeedTourPublicData, submitSpeedTourChoice } from "@/lib/speed-tours";
+import { getSpeedTourPublicData, joinSpeedTour, leaveSpeedTour, submitSpeedTourChoice } from "@/lib/speed-tours";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +25,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const action = body.action === "poison" ? "poison" : "pick";
     const tourId = Number(body.tourId);
+    if (!Number.isInteger(tourId) || tourId <= 0) {
+      return NextResponse.json({ error: "A valid tour is required" }, { status: 400 });
+    }
+    if (body.action === "join") {
+      return NextResponse.json({ success: true, data: await joinSpeedTour(tourId, session.id) });
+    }
+    if (body.action === "leave") {
+      return NextResponse.json({ success: true, data: await leaveSpeedTour(tourId, session.id) });
+    }
+    const action = body.action === "poison" ? "poison" : "pick";
     const pokemonId = Number(body.pokemonId);
-    if (!Number.isInteger(tourId) || tourId <= 0 || !Number.isInteger(pokemonId) || pokemonId <= 0) {
-      return NextResponse.json({ error: "A valid tour and Pokémon are required" }, { status: 400 });
+    if (!Number.isInteger(pokemonId) || pokemonId <= 0) {
+      return NextResponse.json({ error: "A valid Pokémon is required" }, { status: 400 });
     }
     const data = await submitSpeedTourChoice({ tourId, coachId: session.id, pokemonId, action });
     return NextResponse.json({ success: true, data });

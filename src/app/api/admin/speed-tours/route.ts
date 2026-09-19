@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { createSpeedTour, createSpeedTourBracket, getSpeedTourAdminData, startSpeedTourRound, updateSpeedTourBracketMatch } from "@/lib/speed-tours";
+import {
+  createSpeedTour,
+  createSpeedTourBracket,
+  endSpeedTour,
+  forceAdvanceSpeedTour,
+  forceNextSpeedTourRound,
+  getSpeedTourAdminData,
+  removeSpeedTourParticipant,
+  startSpeedTourRound,
+  updateSpeedTourBracketMatch,
+} from "@/lib/speed-tours";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +32,6 @@ export async function POST(request: NextRequest) {
         const tour = await createSpeedTour({
           name: String(body.name || ""),
           priceSeasonId: Number(body.priceSeasonId),
-          coachIds: Array.isArray(body.coachIds) ? body.coachIds.map(Number) : [],
         });
         return NextResponse.json({ success: true, tour });
       }
@@ -31,6 +40,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true });
       case "create-bracket":
         await createSpeedTourBracket(Number(body.tourId), body.format === "double" ? "double" : "single");
+        return NextResponse.json({ success: true });
+      case "force-advance":
+        await forceAdvanceSpeedTour(Number(body.tourId));
+        return NextResponse.json({ success: true });
+      case "force-next-round":
+        await forceNextSpeedTourRound(Number(body.tourId));
+        return NextResponse.json({ success: true });
+      case "remove-participant":
+        await removeSpeedTourParticipant(Number(body.tourId), Number(body.participantId));
+        return NextResponse.json({ success: true });
+      case "end-tour":
+        await endSpeedTour(Number(body.tourId));
         return NextResponse.json({ success: true });
       case "bracket-result":
         await updateSpeedTourBracketMatch({
