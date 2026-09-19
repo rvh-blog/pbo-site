@@ -1,5 +1,25 @@
 [
   {
+    "sourceKey": "2026-09-18-speed-tour-flow-controls",
+    "title": "Speed Tour Registration and Draft Flow",
+    "summary": "Speed Tours now support coach opt-in, combined Poison Pill and secondary drafting, host controls, and a faster searchable draft board.",
+    "publishedAt": "2026-09-18",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added coach self-registration before Round 1 and host controls to resolve a phase, force the next round, remove a participant, or end an event."
+      },
+      {
+        "type": "improved",
+        "text": "Combined Poison Pill and secondary selections into one timed phase with role-specific instructions and automatic advancement when every coach has a successful pick."
+      },
+      {
+        "type": "improved",
+        "text": "Speed Tour candidate boards now sort from highest to lowest cost, support Pokémon name search, and link to the referenced season draft board."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-17-admin-operations-payouts",
     "title": "Admin Operations, Match Review, and PBO Coin Payouts",
     "summary": "Streamlined admin match workflows, sequential review tools, secure admin APIs, and multi-recipient PBO Coin payouts.",

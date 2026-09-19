@@ -1,5 +1,19 @@
 # Recent Website Updates
 
+## September 18, 2026 - Speed Tour Registration and Draft Flow
+
+- Coaches now opt into a Speed Tour from the public registration lobby before
+  Round 1 instead of being selected during admin event creation.
+- Combined Poison Pill and secondary selections into one phase. Coaches whose
+  first pick succeeded receive Poison Pill instructions, while unresolved
+  coaches receive secondary-pick instructions. Fallback drafting is skipped
+  whenever every participant has secured a pick.
+- Added host controls to resolve a phase immediately, force the next round,
+  remove a participant, or end an event. Completed rounds return to the admin
+  criteria form for the ensuing round.
+- Drafting candidates are sorted by cost from highest to lowest and now include
+  Pokémon name search plus a link to the referenced season's draft board.
+
 ## September 17, 2026 - Admin Operations, Match Review, and PBO Coin Payouts
 
 - Renamed the admin reward tool to **PBO Coin Payout**. Admins can award 20 to

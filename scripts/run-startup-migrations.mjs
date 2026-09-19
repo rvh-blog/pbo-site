@@ -111,6 +111,13 @@ const migrations = [
     ],
   },
   {
+    id: "2026-09-18-speed-tours-combined-secondary-phase-v1",
+    statements: [
+      "UPDATE speed_tour_rounds SET phase = 'secondary' WHERE phase IN ('poison', 'reselect')",
+      "UPDATE speed_tour_submissions SET stage = 'secondary' WHERE stage = 'reselect'",
+    ],
+  },
+  {
     id: "2026-09-09-normalized-battle-events-v1",
     statements: [
       `CREATE TABLE IF NOT EXISTS battle_events (

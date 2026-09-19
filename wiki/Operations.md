@@ -107,6 +107,9 @@ Speed Tour events, picks, budgets, bracket scores, and reports use dedicated
 tables and are intentionally separate from seasonal/playoff match data. The
 admin control page is `/admin/speed-tours`; the public event room is
 `/speed-tours`, with past events available through its Speed Tours menu.
+Logged-in coaches opt into the registration lobby before Round 1. Admin hosts
+can resolve the current phase, force the next round, remove participants, or
+end an event from the admin page.
 
 ## Production Database
 
@@ -190,7 +193,8 @@ not already have normalized rows, preserves every raw protocol line, and does
 not alter match results or Pokémon aggregates.
 
 Speed Tours are applied by the idempotent startup migrations
-`2026-09-16-speed-tours-v1` and `2026-09-16-speed-tours-bracket-stage-v1`.
+`2026-09-16-speed-tours-v1`, `2026-09-16-speed-tours-bracket-stage-v1`, and
+`2026-09-18-speed-tours-combined-secondary-phase-v1`.
 They create only the dedicated `speed_tour_*` tables and should be verified
 against a copied local database before deployment. Do not upload a local
 database to production just to apply these schema changes; the normal startup

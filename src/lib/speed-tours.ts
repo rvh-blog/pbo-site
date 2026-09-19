@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   coaches,
@@ -35,7 +35,8 @@ export type SpeedTourCriteria = {
   priceMax?: number | null;
 };
 
-export type SpeedTourPhase = "waiting" | "draft" | "poison" | "reselect" | "fallback" | "complete";
+export type SpeedTourPhase = "waiting" | "draft" | "secondary" | "fallback" | "complete";
+export type SpeedTourViewerAction = "pick" | "poison" | "secondary" | "fallback" | null;
 
 type SpeedTourRow = typeof speedTours.$inferSelect;
 type SpeedTourRoundRow = typeof speedTourRounds.$inferSelect;
@@ -125,6 +126,11 @@ function stageKey(round: SpeedTourRoundRow) {
   return round.phase === "fallback" ? `fallback:${round.fallbackPriceCap ?? 5}` : round.phase;
 }
 
+function normalizedPhase(round: SpeedTourRoundRow): SpeedTourPhase {
+  if (round.phase === "poison" || round.phase === "reselect") return "secondary";
+  return round.phase as SpeedTourPhase;
+}
+
 async function getSpeedTour(tourId: number) {
   return db.select().from(speedTours).where(eq(speedTours.id, tourId)).limit(1).then((rows) => rows[0] ?? null);
 }
@@ -186,7 +192,8 @@ async function getPriceCandidates(tour: SpeedTourRow) {
     })
     .from(seasonPokemonPrices)
     .innerJoin(pokemon, eq(pokemon.id, seasonPokemonPrices.pokemonId))
-    .where(eq(seasonPokemonPrices.seasonId, tour.priceSeasonId));
+    .where(eq(seasonPokemonPrices.seasonId, tour.priceSeasonId))
+    .orderBy(desc(seasonPokemonPrices.price), asc(pokemon.displayName), asc(pokemon.id));
 
   return rows
     .filter((row) => row.price >= 0)
@@ -214,6 +221,28 @@ async function getRoundSubmissions(roundId: number, stage?: string) {
     .where(stage ? and(eq(speedTourSubmissions.roundId, roundId), eq(speedTourSubmissions.stage, stage)) : eq(speedTourSubmissions.roundId, roundId));
 }
 
+async function getParticipantAction(tour: SpeedTourRow, round: SpeedTourRoundRow, participantId: number): Promise<SpeedTourViewerAction> {
+  const phase = normalizedPhase(round);
+  if (phase === "draft") return "pick";
+  const selected = await db
+    .select({ id: speedTourSelections.id })
+    .from(speedTourSelections)
+    .where(and(eq(speedTourSelections.roundId, round.id), eq(speedTourSelections.participantId, participantId)))
+    .limit(1);
+  if (phase === "secondary") {
+    if (selected.length) return round.roundNumber <= 6 ? "poison" : null;
+    return "secondary";
+  }
+  if (phase === "fallback") return selected.length ? null : "fallback";
+  return null;
+}
+
+function submissionStage(round: SpeedTourRoundRow, action: SpeedTourViewerAction) {
+  if (action === "poison") return "poison";
+  if (action === "secondary") return "secondary";
+  return stageKey(round);
+}
+
 async function getCandidateBoard(tour: SpeedTourRow, round: SpeedTourRoundRow, participantId?: number | null) {
   const [candidates, selections, roundSubmissions, participants] = await Promise.all([
     getPriceCandidates(tour),
@@ -222,19 +251,20 @@ async function getCandidateBoard(tour: SpeedTourRow, round: SpeedTourRoundRow, p
     getParticipants(tour.id),
   ]);
 
+  const viewerAction = participantId ? await getParticipantAction(tour, round, participantId) : null;
+  const currentStage = submissionStage(round, viewerAction);
   const selectedIds = new Set(selections.map((selection) => selection.pokemonId));
   const unavailableThisRound = new Set<number>();
-  if (round.phase !== "draft") {
+  if (normalizedPhase(round) !== "draft") {
     for (const submission of roundSubmissions) unavailableThisRound.add(submission.pokemonId);
   }
-  const currentStageSubmissions = await getRoundSubmissions(round.id, stageKey(round));
   const currentSubmission = participantId
-    ? currentStageSubmissions.find((submission) => submission.participantId === participantId) ?? null
+    ? roundSubmissions.find((submission) => submission.participantId === participantId && submission.stage === currentStage) ?? null
     : null;
   const participant = participantId ? participants.find((entry) => entry.id === participantId) : null;
   const criteria = round.roundNumber <= 6 ? parseCriteria(round.criteria) : null;
-  const maxPrice = round.phase === "fallback" ? round.fallbackPriceCap ?? 5 : null;
-  const remainingBudget = participant?.remainingBudget ?? tour.budget;
+  const maxPrice = normalizedPhase(round) === "fallback" ? round.fallbackPriceCap ?? 5 : null;
+  const remainingBudget = viewerAction === "poison" ? tour.budget : participant?.remainingBudget ?? tour.budget;
 
   const board = candidates.filter((candidate) => {
     if (selectedIds.has(candidate.id)) return false;
@@ -245,40 +275,45 @@ async function getCandidateBoard(tour: SpeedTourRow, round: SpeedTourRoundRow, p
     return true;
   });
 
-  return { board, currentSubmission };
+  return { board, currentSubmission, viewerAction };
 }
 
-async function getPendingParticipantIds(tourId: number, round: SpeedTourRoundRow) {
-  const participants = await getParticipants(tourId);
-  if (round.phase === "draft") return participants.map((participant) => participant.id);
-  if (round.phase === "poison") {
-    const selections = await db.select({ participantId: speedTourSelections.participantId }).from(speedTourSelections).where(eq(speedTourSelections.roundId, round.id));
-    return selections.map((selection) => selection.participantId);
-  }
-  const selections = await db.select({ participantId: speedTourSelections.participantId }).from(speedTourSelections).where(eq(speedTourSelections.roundId, round.id));
+async function getRequiredParticipantStages(tourId: number, round: SpeedTourRoundRow) {
+  const [participants, selections] = await Promise.all([
+    getParticipants(tourId),
+    db.select({ participantId: speedTourSelections.participantId }).from(speedTourSelections).where(eq(speedTourSelections.roundId, round.id)),
+  ]);
   const selectedParticipants = new Set(selections.map((selection) => selection.participantId));
-  return participants.map((participant) => participant.id).filter((participantId) => !selectedParticipants.has(participantId));
+  const phase = normalizedPhase(round);
+  return participants.flatMap((participant) => {
+    if (phase === "draft") return [{ participantId: participant.id, stage: "draft" }];
+    if (phase === "secondary") {
+      if (selectedParticipants.has(participant.id)) {
+        return round.roundNumber <= 6 ? [{ participantId: participant.id, stage: "poison" }] : [];
+      }
+      return [{ participantId: participant.id, stage: "secondary" }];
+    }
+    if (phase === "fallback" && !selectedParticipants.has(participant.id)) {
+      return [{ participantId: participant.id, stage: stageKey(round) }];
+    }
+    return [];
+  });
 }
 
 async function allRequiredSubmitted(tourId: number, round: SpeedTourRoundRow) {
-  const required = await getPendingParticipantIds(tourId, round);
+  const required = await getRequiredParticipantStages(tourId, round);
   if (!required.length) return true;
-  const submissions = await getRoundSubmissions(round.id, stageKey(round));
-  const submitted = new Set(submissions.map((submission) => submission.participantId));
-  return required.every((participantId) => submitted.has(participantId));
+  const submissions = await getRoundSubmissions(round.id);
+  return required.every(({ participantId, stage }) => submissions.some((submission) => submission.participantId === participantId && submission.stage === stage));
 }
 
 async function clearStageSubmissions(roundId: number, stage: string) {
   await db.delete(speedTourSubmissions).where(and(eq(speedTourSubmissions.roundId, roundId), eq(speedTourSubmissions.stage, stage)));
 }
 
-async function startReselect(tour: SpeedTourRow, round: SpeedTourRoundRow) {
-  // Preserve draft and poison submissions: both the initially chosen Pokémon
-  // and poisoned Pokémon remain unavailable throughout this round's resolution.
-  // Only clear the stage that is being retried.
-  if (round.phase === "reselect" || round.phase === "fallback") await clearStageSubmissions(round.id, stageKey(round));
+async function startSecondary(round: SpeedTourRoundRow) {
   await db.update(speedTourRounds).set({
-    phase: "reselect",
+    phase: "secondary",
     phaseEndsAt: phaseEndIso(),
     fallbackPriceCap: null,
     updatedAt: nowIso(),
@@ -351,7 +386,6 @@ async function saveUniqueSelections(tour: SpeedTourRow, round: SpeedTourRoundRow
   const selectedIds = new Set(existingSelections.map((selection) => selection.pokemonId));
   const selectedParticipantIds = new Set(existingSelections.filter((selection) => selection.roundId === round.id).map((selection) => selection.participantId));
   const pendingParticipants = new Set<number>();
-  const newSelectionParticipantIds: number[] = [];
 
   for (const [pokemonId, group] of groups) {
     if (group.length !== 1) {
@@ -381,7 +415,6 @@ async function saveUniqueSelections(tour: SpeedTourRow, round: SpeedTourRoundRow
     await db.update(speedTourCoaches).set({ remainingBudget: participant.remainingBudget - candidate.price }).where(eq(speedTourCoaches.id, participant.id));
     selectedIds.add(pokemonId);
     selectedParticipantIds.add(submission.participantId);
-    newSelectionParticipantIds.push(submission.participantId);
   }
 
   const allParticipants = await getParticipants(tour.id);
@@ -389,65 +422,67 @@ async function saveUniqueSelections(tour: SpeedTourRow, round: SpeedTourRoundRow
   for (const participant of allParticipants) {
     if (!currentRoundSelected.has(participant.id)) pendingParticipants.add(participant.id);
   }
-  return { pendingParticipants: [...pendingParticipants], newSelectionParticipantIds };
+  return { pendingParticipants: [...pendingParticipants] };
 }
 
-async function resolvePickPhase(tour: SpeedTourRow, round: SpeedTourRoundRow) {
-  const submissions = await getRoundSubmissions(round.id, stageKey(round));
-  const { pendingParticipants, newSelectionParticipantIds } = await saveUniqueSelections(tour, round, submissions);
-
+async function resolveDraftPhase(tour: SpeedTourRow, round: SpeedTourRoundRow) {
+  const submissions = await getRoundSubmissions(round.id, "draft");
+  const { pendingParticipants } = await saveUniqueSelections(tour, round, submissions);
   if (!pendingParticipants.length) {
     await completeRound(tour, round);
     return;
   }
-
-  if (round.phase === "draft" && round.roundNumber <= 6 && newSelectionParticipantIds.length) {
-    await db.update(speedTourRounds).set({ phase: "poison", phaseEndsAt: phaseEndIso(), updatedAt: nowIso() }).where(eq(speedTourRounds.id, round.id));
-    return;
-  }
-
-  if (round.phase === "reselect" && round.roundNumber <= 6) {
-    await startFallback(tour, round);
-    return;
-  }
-
-  if (round.phase === "fallback") {
-    await startFallback(tour, round);
-    return;
-  }
-
-  await startReselect(tour, round);
+  await startSecondary(round);
 }
 
-async function advanceSpeedTourInternal(tourId: number) {
+async function resolveSecondaryPhase(tour: SpeedTourRow, round: SpeedTourRoundRow) {
+  const [poisonSubmissions, secondarySubmissions] = await Promise.all([
+    getRoundSubmissions(round.id, "poison"),
+    getRoundSubmissions(round.id, "secondary"),
+  ]);
+  const poisonedPokemonIds = new Set(poisonSubmissions.map((submission) => submission.pokemonId));
+  const validSecondarySubmissions = secondarySubmissions.filter((submission) => !poisonedPokemonIds.has(submission.pokemonId));
+  const { pendingParticipants } = await saveUniqueSelections(tour, round, validSecondarySubmissions);
+  if (!pendingParticipants.length) {
+    await completeRound(tour, round);
+    return;
+  }
+  await startFallback(tour, round);
+}
+
+async function resolveFallbackPhase(tour: SpeedTourRow, round: SpeedTourRoundRow) {
+  const submissions = await getRoundSubmissions(round.id, stageKey(round));
+  const { pendingParticipants } = await saveUniqueSelections(tour, round, submissions);
+  if (!pendingParticipants.length) {
+    await completeRound(tour, round);
+    return;
+  }
+  await startFallback(tour, round);
+}
+
+async function advanceSpeedTourInternal(tourId: number, force = false) {
   const tour = await getSpeedTour(tourId);
   if (!tour || tour.status === "completed" || tour.status === "archived") return;
   const round = await getCurrentRound(tour);
   if (!round || round.phase === "waiting" || round.phase === "complete") return;
   const expired = round.phaseEndsAt ? Date.parse(round.phaseEndsAt) <= Date.now() : false;
-  if (!expired && !(await allRequiredSubmitted(tour.id, round))) return;
+  if (!force && !expired && !(await allRequiredSubmitted(tour.id, round))) return;
 
-  if (round.phase === "poison") {
-    await startReselect(tour, round);
-    return;
-  }
-
-  await resolvePickPhase(tour, round);
+  const phase = normalizedPhase(round);
+  if (phase === "draft") await resolveDraftPhase(tour, round);
+  else if (phase === "secondary") await resolveSecondaryPhase(tour, round);
+  else if (phase === "fallback") await resolveFallbackPhase(tour, round);
 }
 
 export function advanceSpeedTour(tourId: number) {
   return withSpeedTourLock(tourId, () => advanceSpeedTourInternal(tourId));
 }
 
-export async function createSpeedTour(input: { name: string; priceSeasonId: number; coachIds: number[] }) {
+export async function createSpeedTour(input: { name: string; priceSeasonId: number }) {
   const name = input.name.trim();
-  const coachIds = [...new Set(input.coachIds.filter((id) => Number.isInteger(id) && id > 0))];
   if (!name) throw new Error("Event name is required");
-  if (!coachIds.length) throw new Error("Select at least one participating coach");
   const season = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.id, input.priceSeasonId)).limit(1).then((rows) => rows[0]);
   if (!season) throw new Error("Price season was not found");
-  const existingCoaches = await db.select({ id: coaches.id }).from(coaches).where(inArray(coaches.id, coachIds));
-  if (existingCoaches.length !== coachIds.length) throw new Error("One or more coaches were not found");
 
   const timestamp = nowIso();
   const [tour] = await db.insert(speedTours).values({
@@ -461,7 +496,6 @@ export async function createSpeedTour(input: { name: string; priceSeasonId: numb
     createdAt: timestamp,
     updatedAt: timestamp,
   }).returning();
-  await db.insert(speedTourCoaches).values(coachIds.map((coachId) => ({ speedTourId: tour.id, coachId, remainingBudget: SPEED_TOUR_BUDGET, createdAt: timestamp })));
   await db.insert(speedTourRounds).values({
     speedTourId: tour.id,
     roundNumber: 1,
@@ -477,21 +511,108 @@ export async function createSpeedTour(input: { name: string; priceSeasonId: numb
   return tour;
 }
 
-export async function startSpeedTourRound(tourId: number, criteria: SpeedTourCriteria | null) {
-  const tour = await getSpeedTour(tourId);
-  if (!tour) throw new Error("Speed Tour not found");
+async function registrationIsOpen(tour: SpeedTourRow) {
+  if (tour.status !== "lobby" || tour.currentRound !== 1) return false;
   const round = await getCurrentRound(tour);
-  if (!round || round.phase !== "waiting") throw new Error("The current round is not waiting to start");
-  const normalizedCriteria = round.roundNumber <= 6 ? cleanSpeedTourCriteria(criteria) : null;
-  const timestamp = nowIso();
-  await db.update(speedTourRounds).set({
-    phase: "draft",
-    criteria: normalizedCriteria,
-    phaseEndsAt: phaseEndIso(),
-    startedAt: timestamp,
-    updatedAt: timestamp,
-  }).where(eq(speedTourRounds.id, round.id));
-  await db.update(speedTours).set({ status: "active", updatedAt: timestamp }).where(eq(speedTours.id, tour.id));
+  return round?.phase === "waiting" && !round.startedAt;
+}
+
+export function joinSpeedTour(tourId: number, coachId: number) {
+  return withSpeedTourLock(tourId, async () => {
+    const tour = await getSpeedTour(tourId);
+    if (!tour) throw new Error("Speed Tour not found");
+    if (!(await registrationIsOpen(tour))) throw new Error("Registration is closed for this Speed Tour");
+    const coach = await db.select({ id: coaches.id }).from(coaches).where(eq(coaches.id, coachId)).limit(1).then((rows) => rows[0]);
+    if (!coach) throw new Error("Coach account not found");
+    const existing = await db.select({ id: speedTourCoaches.id }).from(speedTourCoaches).where(and(eq(speedTourCoaches.speedTourId, tour.id), eq(speedTourCoaches.coachId, coachId))).limit(1);
+    if (!existing.length) {
+      await db.insert(speedTourCoaches).values({ speedTourId: tour.id, coachId, remainingBudget: tour.budget, createdAt: nowIso() });
+    }
+    return getSpeedTourPublicDataInternal(tour.id, coachId);
+  });
+}
+
+export function leaveSpeedTour(tourId: number, coachId: number) {
+  return withSpeedTourLock(tourId, async () => {
+    const tour = await getSpeedTour(tourId);
+    if (!tour) throw new Error("Speed Tour not found");
+    if (!(await registrationIsOpen(tour))) throw new Error("Registration is closed for this Speed Tour");
+    await db.delete(speedTourCoaches).where(and(eq(speedTourCoaches.speedTourId, tour.id), eq(speedTourCoaches.coachId, coachId)));
+    return getSpeedTourPublicDataInternal(tour.id, coachId);
+  });
+}
+
+export function forceAdvanceSpeedTour(tourId: number) {
+  return withSpeedTourLock(tourId, async () => {
+    const tour = await getSpeedTour(tourId);
+    if (!tour) throw new Error("Speed Tour not found");
+    const round = await getCurrentRound(tour);
+    if (!round || ["waiting", "complete"].includes(round.phase)) throw new Error("There is no active drafting phase to advance");
+    await advanceSpeedTourInternal(tourId, true);
+  });
+}
+
+export function forceNextSpeedTourRound(tourId: number) {
+  return withSpeedTourLock(tourId, async () => {
+    const tour = await getSpeedTour(tourId);
+    if (!tour) throw new Error("Speed Tour not found");
+    const round = await getCurrentRound(tour);
+    if (!round || ["waiting", "complete"].includes(round.phase)) throw new Error("There is no active round to skip");
+    await advanceSpeedTourInternal(tourId, true);
+    const refreshedTour = await getSpeedTour(tourId);
+    if (!refreshedTour || refreshedTour.currentRound !== round.roundNumber || refreshedTour.status === "completed") return;
+    const refreshedRound = await getCurrentRound(refreshedTour);
+    if (refreshedRound && refreshedRound.phase !== "complete") await completeRound(refreshedTour, refreshedRound);
+  });
+}
+
+export function removeSpeedTourParticipant(tourId: number, participantId: number) {
+  return withSpeedTourLock(tourId, async () => {
+    const tour = await getSpeedTour(tourId);
+    if (!tour) throw new Error("Speed Tour not found");
+    const bracketMatches = await getBracketMatches(tour.id);
+    if (tour.status === "bracket" || bracketMatches.length) throw new Error("Participants cannot be removed after the bracket is created");
+    const participant = await db.select().from(speedTourCoaches).where(and(eq(speedTourCoaches.id, participantId), eq(speedTourCoaches.speedTourId, tour.id))).limit(1).then((rows) => rows[0]);
+    if (!participant) throw new Error("Speed Tour participant not found");
+    await db.delete(speedTourCoaches).where(eq(speedTourCoaches.id, participant.id));
+    const remaining = await getParticipants(tour.id);
+    if (remaining.length && tour.status === "active") await advanceSpeedTourInternal(tour.id);
+  });
+}
+
+export function endSpeedTour(tourId: number) {
+  return withSpeedTourLock(tourId, async () => {
+    const tour = await getSpeedTour(tourId);
+    if (!tour) throw new Error("Speed Tour not found");
+    if (["completed", "archived"].includes(tour.status)) throw new Error("This Speed Tour has already ended");
+    const timestamp = nowIso();
+    const round = await getCurrentRound(tour);
+    if (round && round.phase !== "complete") {
+      await db.update(speedTourRounds).set({ phase: "complete", phaseEndsAt: null, completedAt: timestamp, updatedAt: timestamp }).where(eq(speedTourRounds.id, round.id));
+    }
+    await db.update(speedTours).set({ status: "completed", updatedAt: timestamp }).where(eq(speedTours.id, tour.id));
+  });
+}
+
+export function startSpeedTourRound(tourId: number, criteria: SpeedTourCriteria | null) {
+  return withSpeedTourLock(tourId, async () => {
+    const tour = await getSpeedTour(tourId);
+    if (!tour) throw new Error("Speed Tour not found");
+    const round = await getCurrentRound(tour);
+    if (!round || round.phase !== "waiting") throw new Error("The current round is not waiting to start");
+    const participants = await getParticipants(tour.id);
+    if (!participants.length) throw new Error("At least one coach must join before the round can start");
+    const normalizedCriteria = round.roundNumber <= 6 ? cleanSpeedTourCriteria(criteria) : null;
+    const timestamp = nowIso();
+    await db.update(speedTourRounds).set({
+      phase: "draft",
+      criteria: normalizedCriteria,
+      phaseEndsAt: phaseEndIso(),
+      startedAt: timestamp,
+      updatedAt: timestamp,
+    }).where(eq(speedTourRounds.id, round.id));
+    await db.update(speedTours).set({ status: "active", updatedAt: timestamp }).where(eq(speedTours.id, tour.id));
+  });
 }
 
 export async function submitSpeedTourChoice(input: { tourId: number; coachId: number; pokemonId: number; action: "pick" | "poison" }) {
@@ -500,26 +621,19 @@ export async function submitSpeedTourChoice(input: { tourId: number; coachId: nu
     const tour = await getSpeedTour(input.tourId);
     if (!tour || tour.status !== "active") throw new Error("This Speed Tour is not accepting choices");
     const round = await getCurrentRound(tour);
-    if (!round || !["draft", "poison", "reselect", "fallback"].includes(round.phase)) throw new Error("The current phase is not accepting choices");
+    if (!round || !["draft", "secondary", "poison", "reselect", "fallback"].includes(round.phase)) throw new Error("The current phase is not accepting choices");
     const participant = await db.select().from(speedTourCoaches).where(and(eq(speedTourCoaches.speedTourId, tour.id), eq(speedTourCoaches.coachId, input.coachId))).limit(1).then((rows) => rows[0]);
     if (!participant) throw new Error("You are not registered for this Speed Tour");
 
-    const actionPhase = input.action === "poison" ? "poison" : round.phase;
-    if (input.action === "poison") {
-      if (round.phase !== "poison") throw new Error("Poison choices are not active");
-      const selected = await db.select({ id: speedTourSelections.id }).from(speedTourSelections).where(and(eq(speedTourSelections.roundId, round.id), eq(speedTourSelections.participantId, participant.id))).limit(1);
-      if (!selected.length) throw new Error("Only coaches with a successful first-stage pick can poison a Pokémon");
-    }
-
-    const pendingIds = await getPendingParticipantIds(tour.id, round);
-    if (input.action === "pick" && !pendingIds.includes(participant.id)) throw new Error("Your pick for this round is already locked");
-    if (input.action === "poison" && !pendingIds.includes(participant.id)) throw new Error("Your poison choice is already locked");
-
-    const { board, currentSubmission } = await getCandidateBoard(tour, round, participant.id);
+    const { board, currentSubmission, viewerAction } = await getCandidateBoard(tour, round, participant.id);
+    if (!viewerAction) throw new Error("Your action for this round is already complete");
+    if (input.action === "poison" && viewerAction !== "poison") throw new Error("You are selecting a Pokémon in the secondary phase, not a Poison Pill");
+    if (input.action === "pick" && viewerAction === "poison") throw new Error("Your first pick succeeded, so your action is to select a Poison Pill");
     if (!board.some((candidate) => candidate.id === input.pokemonId) && currentSubmission?.pokemonId !== input.pokemonId) {
       throw new Error("That Pokémon is not available under the current Speed Tour rules");
     }
 
+    const actionPhase = submissionStage(round, viewerAction);
     const timestamp = nowIso();
     const existing = await db.select({ id: speedTourSubmissions.id }).from(speedTourSubmissions).where(and(eq(speedTourSubmissions.roundId, round.id), eq(speedTourSubmissions.participantId, participant.id), eq(speedTourSubmissions.stage, actionPhase))).limit(1).then((rows) => rows[0]);
     if (existing) {
@@ -731,16 +845,18 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
 
   const tour = await getSpeedTour(selected.id);
   if (!tour) return { tours, selectedTour: null, serverNow: Date.now() };
-  const [round, participants, selections, bracket] = await Promise.all([
+  const [round, participants, selections, bracket, priceSeason] = await Promise.all([
     getCurrentRound(tour),
     getParticipants(tour.id),
     getAllSelections(tour.id),
     db.select().from(speedTourBracketMatches).where(eq(speedTourBracketMatches.speedTourId, tour.id)).orderBy(asc(speedTourBracketMatches.bracketRound), asc(speedTourBracketMatches.bracketPosition)),
+    db.select({ id: seasons.id, name: seasons.name, seasonNumber: seasons.seasonNumber }).from(seasons).where(eq(seasons.id, tour.priceSeasonId)).limit(1).then((rows) => rows[0] ?? null),
   ]);
   const viewerParticipant = viewerCoachId ? participants.find((participant) => participant.coachId === viewerCoachId) ?? null : null;
   const board = round && viewerParticipant && round.phase !== "waiting" && round.phase !== "complete"
     ? await getCandidateBoard(tour, round, viewerParticipant.id)
-    : { board: [], currentSubmission: null };
+    : { board: [], currentSubmission: null, viewerAction: null };
+  const registrationOpen = await registrationIsOpen(tour);
   const bracketParticipantIds = new Set(bracket.flatMap((match) => [match.participantOneId, match.participantTwoId, match.winnerParticipantId].filter((id): id is number => id !== null)));
   const participantName = new Map(participants.map((participant) => [participant.id, participant.name]));
 
@@ -754,6 +870,9 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
       totalRounds: tour.totalRounds,
       budget: tour.budget,
       bracketFormat: tour.bracketFormat,
+      priceSeasonId: tour.priceSeasonId,
+      priceSeasonName: priceSeason?.name ?? `Season ${priceSeason?.seasonNumber ?? ""}`.trim(),
+      registrationOpen,
       participants: participants.map((participant) => ({
         ...participant,
         selections: selections.filter((selection) => selection.participantId === participant.id).map((selection) => ({
@@ -768,11 +887,12 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
       round: round ? {
         id: round.id,
         number: round.roundNumber,
-        phase: round.phase,
+        phase: normalizedPhase(round),
         criteria: round.roundNumber <= 6 ? parseCriteria(round.criteria) : null,
         phaseEndsAt: round.phaseEndsAt,
         fallbackPriceCap: round.fallbackPriceCap,
         submittedPokemonId: board.currentSubmission?.pokemonId ?? null,
+        viewerAction: board.viewerAction,
       } : null,
       candidates: board.board,
       bracket: bracket.map((match) => ({
@@ -792,6 +912,8 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
       })),
       viewerParticipantId: viewerParticipant?.id ?? null,
       viewerCoachId: viewerCoachId ?? null,
+      viewerCanJoin: Boolean(viewerCoachId && registrationOpen && !viewerParticipant),
+      viewerCanLeave: Boolean(viewerCoachId && registrationOpen && viewerParticipant),
       bracketParticipantIds: [...bracketParticipantIds],
     },
     serverNow: Date.now(),
@@ -805,11 +927,10 @@ export async function getSpeedTourPublicData(tourId?: number | null, viewerCoach
 }
 
 export async function getSpeedTourAdminData() {
-  const [tourRows, coachRows, seasonRows] = await Promise.all([
+  const [tourRows, seasonRows] = await Promise.all([
     db.select().from(speedTours).orderBy(desc(speedTours.createdAt)),
-    db.select({ id: coaches.id, name: coaches.name }).from(coaches).orderBy(asc(coaches.name)),
     db.select({ id: seasons.id, name: seasons.name, seasonNumber: seasons.seasonNumber }).from(seasons).orderBy(desc(seasons.seasonNumber)),
   ]);
   const tours = await Promise.all(tourRows.map(async (tour) => getSpeedTourPublicData(tour.id, null)));
-  return { tours: tours.map((entry) => entry.selectedTour).filter(Boolean), coaches: coachRows, seasons: seasonRows };
+  return { tours: tours.map((entry) => entry.selectedTour).filter(Boolean), seasons: seasonRows };
 }
