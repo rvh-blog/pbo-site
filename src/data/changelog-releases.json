@@ -20,6 +20,10 @@
       {
         "type": "improved",
         "text": "Speed Tour rooms now update without manual refreshes, show round-result popups, and preserve visible Poison Pill results for teams forced into fallback."
+      },
+      {
+        "type": "improved",
+        "text": "Admin PBO Coin Payouts now use a searchable coach checklist with Select visible and Clear visible actions while preserving the 100-coach limit."
       }
     ]
   },
