@@ -144,8 +144,8 @@ Feature notes:
 - Discord config: `src/app/admin/discord`
 - Pick-ems admin: `src/app/admin/pick-ems`
 - Speed Tours admin: `src/app/admin/speed-tours` (event creation, participant
-  removal, phase/round/end controls, round criteria, and single/double-
-  elimination bracket results)
+  removal, phase/round/end controls, ended-event deletion, round criteria, and
+  single/double-elimination/round-robin bracket results)
 - Engagement admin: `src/app/admin/engagement`
 - Admin audit log: `src/app/admin/audit-log`
 - Admin changelog editor: `src/app/admin/changelog`

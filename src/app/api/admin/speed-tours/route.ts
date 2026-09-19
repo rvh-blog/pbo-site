@@ -3,6 +3,7 @@ import { isAuthenticated } from "@/lib/auth";
 import {
   createSpeedTour,
   createSpeedTourBracket,
+  deleteSpeedTour,
   endSpeedTour,
   forceAdvanceSpeedTour,
   forceNextSpeedTourRound,
@@ -52,6 +53,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true });
       case "end-tour":
         await endSpeedTour(Number(body.tourId));
+        return NextResponse.json({ success: true });
+      case "delete-tour":
+        await deleteSpeedTour(Number(body.tourId));
         return NextResponse.json({ success: true });
       case "bracket-result":
         await updateSpeedTourBracketMatch({

@@ -29,6 +29,7 @@ type AdminTour = {
   id: number;
   name: string;
   status: string;
+  deletable: boolean;
   currentRound: number;
   totalRounds: number;
   budget: number;
@@ -99,12 +100,13 @@ export function SpeedToursAdminClient() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferredTourId?: number | null) => {
     const response = await fetch("/api/admin/speed-tours", { cache: "no-store" });
     if (!response.ok) throw new Error("Unable to load Speed Tours");
     const next = await response.json() as AdminData;
     setData(next);
-    if (!selectedTourId && next.tours[0]) setSelectedTourId(next.tours[0].id);
+    const requestedTourId = preferredTourId === undefined ? selectedTourId : preferredTourId;
+    setSelectedTourId(requestedTourId && next.tours.some((tour) => tour.id === requestedTourId) ? requestedTourId : next.tours[0]?.id ?? null);
   }, [selectedTourId]);
 
   useEffect(() => { load().catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load Speed Tours")).finally(() => setLoading(false)); }, [load]);
@@ -116,7 +118,7 @@ export function SpeedToursAdminClient() {
 
   const selectedTour = useMemo(() => data?.tours.find((tour) => tour.id === selectedTourId) ?? null, [data, selectedTourId]);
 
-  async function post(body: Record<string, unknown>, successMessage: string) {
+  async function post(body: Record<string, unknown>, successMessage: string, preferredTourId?: number | null) {
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -125,7 +127,7 @@ export function SpeedToursAdminClient() {
       const result = await response.json().catch(() => null);
       if (!response.ok) throw new Error(result?.error || "Speed Tour update failed");
       setMessage(successMessage);
-      await load();
+      await load(preferredTourId);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Speed Tour update failed");
     } finally {
@@ -183,6 +185,7 @@ export function SpeedToursAdminClient() {
               </div>
               {selectedTour.round?.phase === "waiting" && selectedTour.currentRound <= 6 && <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-bold text-white">Type restriction<select value={type} onChange={(event) => setType(event.target.value)} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm"><option value="">Any type</option>{TYPES.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label><label className="text-sm font-bold text-white">Stat filter<select value={stat} onChange={(event) => setStat(event.target.value)} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm"><option value="">No stat threshold</option>{STATS.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label><label className="text-sm font-bold text-white">Minimum<input value={min} onChange={(event) => setMin(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label><label className="text-sm font-bold text-white">Maximum<input value={max} onChange={(event) => setMax(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label><label className="text-sm font-bold text-white">Maximum price<input value={priceMax} onChange={(event) => setPriceMax(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label></div>}
               {selectedTour.round?.phase === "waiting" && <button type="button" disabled={saving || !selectedTour.participants.length || selectedTour.status === "completed"} onClick={() => post({ action: "start-round", tourId: selectedTour.id, criteria: selectedTour.currentRound <= 6 ? criteriaPayload() : null }, `Round ${selectedTour.currentRound} started`)} className="btn-retro px-4 py-3 text-xs disabled:opacity-50">Start round {selectedTour.currentRound}{selectedTour.currentRound > 6 ? " (unrestricted)" : ""}</button>}
+              {selectedTour.deletable && <button type="button" disabled={saving} onClick={() => { if (window.confirm(`Permanently delete ${selectedTour.name}? This removes its draft picks, bracket, chat, replay summaries, and event history.`)) post({ action: "delete-tour", tourId: selectedTour.id }, "Speed Tour deleted", null); }} className="rounded-lg border border-[var(--error)]/60 px-4 py-3 text-xs font-bold text-[var(--error)] disabled:opacity-50">Delete Speed Tour</button>}
               <div className="rounded-lg border border-[var(--card-border)] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-white">Bracket</h3><p className="text-xs text-[var(--foreground-muted)]">Available after all eight team slots are filled. Score and game-report fields stay inside Speed Tours.</p></div><div className="flex gap-2"><select value={bracketFormat} onChange={(event) => setBracketFormat(event.target.value as "single" | "double" | "round-robin")} className="rounded border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 text-xs"><option value="single">Single elimination</option><option value="double">Double elimination</option><option value="round-robin">Round robin</option></select><button type="button" disabled={saving} onClick={() => post({ action: "create-bracket", tourId: selectedTour.id, format: bracketFormat }, "Bracket created")} className="btn-retro-secondary px-3 py-2 text-xs disabled:opacity-50">Create bracket</button></div></div>
                 {selectedTour.bracket.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{selectedTour.bracket.map((match) => <BracketResultEditor key={match.id} match={match} participants={selectedTour.participants} saving={saving} onSave={(body) => post({ action: "bracket-result", ...body }, "Bracket result saved")} />)}</div> : <p className="mt-3 text-sm text-[var(--foreground-subtle)]">No bracket created yet.</p>}
               </div>
