@@ -125,13 +125,12 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   }, [load]);
 
   useEffect(() => {
-    const phase = data?.selectedTour?.round?.phase;
-    if (!phase || phase === "waiting" || phase === "complete") return;
+    if (showPast || ["completed", "archived"].includes(data?.selectedTour?.status ?? "")) return;
     const interval = window.setInterval(() => {
       load().catch(() => undefined);
     }, 1500);
     return () => window.clearInterval(interval);
-  }, [data?.selectedTour?.id, data?.selectedTour?.round?.id, data?.selectedTour?.round?.phase, load]);
+  }, [data?.selectedTour?.status, load, showPast]);
 
   useEffect(() => {
     const deadline = data?.selectedTour?.round?.phaseEndsAt;
