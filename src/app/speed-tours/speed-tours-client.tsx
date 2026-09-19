@@ -250,7 +250,7 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
               </div>
             ) : <p className="mt-5 text-sm text-[var(--foreground-muted)]">Waiting for the first round to be started by the admin.</p>}
             {currentRound?.viewerAction === "poison" && <div className="mt-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-sm text-[var(--warning)]"><b>Your first pick succeeded.</b> Select one remaining Pokémon as your Poison Pill. Coaches making secondary picks cannot receive that Pokémon.</div>}
-            {currentRound?.viewerAction === "secondary" && <div className="mt-4 rounded-lg border border-[var(--primary)]/40 bg-[var(--primary)]/10 p-3 text-sm text-[var(--primary-light)]"><b>Your first pick did not lock in.</b> Choose a secondary Pokémon now. This can happen after a duplicate choice or when the first timer expires without a submission.</div>}
+            {currentRound?.viewerAction === "secondary" && <div className="mt-4 rounded-lg border border-[var(--primary)]/40 bg-[var(--primary)]/10 p-3 text-sm text-[var(--primary-light)]"><b>OH NO, you made the same selection as someone else, choose another Pokemon.</b> If a participant &quot;poisons&quot; the Pokemon that you select during this phase, you will be forced to draft a Pokemon worth 5 points or less.</div>}
           </section>
 
           <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
