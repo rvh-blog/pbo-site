@@ -6,6 +6,7 @@ import {
   seasonPokemonPrices,
   seasons,
   speedTourBracketMatches,
+  speedTourChatMessages,
   speedTourCoaches,
   speedTourRounds,
   speedTourSelections,
@@ -44,10 +45,30 @@ export type SpeedTourPoisonResult = {
   affectedParticipantNames: string[];
   successful: boolean;
 };
+export type SpeedTourReplaySummary = {
+  tier: string | null;
+  p1Username: string;
+  p2Username: string;
+  winner: "p1" | "p2" | null;
+  p1Remaining: number;
+  p2Remaining: number;
+  turnCount: number;
+  keyEvents: Array<{ turn: number; type: string; player: string; pokemon?: string; cause?: string; killer?: string; move?: string }>;
+  p1Team: Array<{ name: string; kills: number; deaths: number }>;
+  p2Team: Array<{ name: string; kills: number; deaths: number }>;
+};
+export type SpeedTourChatMessage = {
+  id: number;
+  participantId: number;
+  participantName: string;
+  content: string;
+  createdAt: string;
+};
 export type SpeedTourRoundSummary = {
   roundNumber: number;
   phase: "secondary" | "fallback" | "complete";
   selections: Array<{ participantName: string; pokemonName: string; price: number }>;
+  failedSelections: Array<{ participantName: string; pokemonName: string; price: number }>;
   pendingParticipantNames: string[];
   poisonResults: SpeedTourPoisonResult[];
 };
@@ -140,6 +161,11 @@ function stageKey(round: SpeedTourRoundRow) {
   return round.phase === "fallback" ? `fallback:${round.fallbackPriceCap ?? 5}` : round.phase;
 }
 
+function maxPriceForRound(remainingBudget: number, roundNumber: number, totalRounds: number) {
+  const remainingRoundsAfterThisPick = Math.max(0, totalRounds - roundNumber);
+  return Math.max(0, remainingBudget - remainingRoundsAfterThisPick);
+}
+
 function normalizedPhase(round: SpeedTourRoundRow): SpeedTourPhase {
   if (round.phase === "poison" || round.phase === "reselect") return "secondary";
   return round.phase as SpeedTourPhase;
@@ -167,6 +193,46 @@ async function getParticipants(tourId: number) {
     .orderBy(asc(speedTourCoaches.id));
 }
 
+async function getSpeedTourChatMessages(tourId: number): Promise<SpeedTourChatMessage[]> {
+  const rows = await db
+    .select({
+      id: speedTourChatMessages.id,
+      participantId: speedTourChatMessages.participantId,
+      participantName: coaches.name,
+      content: speedTourChatMessages.content,
+      createdAt: speedTourChatMessages.createdAt,
+    })
+    .from(speedTourChatMessages)
+    .innerJoin(speedTourCoaches, eq(speedTourCoaches.id, speedTourChatMessages.participantId))
+    .innerJoin(coaches, eq(coaches.id, speedTourCoaches.coachId))
+    .where(eq(speedTourChatMessages.speedTourId, tourId))
+    .orderBy(desc(speedTourChatMessages.createdAt), desc(speedTourChatMessages.id))
+    .limit(100);
+  return rows.reverse();
+}
+
+export async function submitSpeedTourChatMessage(input: { tourId: number; coachId: number; content: string }) {
+  const content = input.content.trim();
+  if (!content) throw new Error("Chat message cannot be empty");
+  if (content.length > 500) throw new Error("Chat messages must be 500 characters or fewer");
+  const tour = await getSpeedTour(input.tourId);
+  if (!tour || ["completed", "archived"].includes(tour.status)) throw new Error("This Speed Tour chat is closed");
+  const participant = await db
+    .select({ id: speedTourCoaches.id })
+    .from(speedTourCoaches)
+    .where(and(eq(speedTourCoaches.speedTourId, input.tourId), eq(speedTourCoaches.coachId, input.coachId)))
+    .limit(1)
+    .then((rows) => rows[0]);
+  if (!participant) throw new Error("Join this Speed Tour before using chat");
+  await db.insert(speedTourChatMessages).values({
+    speedTourId: input.tourId,
+    participantId: participant.id,
+    content,
+    createdAt: nowIso(),
+  });
+  return getSpeedTourChatMessages(input.tourId);
+}
+
 async function getAllSelections(tourId: number) {
   return db
     .select({
@@ -185,6 +251,38 @@ async function getAllSelections(tourId: number) {
     .innerJoin(pokemon, eq(pokemon.id, speedTourSelections.pokemonId))
     .where(eq(speedTourSelections.speedTourId, tourId))
     .orderBy(asc(speedTourRounds.roundNumber), asc(speedTourSelections.id));
+}
+
+async function getFailedInitialSelections(
+  tour: SpeedTourRow,
+  round: SpeedTourRoundRow,
+  participants: Array<{ id: number; name: string }>,
+  selections: Array<{ participantId: number; roundNumber: number; pokemonId: number; pokemonName: string | null; pokemonFallbackName: string; price: number }>,
+) {
+  const [submissions, candidates] = await Promise.all([
+    getRoundSubmissions(round.id, "draft"),
+    getPriceCandidates(tour),
+  ]);
+  const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const successfulInitialSelections = new Set(
+    selections
+      .filter((selection) => selection.roundNumber === round.roundNumber)
+      .map((selection) => `${selection.participantId}:${selection.pokemonId}`),
+  );
+
+  return submissions
+    .filter((submission) => !successfulInitialSelections.has(`${submission.participantId}:${submission.pokemonId}`))
+    .map((submission) => {
+      const candidate = candidateById.get(submission.pokemonId);
+      const participant = participants.find((entry) => entry.id === submission.participantId);
+      if (!candidate || !participant) return null;
+      return {
+        participantName: participant.name,
+        pokemonName: candidate.displayName,
+        price: candidate.price,
+      };
+    })
+    .filter((selection): selection is { participantName: string; pokemonName: string; price: number } => selection !== null);
 }
 
 async function getPriceCandidates(tour: SpeedTourRow) {
@@ -210,7 +308,7 @@ async function getPriceCandidates(tour: SpeedTourRow) {
     .orderBy(desc(seasonPokemonPrices.price), asc(pokemon.displayName), asc(pokemon.id));
 
   return rows
-    .filter((row) => row.price >= 0)
+    .filter((row) => row.price >= 1)
     .map((row): SpeedTourCandidate => ({
       id: row.id,
       name: row.name,
@@ -281,6 +379,7 @@ function buildRoundSummary(
   phase: SpeedTourRoundSummary["phase"],
   participants: Array<{ id: number; name: string }>,
   selections: Array<{ participantId: number; roundNumber: number; pokemonName: string | null; pokemonFallbackName: string; price: number }>,
+  failedSelections: SpeedTourRoundSummary["failedSelections"],
   poisonResults: SpeedTourPoisonResult[],
 ): SpeedTourRoundSummary {
   const roundSelections = selections.filter((selection) => selection.roundNumber === roundNumber);
@@ -293,6 +392,7 @@ function buildRoundSummary(
       pokemonName: selection.pokemonName || selection.pokemonFallbackName,
       price: selection.price,
     })),
+    failedSelections,
     pendingParticipantNames: participants
       .filter((participant) => !selectedParticipantIds.has(participant.id))
       .map((participant) => participant.name),
@@ -338,8 +438,7 @@ async function getCandidateBoard(tour: SpeedTourRow, round: SpeedTourRoundRow, p
   if (phase === "secondary") {
     for (const submission of roundSubmissions) {
       const blocksViewer = submission.stage === "draft"
-        || submission.stage === "poison"
-        || (viewerAction !== "poison" && submission.stage === "secondary");
+        || (viewerAction === "poison" ? submission.stage === "poison" : submission.stage === "secondary");
       if (blocksViewer) unavailableThisRound.add(submission.pokemonId);
     }
   } else if (phase === "fallback") {
@@ -355,18 +454,22 @@ async function getCandidateBoard(tour: SpeedTourRow, round: SpeedTourRoundRow, p
   const participant = participantId ? participants.find((entry) => entry.id === participantId) : null;
   const criteria = round.roundNumber <= 6 ? parseCriteria(round.criteria) : null;
   const maxPrice = normalizedPhase(round) === "fallback" ? round.fallbackPriceCap ?? 5 : null;
-  const remainingBudget = viewerAction === "poison" ? tour.budget : participant?.remainingBudget ?? tour.budget;
+  const maxAffordablePrice = viewerAction === "poison"
+    ? tour.budget
+    : participant
+      ? maxPriceForRound(participant.remainingBudget, round.roundNumber, tour.totalRounds)
+      : tour.budget;
 
   const board = candidates.filter((candidate) => {
     if (selectedIds.has(candidate.id)) return false;
     if (unavailableThisRound.has(candidate.id)) return currentSubmission?.pokemonId === candidate.id;
     if (!matchesCriteria(candidate, criteria)) return false;
     if (maxPrice !== null && candidate.price > maxPrice) return false;
-    if (candidate.price > remainingBudget) return false;
+    if (candidate.price > maxAffordablePrice) return false;
     return true;
   });
 
-  return { board, currentSubmission, viewerAction };
+  return { board, currentSubmission, viewerAction, maxAffordablePrice: viewerAction === "poison" ? null : maxAffordablePrice };
 }
 
 async function getRequiredParticipantStages(tourId: number, round: SpeedTourRoundRow) {
@@ -494,7 +597,8 @@ async function saveUniqueSelections(tour: SpeedTourRow, round: SpeedTourRoundRow
       continue;
     }
     const participant = await db.select().from(speedTourCoaches).where(eq(speedTourCoaches.id, submission.participantId)).limit(1).then((rows) => rows[0]);
-    if (!participant || participant.remainingBudget < candidate.price) {
+    const maxAffordablePrice = participant ? maxPriceForRound(participant.remainingBudget, round.roundNumber, tour.totalRounds) : 0;
+    if (!participant || candidate.price > maxAffordablePrice) {
       pendingParticipants.add(submission.participantId);
       continue;
     }
@@ -837,6 +941,8 @@ async function scheduleDoubleEliminationWave(tourId: number) {
       scoreOne: null,
       scoreTwo: null,
       gameReport: null,
+      replayUrl: null,
+      replaySummary: null,
       status: hasTwoParticipants ? "pending" : "bye",
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -858,7 +964,47 @@ async function scheduleDoubleEliminationWave(tourId: number) {
   }
 }
 
-export async function createSpeedTourBracket(tourId: number, format: "single" | "double") {
+async function createRoundRobinBracket(tourId: number, participants: Array<{ id: number }>) {
+  const slots: Array<number | null> = participants.map((participant) => participant.id);
+  if (slots.length % 2 === 1) slots.push(null);
+  const roundCount = slots.length - 1;
+  const matchesPerRound = slots.length / 2;
+  const rotation = [...slots];
+  const timestamp = nowIso();
+
+  for (let bracketRound = 1; bracketRound <= roundCount; bracketRound += 1) {
+    let bracketPosition = 1;
+    for (let index = 0; index < matchesPerRound; index += 1) {
+      const participantOneId = rotation[index];
+      const participantTwoId = rotation[rotation.length - 1 - index];
+      if (participantOneId === null || participantTwoId === null) continue;
+      await db.insert(speedTourBracketMatches).values({
+        speedTourId: tourId,
+        bracketRound,
+        bracketPosition: bracketPosition++,
+        bracketStage: "round-robin",
+        participantOneId,
+        participantTwoId,
+        winnerParticipantId: null,
+        scoreOne: null,
+        scoreTwo: null,
+        gameReport: null,
+        replayUrl: null,
+        replaySummary: null,
+        status: "pending",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+    }
+
+    const fixed = rotation[0];
+    const last = rotation.pop() ?? null;
+    rotation.splice(1, 0, last);
+    rotation[0] = fixed;
+  }
+}
+
+export async function createSpeedTourBracket(tourId: number, format: "single" | "double" | "round-robin") {
   const tour = await getSpeedTour(tourId);
   if (!tour) throw new Error("Speed Tour not found");
   const participants = await getParticipants(tour.id);
@@ -868,7 +1014,9 @@ export async function createSpeedTourBracket(tourId: number, format: "single" | 
   const existingMatches = await getBracketMatches(tour.id);
   if (existingMatches.length) throw new Error("A bracket already exists for this Speed Tour");
 
-  if (format === "double") {
+  if (format === "round-robin") {
+    await createRoundRobinBracket(tour.id, completedParticipants);
+  } else if (format === "double") {
     await scheduleDoubleEliminationWave(tour.id);
   } else {
     const bracketSize = nextPowerOfTwo(completedParticipants.length);
@@ -881,7 +1029,7 @@ export async function createSpeedTourBracket(tourId: number, format: "single" | 
         const participantOneId = bracketRound === 1 ? seeds[(bracketPosition - 1) * 2] ?? null : null;
         const participantTwoId = bracketRound === 1 ? seeds[((bracketPosition - 1) * 2) + 1] ?? null : null;
         const hasTwoParticipants = participantOneId !== null && participantTwoId !== null;
-        await db.insert(speedTourBracketMatches).values({
+      await db.insert(speedTourBracketMatches).values({
           speedTourId: tour.id,
           bracketRound,
           bracketPosition,
@@ -890,9 +1038,11 @@ export async function createSpeedTourBracket(tourId: number, format: "single" | 
           participantTwoId,
           winnerParticipantId: hasTwoParticipants ? null : participantOneId ?? participantTwoId,
           scoreOne: null,
-          scoreTwo: null,
-          gameReport: null,
-          status: hasTwoParticipants ? "pending" : "bye",
+        scoreTwo: null,
+        gameReport: null,
+        replayUrl: null,
+        replaySummary: null,
+        status: hasTwoParticipants ? "pending" : "bye",
           createdAt: timestamp,
           updatedAt: timestamp,
         });
@@ -903,7 +1053,7 @@ export async function createSpeedTourBracket(tourId: number, format: "single" | 
   await db.update(speedTours).set({ bracketFormat: format, status: "bracket", updatedAt: nowIso() }).where(eq(speedTours.id, tour.id));
 }
 
-export async function updateSpeedTourBracketMatch(input: { matchId: number; winnerParticipantId: number; scoreOne: number; scoreTwo: number; gameReport: string }) {
+export async function updateSpeedTourBracketMatch(input: { matchId: number; winnerParticipantId: number; scoreOne: number; scoreTwo: number; gameReport: string; replayUrl?: string | null; replaySummary?: SpeedTourReplaySummary | null }) {
   const match = await db.select().from(speedTourBracketMatches).where(eq(speedTourBracketMatches.id, input.matchId)).limit(1).then((rows) => rows[0]);
   if (!match) throw new Error("Bracket match not found");
   if (match.status !== "pending" || match.participantOneId === null || match.participantTwoId === null) throw new Error("This bracket match is not ready for a result");
@@ -917,13 +1067,15 @@ export async function updateSpeedTourBracketMatch(input: { matchId: number; winn
     scoreOne: input.scoreOne,
     scoreTwo: input.scoreTwo,
     gameReport: input.gameReport.trim() || null,
+    replayUrl: input.replayUrl?.trim() || null,
+    replaySummary: input.replaySummary ?? null,
     status: "complete",
     updatedAt: nowIso(),
   }).where(eq(speedTourBracketMatches.id, match.id));
 
   const tour = await getSpeedTour(match.speedTourId);
   if (tour?.bracketFormat === "double") await scheduleDoubleEliminationWave(match.speedTourId);
-  else await advanceSingleEliminationBracket(match.speedTourId);
+  else if (tour?.bracketFormat !== "round-robin") await advanceSingleEliminationBracket(match.speedTourId);
 }
 
 async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoachId?: number | null) {
@@ -940,12 +1092,13 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
 
   const tour = await getSpeedTour(selected.id);
   if (!tour) return { tours, selectedTour: null, serverNow: Date.now() };
-  const [round, participants, selections, bracket, priceSeason] = await Promise.all([
+  const [round, participants, selections, bracket, priceSeason, chatMessages] = await Promise.all([
     getCurrentRound(tour),
     getParticipants(tour.id),
     getAllSelections(tour.id),
     db.select().from(speedTourBracketMatches).where(eq(speedTourBracketMatches.speedTourId, tour.id)).orderBy(asc(speedTourBracketMatches.bracketRound), asc(speedTourBracketMatches.bracketPosition)),
     db.select({ id: seasons.id, name: seasons.name, seasonNumber: seasons.seasonNumber }).from(seasons).where(eq(seasons.id, tour.priceSeasonId)).limit(1).then((rows) => rows[0] ?? null),
+    getSpeedTourChatMessages(tour.id),
   ]);
   const previousRound = round && normalizedPhase(round) === "waiting" && round.roundNumber > 1
     ? await db.select().from(speedTourRounds).where(and(eq(speedTourRounds.speedTourId, tour.id), eq(speedTourRounds.roundNumber, round.roundNumber - 1))).limit(1).then((rows) => rows[0] ?? null)
@@ -953,17 +1106,39 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
   const viewerParticipant = viewerCoachId ? participants.find((participant) => participant.coachId === viewerCoachId) ?? null : null;
   const board = round && viewerParticipant && round.phase !== "waiting" && round.phase !== "complete"
     ? await getCandidateBoard(tour, round, viewerParticipant.id)
-    : { board: [], currentSubmission: null, viewerAction: null };
+    : { board: [], currentSubmission: null, viewerAction: null, maxAffordablePrice: null };
   const phase = round ? normalizedPhase(round) : null;
-  const poisonResults = round ? await getPoisonResults(tour, round) : [];
+  const poisonResults = round && phase !== "secondary" ? await getPoisonResults(tour, round) : [];
   const previousPoisonResults = previousRound ? await getPoisonResults(tour, previousRound) : [];
-  const roundSummary = round && phase === "secondary"
-    ? buildRoundSummary(round.roundNumber, "secondary", participants, selections, poisonResults)
-    : round && phase === "fallback"
-      ? buildRoundSummary(round.roundNumber, "fallback", participants, selections, poisonResults)
-      : round && phase === "waiting" && previousRound
-        ? buildRoundSummary(previousRound.roundNumber, "complete", participants, selections, previousPoisonResults)
-        : null;
+  let roundSummary: SpeedTourRoundSummary | null = null;
+  if (round && phase === "secondary") {
+    roundSummary = buildRoundSummary(
+      round.roundNumber,
+      "secondary",
+      participants,
+      selections,
+      await getFailedInitialSelections(tour, round, participants, selections),
+      poisonResults,
+    );
+  } else if (round && phase === "fallback") {
+    roundSummary = buildRoundSummary(
+      round.roundNumber,
+      "fallback",
+      participants,
+      selections,
+      await getFailedInitialSelections(tour, round, participants, selections),
+      poisonResults,
+    );
+  } else if (round && phase === "waiting" && previousRound) {
+    roundSummary = buildRoundSummary(
+      previousRound.roundNumber,
+      "complete",
+      participants,
+      selections,
+      await getFailedInitialSelections(tour, previousRound, participants, selections),
+      previousPoisonResults,
+    );
+  }
   const registrationOpen = await registrationIsOpen(tour);
   const bracketParticipantIds = new Set(bracket.flatMap((match) => [match.participantOneId, match.participantTwoId, match.winnerParticipantId].filter((id): id is number => id !== null)));
   const participantName = new Map(participants.map((participant) => [participant.id, participant.name]));
@@ -982,6 +1157,7 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
       priceSeasonName: priceSeason?.name ?? `Season ${priceSeason?.seasonNumber ?? ""}`.trim(),
       registrationOpen,
       roundSummary,
+      chatMessages,
       participants: participants.map((participant) => ({
         ...participant,
         selections: selections.filter((selection) => selection.participantId === participant.id).map((selection) => ({
@@ -1002,6 +1178,7 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
         fallbackPriceCap: round.fallbackPriceCap,
         submittedPokemonId: board.currentSubmission?.pokemonId ?? null,
         viewerAction: board.viewerAction,
+        maxAffordablePrice: board.maxAffordablePrice,
         poisonResults,
       } : null,
       candidates: board.board,
@@ -1018,6 +1195,8 @@ async function getSpeedTourPublicDataInternal(tourId?: number | null, viewerCoac
         scoreOne: match.scoreOne,
         scoreTwo: match.scoreTwo,
         gameReport: match.gameReport,
+        replayUrl: match.replayUrl,
+        replaySummary: match.replaySummary as SpeedTourReplaySummary | null,
         status: match.status,
       })),
       viewerParticipantId: viewerParticipant?.id ?? null,
@@ -1034,6 +1213,29 @@ export async function getSpeedTourPublicData(tourId?: number | null, viewerCoach
   const initial = await getSpeedTourPublicDataInternal(tourId, viewerCoachId);
   if (initial.selectedTour) await advanceSpeedTour(initial.selectedTour.id);
   return getSpeedTourPublicDataInternal(tourId, viewerCoachId);
+}
+
+export async function getSpeedTourBracketMatchSummary(matchId: number) {
+  const match = await db.select().from(speedTourBracketMatches).where(eq(speedTourBracketMatches.id, matchId)).limit(1).then((rows) => rows[0] ?? null);
+  if (!match || match.status !== "complete" || !match.replaySummary) return null;
+  const [tour, participants] = await Promise.all([getSpeedTour(match.speedTourId), getParticipants(match.speedTourId)]);
+  if (!tour) return null;
+  const participantName = new Map(participants.map((participant) => [participant.id, participant.name]));
+  return {
+    id: match.id,
+    tourName: tour.name,
+    bracketRound: match.bracketRound,
+    bracketPosition: match.bracketPosition,
+    bracketStage: match.bracketStage,
+    participantOneName: match.participantOneId ? participantName.get(match.participantOneId) ?? "Team" : "TBD",
+    participantTwoName: match.participantTwoId ? participantName.get(match.participantTwoId) ?? "Team" : "TBD",
+    winnerParticipantId: match.winnerParticipantId,
+    scoreOne: match.scoreOne,
+    scoreTwo: match.scoreTwo,
+    gameReport: match.gameReport,
+    replayUrl: match.replayUrl,
+    replaySummary: match.replaySummary as SpeedTourReplaySummary,
+  };
 }
 
 export async function getSpeedTourAdminData() {

@@ -88,8 +88,11 @@ The dedicated Speed Tours tables are:
   matches remain visible to all participants.
 - `speed_tour_selections`: finalized event picks and prices, with unique
   event-level Pokemon ownership.
-- `speed_tour_bracket_matches`: isolated single/double-elimination matchups,
-  scores, winners, bracket stage, and game reports.
+- `speed_tour_bracket_matches`: isolated single/double-elimination and
+  round-robin matchups, scores, winners, bracket stage, game reports, replay
+  links, and compact parsed replay summaries.
+- `speed_tour_chat_messages`: participant-authored live chat messages scoped to
+  one Speed Tour.
 
 Coaches opt into a lobby through the public Speed Tours room before Round 1.
 Rounds 1–6 preserve the admin criteria through duplicate resolution, a combined
@@ -97,9 +100,11 @@ Poison Pill/secondary phase, and price-cap fallback only when a participant is
 still missing a pick. Rounds 7–8 are unrestricted except for remaining budget
 and already-selected Pokemon. The public room polls active and lobby tours so
 team rosters, phase changes, Poison Pill results, and round summaries update
-without a manual refresh. Bracket scores and reports stay in
-`speed_tour_bracket_matches`; they do not enter the regular `matches` table or
-its result/stat cascades.
+without a manual refresh. Bracket scores, reports, replay links, and parsed
+summaries stay in `speed_tour_bracket_matches`; they do not enter the regular
+`matches` table or its result/stat cascades. Newly created brackets, scheduled
+matches, published winners, replay summaries, and participant chat also update
+live in the public room.
 
 ## Pokemon And Prices
 

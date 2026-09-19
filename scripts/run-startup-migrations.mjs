@@ -118,6 +118,27 @@ const migrations = [
     ],
   },
   {
+    id: "2026-09-18-speed-tours-brackets-replays-chat-v1",
+    statements: [
+      {
+        sql: "ALTER TABLE speed_tour_bracket_matches ADD COLUMN replay_url TEXT",
+        whenMissingColumn: { table: "speed_tour_bracket_matches", column: "replay_url" },
+      },
+      {
+        sql: "ALTER TABLE speed_tour_bracket_matches ADD COLUMN replay_summary TEXT",
+        whenMissingColumn: { table: "speed_tour_bracket_matches", column: "replay_summary" },
+      },
+      `CREATE TABLE IF NOT EXISTS speed_tour_chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        speed_tour_id INTEGER NOT NULL REFERENCES speed_tours(id) ON DELETE CASCADE,
+        participant_id INTEGER NOT NULL REFERENCES speed_tour_coaches(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_speed_tour_chat_tour_created ON speed_tour_chat_messages(speed_tour_id, created_at)",
+    ],
+  },
+  {
     id: "2026-09-09-normalized-battle-events-v1",
     statements: [
       `CREATE TABLE IF NOT EXISTS battle_events (

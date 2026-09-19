@@ -1639,11 +1639,23 @@ export const speedTourBracketMatches = sqliteTable("speed_tour_bracket_matches",
   scoreOne: integer("score_one"),
   scoreTwo: integer("score_two"),
   gameReport: text("game_report"),
+  replayUrl: text("replay_url"),
+  replaySummary: text("replay_summary", { mode: "json" }).$type<Record<string, unknown> | null>(),
   status: text("status").notNull().default("pending"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (table) => [
   index("idx_speed_tour_bracket_tour_round").on(table.speedTourId, table.bracketRound, table.bracketPosition),
+]);
+
+export const speedTourChatMessages = sqliteTable("speed_tour_chat_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  speedTourId: integer("speed_tour_id").notNull().references(() => speedTours.id, { onDelete: "cascade" }),
+  participantId: integer("participant_id").notNull().references(() => speedTourCoaches.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_speed_tour_chat_tour_created").on(table.speedTourId, table.createdAt),
 ]);
 
 export const polls = sqliteTable("polls", {
