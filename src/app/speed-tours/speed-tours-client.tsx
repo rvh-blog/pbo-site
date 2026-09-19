@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Candidate = {
   id: number;
@@ -29,6 +29,22 @@ type Criteria = {
   priceMax?: number | null;
 } | null;
 
+type PoisonResult = {
+  pokemonId: number;
+  pokemonName: string;
+  poisonerNames: string[];
+  affectedParticipantNames: string[];
+  successful: boolean;
+};
+
+type RoundSummary = {
+  roundNumber: number;
+  phase: "secondary" | "fallback" | "complete";
+  selections: Array<{ participantName: string; pokemonName: string; price: number }>;
+  pendingParticipantNames: string[];
+  poisonResults: PoisonResult[];
+};
+
 type TourData = {
   tours: Array<{ id: number; name: string; status: string; currentRound: number; bracketFormat: string | null; createdAt: string }>;
   selectedTour: {
@@ -42,6 +58,7 @@ type TourData = {
     priceSeasonId: number;
     priceSeasonName: string;
     registrationOpen: boolean;
+    roundSummary: RoundSummary | null;
     participants: Array<{
       id: number;
       coachId: number;
@@ -49,7 +66,7 @@ type TourData = {
       remainingBudget: number;
       selections: Array<{ id: number; roundNumber: number; pokemonId: number; name: string; spriteUrl: string | null; price: number }>;
     }>;
-    round: { id: number; number: number; phase: string; criteria: Criteria; phaseEndsAt: string | null; fallbackPriceCap: number | null; submittedPokemonId: number | null; viewerAction: "pick" | "poison" | "secondary" | "fallback" | null } | null;
+    round: { id: number; number: number; phase: string; criteria: Criteria; phaseEndsAt: string | null; fallbackPriceCap: number | null; submittedPokemonId: number | null; viewerAction: "pick" | "poison" | "secondary" | "fallback" | null; poisonResults: PoisonResult[] } | null;
     candidates: Candidate[];
     bracket: Array<{
       id: number;
@@ -109,6 +126,8 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [roundSummaryNotice, setRoundSummaryNotice] = useState<RoundSummary | null>(null);
+  const seenRoundSummaryKey = useRef<string | null>(null);
 
   const load = useCallback(async (nextTourId = tourId) => {
     const query = nextTourId ? `?tourId=${nextTourId}` : "";
@@ -125,13 +144,12 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   }, [load]);
 
   useEffect(() => {
-    const phase = data?.selectedTour?.round?.phase;
-    if (!phase || phase === "waiting" || phase === "complete") return;
+    if (showPast || ["completed", "archived"].includes(data?.selectedTour?.status ?? "")) return;
     const interval = window.setInterval(() => {
       load().catch(() => undefined);
     }, 1500);
     return () => window.clearInterval(interval);
-  }, [data?.selectedTour?.id, data?.selectedTour?.round?.id, data?.selectedTour?.round?.phase, load]);
+  }, [data?.selectedTour?.status, load, showPast]);
 
   useEffect(() => {
     const deadline = data?.selectedTour?.round?.phaseEndsAt;
@@ -149,12 +167,27 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   const pastTours = data?.tours.filter((tour) => tour.status === "completed" || tour.status === "archived") ?? [];
   const currentRound = selected?.round;
   const viewer = selected?.viewerParticipantId ? selected.participants.find((participant) => participant.id === selected.viewerParticipantId) ?? null : null;
+  const secondaryTeamNames = selected?.roundSummary?.phase === "secondary" ? selected.roundSummary.pendingParticipantNames : [];
   const visibleCandidates = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!selected || !query) return selected?.candidates ?? [];
     return selected.candidates.filter((candidate) => candidate.displayName.toLowerCase().includes(query) || candidate.name.toLowerCase().includes(query));
   }, [searchTerm, selected]);
   useEffect(() => setSearchTerm(""), [selected?.id, currentRound?.id, currentRound?.phase]);
+  useEffect(() => {
+    const summary = selected?.roundSummary;
+    if (!summary || !selected) return;
+    const summaryKey = `${selected.id}:${summary.roundNumber}:${summary.phase}`;
+    if (seenRoundSummaryKey.current === null) {
+      seenRoundSummaryKey.current = summaryKey;
+      setRoundSummaryNotice(summary);
+      return;
+    }
+    if (seenRoundSummaryKey.current !== summaryKey) {
+      seenRoundSummaryKey.current = summaryKey;
+      setRoundSummaryNotice(summary);
+    }
+  }, [selected]);
   useEffect(() => {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(null), 8000);
@@ -227,6 +260,18 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
 
       {error && <div className="mb-4 rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 p-3 text-sm text-[var(--error)]">{error}</div>}
       {notice && <div className="fixed bottom-5 right-5 z-50 max-w-sm rounded-xl border border-[var(--accent)]/40 bg-[var(--background-secondary)] px-4 py-3 text-sm font-bold text-white shadow-2xl">{notice}</div>}
+      {roundSummaryNotice && <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-live="polite" aria-label={`Round ${roundSummaryNotice.roundNumber} results`}>
+        <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border-2 border-[var(--accent)] bg-[var(--background-secondary)] p-5 shadow-2xl shadow-[var(--accent)]/20">
+          <div className="flex items-start justify-between gap-4">
+            <div><p className="text-xs font-bold uppercase tracking-widest text-[var(--accent)]">Speed Tour update</p><h2 className="mt-1 text-2xl font-black text-white">Round {roundSummaryNotice.roundNumber} results</h2></div>
+            <button type="button" onClick={() => setRoundSummaryNotice(null)} className="rounded-lg border border-[var(--background-tertiary)] px-3 py-1 text-sm font-bold text-[var(--foreground-muted)] hover:text-white" aria-label="Close round results">Close</button>
+          </div>
+          <p className="mt-3 text-sm text-[var(--foreground-muted)]">{roundSummaryNotice.phase === "secondary" ? "Initial selections are locked. The following teams need a secondary selection." : roundSummaryNotice.phase === "fallback" ? "The secondary phase is complete. The following teams need a fallback selection." : "The round is complete. Here are the Pokémon drafted by each participant."}</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">{roundSummaryNotice.selections.length ? roundSummaryNotice.selections.map((selection) => <div key={`${selection.participantName}-${selection.pokemonName}`} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2"><span className="font-bold text-white">{selection.participantName}</span><span className="text-right text-sm text-[var(--accent)]">{selection.pokemonName} <b className="text-xs">({selection.price})</b></span></div>) : <p className="text-sm text-[var(--foreground-muted)]">No Pokémon were drafted in this phase.</p>}</div>
+          {roundSummaryNotice.poisonResults.length ? <div className="mt-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-sm text-[var(--warning)]"><b>Poison Pill results:</b> {roundSummaryNotice.poisonResults.filter((result) => result.successful).map((result) => `${result.pokemonName} affected ${result.affectedParticipantNames.join(", ")}`).join("; ") || "No Poison Pill affected a secondary pick."}</div> : null}
+          {roundSummaryNotice.pendingParticipantNames.length ? <div className="mt-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-sm text-[var(--warning)]"><b>{roundSummaryNotice.phase === "secondary" ? "Secondary selection required:" : roundSummaryNotice.phase === "fallback" ? "Fallback selection required:" : "No selection recorded:"}</b> {roundSummaryNotice.pendingParticipantNames.join(", ")}</div> : <p className="mt-4 text-sm font-bold text-[var(--success)]">Every participant has a Pokémon for this round.</p>}
+        </div>
+      </div>}
 
       {showPast && <section className="mb-6 poke-card p-5"><h2 className="font-pixel text-sm text-white">Past Speed Tours</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Completed brackets and team histories remain separate from league-season archives.</p>{pastTours.length ? <div className="mt-4 flex flex-wrap gap-2">{pastTours.map((tour) => <button key={tour.id} type="button" onClick={() => { setTourId(tour.id); load(tour.id).catch(() => setError("Unable to open past Speed Tour")); }} className={`rounded-lg border px-3 py-2 text-xs font-bold ${selected?.id === tour.id ? "border-[var(--accent)] bg-[var(--accent)]/10 text-white" : "border-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:text-white"}`}>{tour.name}</button>)}</div> : <p className="mt-4 text-sm text-[var(--foreground-muted)]">No completed Speed Tours yet.</p>}</section>}
 
@@ -250,8 +295,9 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
                 <div className="flex min-w-32 items-center justify-center rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-4 text-center"><div><p className="text-[10px] uppercase text-[var(--foreground-muted)]">Clock</p><p className={`font-mono text-3xl font-black ${secondsLeft !== null && secondsLeft <= 10 ? "text-[var(--error)]" : "text-white"}`}>{secondsLeft === null ? "—" : `${secondsLeft}s`}</p></div></div>
               </div>
             ) : <p className="mt-5 text-sm text-[var(--foreground-muted)]">Waiting for the first round to be started by the admin.</p>}
-            {currentRound?.viewerAction === "poison" && <div className="mt-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-sm text-[var(--warning)]"><b>Your first pick succeeded.</b> Select one remaining Pokémon as your Poison Pill. Coaches making secondary picks cannot receive that Pokémon.</div>}
-            {currentRound?.viewerAction === "secondary" && <div className="mt-4 rounded-lg border border-[var(--primary)]/40 bg-[var(--primary)]/10 p-3 text-sm text-[var(--primary-light)]"><b>Your first pick did not lock in.</b> Choose a secondary Pokémon now. This can happen after a duplicate choice or when the first timer expires without a submission.</div>}
+            {currentRound?.viewerAction === "poison" && <div className="mt-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-sm text-[var(--warning)]"><b>Teams ({secondaryTeamNames.length ? secondaryTeamNames.join(", ") : "the remaining teams"}) were unable to draft their Pokemon in the initial phase.</b> Now you can &quot;poison&quot; a Pokemon so they are forced to select something worth 5 points or fewer. Select below a Pokemon you guess or predict the remaining teams will try to take.</div>}
+            {currentRound?.viewerAction === "secondary" && <div className="mt-4 rounded-lg border border-[var(--primary)]/40 bg-[var(--primary)]/10 p-3 text-sm text-[var(--primary-light)]"><b>OH NO, you made the same selection as someone else, choose another Pokemon.</b> If a participant &quot;poisons&quot; the Pokemon that you select during this phase, you will be forced to draft a Pokemon worth 5 points or less.</div>}
+            {currentRound?.poisonResults.length ? <div className="mt-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-sm text-[var(--warning)]"><p className="font-bold">Poison Pill results</p><div className="mt-2 space-y-1">{currentRound.poisonResults.map((result) => <p key={result.pokemonId}>{result.successful ? <><b>{result.pokemonName}</b> was successfully poisoned by {result.poisonerNames.join(", ")}. {result.affectedParticipantNames.join(", ")} {result.affectedParticipantNames.length === 1 ? "must" : "must each"} use the fallback phase with a Pokemon worth 5 points or less.</> : <>Poison Pill submitted for <b>{result.pokemonName}</b> by {result.poisonerNames.join(", ")}; no secondary pick has been affected.</>}</p>)}</div></div> : null}
           </section>
 
           <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -259,7 +305,7 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
               <div className="border-b border-[var(--background-tertiary)] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div><h2 className="font-pixel text-sm text-white">Draft board</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Sorted by cost from highest to lowest.</p></div>
-                  <Link href={`/seasons/${selected.priceSeasonId}/draft`} className="rounded-lg border border-[var(--accent)]/40 px-3 py-2 text-xs font-bold text-[var(--accent)] hover:bg-[var(--accent)]/10">View {selected.priceSeasonName} board</Link>
+                  <Link href={`/seasons/${selected.priceSeasonId}/draft`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-[var(--accent)]/40 px-3 py-2 text-xs font-bold text-[var(--accent)] hover:bg-[var(--accent)]/10">View {selected.priceSeasonName} board</Link>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search Pokémon" aria-label="Search eligible Pokémon" className="min-h-10 flex-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] px-3 text-sm text-white placeholder:text-[var(--foreground-subtle)]" />

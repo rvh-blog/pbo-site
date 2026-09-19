@@ -42,7 +42,8 @@ See also:
 - Speed Tours: `src/app/speed-tours` (admin-toggleable off-season events with
   coach self-registration, filtered eight-round drafting, searchable
   price-sorted boards, combined Poison Pill/secondary phases, isolated team
-  budgets, and past event brackets)
+  budgets, automatic lobby/round updates, Poison Pill result summaries, and
+  past event brackets)
 - Full-bracket pick-ems: `src/components/playoff-bracket-picks.tsx` and
   `src/app/api/playoff-bracket-picks/route.ts` (persisted separately from
   weekly reward pick-ems and locked when quarterfinals begin)
