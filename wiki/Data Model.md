@@ -94,6 +94,12 @@ The dedicated Speed Tours tables are:
 - `speed_tour_chat_messages`: participant-authored live chat messages scoped to
   one Speed Tour.
 
+Ended events can be permanently deleted by an authenticated admin from the
+Speed Tour admin page. The delete flow removes bracket matches, chat messages,
+selections, submissions, rounds, participants, and finally the `speed_tours`
+row in one transaction. Lobby and actively drafting events are protected from
+deletion, and no regular-season or playoff rows are involved.
+
 Coaches opt into a lobby through the public Speed Tours room before Round 1.
 Rounds 1–6 preserve the admin criteria through duplicate resolution, a combined
 Poison Pill/secondary phase, and price-cap fallback only when a participant is

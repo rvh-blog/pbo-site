@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-09-18-speed-tour-delete",
+    "title": "Speed Tour History Cleanup",
+    "summary": "Admins can permanently remove ended Speed Tours that should not remain in the event history.",
+    "publishedAt": "2026-09-18",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added a confirmed admin delete action for ended Speed Tours that removes the event's picks, brackets, replay summaries, chat, and other dedicated records without affecting league-season data."
+      },
+      {
+        "type": "fixed",
+        "text": "Lobby and actively drafting Speed Tours cannot be deleted accidentally."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-18-speed-tour-bracket-replays-chat",
     "title": "Speed Tour Brackets, Replay Summaries, and Live Chat",
     "summary": "Speed Tour brackets now support round robin scheduling, live match progression, replay-backed summaries, and participant chat.",

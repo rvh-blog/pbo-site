@@ -109,7 +109,11 @@ admin control page is `/admin/speed-tours`; the public event room is
 `/speed-tours`, with past events available through its Speed Tours menu.
 Logged-in coaches opt into the registration lobby before Round 1. Admin hosts
 can resolve the current phase, force the next round, remove participants, or
-end an event from the admin page.
+end an event from the admin page. Ended Speed Tours can also be permanently
+deleted from the admin page when an event should not remain in Speed Tour
+history. Deletion removes only the event's dedicated records, including picks,
+bracket matches, replay summaries, and chat; it does not touch regular-season
+or playoff data.
 The public room updates lobby rosters and active phases automatically. When the
 initial phase resolves, participants see a round-results notice listing drafted
 Pokemon and any teams that need secondary selection. Poison Pill targets can be

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   coaches,
@@ -793,6 +793,40 @@ export function endSpeedTour(tourId: number) {
   });
 }
 
+export function deleteSpeedTour(tourId: number) {
+  return withSpeedTourLock(tourId, async () => {
+    const tour = await getSpeedTour(tourId);
+    if (!tour) throw new Error("Speed Tour not found");
+    const bracketMatches = tour.status === "bracket" ? await getBracketMatches(tour.id) : [];
+    const bracketIsFinished = tour.status === "bracket"
+      && bracketMatches.length > 0
+      && bracketMatches.every(isResolvedBracketMatch);
+    if (!["completed", "archived"].includes(tour.status) && !bracketIsFinished) {
+      throw new Error("Only ended Speed Tours can be deleted");
+    }
+
+    await db.transaction(async (tx) => {
+      const rounds = await tx
+        .select({ id: speedTourRounds.id })
+        .from(speedTourRounds)
+        .where(eq(speedTourRounds.speedTourId, tour.id));
+      const roundIds = rounds.map((round) => round.id);
+
+      // Bracket participant references do not use ON DELETE CASCADE, so
+      // remove every dependent row explicitly before the event itself.
+      await tx.delete(speedTourBracketMatches).where(eq(speedTourBracketMatches.speedTourId, tour.id));
+      await tx.delete(speedTourChatMessages).where(eq(speedTourChatMessages.speedTourId, tour.id));
+      await tx.delete(speedTourSelections).where(eq(speedTourSelections.speedTourId, tour.id));
+      if (roundIds.length) {
+        await tx.delete(speedTourSubmissions).where(inArray(speedTourSubmissions.roundId, roundIds));
+      }
+      await tx.delete(speedTourRounds).where(eq(speedTourRounds.speedTourId, tour.id));
+      await tx.delete(speedTourCoaches).where(eq(speedTourCoaches.speedTourId, tour.id));
+      await tx.delete(speedTours).where(eq(speedTours.id, tour.id));
+    });
+  });
+}
+
 export function startSpeedTourRound(tourId: number, criteria: SpeedTourCriteria | null) {
   return withSpeedTourLock(tourId, async () => {
     const tour = await getSpeedTour(tourId);
@@ -1244,5 +1278,15 @@ export async function getSpeedTourAdminData() {
     db.select({ id: seasons.id, name: seasons.name, seasonNumber: seasons.seasonNumber }).from(seasons).orderBy(desc(seasons.seasonNumber)),
   ]);
   const tours = await Promise.all(tourRows.map(async (tour) => getSpeedTourPublicData(tour.id, null)));
-  return { tours: tours.map((entry) => entry.selectedTour).filter(Boolean), seasons: seasonRows };
+  return {
+    tours: tours
+      .map((entry) => entry.selectedTour)
+      .filter((tour): tour is NonNullable<typeof tour> => Boolean(tour))
+      .map((tour) => ({
+        ...tour,
+        deletable: ["completed", "archived"].includes(tour.status)
+          || (tour.status === "bracket" && tour.bracket.length > 0 && tour.bracket.every((match) => ["complete", "bye"].includes(match.status))),
+      })),
+    seasons: seasonRows,
+  };
 }
