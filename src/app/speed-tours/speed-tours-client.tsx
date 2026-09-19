@@ -258,7 +258,7 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
               <div className="border-b border-[var(--background-tertiary)] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div><h2 className="font-pixel text-sm text-white">Draft board</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Sorted by cost from highest to lowest.</p></div>
-                  <Link href={`/seasons/${selected.priceSeasonId}/draft`} className="rounded-lg border border-[var(--accent)]/40 px-3 py-2 text-xs font-bold text-[var(--accent)] hover:bg-[var(--accent)]/10">View {selected.priceSeasonName} board</Link>
+                  <Link href={`/seasons/${selected.priceSeasonId}/draft`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-[var(--accent)]/40 px-3 py-2 text-xs font-bold text-[var(--accent)] hover:bg-[var(--accent)]/10">View {selected.priceSeasonName} board</Link>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search Pokémon" aria-label="Search eligible Pokémon" className="min-h-10 flex-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] px-3 text-sm text-white placeholder:text-[var(--foreground-subtle)]" />
