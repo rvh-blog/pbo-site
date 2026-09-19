@@ -37,6 +37,27 @@ type PoisonResult = {
   successful: boolean;
 };
 
+type ReplaySummary = {
+  tier: string | null;
+  p1Username: string;
+  p2Username: string;
+  winner: "p1" | "p2" | null;
+  p1Remaining: number;
+  p2Remaining: number;
+  turnCount: number;
+  keyEvents: Array<{ turn: number; type: string; player: string; pokemon?: string; cause?: string; killer?: string; move?: string }>;
+  p1Team: Array<{ name: string; kills: number; deaths: number }>;
+  p2Team: Array<{ name: string; kills: number; deaths: number }>;
+};
+
+type ChatMessage = {
+  id: number;
+  participantId: number;
+  participantName: string;
+  content: string;
+  createdAt: string;
+};
+
 type RoundSummary = {
   roundNumber: number;
   phase: "secondary" | "fallback" | "complete";
@@ -60,6 +81,7 @@ type TourData = {
     priceSeasonName: string;
     registrationOpen: boolean;
     roundSummary: RoundSummary | null;
+    chatMessages: ChatMessage[];
     participants: Array<{
       id: number;
       coachId: number;
@@ -82,6 +104,8 @@ type TourData = {
       scoreOne: number | null;
       scoreTwo: number | null;
       gameReport: string | null;
+      replayUrl: string | null;
+      replaySummary: ReplaySummary | null;
       status: string;
     }>;
     viewerParticipantId: number | null;
@@ -118,6 +142,17 @@ function formatCriteria(criteria: Criteria) {
   return parts.length ? parts.join(" · ") : "No restrictions — any affordable Pokémon is eligible.";
 }
 
+function bracketLabel(format: string | null) {
+  if (format === "double") return "Double-elimination";
+  if (format === "round-robin") return "Round-robin";
+  return "Single-elimination";
+}
+
+function ReplaySummaryCard({ summary, replayUrl }: { summary: ReplaySummary; replayUrl: string | null }) {
+  const winner = summary.winner === "p1" ? summary.p1Username : summary.winner === "p2" ? summary.p2Username : "Not identified";
+  return <div className="mt-3 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]">Parsed replay summary</p>{replayUrl && <a href={replayUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[var(--accent)] underline">Open replay</a>}</div><p className="mt-2 text-xs text-[var(--foreground-muted)]">{summary.tier || "Pokémon Showdown replay"} · {summary.turnCount} turns · Winner: <b className="text-white">{winner}</b></p><div className="mt-2 grid gap-2 sm:grid-cols-2"><div className="rounded border border-[var(--background-tertiary)] bg-[var(--background)] p-2 text-xs"><b className="text-white">{summary.p1Username}</b><span className="ml-2 text-[var(--accent)]">{summary.p1Remaining} remaining</span><div className="mt-1 text-[var(--foreground-muted)]">{summary.p1Team.map((pokemon) => `${pokemon.name} ${pokemon.kills}K/${pokemon.deaths}D`).join(" · ") || "Team data unavailable"}</div></div><div className="rounded border border-[var(--background-tertiary)] bg-[var(--background)] p-2 text-xs"><b className="text-white">{summary.p2Username}</b><span className="ml-2 text-[var(--accent)]">{summary.p2Remaining} remaining</span><div className="mt-1 text-[var(--foreground-muted)]">{summary.p2Team.map((pokemon) => `${pokemon.name} ${pokemon.kills}K/${pokemon.deaths}D`).join(" · ") || "Team data unavailable"}</div></div></div>{summary.keyEvents.length ? <details className="mt-2 text-xs"><summary className="cursor-pointer font-bold text-[var(--foreground-muted)]">Show key events</summary><div className="mt-2 space-y-1 text-[var(--foreground-muted)]">{summary.keyEvents.map((event, index) => <p key={`${event.turn}-${event.type}-${index}`}>Turn {event.turn}: {event.pokemon || event.player} {event.type}{event.killer ? ` · by ${event.killer}` : ""}{event.cause ? ` · ${event.cause}` : ""}</p>)}</div></details> : null}</div>;
+}
+
 export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   const [data, setData] = useState<TourData | null>(null);
   const [tourId, setTourId] = useState<number | null>(null);
@@ -127,6 +162,8 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatSending, setChatSending] = useState(false);
   const [roundSummaryNotice, setRoundSummaryNotice] = useState<RoundSummary | null>(null);
   const seenRoundSummaryKey = useRef<string | null>(null);
 
@@ -145,12 +182,12 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   }, [load]);
 
   useEffect(() => {
-    if (showPast || ["completed", "archived"].includes(data?.selectedTour?.status ?? "")) return;
+    if (data?.selectedTour?.status === "archived") return;
     const interval = window.setInterval(() => {
       load().catch(() => undefined);
     }, 1500);
     return () => window.clearInterval(interval);
-  }, [data?.selectedTour?.status, load, showPast]);
+  }, [data?.selectedTour?.status, load]);
 
   useEffect(() => {
     const deadline = data?.selectedTour?.round?.phaseEndsAt;
@@ -165,7 +202,7 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
   }, [data?.selectedTour?.round?.phaseEndsAt]);
 
   const selected = data?.selectedTour ?? null;
-  const pastTours = data?.tours.filter((tour) => tour.status === "completed" || tour.status === "archived") ?? [];
+  const pastTours = data?.tours.filter((tour) => ["bracket", "completed", "archived"].includes(tour.status)) ?? [];
   const currentRound = selected?.round;
   const viewer = selected?.viewerParticipantId ? selected.participants.find((participant) => participant.id === selected.viewerParticipantId) ?? null : null;
   const secondaryTeamNames = selected?.roundSummary?.phase === "secondary" ? selected.roundSummary.pendingParticipantNames : [];
@@ -238,6 +275,28 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
       if (action === "poison") setNotice(`Poison unsuccessful: ${message}`);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function submitChat(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected || !selected.viewerParticipantId || !chatDraft.trim() || chatSending) return;
+    setChatSending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/speed-tours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tourId: selected.id, action: "chat", content: chatDraft }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Chat message could not be sent");
+      setData(result.data);
+      setChatDraft("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Chat message could not be sent");
+    } finally {
+      setChatSending(false);
     }
   }
 
@@ -320,9 +379,11 @@ export function SpeedToursClient({ showPast = false }: { showPast?: boolean }) {
 
             <div className="space-y-6">
               <div className="poke-card overflow-hidden p-0"><div className="border-b border-[var(--background-tertiary)] p-4"><h2 className="font-pixel text-sm text-white">Teams</h2></div><div className="divide-y divide-[var(--background-tertiary)]">{selected.participants.map((participant) => <div key={participant.id} className="p-4"><div className="flex items-center justify-between gap-3"><span className="font-bold text-white">{participant.name}</span><span className="font-mono text-xs text-[var(--accent)]">{participant.remainingBudget} pts left</span></div><div className="mt-3 flex flex-wrap gap-1.5">{participant.selections.length ? participant.selections.map((selection) => <span key={selection.id} title={`${selection.name} · ${selection.price} points`} className="rounded-md border border-[var(--background-tertiary)] bg-[var(--background)] px-2 py-1 text-[10px] text-[var(--foreground-muted)]">R{selection.roundNumber} {selection.name} <b className="text-[var(--accent)]">{selection.price}</b></span>) : <span className="text-xs text-[var(--foreground-subtle)]">No selections yet</span>}</div></div>)}</div></div>
-              {selected.bracket.length ? <div className="poke-card overflow-hidden p-0"><div className="border-b border-[var(--background-tertiary)] p-4"><h2 className="font-pixel text-sm text-white">{selected.bracketFormat === "double" ? "Double-elimination" : "Single-elimination"} bracket</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Matches and results update with the Speed Tour.</p></div><div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">{selected.bracket.map((match) => <div key={match.id} className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-3 text-xs"><div className="mb-2 flex justify-between text-[var(--foreground-muted)]"><span>{match.bracketStage.replace("-", " ")} · round {match.bracketRound} · match {match.bracketPosition}</span><span>{match.status}</span></div><div className="flex justify-between"><span>{match.participantOneName}</span><b>{match.scoreOne ?? "—"}</b></div><div className="mt-1 flex justify-between"><span>{match.participantTwoName}</span><b>{match.scoreTwo ?? "—"}</b></div>{match.gameReport && <p className="mt-2 border-t border-[var(--background-tertiary)] pt-2 text-[var(--foreground-muted)]">{match.gameReport}</p>}</div>)}</div></div> : null}
+              {selected.bracket.length ? <div className="poke-card overflow-hidden p-0"><div className="border-b border-[var(--background-tertiary)] p-4"><h2 className="font-pixel text-sm text-white">{bracketLabel(selected.bracketFormat)} bracket</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Matches and results update with the Speed Tour.</p></div><div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">{selected.bracket.map((match) => <div key={match.id} className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-3 text-xs"><div className="mb-2 flex justify-between text-[var(--foreground-muted)]"><span>{match.bracketStage.replace("-", " ")} · round {match.bracketRound} · match {match.bracketPosition}</span><span>{match.status}</span></div><div className="flex justify-between"><span>{match.participantOneName}</span><b>{match.scoreOne ?? "—"}</b></div><div className="mt-1 flex justify-between"><span>{match.participantTwoName}</span><b>{match.scoreTwo ?? "—"}</b></div>{match.gameReport && <p className="mt-2 border-t border-[var(--background-tertiary)] pt-2 text-[var(--foreground-muted)]">{match.gameReport}</p>}{match.replaySummary && <ReplaySummaryCard summary={match.replaySummary} replayUrl={match.replayUrl} />}</div>)}</div></div> : null}
             </div>
           </section>
+          <section className="poke-card overflow-hidden p-0"><div className="border-b border-[var(--background-tertiary)] p-4"><div className="flex items-center justify-between gap-2"><div><h2 className="font-pixel text-sm text-white">Speed Tour chat</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Live room for participating coaches. Messages update automatically while the room is active.</p></div><span className="text-xs text-[var(--accent)]">{selected.chatMessages.length} recent</span></div></div><div className="max-h-72 space-y-2 overflow-y-auto p-4">{selected.chatMessages.length ? selected.chatMessages.map((message) => <div key={message.id} className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-2 text-sm"><div className="flex items-center justify-between gap-2"><b className="text-white">{message.participantName}</b><span className="text-[10px] text-[var(--foreground-subtle)]">{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span></div><p className="mt-1 whitespace-pre-wrap break-words text-[var(--foreground-muted)]">{message.content}</p></div>) : <p className="text-sm text-[var(--foreground-muted)]">No messages yet. Start the conversation.</p>}</div>{selected.viewerParticipantId ? <form onSubmit={submitChat} className="flex gap-2 border-t border-[var(--background-tertiary)] p-4"><input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={500} placeholder="Message the room…" className="min-h-10 min-w-0 flex-1 rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] px-3 text-sm text-white placeholder:text-[var(--foreground-subtle)]" /><button type="submit" disabled={chatSending || !chatDraft.trim()} className="btn-retro-secondary px-4 py-2 text-xs disabled:opacity-50">{chatSending ? "Sending…" : "Send"}</button></form> : <p className="border-t border-[var(--background-tertiary)] p-4 text-xs text-[var(--foreground-muted)]">Join this Speed Tour as a coach to participate in chat.</p>}</section>
+          {selected.bracket.some((match) => match.replaySummary) && <section className="poke-card p-5"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-pixel text-sm text-white">Match replay summaries</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Published results parsed from Pokémon Showdown replays.</p></div><span className="text-xs text-[var(--foreground-muted)]">Available in this Speed Tour history</span></div><div className="mt-4 grid gap-3 lg:grid-cols-2">{selected.bracket.filter((match) => match.replaySummary).map((match) => <div key={`summary-${match.id}`} className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-3"><div className="flex items-center justify-between gap-2 text-xs"><span className="font-bold text-white">{match.participantOneName} vs {match.participantTwoName}</span><Link href={`/speed-tours/matches/${match.id}`} className="font-bold text-[var(--accent)] underline">Open summary page</Link></div><ReplaySummaryCard summary={match.replaySummary!} replayUrl={match.replayUrl} /></div>)}</div></section>}
         </div>
       )}
     </main>

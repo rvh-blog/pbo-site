@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         await startSpeedTourRound(Number(body.tourId), body.criteria ?? null);
         return NextResponse.json({ success: true });
       case "create-bracket":
-        await createSpeedTourBracket(Number(body.tourId), body.format === "double" ? "double" : "single");
+        await createSpeedTourBracket(Number(body.tourId), body.format === "double" ? "double" : body.format === "round-robin" ? "round-robin" : "single");
         return NextResponse.json({ success: true });
       case "force-advance":
         await forceAdvanceSpeedTour(Number(body.tourId));
@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
           scoreOne: Number(body.scoreOne),
           scoreTwo: Number(body.scoreTwo),
           gameReport: String(body.gameReport || ""),
+          replayUrl: typeof body.replayUrl === "string" ? body.replayUrl : null,
+          replaySummary: body.replaySummary && typeof body.replaySummary === "object" ? body.replaySummary : null,
         });
         return NextResponse.json({ success: true });
       default:

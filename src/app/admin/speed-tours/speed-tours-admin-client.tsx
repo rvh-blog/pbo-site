@@ -12,6 +12,19 @@ type Criteria = {
   priceMax?: number | null;
 } | null;
 
+type ReplaySummary = {
+  tier: string | null;
+  p1Username: string;
+  p2Username: string;
+  winner: "p1" | "p2" | null;
+  p1Remaining: number;
+  p2Remaining: number;
+  turnCount: number;
+  keyEvents: Array<{ turn: number; type: string; player: string; pokemon?: string; cause?: string; killer?: string; move?: string }>;
+  p1Team: Array<{ name: string; kills: number; deaths: number }>;
+  p2Team: Array<{ name: string; kills: number; deaths: number }>;
+};
+
 type AdminTour = {
   id: number;
   name: string;
@@ -23,7 +36,7 @@ type AdminTour = {
   registrationOpen: boolean;
   participants: Array<{ id: number; coachId: number; name: string; remainingBudget: number; selections: Array<{ id: number; roundNumber: number; name: string; price: number }> }>;
   round: { id: number; number: number; phase: string; criteria: Criteria; phaseEndsAt: string | null; fallbackPriceCap: number | null; submittedPokemonId: number | null } | null;
-  bracket: Array<{ id: number; bracketRound: number; bracketPosition: number; bracketStage: string; participantOneId: number | null; participantTwoId: number | null; participantOneName: string; participantTwoName: string; winnerParticipantId: number | null; scoreOne: number | null; scoreTwo: number | null; gameReport: string | null; status: string }>;
+  bracket: Array<{ id: number; bracketRound: number; bracketPosition: number; bracketStage: string; participantOneId: number | null; participantTwoId: number | null; participantOneName: string; participantTwoName: string; winnerParticipantId: number | null; scoreOne: number | null; scoreTwo: number | null; gameReport: string | null; replayUrl: string | null; replaySummary: ReplaySummary | null; status: string }>;
 };
 
 type AdminData = {
@@ -33,6 +46,42 @@ type AdminData = {
 
 const TYPES = ["normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"];
 const STATS = ["hp", "attack", "defense", "specialAttack", "specialDefense", "speed", "baseStatTotal"];
+
+function summarizeReplay(value: unknown): ReplaySummary {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const numberValue = (entry: unknown) => typeof entry === "number" && Number.isFinite(entry) ? entry : 0;
+  const team = (entry: unknown) => Array.isArray(entry) ? entry.flatMap((pokemon) => {
+    if (!pokemon || typeof pokemon !== "object") return [];
+    const row = pokemon as Record<string, unknown>;
+    return [{ name: typeof row.name === "string" ? row.name : "Pokémon", kills: numberValue(row.kills), deaths: numberValue(row.deaths) }];
+  }) : [];
+  const snapshots = Array.isArray(raw.turnSnapshots) ? raw.turnSnapshots : [];
+  const keyEvents = Array.isArray(raw.keyEvents) ? raw.keyEvents.flatMap((event) => {
+    if (!event || typeof event !== "object") return [];
+    const row = event as Record<string, unknown>;
+    return [{
+      turn: numberValue(row.turn),
+      type: typeof row.type === "string" ? row.type : "event",
+      player: typeof row.player === "string" ? row.player : "",
+      ...(typeof row.pokemon === "string" ? { pokemon: row.pokemon } : {}),
+      ...(typeof row.cause === "string" ? { cause: row.cause } : {}),
+      ...(typeof row.killer === "string" ? { killer: row.killer } : {}),
+      ...(typeof row.move === "string" ? { move: row.move } : {}),
+    }];
+  }) : [];
+  return {
+    tier: typeof raw.tier === "string" ? raw.tier : null,
+    p1Username: typeof raw.p1Username === "string" ? raw.p1Username : "Player 1",
+    p2Username: typeof raw.p2Username === "string" ? raw.p2Username : "Player 2",
+    winner: raw.winner === "p1" || raw.winner === "p2" ? raw.winner : null,
+    p1Remaining: numberValue(raw.p1Remaining),
+    p2Remaining: numberValue(raw.p2Remaining),
+    turnCount: snapshots.reduce((highest, snapshot) => snapshot && typeof snapshot === "object" && typeof (snapshot as Record<string, unknown>).turn === "number" ? Math.max(highest, (snapshot as Record<string, number>).turn) : highest, 0),
+    keyEvents,
+    p1Team: team(raw.p1Team),
+    p2Team: team(raw.p2Team),
+  };
+}
 
 export function SpeedToursAdminClient() {
   const [data, setData] = useState<AdminData | null>(null);
@@ -44,7 +93,7 @@ export function SpeedToursAdminClient() {
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
   const [priceMax, setPriceMax] = useState("");
-  const [bracketFormat, setBracketFormat] = useState<"single" | "double">("single");
+  const [bracketFormat, setBracketFormat] = useState<"single" | "double" | "round-robin">("single");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -134,7 +183,7 @@ export function SpeedToursAdminClient() {
               </div>
               {selectedTour.round?.phase === "waiting" && selectedTour.currentRound <= 6 && <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-bold text-white">Type restriction<select value={type} onChange={(event) => setType(event.target.value)} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm"><option value="">Any type</option>{TYPES.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label><label className="text-sm font-bold text-white">Stat filter<select value={stat} onChange={(event) => setStat(event.target.value)} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm"><option value="">No stat threshold</option>{STATS.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label><label className="text-sm font-bold text-white">Minimum<input value={min} onChange={(event) => setMin(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label><label className="text-sm font-bold text-white">Maximum<input value={max} onChange={(event) => setMax(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label><label className="text-sm font-bold text-white">Maximum price<input value={priceMax} onChange={(event) => setPriceMax(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background)] p-2 text-sm" /></label></div>}
               {selectedTour.round?.phase === "waiting" && <button type="button" disabled={saving || !selectedTour.participants.length || selectedTour.status === "completed"} onClick={() => post({ action: "start-round", tourId: selectedTour.id, criteria: selectedTour.currentRound <= 6 ? criteriaPayload() : null }, `Round ${selectedTour.currentRound} started`)} className="btn-retro px-4 py-3 text-xs disabled:opacity-50">Start round {selectedTour.currentRound}{selectedTour.currentRound > 6 ? " (unrestricted)" : ""}</button>}
-              <div className="rounded-lg border border-[var(--card-border)] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-white">Bracket</h3><p className="text-xs text-[var(--foreground-muted)]">Available after all eight team slots are filled. Score and game-report fields stay inside Speed Tours.</p></div><div className="flex gap-2"><select value={bracketFormat} onChange={(event) => setBracketFormat(event.target.value as "single" | "double")} className="rounded border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 text-xs"><option value="single">Single elimination</option><option value="double">Double elimination</option></select><button type="button" disabled={saving} onClick={() => post({ action: "create-bracket", tourId: selectedTour.id, format: bracketFormat }, "Bracket created")} className="btn-retro-secondary px-3 py-2 text-xs disabled:opacity-50">Create bracket</button></div></div>
+              <div className="rounded-lg border border-[var(--card-border)] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-white">Bracket</h3><p className="text-xs text-[var(--foreground-muted)]">Available after all eight team slots are filled. Score and game-report fields stay inside Speed Tours.</p></div><div className="flex gap-2"><select value={bracketFormat} onChange={(event) => setBracketFormat(event.target.value as "single" | "double" | "round-robin")} className="rounded border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 text-xs"><option value="single">Single elimination</option><option value="double">Double elimination</option><option value="round-robin">Round robin</option></select><button type="button" disabled={saving} onClick={() => post({ action: "create-bracket", tourId: selectedTour.id, format: bracketFormat }, "Bracket created")} className="btn-retro-secondary px-3 py-2 text-xs disabled:opacity-50">Create bracket</button></div></div>
                 {selectedTour.bracket.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{selectedTour.bracket.map((match) => <BracketResultEditor key={match.id} match={match} participants={selectedTour.participants} saving={saving} onSave={(body) => post({ action: "bracket-result", ...body }, "Bracket result saved")} />)}</div> : <p className="mt-3 text-sm text-[var(--foreground-subtle)]">No bracket created yet.</p>}
               </div>
             </> : <p className="text-sm text-[var(--foreground-muted)]">Choose an event to manage it.</p>}
@@ -145,11 +194,33 @@ export function SpeedToursAdminClient() {
   );
 }
 
-function BracketResultEditor({ match, participants, saving, onSave }: { match: AdminTour["bracket"][number]; participants: AdminTour["participants"]; saving: boolean; onSave: (body: Record<string, unknown>) => void }) {
+function BracketResultEditor({ match, participants, saving, onSave }: { match: AdminTour["bracket"][number]; participants: AdminTour["participants"]; saving: boolean; onSave: (body: Record<string, unknown>) => Promise<void> | void }) {
   const [winner, setWinner] = useState(match.winnerParticipantId ?? match.participantOneId ?? match.participantTwoId ?? "");
   const [scoreOne, setScoreOne] = useState(match.scoreOne?.toString() ?? "");
   const [scoreTwo, setScoreTwo] = useState(match.scoreTwo?.toString() ?? "");
   const [gameReport, setGameReport] = useState(match.gameReport ?? "");
+  const [replayUrl, setReplayUrl] = useState(match.replayUrl ?? "");
+  const [parsingReplay, setParsingReplay] = useState(false);
+  const [replayError, setReplayError] = useState<string | null>(null);
   const canSubmit = match.participantOneId && match.participantTwoId && winner;
-  return <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-3"><div className="mb-3 flex items-center justify-between text-xs text-[var(--foreground-muted)]"><span>{match.bracketStage.replace("-", " ")} · round {match.bracketRound} · match {match.bracketPosition}</span><span>{match.status}</span></div><div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-bold text-white">Winner<select value={winner} onChange={(event) => setWinner(Number(event.target.value) || "")} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs"><option value="">Select winner</option>{[match.participantOneId, match.participantTwoId].filter((id): id is number => id !== null).map((id) => <option key={id} value={id}>{participants.find((participant) => participant.id === id)?.name ?? "Team"}</option>)}</select></label><div className="grid grid-cols-2 gap-2"><label className="text-xs font-bold text-white">Score 1<input value={scoreOne} onChange={(event) => setScoreOne(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs" /></label><label className="text-xs font-bold text-white">Score 2<input value={scoreTwo} onChange={(event) => setScoreTwo(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs" /></label></div></div><label className="mt-3 block text-xs font-bold text-white">Game report<textarea value={gameReport} onChange={(event) => setGameReport(event.target.value)} rows={2} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs" placeholder="Battle report, replay notes, or result summary" /></label><button type="button" disabled={saving || !canSubmit} onClick={() => onSave({ matchId: match.id, winnerParticipantId: winner, scoreOne: Number(scoreOne), scoreTwo: Number(scoreTwo), gameReport })} className="btn-retro-secondary mt-3 px-3 py-2 text-xs disabled:opacity-50">Save result</button></div>;
+  async function submitResult() {
+    if (!canSubmit || parsingReplay) return;
+    setReplayError(null);
+    setParsingReplay(Boolean(replayUrl.trim()));
+    try {
+      const replaySummary = replayUrl.trim()
+        ? summarizeReplay(await fetch("/api/replay-scrape", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ replayUrl: replayUrl.trim() }) }).then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || "Replay parsing failed");
+          return payload;
+        }))
+        : null;
+      await onSave({ matchId: match.id, winnerParticipantId: winner, scoreOne: Number(scoreOne), scoreTwo: Number(scoreTwo), gameReport, replayUrl: replayUrl.trim(), replaySummary });
+    } catch (reason) {
+      setReplayError(reason instanceof Error ? reason.message : "Replay parsing failed");
+    } finally {
+      setParsingReplay(false);
+    }
+  }
+  return <div className="rounded-lg border border-[var(--background-tertiary)] bg-[var(--background)] p-3"><div className="mb-3 flex items-center justify-between text-xs text-[var(--foreground-muted)]"><span>{match.bracketStage.replace("-", " ")} · round {match.bracketRound} · match {match.bracketPosition}</span><span>{match.status}</span></div><div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-bold text-white">Winner<select value={winner} onChange={(event) => setWinner(Number(event.target.value) || "")} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs"><option value="">Select winner</option>{[match.participantOneId, match.participantTwoId].filter((id): id is number => id !== null).map((id) => <option key={id} value={id}>{participants.find((participant) => participant.id === id)?.name ?? "Team"}</option>)}</select></label><div className="grid grid-cols-2 gap-2"><label className="text-xs font-bold text-white">Score 1<input value={scoreOne} onChange={(event) => setScoreOne(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs" /></label><label className="text-xs font-bold text-white">Score 2<input value={scoreTwo} onChange={(event) => setScoreTwo(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs" /></label></div></div><label className="mt-3 block text-xs font-bold text-white">Replay link<input type="url" value={replayUrl} onChange={(event) => setReplayUrl(event.target.value)} placeholder="https://replay.pokemonshowdown.com/..." className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs" /></label><label className="mt-3 block text-xs font-bold text-white">Game report<textarea value={gameReport} onChange={(event) => setGameReport(event.target.value)} rows={2} className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--background-secondary)] p-2 text-xs" placeholder="Battle report, replay notes, or result summary" /></label>{replayError && <p className="mt-2 text-xs text-[var(--error)]">{replayError}</p>}<button type="button" disabled={saving || parsingReplay || !canSubmit} onClick={submitResult} className="btn-retro-secondary mt-3 px-3 py-2 text-xs disabled:opacity-50">{parsingReplay ? "Parsing replay…" : "Publish result"}</button></div>;
 }

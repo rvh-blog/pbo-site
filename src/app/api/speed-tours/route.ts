@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
-import { getSpeedTourPublicData, joinSpeedTour, leaveSpeedTour, submitSpeedTourChoice } from "@/lib/speed-tours";
+import { getSpeedTourPublicData, joinSpeedTour, leaveSpeedTour, submitSpeedTourChatMessage, submitSpeedTourChoice } from "@/lib/speed-tours";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
     }
     if (body.action === "leave") {
       return NextResponse.json({ success: true, data: await leaveSpeedTour(tourId, session.id) });
+    }
+    if (body.action === "chat") {
+      await submitSpeedTourChatMessage({ tourId, coachId: session.id, content: String(body.content || "") });
+      return NextResponse.json({ success: true, data: await getSpeedTourPublicData(tourId, session.id) });
     }
     const action = body.action === "poison" ? "poison" : "pick";
     const pokemonId = Number(body.pokemonId);

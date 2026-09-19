@@ -1,5 +1,25 @@
 [
   {
+    "sourceKey": "2026-09-18-speed-tour-bracket-replays-chat",
+    "title": "Speed Tour Brackets, Replay Summaries, and Live Chat",
+    "summary": "Speed Tour brackets now support round robin scheduling, live match progression, replay-backed summaries, and participant chat.",
+    "publishedAt": "2026-09-18",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added round-robin Speed Tour scheduling with every participant pairing organized into scheduled rounds alongside single- and double-elimination formats."
+      },
+      {
+        "type": "added",
+        "text": "Added admin replay-link and result entry that parses Pokémon Showdown replays, publishes a match summary page in Speed Tour history, and advances winners into the next bracket phase."
+      },
+      {
+        "type": "added",
+        "text": "Added a persistent participant chat room with automatic live updates, plus automatic bracket and scheduled-match updates without manual page refreshes."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-18-speed-tour-flow-controls",
     "title": "Speed Tour Registration and Draft Flow",
     "summary": "Speed Tours now support coach opt-in, live lobby and round updates, combined Poison Pill and secondary drafting, host controls, and a faster searchable draft board.",
