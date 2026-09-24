@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { pickEmPicks, pickEmParticipants, matches } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { pickEmPicks, matches } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,11 +25,7 @@ export async function GET(request: NextRequest) {
       db.query.pickEmPicks.findMany({
         where: eq(pickEmPicks.matchId, matchIdNum),
         with: {
-          participant: {
-            with: {
-              coach: true,
-            },
-          },
+          participant: true,
         },
       }),
     ]);

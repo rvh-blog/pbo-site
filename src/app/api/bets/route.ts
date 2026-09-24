@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { eq, and, inArray, or } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import * as schema from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { calculateOdds } from "@/lib/betting";
@@ -56,11 +56,11 @@ export async function GET(request: NextRequest) {
     with: {
       match: {
         with: {
-          coach1: { with: { coach: true } },
-          coach2: { with: { coach: true } },
+          coach1: { with: { coach: { columns: { id: true, name: true, eloRating: true } } } },
+          coach2: { with: { coach: { columns: { id: true, name: true, eloRating: true } } } },
         },
       },
-      predictedWinner: { with: { coach: true } },
+      predictedWinner: { with: { coach: { columns: { id: true, name: true } } } },
     },
     orderBy: (b, { desc }) => [desc(b.createdAt)],
   });
@@ -129,8 +129,8 @@ export async function POST(request: NextRequest) {
     const match = await db.query.matches.findFirst({
       where: eq(schema.matches.id, matchId),
       with: {
-        coach1: { with: { coach: true } },
-        coach2: { with: { coach: true } },
+        coach1: { with: { coach: { columns: { id: true, name: true, eloRating: true } } } },
+        coach2: { with: { coach: { columns: { id: true, name: true, eloRating: true } } } },
       },
     });
 

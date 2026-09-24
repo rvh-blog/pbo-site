@@ -27,7 +27,7 @@ export async function GET() {
     const rewards = await db.query.triviaRewards.findMany({
       where: eq(triviaRewards.seasonId, currentSeason.id),
       with: {
-        coach: true,
+        coach: { columns: { id: true, name: true, pboCoin: true } },
       },
       orderBy: (t, { desc }) => [desc(t.createdAt)],
     });

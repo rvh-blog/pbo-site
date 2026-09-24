@@ -1,64 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { pickEmParticipants, users } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { pickEmParticipants } from "@/lib/schema";
+import { eq, and, isNull } from "drizzle-orm";
+import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const seasonId = searchParams.get("seasonId");
   const authUserId = searchParams.get("authUserId");
   const authUserType = searchParams.get("authUserType");
+  const seasonIdNum = Number(seasonId);
 
-  if (!seasonId) {
+  if (!Number.isSafeInteger(seasonIdNum) || seasonIdNum <= 0) {
     return NextResponse.json(
-      { error: "seasonId is required" },
+      { error: "A valid seasonId is required" },
       { status: 400 }
     );
   }
 
-  // If auth params provided, find specific participant for this user
-  if (authUserId && authUserType) {
-    let participant;
-
-    if (authUserType === "coach") {
-      // Find participant linked to this coach
-      participant = await db.query.pickEmParticipants.findFirst({
-        where: and(
-          eq(pickEmParticipants.seasonId, parseInt(seasonId)),
-          eq(pickEmParticipants.coachId, parseInt(authUserId))
-        ),
-        with: {
-          coach: true,
-        },
-      });
-    } else {
-      // For spectators, we need to look up the username from users table
-      // and find a participant with that name (without coachId)
-      const user = await db.query.users.findFirst({
-        where: eq(users.id, parseInt(authUserId)),
-      });
-
-      if (user) {
-        participant = await db.query.pickEmParticipants.findFirst({
-          where: and(
-            eq(pickEmParticipants.seasonId, parseInt(seasonId)),
-            eq(pickEmParticipants.name, user.username)
-          ),
-          with: {
-            coach: true,
-          },
-        });
-      }
+  // The client may request its own participant, but the identity comes from
+  // the session cookie rather than caller-controlled query parameters.
+  if (authUserId !== null || authUserType !== null) {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
+
+    if (
+      authUserId === null ||
+      authUserType !== session.type ||
+      Number(authUserId) !== session.id
+    ) {
+      return NextResponse.json({ error: "Cannot access another participant" }, { status: 403 });
+    }
+
+    const identityCondition = session.type === "coach"
+      ? eq(pickEmParticipants.coachId, session.id)
+      : eq(pickEmParticipants.userId, session.id);
+    const participant = await db.query.pickEmParticipants.findFirst({
+      where: and(eq(pickEmParticipants.seasonId, seasonIdNum), identityCondition),
+      with: {
+        coach: { columns: { id: true, name: true, eloRating: true } },
+      },
+    });
 
     return NextResponse.json({ participant: participant || null });
   }
 
   // Otherwise return all participants for the season
   const participants = await db.query.pickEmParticipants.findMany({
-    where: eq(pickEmParticipants.seasonId, parseInt(seasonId)),
+    where: eq(pickEmParticipants.seasonId, seasonIdNum),
     with: {
-      coach: true,
+      coach: { columns: { id: true, name: true, eloRating: true } },
     },
   });
 
@@ -66,59 +59,61 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "You must be signed in to join pick-ems" }, { status: 401 });
+  }
+
   const body = await request.json();
-  const { name, seasonId, coachId, userId } = body;
+  const { seasonId } = body;
 
-  if (!name || typeof name !== "string") {
+  if (!Number.isSafeInteger(seasonId) || seasonId <= 0) {
     return NextResponse.json(
-      { error: "Name is required" },
+      { error: "A valid seasonId is required" },
       { status: 400 }
     );
   }
 
-  if (!seasonId || typeof seasonId !== "number") {
-    return NextResponse.json(
-      { error: "seasonId is required" },
-      { status: 400 }
-    );
-  }
+  const identityCondition = session.type === "coach"
+    ? eq(pickEmParticipants.coachId, session.id)
+    : eq(pickEmParticipants.userId, session.id);
 
-  // Check if participant already exists for this name+season
+  // A participant is owned by the authenticated account, never by a caller-
+  // supplied name or coach/user ID.
   const existing = await db.query.pickEmParticipants.findFirst({
     where: and(
-      eq(pickEmParticipants.name, name),
-      eq(pickEmParticipants.seasonId, seasonId)
+      eq(pickEmParticipants.seasonId, seasonId),
+      identityCondition
     ),
     with: {
-      coach: true,
+      coach: { columns: { id: true, name: true, eloRating: true } },
     },
   });
 
-  if (existing) {
-    // If existing participant doesn't have userId linked but we have one now, update it
-    if (!existing.userId && userId && typeof userId === "number") {
-      await db
-        .update(pickEmParticipants)
-        .set({ userId })
-        .where(eq(pickEmParticipants.id, existing.id));
-      return NextResponse.json({ ...existing, userId });
-    }
-    return NextResponse.json(existing);
+  if (existing) return NextResponse.json(existing);
+
+  // Do not silently claim a legacy anonymous entry by matching a public name.
+  const unlinkedNameMatch = await db.query.pickEmParticipants.findFirst({
+    where: and(
+      eq(pickEmParticipants.seasonId, seasonId),
+      eq(pickEmParticipants.name, session.name),
+      isNull(pickEmParticipants.coachId),
+      isNull(pickEmParticipants.userId)
+    ),
+  });
+  if (unlinkedNameMatch) {
+    return NextResponse.json(
+      { error: "An unlinked pick-em entry already uses this name. Please ask an admin to review it." },
+      { status: 409 }
+    );
   }
 
-  // Create new participant
-  const values: { name: string; seasonId: number; coachId?: number; userId?: number } = {
-    name,
+  const values: { name: string; seasonId: number; coachId: number | null; userId: number | null } = {
+    name: session.name,
     seasonId,
+    coachId: session.type === "coach" ? session.id : null,
+    userId: session.type === "spectator" ? session.id : null,
   };
-
-  if (coachId !== undefined && typeof coachId === "number") {
-    values.coachId = coachId;
-  }
-
-  if (userId !== undefined && typeof userId === "number") {
-    values.userId = userId;
-  }
 
   const result = await db.insert(pickEmParticipants).values(values).returning();
 
@@ -126,7 +121,7 @@ export async function POST(request: NextRequest) {
   const participant = await db.query.pickEmParticipants.findFirst({
     where: eq(pickEmParticipants.id, result[0].id),
     with: {
-      coach: true,
+      coach: { columns: { id: true, name: true, eloRating: true } },
     },
   });
 

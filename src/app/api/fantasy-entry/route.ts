@@ -231,8 +231,6 @@ async function getSeasonFantasyEntries(seasonId: number) {
   return db.query.fantasyEntries.findMany({
     where: eq(fantasyEntries.seasonId, seasonId),
     with: {
-      coach: true,
-      user: true,
       picks: {
         with: {
           pokemon: true,

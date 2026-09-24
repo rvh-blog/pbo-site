@@ -158,14 +158,21 @@ Admin notes:
 - [[Admin And Engagement]]
 - Match Management combines schedule upload, result entry, playoff controls,
   pending/status filters, and a sticky sequential Review Queue in
-  `src/app/admin/matches/page.tsx`. Its admin API supports atomic bulk schedule
-  creation and required notes for flagged results.
+  `src/app/admin/matches/page.tsx`. Its automatic Pokemon Data Review queue
+  flags completed non-forfeit matches where either team has other than six
+  recorded Pokemon. This is a derived warning; it does not change results,
+  `needsReview`, or review notes. Its admin API supports atomic bulk schedule
+  creation and required notes for manually flagged results.
 - PBO Coin payouts live in `src/app/admin/pick-ems/page.tsx`; the payout API
   supports one-to-100 recipients, current-coach/current-admin bulk selection,
   20-to-1,000 coin validation, and authenticated audit attribution.
 - Admin mutation routes enforce moderator authorization in the route handler,
   including seasons, coaches, rosters, transactions, Pokemon, matches,
   playoffs, Elo, divisions, Discord, Twitch badges, GOTW, and payouts.
+- Public match and league API responses select only needed coach/user fields,
+  excluding credential hashes. Pick-em writes derive identity from the signed-in
+  session and validate participant ownership, season, and match teams;
+  `/api/matches` applies public season/division visibility and filters in SQL.
 - Admin transaction counts use one batched request per season/division context;
   stale request protection, visible errors, response checks, and optimized
   image delivery keep the admin pages responsive and recoverable.

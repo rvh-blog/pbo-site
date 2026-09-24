@@ -178,7 +178,7 @@ type MatchPokemonPayload = {
 };
 
 type TabType = "schedule" | "results" | "playoffs";
-type MatchFilter = "all" | "pending" | "completed" | "forfeit" | "review";
+type MatchFilter = "all" | "pending" | "completed" | "forfeit" | "review" | "pokemon-review";
 
 type SaveMatchOptions = {
   openNextReview?: boolean;
@@ -209,10 +209,27 @@ function isHistoricalStatsSeason(seasonNumber: number | undefined) {
   return seasonNumber !== undefined && seasonNumber >= 5 && seasonNumber <= 10;
 }
 
-function getMatchStatus(match: Match): "review" | "pending" | "forfeit" | "missing-replay" | "missing-pokemon" | "complete" {
+function getPokemonCountIssues(match: Match) {
+  if (!isCompletedMatchResult(match.winnerId, match.isForfeit) || match.isForfeit) return [];
+
+  const counts = new Map<number, number>();
+  for (const entry of match.matchPokemon || []) {
+    counts.set(entry.seasonCoachId, (counts.get(entry.seasonCoachId) || 0) + 1);
+  }
+
+  return [
+    { seasonCoachId: match.coach1SeasonId, teamName: match.coach1?.teamName || "Team 1" },
+    { seasonCoachId: match.coach2SeasonId, teamName: match.coach2?.teamName || "Team 2" },
+  ]
+    .map((team) => ({ ...team, count: counts.get(team.seasonCoachId) || 0 }))
+    .filter((team) => team.count !== 6);
+}
+
+function getMatchStatus(match: Match): "review" | "pending" | "forfeit" | "missing-replay" | "missing-pokemon" | "pokemon-review" | "complete" {
   if (match.needsReview) return "review";
   if (!isCompletedMatchResult(match.winnerId, match.isForfeit)) return "pending";
   if (match.isForfeit) return "forfeit";
+  if (getPokemonCountIssues(match).length > 0) return "pokemon-review";
   if (!match.replayUrl?.trim()) return "missing-replay";
   if (!match.matchPokemon?.length) return "missing-pokemon";
   return "complete";
@@ -225,6 +242,7 @@ function getMatchStatusLabel(status: ReturnType<typeof getMatchStatus>) {
     case "forfeit": return "Forfeit";
     case "missing-replay": return "Missing Replay";
     case "missing-pokemon": return "Missing Pokemon";
+    case "pokemon-review": return "Pokemon Count Review";
     case "complete": return "Complete";
   }
 }
@@ -236,6 +254,7 @@ function getMatchStatusClasses(status: ReturnType<typeof getMatchStatus>) {
     case "forfeit": return "bg-[var(--warning)] text-black";
     case "missing-replay": return "bg-orange-400/20 text-orange-200";
     case "missing-pokemon": return "bg-purple-400/20 text-purple-200";
+    case "pokemon-review": return "bg-orange-400/20 text-orange-200";
     case "complete": return "bg-[var(--success)]/20 text-[var(--success)]";
   }
 }
@@ -1760,7 +1779,8 @@ export default function AdminMatchesPage() {
           (matchFilter === "pending" && !completed) ||
           (matchFilter === "completed" && completed) ||
           (matchFilter === "forfeit" && match.isForfeit) ||
-          (matchFilter === "review" && match.needsReview);
+          (matchFilter === "review" && match.needsReview) ||
+          (matchFilter === "pokemon-review" && getPokemonCountIssues(match).length > 0);
         return matchesSearch && matchesFilter;
       })
       .sort((a, b) => {
@@ -1777,6 +1797,13 @@ export default function AdminMatchesPage() {
       .sort((a, b) => a.week - b.week || a.id - b.id),
     [matches]
   );
+  const pokemonReviewMatches = useMemo(
+    () => matches
+      .filter((match) => getPokemonCountIssues(match).length > 0)
+      .sort((a, b) => a.week - b.week || a.id - b.id),
+    [matches]
+  );
+  const pokemonReviewTarget = pokemonReviewMatches[0] || null;
   const currentReviewIndex = (selectedFixture || editingMatch)
     ? reviewMatches.findIndex((match) => match.id === (selectedFixture || editingMatch)?.id)
     : -1;
@@ -1803,6 +1830,7 @@ export default function AdminMatchesPage() {
     completed: matches.filter((match) => isCompletedMatchResult(match.winnerId, match.isForfeit)).length,
     forfeit: matches.filter((match) => match.isForfeit).length,
     review: matches.filter((match) => match.needsReview).length,
+    "pokemon-review": pokemonReviewMatches.length,
   };
 
   if (loading) {
@@ -1904,7 +1932,7 @@ export default function AdminMatchesPage() {
                   }}
                   className="w-full sm:w-48"
                 >
-                  <option value="">Select a division</option>
+                  <option value="">All divisions</option>
                   <optgroup label={selectedSeason.name}>
                     {selectedSeason.divisions.map((d) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
@@ -2080,6 +2108,30 @@ export default function AdminMatchesPage() {
                 </Card>
               )}
 
+              {pokemonReviewMatches.length > 0 && (
+                <Card className="border-orange-400/50 bg-orange-400/10 shadow-lg">
+                  <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-orange-200/80">Pokemon Data Review</p>
+                      <p className="font-semibold text-orange-100">
+                        {pokemonReviewMatches.length} completed match{pokemonReviewMatches.length === 1 ? "" : "es"} have a team with other than 6 recorded Pokemon
+                      </p>
+                      <p className="text-sm text-orange-200/70">
+                        These are automatic warnings only; results and review notes have not been changed.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="shrink-0 bg-orange-400 text-black hover:bg-orange-300"
+                      onClick={() => pokemonReviewTarget && openMatchForEditing(pokemonReviewTarget, true)}
+                    >
+                      Review First
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card ref={resultEditorRef}>
                 <CardHeader>
                   <CardTitle>
@@ -2106,7 +2158,7 @@ export default function AdminMatchesPage() {
                               <optgroup key={`week-${week}`} label={`Week ${week}`}>
                                 {weekMatches.map((match) => (
                                   <option key={match.id} value={`match-${match.id}`}>
-                                    {match.needsReview ? "⚠ REVIEW — " : ""}
+                                    {getPokemonCountIssues(match).length > 0 ? "⚠ POKEMON DATA — " : match.needsReview ? "⚠ REVIEW — " : ""}
                                     {match.coach1?.teamName} vs {match.coach2?.teamName}
                                     {isCompletedMatchResult(match.winnerId, match.isForfeit) ? " (completed)" : " (needs result)"}
                                   </option>
@@ -2597,6 +2649,7 @@ export default function AdminMatchesPage() {
                         ["completed", "Completed"],
                         ["forfeit", "Forfeit"],
                         ["review", "Needs Review"],
+                        ["pokemon-review", "Pokemon Count Review"],
                       ] as Array<[MatchFilter, string]>).map(([value, label]) => (
                         <button
                           key={value}
@@ -2653,12 +2706,13 @@ export default function AdminMatchesPage() {
                         const hasResult = isCompletedMatchResult(match.winnerId, match.isForfeit);
                         const isDoubleLoss = isDoubleForfeitResult(match.winnerId, match.isForfeit);
                         const matchStatus = getMatchStatus(match);
+                        const pokemonCountIssues = getPokemonCountIssues(match);
 
                         return (
                         <div
                           key={match.id}
                           className={`flex flex-col gap-3 rounded-lg p-3 sm:flex-row sm:items-center sm:justify-between ${
-                            match.needsReview
+                            match.needsReview || pokemonCountIssues.length > 0
                               ? "bg-yellow-400/15 border-2 border-yellow-400"
                               : hasResult
                               ? "bg-[var(--background-secondary)]"
@@ -2705,6 +2759,11 @@ export default function AdminMatchesPage() {
                             {match.needsReview && match.reviewNotes && (
                               <span className="max-w-xl text-xs text-yellow-200">
                                 {match.reviewNotes}
+                              </span>
+                            )}
+                            {pokemonCountIssues.length > 0 && (
+                              <span className="max-w-xl text-xs text-orange-200">
+                                Pokemon count review: {pokemonCountIssues.map((issue) => `${issue.teamName}: ${issue.count}/6`).join(", ")}
                               </span>
                             )}
                             {match.replayUrl && (
