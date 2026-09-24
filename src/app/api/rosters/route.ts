@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
     const seasonCoachesList = await db.query.seasonCoaches.findMany({
       where: eq(seasonCoaches.divisionId, parseInt(divisionId)),
       with: {
-        coach: true,
+        coach: { columns: { id: true, name: true, eloRating: true } },
         division: { with: { season: true } },
         rosters: {
           with: {
@@ -264,7 +264,7 @@ export async function GET(request: NextRequest) {
     const seasonCoachesList = await db.query.seasonCoaches.findMany({
       where: inArray(seasonCoaches.divisionId, divisionIds),
       with: {
-        coach: true,
+        coach: { columns: { id: true, name: true, eloRating: true } },
         division: true,
         rosters: {
           with: {
@@ -281,7 +281,7 @@ export async function GET(request: NextRequest) {
       pokemon: true,
       seasonCoach: {
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true, eloRating: true } },
           division: { with: { season: true } },
         },
       },

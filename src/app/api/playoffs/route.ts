@@ -60,10 +60,10 @@ export async function GET(request: NextRequest) {
   const allMatches = await db.query.playoffMatches.findMany({
     with: {
       higherSeed: {
-        with: { coach: true },
+        with: { coach: { columns: { id: true, name: true, eloRating: true } } },
       },
       lowerSeed: {
-        with: { coach: true },
+        with: { coach: { columns: { id: true, name: true, eloRating: true } } },
       },
       winner: true,
       division: { with: { season: true } },

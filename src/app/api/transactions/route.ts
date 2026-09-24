@@ -88,12 +88,12 @@ export async function GET(request: NextRequest) {
     with: {
       seasonCoach: {
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true } },
         },
       },
       tradingPartner: {
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true } },
         },
       },
     },

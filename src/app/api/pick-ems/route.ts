@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { pickEmPicks, pickEmParticipants, matches, seasonCoaches, bets, killBets, deathBets, coaches, eloHistory, siteSettings } from "@/lib/schema";
-import { eq, and, isNull, sql, lt, desc, inArray } from "drizzle-orm";
+import { pickEmPicks, pickEmParticipants, matches, bets, killBets, deathBets, eloHistory } from "@/lib/schema";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,8 +17,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const seasonIdNum = parseInt(seasonId);
+    const seasonIdNum = Number(seasonId);
     const participantIdNum = participantId ? parseInt(participantId) : null;
+    if (!Number.isSafeInteger(seasonIdNum) || seasonIdNum <= 0) {
+      return NextResponse.json({ error: "A valid seasonId is required" }, { status: 400 });
+    }
 
     // Run independent queries in parallel
     const [allSeasonMatches, participants, allBets, allKillBets, allDeathBets, myPicksRaw, allEloHistory, bettingSettingsRaw] = await Promise.all([
@@ -28,12 +32,12 @@ export async function GET(request: NextRequest) {
           division: true,
           coach1: {
             with: {
-              coach: true,
+              coach: { columns: { id: true, name: true, eloRating: true } },
             },
           },
           coach2: {
             with: {
-              coach: true,
+              coach: { columns: { id: true, name: true, eloRating: true } },
             },
           },
         },
@@ -43,7 +47,7 @@ export async function GET(request: NextRequest) {
       db.query.pickEmParticipants.findMany({
         where: eq(pickEmParticipants.seasonId, seasonIdNum),
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true } },
           picks: true,
           rewards: true,
         },
@@ -52,16 +56,16 @@ export async function GET(request: NextRequest) {
       db.query.bets.findMany({
         where: sql`${bets.matchId} IN (SELECT id FROM matches WHERE season_id = ${seasonIdNum})`,
         with: {
-          coach: true,
-          user: true,
+          coach: { columns: { id: true, name: true, pboCoin: true } },
+          user: { columns: { id: true, username: true, pboCoin: true } },
         },
       }),
       // Fetch all kill bets for the season
       db.query.killBets.findMany({
         where: sql`${killBets.matchId} IN (SELECT id FROM matches WHERE season_id = ${seasonIdNum})`,
         with: {
-          coach: true,
-          user: true,
+          coach: { columns: { id: true, name: true, pboCoin: true } },
+          user: { columns: { id: true, username: true, pboCoin: true } },
           pokemon: {
             columns: { name: true, displayName: true },
           },
@@ -71,8 +75,8 @@ export async function GET(request: NextRequest) {
       db.query.deathBets.findMany({
         where: sql`${deathBets.matchId} IN (SELECT id FROM matches WHERE season_id = ${seasonIdNum})`,
         with: {
-          coach: true,
-          user: true,
+          coach: { columns: { id: true, name: true, pboCoin: true } },
+          user: { columns: { id: true, username: true, pboCoin: true } },
           pokemon: {
             columns: { name: true, displayName: true },
           },
@@ -158,7 +162,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate positions within each division
     const positionMap = new Map<number, number>();
-    for (const [divId, coachIds] of divisionCoaches) {
+    for (const coachIds of divisionCoaches.values()) {
       const sorted = coachIds.sort((a, b) => {
         const aStats = standingsMap.get(a) || { wins: 0, losses: 0, diff: 0 };
         const bStats = standingsMap.get(b) || { wins: 0, losses: 0, diff: 0 };
@@ -635,39 +639,84 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "You must be signed in to submit picks" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { participantId, picks } = body;
 
-  if (!participantId || typeof participantId !== "number") {
+  if (!Number.isSafeInteger(participantId) || participantId <= 0) {
     return NextResponse.json(
       { error: "participantId is required" },
       { status: 400 }
     );
   }
 
-  if (!Array.isArray(picks) || picks.length === 0) {
+  if (!Array.isArray(picks) || picks.length === 0 || picks.length > 100) {
     return NextResponse.json(
-      { error: "picks array is required" },
+      { error: "picks must contain between 1 and 100 entries" },
       { status: 400 }
     );
   }
 
-  // Validate picks format
-  for (const pick of picks) {
-    if (!pick.matchId || !pick.predictedWinnerId) {
+  const submittedPicks = picks as Array<{ matchId: number; predictedWinnerId: number }>;
+  const submittedMatchIds = submittedPicks.map((pick) => pick?.matchId);
+  if (
+    submittedPicks.some((pick) =>
+      !Number.isSafeInteger(pick?.matchId) ||
+      pick.matchId <= 0 ||
+      !Number.isSafeInteger(pick?.predictedWinnerId) ||
+      pick.predictedWinnerId <= 0
+    ) || new Set(submittedMatchIds).size !== submittedMatchIds.length
+  ) {
+    return NextResponse.json(
+      { error: "Each pick must have a unique valid matchId and predictedWinnerId" },
+      { status: 400 }
+    );
+  }
+
+  const participant = await db.query.pickEmParticipants.findFirst({
+    where: eq(pickEmParticipants.id, participantId),
+  });
+  if (!participant) {
+    return NextResponse.json({ error: "Pick-em participant not found" }, { status: 404 });
+  }
+
+  const ownsParticipant = session.type === "coach"
+    ? participant.coachId === session.id
+    : participant.userId === session.id;
+  if (!ownsParticipant) {
+    return NextResponse.json({ error: "You cannot edit another participant's picks" }, { status: 403 });
+  }
+
+  const matchIds = submittedPicks.map((pick) => pick.matchId);
+  const matchRecords = await db.query.matches.findMany({
+    where: and(
+      eq(matches.seasonId, participant.seasonId),
+      inArray(matches.id, matchIds)
+    ),
+  });
+  if (matchRecords.length !== matchIds.length) {
+    return NextResponse.json(
+      { error: "Every picked match must belong to the participant's season" },
+      { status: 400 }
+    );
+  }
+
+  const matchById = new Map(matchRecords.map((match) => [match.id, match]));
+  for (const pick of submittedPicks) {
+    const match = matchById.get(pick.matchId);
+    if (!match || (pick.predictedWinnerId !== match.coach1SeasonId && pick.predictedWinnerId !== match.coach2SeasonId)) {
       return NextResponse.json(
-        { error: "Each pick must have matchId and predictedWinnerId" },
+        { error: "Each predicted winner must be one of the match's teams" },
         { status: 400 }
       );
     }
   }
 
   // Check that matches are not yet completed and not underway
-  const matchIds = picks.map((p: { matchId: number }) => p.matchId);
-  const matchRecords = await db.query.matches.findMany({
-    where: sql`${matches.id} IN (${sql.join(matchIds.map((id: number) => sql`${id}`), sql`, `)})`,
-  });
-
   const now = Date.now();
   const completedMatchIds = matchRecords
     .filter((m) => m.winnerId !== null || m.isForfeit)
@@ -690,7 +739,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Upsert picks (delete existing + insert new for each match)
-  for (const pick of picks) {
+  for (const pick of submittedPicks) {
     // Delete existing pick for this participant+match
     await db
       .delete(pickEmPicks)

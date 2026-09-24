@@ -31,7 +31,7 @@ export async function GET(
       division: true,
       coach1: {
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true, eloRating: true } },
           rosters: {
             with: { pokemon: true },
           },
@@ -39,7 +39,7 @@ export async function GET(
       },
       coach2: {
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true, eloRating: true } },
           rosters: {
             with: { pokemon: true },
           },

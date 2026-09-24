@@ -1,5 +1,29 @@
 [
   {
+    "sourceKey": "2026-09-23-api-data-safety-and-match-review",
+    "title": "API Data Safety and Match Pokémon Review",
+    "summary": "Protect account data in public API responses, bind pick-em writes to authenticated owners, and surface suspicious match Pokemon counts for manual admin review.",
+    "publishedAt": "2026-09-23",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Limited public match, roster, betting, standings, playoffs, broadcast, trivia, transaction, and pick-em responses to the fields they need instead of returning full coach or user records."
+      },
+      {
+        "type": "fixed",
+        "text": "Required authenticated pick-em ownership and validated submitted match, season, and predicted-team relationships; participant creation now uses the signed-in identity."
+      },
+      {
+        "type": "added",
+        "text": "Added an admin Pokemon Data Review queue for completed non-forfeit matches where either team has other than six recorded Pokemon. Warnings do not modify results or review notes."
+      },
+      {
+        "type": "improved",
+        "text": "Applied season, division, and public-visibility filters in the match query rather than loading all matches before filtering."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-09-18-speed-tour-delete",
     "title": "Speed Tour History Cleanup",
     "summary": "Admins can permanently remove ended Speed Tours that should not remain in the event history.",

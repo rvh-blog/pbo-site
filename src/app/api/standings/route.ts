@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
   const divisionCoaches = await db.query.seasonCoaches.findMany({
     where: (sc, { eq }) => eq(sc.divisionId, division.id),
-    with: { coach: true },
+    with: { coach: { columns: { id: true, name: true, eloRating: true } } },
   });
 
   const divisionMatches = await db.query.matches.findMany({

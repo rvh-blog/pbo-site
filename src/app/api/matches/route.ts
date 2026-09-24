@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
-import { matches, matchPokemon, eloHistory, playoffMatches, bets, killBets, deathBets, killEvents } from "@/lib/schema";
-import { and, eq } from "drizzle-orm";
+import { matches, matchPokemon, eloHistory, playoffMatches, bets, killBets, deathBets, killEvents, divisions } from "@/lib/schema";
+import { and, eq, inArray } from "drizzle-orm";
 import { updateEloForMatch } from "@/lib/elo-service";
 import { resolveBetsForMatch, refundBetsForMatch, awardMatchCoins } from "@/lib/betting";
 import { resolveKillBetsForMatch, refundKillBetsForMatch } from "@/lib/kill-betting";
@@ -279,11 +279,40 @@ export async function GET(request: NextRequest) {
   const canSeePrivate = session?.isMod ?? false;
   const visibility = await getPublicVisibilityState();
 
+  const queryConditions = [];
+  if (seasonId) queryConditions.push(eq(matches.seasonId, parseInt(seasonId)));
+  if (divisionId) queryConditions.push(eq(matches.divisionId, parseInt(divisionId)));
+
+  if (!canSeePrivate) {
+    const divisionConditions = [];
+    if (seasonId) divisionConditions.push(eq(divisions.seasonId, parseInt(seasonId)));
+    if (divisionId) divisionConditions.push(eq(divisions.id, parseInt(divisionId)));
+
+    const visibleDivisions = await db.query.divisions.findMany({
+      where: divisionConditions.length ? and(...divisionConditions) : undefined,
+      columns: { id: true, name: true },
+      with: {
+        season: { columns: { isPublic: true } },
+      },
+    });
+    const visibleDivisionIds = visibleDivisions
+      .filter((division) =>
+        isDivisionPubliclyVisible(division, visibility) &&
+        division.season &&
+        isPublicSeasonVisible(division.season)
+      )
+      .map((division) => division.id);
+
+    if (visibleDivisionIds.length === 0) return NextResponse.json([]);
+    queryConditions.push(inArray(matches.divisionId, visibleDivisionIds));
+  }
+
   const query = db.query.matches.findMany({
+    where: queryConditions.length ? and(...queryConditions) : undefined,
     with: {
       coach1: {
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true, eloRating: true } },
           rosters: {
             with: { pokemon: true },
           },
@@ -291,7 +320,7 @@ export async function GET(request: NextRequest) {
       },
       coach2: {
         with: {
-          coach: true,
+          coach: { columns: { id: true, name: true, eloRating: true } },
           rosters: {
             with: { pokemon: true },
           },
@@ -306,26 +335,7 @@ export async function GET(request: NextRequest) {
     orderBy: (matches, { desc }) => [desc(matches.week), desc(matches.id)],
   });
 
-  const allMatches = await query;
-
-  // Filter if needed
-  let filtered = allMatches;
-  if (seasonId) {
-    filtered = filtered.filter((m) => m.seasonId === parseInt(seasonId));
-  }
-  if (divisionId) {
-    filtered = filtered.filter((m) => m.divisionId === parseInt(divisionId));
-  }
-  if (!canSeePrivate) {
-    filtered = filtered.filter((match) =>
-      match.division &&
-      isDivisionPubliclyVisible(match.division, visibility) &&
-      match.division.season &&
-      isPublicSeasonVisible(match.division.season)
-    );
-  }
-
-  return NextResponse.json(filtered);
+  return NextResponse.json(await query);
 }
 
 export async function POST(request: NextRequest) {

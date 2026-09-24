@@ -79,8 +79,12 @@ machines may stop while idle and automatically restart for incoming traffic
 Deploy:
 
 ```bash
-fly deploy
+npm run deploy:fly
 ```
+
+The deployment command verifies the same-day entry in
+`src/data/changelog-releases.json` before deploying the merged `main` branch
+to Fly.
 
 The Docker build:
 
@@ -119,6 +123,16 @@ initial phase resolves, participants see a round-results notice listing drafted
 Pokemon and any teams that need secondary selection. Poison Pill targets can be
 matched to affected secondary picks and remain visible in the round summary,
 including when fallback is forced.
+
+### Match data review and public API safeguards
+
+Admin → Match Management includes a Pokemon Data Review queue for completed,
+non-forfeit matches where a team's recorded Pokemon count is not six. The
+queue is a warning for manual inspection only; it does not edit match results,
+set the separate `needsReview` flag, or write review notes. Public API queries
+return selected coach/user profile fields rather than full account records, and
+pick-em writes require the signed-in participant's identity and validate team
+and season ownership.
 
 ## Production Database
 
