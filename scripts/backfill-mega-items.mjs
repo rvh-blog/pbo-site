@@ -1,5 +1,5 @@
 import { openMaintenanceDb, assertProductionWriteAllowed } from "./maintenance-db.mjs";
-import { getMegaStoneName, isMegaPokemonName } from "../src/lib/mega-stones.ts";
+import { getMegaBaseSpecies, getMegaStoneName, isMegaPokemonName } from "../src/lib/mega-stones.ts";
 import { inferMegaItemForRosterPokemon } from "../src/lib/mega-item-inference.ts";
 
 // Dry-run by default. Use --write only against a reviewed local DB copy.
@@ -25,6 +25,42 @@ function parseJsonArray(value, label) {
 
 function parsePokemonIds(value) {
   return parseJsonArray(value, "transaction Pokemon list").map(Number).filter(Number.isFinite);
+}
+
+function isAssumedReveal(reveal) {
+  return /^assumed\b/i.test(String(reveal?.source || "").trim());
+}
+
+function isKnownStonelessMega(species) {
+  const baseSpecies = getMegaBaseSpecies(species);
+  return baseSpecies?.toLowerCase().replace(/[^a-z0-9]/g, "") === "rayquaza";
+}
+
+function canonicalizeAssumedMegaReveals(reveals, expectedStone, canCorrect) {
+  if (!canCorrect) return { reveals, changed: false };
+
+  let changed = false;
+  const normalized = [];
+  for (const reveal of reveals) {
+    if (!isAssumedReveal(reveal)) {
+      normalized.push(reveal);
+      continue;
+    }
+
+    if (!expectedStone) {
+      changed = true;
+      continue;
+    }
+
+    if (reveal.item !== expectedStone) changed = true;
+    normalized.push({ ...reveal, item: expectedStone });
+  }
+  return { reveals: normalized, changed };
+}
+
+function megaReviewKey(line) {
+  const match = String(line || "").match(/^Mega (?:item|Stone) check \(team (\d+), [^)]* (\d+)\):/i);
+  return match ? `${match[1]}:${match[2]}` : null;
 }
 
 function buildTeamTransactions(rows) {
@@ -105,7 +141,7 @@ for (const season of seasons) {
   const rows = await db.all(`
     SELECT mp.id, mp.match_id, mp.season_coach_id, mp.pokemon_id, mp.revealed_items,
            p.name AS pokemon_name, p.display_name AS pokemon_display_name, sc.team_name,
-           m.week, m.review_notes
+           m.week, m.needs_review, m.review_notes
     FROM match_pokemon mp
     JOIN matches m ON m.id = mp.match_id
     JOIN pokemon p ON p.id = mp.pokemon_id
@@ -119,7 +155,10 @@ for (const season of seasons) {
     const species = row.pokemon_display_name || row.pokemon_name;
     const storedItems = parseJsonArray(row.revealed_items, `match_pokemon ${row.id}`);
     const parserMegaEvidence = storedItems.some((item) => /^assumed\b/i.test(item?.source || "") && /mega/i.test(item?.source || ""));
-    if ((!isMegaPokemonName(species) && !parserMegaEvidence) || (isMegaPokemonName(species) && !getMegaStoneName(species) && !parserMegaEvidence)) continue;
+    const isMegaForm = isMegaPokemonName(species);
+    const expectedStone = isMegaForm ? getMegaStoneName(species) : null;
+    const knownStonelessMega = isMegaForm && isKnownStonelessMega(species);
+    if ((!isMegaForm && !parserMegaEvidence) || (isMegaForm && !expectedStone && !knownStonelessMega && !parserMegaEvidence)) continue;
     scanned++;
     const match = matchById.get(row.match_id);
     if (!match || match.week == null) continue;
@@ -132,42 +171,70 @@ for (const season of seasons) {
       rosterExcluded++;
       continue;
     }
+    const normalized = canonicalizeAssumedMegaReveals(
+      storedItems,
+      expectedStone,
+      isMegaForm && (Boolean(expectedStone) || knownStonelessMega),
+    );
     const inference = inferMegaItemForRosterPokemon({
       pokemonId: row.pokemon_id,
       name: row.pokemon_name,
       displayName: row.pokemon_display_name,
-    }, storedItems);
-    if (inference.assumed) {
+    }, normalized.reveals);
+    if (normalized.changed || inference.assumed) {
       itemUpdates.push({ ...row, items: inference.revealedItems, stone: inference.expectedStone, seasonNumber: season.season_number });
-      if (verbose) console.log(`PLAN S${season.season_number} match ${row.match_id}: ${row.team_name} ${species} -> ${inference.expectedStone}`);
+      if (verbose) console.log(`${normalized.changed ? "REPAIR" : "PLAN"} S${season.season_number} match ${row.match_id}: ${row.team_name} ${species} -> ${inference.expectedStone || "no stone"}`);
     }
+    const review = reviewUpdates.get(row.match_id) || {
+      existingNeedsReview: Boolean(row.needs_review),
+      existingNotes: row.review_notes || "",
+      clearKeys: new Set(),
+      conflicts: new Set(),
+      staleNotesRemoved: false,
+    };
+    review.clearKeys.add(`${row.season_coach_id}:${row.pokemon_id}`);
     if (inference.conflict) {
-      const note = `Mega item check (team ${row.season_coach_id}, Pokémon ${row.pokemon_id}): ${inference.conflict}`;
-      const notes = reviewUpdates.get(row.match_id) || new Set();
-      notes.add(note);
-      reviewUpdates.set(row.match_id, notes);
-      if (verbose) console.log(`REVIEW S${season.season_number} match ${row.match_id}: ${note}`);
+      review.conflicts.add(`Mega item check (team ${row.season_coach_id}, Pokémon ${row.pokemon_id}): ${inference.conflict}`);
+      if (verbose) console.log(`REVIEW S${season.season_number} match ${row.match_id}: ${inference.conflict}`);
     }
+    reviewUpdates.set(row.match_id, review);
   }
 }
 
-if (!dryRun) {
-  const statements = itemUpdates.map((row) => ({
-    sql: "UPDATE match_pokemon SET revealed_items = ? WHERE id = ?",
-    args: [JSON.stringify(row.items), row.id],
-  }));
-  for (const [matchId, notes] of reviewUpdates) {
-    const existing = (await db.get("SELECT review_notes FROM matches WHERE id = ?", [matchId]))?.review_notes || "";
-    const merged = [...new Set([existing, ...notes].filter(Boolean))].join("\n");
+const statements = dryRun ? [] : itemUpdates.map((row) => ({
+  sql: "UPDATE match_pokemon SET revealed_items = ? WHERE id = ?",
+  args: [JSON.stringify(row.items), row.id],
+}));
+for (const [matchId, review] of reviewUpdates) {
+  const existingNotes = String(review.existingNotes || "")
+    .split(/\r?\n/)
+    .map((note) => note.trim())
+    .filter(Boolean);
+  const retainedNotes = existingNotes.filter((note) => {
+    const key = megaReviewKey(note);
+    return !key || !review.clearKeys.has(key);
+  });
+  review.staleNotesRemoved = retainedNotes.length !== existingNotes.length;
+  const mergedNotes = [...new Set([...retainedNotes, ...review.conflicts])];
+  const hasRetainedNotes = retainedNotes.length > 0;
+  const hasConflicts = review.conflicts.size > 0;
+  const nextNeedsReview = hasConflicts || hasRetainedNotes || (!review.existingNotes && review.existingNeedsReview);
+  const originalNotes = String(review.existingNotes || "").trim();
+  if (!dryRun && (nextNeedsReview !== review.existingNeedsReview || mergedNotes.join("\n") !== originalNotes)) {
     statements.push({
-      sql: "UPDATE matches SET needs_review = 1, review_notes = ? WHERE id = ?",
-      args: [merged || null, matchId],
+      sql: "UPDATE matches SET needs_review = ?, review_notes = ? WHERE id = ?",
+      args: [nextNeedsReview ? 1 : 0, mergedNotes.length > 0 ? mergedNotes.join("\n") : null, matchId],
     });
   }
+}
+if (!dryRun) {
   await db.batch(statements);
 }
 
 db.client.close();
 console.log(`${dryRun ? "Planned" : "Backfilled"} ${itemUpdates.length} Mega Stone item rows across ${seasons.length} season(s)`);
 console.log(`Scanned ${scanned} roster-linked Mega appearances; excluded ${rosterExcluded} Mega rows without historical roster confirmation`);
-console.log(`${dryRun ? "Planned" : "Flagged"} ${reviewUpdates.size} match review record(s) for conflicting item evidence`);
+const reviewConflictCount = [...reviewUpdates.values()].filter((review) => review.conflicts.size > 0).length;
+const staleReviewCount = [...reviewUpdates.values()].filter((review) => review.staleNotesRemoved).length;
+console.log(`${dryRun ? "Planned" : "Updated"} ${staleReviewCount} match review record(s) after removing stale Mega item notes`);
+console.log(`${dryRun ? "Would flag" : "Flagged"} ${reviewConflictCount} match review record(s) for remaining explicit item conflicts`);

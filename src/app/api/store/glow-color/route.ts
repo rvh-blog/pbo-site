@@ -7,7 +7,7 @@ import { getCosmeticColorData } from "@/lib/glow-utils";
 import { revalidateStoreCosmetics } from "@/lib/store-cache";
 
 // Available glow colors
-export const GLOW_COLORS = {
+const GLOW_COLORS = {
   // Division colors
   stargazer: { name: "Stargazer", color: "#3b82f6", glow: "rgba(59, 130, 246, 0.6)" },
   sunset: { name: "Sunset", color: "#fb923c", glow: "rgba(251, 146, 60, 0.6)" },
@@ -21,7 +21,7 @@ export const GLOW_COLORS = {
   white: { name: "White", color: "#f8fafc", glow: "rgba(248, 250, 252, 0.5)" },
 };
 
-export type GlowColorKey = keyof typeof GLOW_COLORS;
+type GlowColorKey = keyof typeof GLOW_COLORS;
 
 // POST /api/store/glow-color - set the glow color for team-name-glow purchase
 export async function POST(request: NextRequest) {

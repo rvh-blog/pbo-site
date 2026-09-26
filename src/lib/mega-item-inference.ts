@@ -50,6 +50,10 @@ function isCountableExplicitReveal(reveal: MegaItemReveal) {
     !isKnockedOffBerryReveal(reveal);
 }
 
+function itemKey(item: string) {
+  return item.trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
 /**
  * Infer a required held item for a row that was mapped to a historical roster
  * entry. Explicit replay evidence always wins; a contradictory item is
@@ -74,19 +78,19 @@ export function inferRequiredItemForRosterPokemon(
     return { expectedItem: null, itemKind: null, revealedItems, assumed: false, conflict: null };
   }
 
-  const expectedKey = expectedItem.toLowerCase();
+  const expectedKey = itemKey(expectedItem);
   const explicitReveals = revealedItems.filter(isCountableExplicitReveal);
   const assumedConflicts = revealedItems
     .filter((reveal) => isAssumedItemReveal(reveal.source))
-    .filter((reveal) => reveal.item.trim().toLowerCase() !== expectedKey);
+    .filter((reveal) => itemKey(reveal.item) !== expectedKey);
   const conflictingItems = [...new Set(
     [...explicitReveals, ...assumedConflicts]
       .map((reveal) => reveal.item.trim())
-      .filter((item) => item.toLowerCase() !== expectedKey),
+      .filter((item) => itemKey(item) !== expectedKey),
   )];
 
   const hasExpectedItem = revealedItems.some(
-    (reveal) => reveal.item.trim().toLowerCase() === expectedKey,
+    (reveal) => itemKey(reveal.item) === expectedKey,
   );
   let assumed = false;
   if (!hasExpectedItem && conflictingItems.length === 0) {

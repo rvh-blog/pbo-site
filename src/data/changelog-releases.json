@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-09-25-mega-stone-names-and-backfill",
+    "title": "Mega Stone Names and Season 11 Backfill",
+    "summary": "Correct canonical Mega Stone names and repair roster-confirmed replay item data without guessing unknown forms.",
+    "publishedAt": "2026-09-25",
+    "changes": [
+      { "type": "fixed", "text": "Corrected Mega Stone mappings for stored Mega forms, including Dragalge-Mega using Dragalgite, irregular Champions stones, and X/Y/Z variants." },
+      { "type": "fixed", "text": "Added stone-free Mega Rayquaza handling and stopped unknown Mega forms from receiving guessed item names." },
+      { "type": "improved", "text": "Season 11 Mega backfills now repair incorrect assumed items, fill missing roster-confirmed stones, preserve explicit replay evidence, and remove stale generated review notes." }
+    ]
+  },
+
+  {
     "sourceKey": "2026-09-23-api-data-safety-and-match-review",
     "title": "API Data Safety and Match Pokémon Review",
     "summary": "Protect account data in public API responses, bind pick-em writes to authenticated owners, and surface suspicious match Pokemon counts for manual admin review.",

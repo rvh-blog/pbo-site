@@ -1,5 +1,14 @@
 # Recent Website Updates
 
+## September 25, 2026 - Mega Stone Name Corrections and Season 11 Backfill
+
+- Corrected the canonical Mega Stone mapping for every stored Mega form, including Dragalge-Mega -> Dragalgite and irregular Champions names such as Dragoninite, Excadrite, Falinksite, Feraligite, Staraptite, Starminite, Tatsugirinite, Zeraorite, and Zygardite.
+- Added explicit X/Y/Z stone variants, stone-free Mega Rayquaza handling, and an unknown-form guard so the site no longer guesses a wrong "ite" name.
+- Updated Mega item inference and Tatsugiri form normalization so roster-confirmed replay backfills repair incorrect assumed items while preserving explicit replay evidence.
+- Updated the shared Season 11 backfill to remove stale generated Mega review notes and flag only remaining explicit conflicts.
+
+Verification: TypeScript, targeted ESLint, overlay sync, Mega roster matching, and a copied-database backfill fixture pass. No production database write was included in this release.
+
 ## September 18, 2026 - Speed Tour Registration and Draft Flow
 
 - Coaches now opt into a Speed Tour from the public registration lobby before
