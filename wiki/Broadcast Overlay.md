@@ -72,10 +72,11 @@ sidebar paths share the same behavior.
 
 When a Pokemon Mega Evolves and no item was explicitly revealed in the battle
 protocol, the shared `src/lib/mega-stones.ts` helper assumes the corresponding
-Mega Stone. Standard stone names and X/Y variants are mapped explicitly, while
-new/custom Mega forms use a form-name fallback. An explicitly revealed item
-always takes priority. The assumption is shown in both live overlay state and
-public match summaries.
+Mega Stone from the canonical species/form mapping. Standard stones, Champions
+stones, and X/Y/Z variants are mapped explicitly; unknown Mega forms are not
+assigned a guessed item name. An explicitly revealed item always takes
+priority. The assumption is shown in both live overlay state and public match
+summaries.
 
 Faint-event KO attribution is idempotent across playback. The shared battle
 state records the faint-event keys already used for individual KO attribution,

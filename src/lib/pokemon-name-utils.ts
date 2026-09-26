@@ -355,7 +355,11 @@ export function normalizePokemonName(name: string): string {
   if (normalized.startsWith("Squawkabilly-")) normalized = "Squawkabilly";
   if (normalized.startsWith("Zarude-")) normalized = "Zarude";
   if (normalized.startsWith("Minior-")) normalized = "Minior";
-  if (normalized.startsWith("Tatsugiri-")) normalized = "Tatsugiri";
+  // Tatsugiri's Curly, Droopy, and Stretchy Mega forms are separately
+  // draftable Champions entries. Preserve the Mega suffix so Mega-stone
+  // inference can distinguish the rostered form; ordinary Tatsugiri forms
+  // still collapse to the base species for matching.
+  if (normalized.startsWith("Tatsugiri-") && !normalized.endsWith("-Mega")) normalized = "Tatsugiri";
   if (normalized.startsWith("Basculegion-")) normalized = "Basculegion";
   if (normalized.startsWith("Maushold-")) normalized = "Maushold";
   if (normalized.startsWith("Sinistea-")) normalized = "Sinistea";
