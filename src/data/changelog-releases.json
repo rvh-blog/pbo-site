@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-10-02-retired-coach-flow-cleanup",
+    "title": "Coach Profile Cleanup",
+    "summary": "Removed a retired coach confirmation flow and its unused API route.",
+    "publishedAt": "2026-10-02",
+    "changes": [
+      { "type": "removed", "text": "Removed an inactive coach prompt, profile control, and update endpoint." }
+    ]
+  },
+  {
     "sourceKey": "2026-09-25-mega-stone-names-and-backfill",
     "title": "Mega Stone Names and Season 11 Backfill",
     "summary": "Correct canonical Mega Stone names and repair roster-confirmed replay item data without guessing unknown forms.",
