@@ -1513,7 +1513,7 @@ Historical replay data:
 
 Site copy:
 
-- User-facing copy received a site-wide static grammar pass covering punctuation, articles, plurals, capitalization, YouTube terminology, Pokemon terminology, playoff explanations, Project MEW, store rules, search and poll messages, Draft Planner instructions, and match-stat labels.
+- User-facing copy received a site-wide static grammar pass covering punctuation, articles, plurals, capitalization, YouTube terminology, Pokemon terminology, playoff explanations, store rules, search and poll messages, Draft Planner instructions, and match-stat labels.
 
 Preserved behavior:
 
@@ -1838,7 +1838,6 @@ Admin and engagement:
 - Engagement settings include betting closed, betting hidden, fantasy hidden, and blog hidden.
 - Infinity Division public visibility can be manually released or revealed on the scheduled date.
 - Admin audit logs were added for supported high-risk admin actions.
-- Project Mew has a timed release and confirmation/prompt flow.
 
 Replay analyzer and match pages:
 

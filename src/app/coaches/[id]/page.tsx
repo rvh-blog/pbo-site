@@ -15,12 +15,10 @@ import { MoveDataProvider, MoveDataToggleButton, MoveIcons } from "@/components/
 import { MobileTooltip } from "@/components/mobile-tooltip";
 import { CoachStoreButton } from "@/components/coach-store-button";
 import { LogoFrame } from "@/components/logo-frame";
-import { ProjectMewConfirmation } from "@/components/project-mew-confirmation";
 import { PollCard } from "@/components/poll-card";
 import { ShareButton } from "@/components/share-button";
 import { getSession } from "@/lib/session";
 import { getActivePoll } from "@/lib/polls";
-import { isProjectMewReleased } from "@/lib/project-mew";
 import { CHAMPION_GOLD_LOGO_FRAME_SLUG, isLogoFrameSlug, parseLogoFrameColors } from "@/lib/logo-frame-items";
 import { MATCH_COMPLETION_COINS, STARTING_COACH_COINS } from "@/lib/coin-config";
 import { getCoachProfileMilestones } from "@/lib/coach-milestones";
@@ -1023,12 +1021,6 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
   ) || coachSeasons[0];
   const selectedSeasonCoachId = selectedSeasonEntry?.id;
   const selectedSeasonId = selectedSeasonEntry?.division?.season?.id;
-  const projectMewReleased = isProjectMewReleased();
-  const canEditProjectMew =
-    projectMewReleased &&
-    (session?.isMod ||
-      (session?.type === "coach" && session.id === coachId));
-
   const coachStorePurchasesPromise = loadCoachStorePurchases(coachId);
 
   // Fetch shared data for placements and playoffs once - include txCounts and pokemonPrices
@@ -2124,14 +2116,6 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
             </div>
           </div>
         </div>
-        {canEditProjectMew && (
-          <div className="mt-4">
-            <ProjectMewConfirmation
-              coachId={coachId}
-              initialConfirmed={coach.projectMewConfirmed ?? false}
-            />
-          </div>
-        )}
       </div>
 
       {/* Stats Cards - Compact row on mobile, grid on desktop */}
