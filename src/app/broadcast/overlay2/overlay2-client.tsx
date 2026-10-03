@@ -881,6 +881,9 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
    SCOREBOARD
    ═══════════════════════════════════════════════ */
 
+const FINALS_GOLD_GRADIENT =
+  "linear-gradient(135deg, #7D510B 0%, #B67D13 20%, #E7C45F 40%, #FFF1A8 50%, #D3A12A 70%, #A66B0A 100%)";
+
 function GameClock({ startTime }: { startTime: number | null }) {
   const [mins, setMins] = useState(0);
 
@@ -911,11 +914,18 @@ function Scoreboard({
 }) {
   const t1abbr = leftTeam.teamAbbreviation || leftTeam.teamName.slice(0, 3).toUpperCase();
   const t2abbr = rightTeam.teamAbbreviation || rightTeam.teamName.slice(0, 3).toUpperCase();
+  const isFinals = weekLabel.toLowerCase() === "finals";
 
   return (
     <div
-      className="flex items-center justify-between h-20 px-8 bg-slate-950/90 backdrop-blur-xl rounded-b-2xl border-b-2 border-x-2 shadow-2xl relative overflow-hidden"
-      style={{ width: Math.max(viewportWidth, 1000), borderColor: divisionColor }}
+      className={`flex items-center justify-between h-20 px-8 bg-slate-950/90 backdrop-blur-xl ${isFinals ? "rounded-2xl border-t-2" : "rounded-b-2xl"} border-b-2 border-x-2 shadow-2xl relative overflow-hidden`}
+      style={{
+        width: Math.max(viewportWidth, 1000),
+        borderColor: isFinals ? "transparent" : divisionColor,
+        background: isFinals
+          ? `linear-gradient(rgba(2, 6, 23, 0.9), rgba(2, 6, 23, 0.9)) padding-box, ${FINALS_GOLD_GRADIENT} border-box`
+          : undefined,
+      }}
     >
       {/* Division color glow at top center */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-1 blur-[60px]" style={{ backgroundColor: divisionColor }} />
