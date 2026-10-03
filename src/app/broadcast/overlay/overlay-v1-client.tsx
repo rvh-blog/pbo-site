@@ -895,6 +895,9 @@ export function OverlayV1Client({ data, battleUrl, context, multiCast = false }:
    SCOREBOARD
    ═══════════════════════════════════════════════ */
 
+const FINALS_GOLD_GRADIENT =
+  "linear-gradient(135deg, #7D510B 0%, #B67D13 20%, #E7C45F 40%, #FFF1A8 50%, #D3A12A 70%, #A66B0A 100%)";
+
 function GameClock({ startTime }: { startTime: number | null }) {
   const [mins, setMins] = useState(0);
 
@@ -925,11 +928,17 @@ function Scoreboard({
 }) {
   const t1abbr = leftTeam.teamAbbreviation || leftTeam.teamName.slice(0, 3).toUpperCase();
   const t2abbr = rightTeam.teamAbbreviation || rightTeam.teamName.slice(0, 3).toUpperCase();
+  const isFinals = weekLabel.toLowerCase() === "finals";
 
   return (
     <div
-      className="rounded-xl border shadow-2xl overflow-hidden relative"
-      style={{ borderColor: `${divisionColor}44` }}
+      className={`rounded-xl ${isFinals ? "border-2" : "border"} shadow-2xl overflow-hidden relative`}
+      style={{
+        borderColor: isFinals ? "transparent" : `${divisionColor}44`,
+        background: isFinals
+          ? `linear-gradient(transparent, transparent) padding-box, ${FINALS_GOLD_GRADIENT} border-box`
+          : undefined,
+      }}
     >
       <div className="absolute inset-0 bg-[#020617]/75 rounded-xl" />
       <div className="absolute inset-0 bg-dots opacity-30 rounded-xl" />
