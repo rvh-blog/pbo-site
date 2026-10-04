@@ -23,6 +23,7 @@ import { getDexSpriteUrl, getGen5SpriteUrl, getGen5StaticSpriteUrl, getShowdownS
    ═══════════════════════════════════════════════ */
 
 const VIEWPORT_DEFAULT = { x: 360, y: 120, w: 1200, h: 675 };
+const FINALS_GOLD_ACCENT = "#D3A12A";
 
 /* ═══════════════════════════════════════════════
    Avatar Helpers
@@ -520,7 +521,8 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
     };
   }, [mounted]);
 
-  const divisionColor = data.divisionColor;
+  const isFinals = data.weekLabel.toLowerCase() === "finals";
+  const divisionColor = isFinals ? FINALS_GOLD_ACCENT : data.divisionColor;
 
   if (!mounted) return null;
 
@@ -841,7 +843,7 @@ export function Overlay2Client({ data, battleUrl, context, multiCast = false }: 
         onTogglePause={handleTogglePause}
         onNext={() => handleSeek(Math.min(effectiveMaxTurn, (reviewingTurn ?? battle.turn) + 1))}
         onLive={handleGoLive}
-        divisionColor={data.divisionColor}
+        divisionColor={divisionColor}
         viewportHovered={viewportHovered}
         viewportY={viewport.y}
         viewportH={viewport.h}
