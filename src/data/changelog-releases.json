@@ -1,5 +1,14 @@
 [
   {
+    "sourceKey": "2026-10-03-finals-metallic-gold-accents",
+    "title": "Finals Metallic Gold Accents",
+    "summary": "Both broadcast overlays use metallic gold for division-colored accents during Finals games.",
+    "publishedAt": "2026-10-03",
+    "changes": [
+      { "type": "improved", "text": "Applied the metallic gold accent color across both Finals overlays while preserving division colors for other games." }
+    ]
+  },
+  {
     "sourceKey": "2026-10-03-finals-metallic-gold-overlay-outline",
     "title": "Finals Broadcast Overlay Outline",
     "summary": "Broadcast scoreboards use a metallic gold outline for Finals matches while other games keep their division colors.",
