@@ -1,5 +1,37 @@
 [
   {
+    "sourceKey": "2026-10-08-match-context-stats-and-theme-contrast",
+    "title": "Match Context, Stats Filters, and Theme Contrast",
+    "summary": "Show team records in upcoming match previews, keep experimental reports scoped to user choices, improve payout activity refresh, and strengthen readability across themes.",
+    "publishedAt": "2026-10-08",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added current season win-loss records for both teams to upcoming match previews."
+      },
+      {
+        "type": "improved",
+        "text": "Experimental Stats reports now prompt for a search, filter, or selection before showing scoped data; Rare Events, Signature Stats, and Visual Lab retain their default views."
+      },
+      {
+        "type": "added",
+        "text": "Added the latest official replay date and downloadable Pokémon damage summaries by team and across the season."
+      },
+      {
+        "type": "fixed",
+        "text": "Recent Awards refreshes after multi-recipient payouts and sorts results consistently."
+      },
+      {
+        "type": "improved",
+        "text": "Applied theme-aware division labels and selected states, clearer chart and table text, and stronger focus indicators across light and dark themes."
+      },
+      {
+        "type": "improved",
+        "text": "Added related league navigation and larger touch targets on match and Pick-Ems pages."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-10-03-finals-metallic-gold-accents",
     "title": "Finals Metallic Gold Accents",
     "summary": "Both broadcast overlays use metallic gold for division-colored accents during Finals games.",

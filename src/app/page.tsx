@@ -40,6 +40,15 @@ function normalizeDivisionName(name: string) {
   return normalized === "infinty" ? "infinity" : normalized;
 }
 
+function getDivisionColor(name: string) {
+  const normalizedName = normalizeDivisionName(name);
+  const matchingDivision = Object.keys(DIVISION_COLORS).find(
+    (divisionName) => normalizeDivisionName(divisionName) === normalizedName
+  );
+
+  return matchingDivision ? DIVISION_COLORS[matchingDivision] : undefined;
+}
+
 type OffseasonChampion = {
   divisionId: number | null;
   divisionName: string;
@@ -692,7 +701,11 @@ function HomepageMatchupsPanel({
               style={{ borderColor: `${divisionColor}66`, boxShadow: `0 0 24px ${divisionColor}14` }}
             >
               <div className="border-b border-white/5 px-4 py-2 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: divisionColor }}>
+                <p
+                  className="theme-aware-division-label text-[10px] font-bold uppercase tracking-[0.18em]"
+                  data-division-label={normalizedDivisionName}
+                  style={{ color: divisionColor }}
+                >
                   {divisionLabel || "Division"} Division
                 </p>
               </div>
@@ -828,7 +841,8 @@ function UpcomingBattlesPanel({ battles }: { battles: UpcomingBattleItem[] }) {
 
                     {battle.divisionName && (
                       <span
-                        className="shrink-0 rounded px-2 py-1 text-[9px] font-bold uppercase sm:text-[10px]"
+                  className="theme-aware-division-label shrink-0 rounded px-2 py-1 text-[9px] font-bold uppercase sm:text-[10px]"
+                  data-division-label={normalizeDivisionName(battle.divisionName || "")}
                         style={divisionColor
                           ? { color: divisionColor, backgroundColor: `${divisionColor}15`, border: `1px solid ${divisionColor}30` }
                           : { backgroundColor: "var(--background-tertiary)", color: "var(--foreground-muted)" }
@@ -980,9 +994,9 @@ function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] 
         </Link>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {champions.map((champion) => {
-          const divColor = DIVISION_COLORS[champion.divisionName];
+          const divColor = getDivisionColor(champion.divisionName);
           const championContent = (
             <div
               className="h-full rounded-lg border bg-[var(--background)]/45 p-4 transition-all hover:-translate-y-0.5 hover:bg-[var(--background)]/70"
@@ -993,7 +1007,8 @@ function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] 
             >
               <div className="flex items-center justify-between gap-3 mb-4">
                 <span
-                  className="inline-flex px-2 py-1 text-[10px] font-bold uppercase rounded"
+                  className="theme-aware-division-label inline-flex px-2 py-1 text-[10px] font-bold uppercase rounded"
+                  data-division-label={normalizeDivisionName(champion.divisionName)}
                   style={divColor
                     ? { color: divColor, backgroundColor: `${divColor}18`, border: `1px solid ${divColor}35` }
                     : { color: "var(--foreground-muted)", backgroundColor: "var(--background-tertiary)" }
@@ -1490,7 +1505,8 @@ export default async function Home() {
                       <div className="shrink-0 w-[72px] text-center hidden sm:block">
                         {battle.divisionName && (
                           <span
-                            className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
+                            className="theme-aware-division-label inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
+                            data-division-label={normalizeDivisionName(battle.divisionName)}
                             style={divisionColor
                               ? { color: divisionColor, backgroundColor: `${divisionColor}15`, border: `1px solid ${divisionColor}30` }
                               : { backgroundColor: 'var(--background-tertiary)', color: 'var(--foreground-muted)' }

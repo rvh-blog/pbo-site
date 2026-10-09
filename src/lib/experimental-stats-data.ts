@@ -275,7 +275,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
     },
   });
 
-  const selectedEventMatch = replayMatches.find((match) => match.id === requestedMatchId) ?? replayMatches[0];
+  const selectedEventMatch = replayMatches.find((match) => match.id === requestedMatchId) ?? null;
   const eventMatchIds = module === "battle-visualizer"
     ? selectedEventMatch ? [selectedEventMatch.id] : []
     : replayMatches.map((match) => match.id);

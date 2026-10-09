@@ -134,6 +134,16 @@ return selected coach/user profile fields rather than full account records, and
 pick-em writes require the signed-in participant's identity and validate team
 and season ownership.
 
+### Match data review and public API safeguards
+
+Admin → Match Management includes a Pokemon Data Review queue for completed,
+non-forfeit matches where a team's recorded Pokemon count is not six. The
+queue is a warning for manual inspection only; it does not edit match results,
+set the separate `needsReview` flag, or write review notes. Public API queries
+return selected coach/user profile fields rather than full account records, and
+pick-em writes require the signed-in participant's identity and validate team
+and season ownership.
+
 ## Production Database
 
 The production SQLite database lives on the Fly volume at:

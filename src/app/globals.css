@@ -25,16 +25,19 @@
 
   /* Brand colors - Pokeball inspired */
   --primary: #dc2626;
+  --primary-text: #f87171;
   --primary-light: #f87171;
   --primary-dark: #991b1b;
   --primary-glow: rgba(220, 38, 38, 0.4);
 
   --secondary: #2563eb;
+  --secondary-text: #60a5fa;
   --secondary-light: #3b82f6;
   --secondary-dark: #1d4ed8;
   --secondary-glow: rgba(37, 99, 235, 0.4);
 
   --accent: #facc15;
+  --accent-text: #facc15;
   --accent-light: #fde047;
   --accent-glow: rgba(250, 204, 21, 0.4);
 
@@ -84,18 +87,23 @@ html[data-theme="light"] {
   --card-border: rgba(148, 163, 184, 0.55);
   --foreground: #0f172a;
   --foreground-muted: #475569;
-  --foreground-subtle: #64748b;
+  --foreground-subtle: #526277;
   --focus-ring: #1d4ed8;
+  --primary: #b91c1c;
+  --secondary: #1d4ed8;
+  --primary-text: #b91c1c;
+  --secondary-text: #1d4ed8;
   --primary-light: #b91c1c;
   --secondary-light: #1d4ed8;
   --primary-glow: rgba(220, 38, 38, 0.2);
   --secondary-glow: rgba(37, 99, 235, 0.2);
   --accent: #ca8a04;
+  --accent-text: #854d0e;
   --accent-light: #eab308;
   --accent-glow: rgba(202, 138, 4, 0.2);
-  --success: #15803d;
-  --warning: #a16207;
-  --error: #dc2626;
+  --success: #166534;
+  --warning: #854d0e;
+  --error: #b91c1c;
 }
 
 /* Compare slots use brighter accents on the navy theme and deeper shades on
@@ -167,6 +175,18 @@ html[data-theme="light"] :is(
   [style*="background"]
 ):is(.text-white, [class*="text-white/"]) {
   color: #fff;
+}
+
+[class*="text-[var(--accent)]"] {
+  color: var(--accent-text);
+}
+
+[class*="text-[var(--primary)]"] {
+  color: var(--primary-text);
+}
+
+[class*="text-[var(--secondary)]"] {
+  color: var(--secondary-text);
 }
 
 @theme inline {
@@ -1190,7 +1210,7 @@ details[open] > .mobile-collapsible-summary::after {
 .btn-ghost:hover {
   background: var(--glass);
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 /* Retro Section Title */
@@ -1485,7 +1505,7 @@ html[data-theme="light"] .score-display {
   font-weight: normal;
   font-size: 14px;
   letter-spacing: 0;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .elo-high {
@@ -1867,7 +1887,7 @@ html[data-theme="light"] .score-display {
 
 /* Shared interaction and feedback system */
 :where(a, button, input, select, textarea, summary):focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 85%, white);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
   border-radius: 0.35rem;
 }
@@ -2071,7 +2091,7 @@ html[data-theme="light"] .score-display {
 }
 
 .experimental-stats-readable th {
-  color: #aebbd0;
+  color: var(--foreground-subtle);
   font-size: 0.75rem;
   letter-spacing: 0.08em;
 }
@@ -2085,7 +2105,7 @@ html[data-theme="light"] .score-display {
 }
 
 .experimental-stats-readable .recharts-text {
-  fill: #aebbd0;
+  fill: var(--foreground-subtle);
   font-size: 0.75rem;
 }
 
@@ -2094,6 +2114,31 @@ html[data-theme="light"] .score-display {
   font-size: 18px;
   font-weight: 700;
   text-anchor: middle;
+}
+
+html[data-theme="light"] .theme-aware-division-label[data-division-label="infinity"] { color: #9d376f !important; }
+html[data-theme="light"] .theme-aware-division-label[data-division-label="stargazer"] { color: #1d4ed8 !important; }
+html[data-theme="light"] .theme-aware-division-label[data-division-label="sunset"] { color: #9a3412 !important; }
+html[data-theme="light"] .theme-aware-division-label[data-division-label="crystal"] { color: #7e22ce !important; }
+html[data-theme="light"] .theme-aware-division-label[data-division-label="neon"] { color: #166534 !important; }
+
+html:not([data-theme="light"]) .theme-aware-division-label[data-division-label="stargazer"] { color: #60a5fa !important; }
+
+html[data-theme="light"] .theme-aware-division-surface[aria-pressed="true"][data-division-label="infinity"] { --division-surface-color: #9d376f; }
+html[data-theme="light"] .theme-aware-division-surface[aria-pressed="true"][data-division-label="stargazer"] { --division-surface-color: #1d4ed8; }
+html[data-theme="light"] .theme-aware-division-surface[aria-pressed="true"][data-division-label="sunset"] { --division-surface-color: #9a3412; }
+html[data-theme="light"] .theme-aware-division-surface[aria-pressed="true"][data-division-label="crystal"] { --division-surface-color: #7e22ce; }
+html[data-theme="light"] .theme-aware-division-surface[aria-pressed="true"][data-division-label="neon"] { --division-surface-color: #166534; }
+html[data-theme="light"] .theme-aware-division-surface[aria-pressed="true"] {
+  color: #fff !important;
+  background-color: var(--division-surface-color) !important;
+  border-color: var(--division-surface-color) !important;
+}
+
+html:not([data-theme="light"]) .theme-aware-division-surface[aria-pressed="true"][data-division-label="stargazer"] {
+  color: #fff !important;
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
 }
 
 .experimental-stats-readable .recharts-tooltip-wrapper {

@@ -35,6 +35,11 @@ function getDivisionColor(name: string | null | undefined) {
   return colorKey ? DIVISION_COLORS[colorKey] : undefined;
 }
 
+function normalizeDivisionLabel(name: string | null | undefined) {
+  const normalizedName = name?.trim().toLowerCase() || "";
+  return normalizedName === "infinty" ? "infinity" : normalizedName;
+}
+
 function getDivisionBadgeStyle(name: string | null | undefined) {
   const color = getDivisionColor(name);
   return color
@@ -471,7 +476,8 @@ export default async function SeasonPage({ params }: PageProps) {
                 </div>
               )}
               <span
-                className="transition-colors group-hover:text-white"
+                className="theme-aware-division-label transition-colors group-hover:text-white"
+                data-division-label={normalizeDivisionLabel(div.name)}
                 style={{ color: divColor || "var(--foreground-muted)" }}
               >
                 {div.name}
@@ -518,7 +524,7 @@ export default async function SeasonPage({ params }: PageProps) {
                       style={{ borderLeftWidth: '3px', borderLeftColor: divColor || undefined }}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-sm" style={{ color: divColor || undefined }}>{div.name}</span>
+                        <span className="theme-aware-division-label font-bold text-sm" data-division-label={normalizeDivisionLabel(div.name)} style={{ color: divColor || undefined }}>{div.name}</span>
                         {champion ? (
                           <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
@@ -582,14 +588,16 @@ export default async function SeasonPage({ params }: PageProps) {
                         </div>
                       )}
                       <h2
-                        className="font-pixel text-sm"
+                        className="theme-aware-division-label font-pixel text-sm"
+                        data-division-label={normalizeDivisionLabel(div.name)}
                         style={{ color: divColor || "white" }}
                       >
                         {div.name}
                       </h2>
                     </div>
                     <div
-                      className="flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-bold uppercase transition-colors"
+                      className="theme-aware-division-label flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-bold uppercase transition-colors"
+                      data-division-label={normalizeDivisionLabel(div.name)}
                       style={divColor ? {
                         color: divColor,
                         backgroundColor: `${divColor}18`,
@@ -672,7 +680,7 @@ export default async function SeasonPage({ params }: PageProps) {
                       </table>
                       {standings.length > 4 && (
                         <Link href={`/seasons/${season.id}/divisions/${div.id}`} className="block mt-4 pt-4 border-t border-[var(--background-tertiary)] text-center hover:opacity-80 transition-opacity">
-                          <span className="text-xs font-bold" style={{ color: divColor || 'var(--foreground-muted)' }}>
+                          <span className="theme-aware-division-label text-xs font-bold" data-division-label={normalizeDivisionLabel(div.name)} style={{ color: divColor || 'var(--foreground-muted)' }}>
                             +{standings.length - 4} more teams
                           </span>
                         </Link>
@@ -793,7 +801,8 @@ export default async function SeasonPage({ params }: PageProps) {
                       <div className="shrink-0 w-[72px] text-center hidden sm:block">
                         {battle.divisionName && (
                           <span
-                            className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
+                            className="theme-aware-division-label inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
+                            data-division-label={normalizeDivisionLabel(battle.divisionName)}
                             style={getDivisionBadgeStyle(battle.divisionName)}
                           >
                             {battle.divisionName}
@@ -890,7 +899,8 @@ export default async function SeasonPage({ params }: PageProps) {
                       <div className="shrink-0 w-[72px] text-center hidden sm:block">
                         {battle.divisionName && (
                           <span
-                            className="inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
+                            className="theme-aware-division-label inline-block px-2 py-1 text-[10px] font-bold rounded uppercase"
+                            data-division-label={normalizeDivisionLabel(battle.divisionName)}
                             style={getDivisionBadgeStyle(battle.divisionName)}
                           >
                             {battle.divisionName}

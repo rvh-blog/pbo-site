@@ -171,7 +171,7 @@ export function EloChart({
             strokeDasharray="5 5"
             label={{
               value: `Peak: ${peakElo}`,
-              fill: "var(--accent)",
+              fill: "var(--accent-text)",
               fontSize: 11,
               position: "right",
             }}

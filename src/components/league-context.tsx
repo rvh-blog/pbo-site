@@ -48,7 +48,8 @@ export function LeagueJourney({ context: selection }: { context: LeagueContext }
     { href: `${division}#standings`, label: "Standings" },
     { href: `${division}#schedule`, label: "Schedule" },
     { href: `${division}/rosters`, label: "Rosters" },
-    { href: "/matchup-prep", label: "Scout opponent" },
+    { href: "/matchup-prep", label: "Matchup prep" },
+    { href: "/pick-ems", label: "Pick-Ems" },
     { href: "/compare", label: "Compare coaches" },
     { href: "/leaderboards/items", label: "Item stats" },
   ];

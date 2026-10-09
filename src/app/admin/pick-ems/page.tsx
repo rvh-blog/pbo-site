@@ -243,7 +243,7 @@ export default function AdminBettingPage() {
 
   async function fetchRecentRewards() {
     try {
-      const res = await fetch("/api/admin/trivia-rewards");
+      const res = await fetch("/api/admin/trivia-rewards", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setRecentRewards(data.rewards || []);
@@ -299,7 +299,7 @@ export default function AdminBettingPage() {
         setSelectedCoachIds([]);
         setTriviaAmount(String(MIN_PAYOUT_AMOUNT));
         setTriviaReason("");
-        fetchRecentRewards();
+        await fetchRecentRewards();
         fetchCoaches(); // Refresh coin balances
       } else {
         const error = await res.json();
@@ -634,7 +634,7 @@ export default function AdminBettingPage() {
             <div className="mt-4">
               <h4 className="text-sm font-bold text-[var(--foreground-muted)] mb-2">Recent Awards (This Season)</h4>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {recentRewards.slice(0, 10).map((reward) => (
+                {recentRewards.map((reward) => (
                   <div
                     key={reward.id}
                     className="flex items-center justify-between p-2 bg-[var(--background-secondary)] rounded text-sm"

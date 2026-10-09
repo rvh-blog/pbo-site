@@ -1,9 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
-import { matches, seasonPokemonPrices, eloHistory, transactions, coachPurchases, storeItems } from "@/lib/schema";
+import { matches, seasonCoaches, seasonPokemonPrices, eloHistory, transactions, coachPurchases, storeItems } from "@/lib/schema";
 import { eq, and, lt, desc, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { computeAndSortStandings } from "@/lib/standings-sort";
 import { MatchPreview } from "@/components/match-preview";
 import { VictoryAnimation } from "@/components/victory-animation";
 import { ScheduleEditor } from "@/components/schedule-editor";
@@ -11,6 +12,7 @@ import { ExpandablePokemonCard } from "@/components/expandable-pokemon-card";
 import { HpChart } from "@/components/hp-chart";
 import { DecidingTurnsPanel } from "@/components/deciding-turns-panel";
 import { ShareButton } from "@/components/share-button";
+import { LeagueJourney } from "@/components/league-context";
 import { getSession } from "@/lib/session";
 import {
   getMatchDecidingTurnsEditorHiddenKey,
@@ -60,6 +62,89 @@ async function getSeasonPokemonPrices(seasonId: number) {
   return await db.query.seasonPokemonPrices.findMany({
     where: eq(seasonPokemonPrices.seasonId, seasonId),
   });
+}
+
+async function getMatchTeamRecords(
+  seasonId: number,
+  divisionId: number,
+  team1Id: number,
+  team2Id: number,
+) {
+  const [divisionTeams, divisionMatches] = await Promise.all([
+    db.query.seasonCoaches.findMany({
+      where: eq(seasonCoaches.divisionId, divisionId),
+      columns: { id: true, isActive: true, replacedById: true },
+    }),
+    db.query.matches.findMany({
+      where: and(eq(matches.seasonId, seasonId), eq(matches.divisionId, divisionId)),
+      columns: {
+        week: true,
+        coach1SeasonId: true,
+        coach2SeasonId: true,
+        winnerId: true,
+        isForfeit: true,
+        coach1Differential: true,
+        coach2Differential: true,
+      },
+    }),
+  ]);
+
+  const replacementMap = new Map<number, number[]>();
+  for (const team of divisionTeams) {
+    if (!team.isActive && team.replacedById) {
+      const predecessors = replacementMap.get(team.replacedById) ?? [];
+      predecessors.push(team.id);
+      replacementMap.set(team.replacedById, predecessors);
+    }
+  }
+
+  const standings = computeAndSortStandings(
+    divisionTeams.filter((team) => team.isActive),
+    replacementMap,
+    divisionMatches,
+  );
+  const recordByTeamId = new Map(
+    standings.map((team) => [team.id, { wins: team.wins, losses: team.losses }]),
+  );
+  for (const [replacementId, predecessorIds] of replacementMap) {
+    const record = recordByTeamId.get(replacementId);
+    if (record) {
+      for (const predecessorId of predecessorIds) {
+        recordByTeamId.set(predecessorId, record);
+      }
+    }
+  }
+
+  const getRecord = (teamId: number) => {
+    const existingRecord = recordByTeamId.get(teamId);
+    if (existingRecord) return existingRecord;
+
+    // Retired teams without a replacement still need their own historical record.
+    let wins = 0;
+    let losses = 0;
+    for (const match of divisionMatches) {
+      if (
+        match.week > 100 ||
+        (match.winnerId !== null && match.winnerId !== match.coach1SeasonId && match.winnerId !== match.coach2SeasonId)
+      ) {
+        continue;
+      }
+
+      const teamIsCoach1 = match.coach1SeasonId === teamId;
+      const teamIsCoach2 = match.coach2SeasonId === teamId;
+      if (!teamIsCoach1 && !teamIsCoach2) continue;
+
+      if (match.winnerId === teamId) wins++;
+      else if (match.winnerId !== null || match.isForfeit) losses++;
+    }
+
+    return { wins, losses };
+  };
+
+  return {
+    team1: getRecord(team1Id),
+    team2: getRecord(team2Id),
+  };
 }
 
 // Get ELO change data for both coaches in this match
@@ -638,6 +723,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
     storeItemsList,
     session,
     allPurchases,
+    teamRecords,
     coach1TimeSyncedRoster,
     coach2TimeSyncedRoster,
     decidingTurnsEditorHiddenSetting,
@@ -657,6 +743,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
           ),
         })
       : Promise.resolve([]),
+    !isPlayed
+      ? getMatchTeamRecords(match.seasonId, match.divisionId, match.coach1SeasonId, match.coach2SeasonId)
+      : Promise.resolve(null),
     needsTimeSyncedRosters
       ? getTimeSyncedRoster(match.coach1SeasonId, match.week, coach1?.rosters || [])
       : Promise.resolve(null),
@@ -779,7 +868,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
             {!isPlayed && (
               <Link
                 href={`/broadcast?matchId=${matchId}`}
-                className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border-2 border-[var(--foreground-subtle)]/30 text-[var(--foreground-subtle)] hover:text-[var(--foreground-muted)] hover:border-[var(--foreground-subtle)]/50 transition-colors flex items-center justify-center"
+                aria-label="Open broadcast overlay"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border-2 border-[var(--foreground-subtle)]/30 px-2 text-[var(--foreground-subtle)] transition-colors hover:border-[var(--foreground-subtle)]/50 hover:text-[var(--foreground-muted)]"
                 title="Broadcast overlay"
               >
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -821,6 +911,11 @@ export default async function MatchDetailPage({ params }: PageProps) {
                   {coach1?.teamName}
                 </h2>
                 <p className="text-[10px] sm:text-sm text-[var(--foreground-muted)] truncate">{coach1?.coach?.name}</p>
+                {teamRecords && (
+                  <p className="mt-0.5 text-[9px] sm:text-xs font-mono font-semibold text-[var(--accent)]" aria-label={`Season record: ${teamRecords.team1.wins} wins, ${teamRecords.team1.losses} losses`}>
+                    Record: {teamRecords.team1.wins}-{teamRecords.team1.losses}
+                  </p>
+                )}
                 {isPlayed && eloChanges.coach1 ? (
                   <div className="flex items-center justify-center gap-1 sm:gap-1.5 mt-1 flex-wrap">
                     <span className="text-[10px] sm:text-xs text-[var(--foreground-muted)]">
@@ -908,7 +1003,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                       href={match.replayUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-bold rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors uppercase"
+                      className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg bg-[var(--primary)] px-3 text-[10px] font-bold uppercase text-white transition-colors hover:bg-[var(--primary-hover)] sm:gap-1.5 sm:px-4"
                     >
                       <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -921,7 +1016,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <>
                       <Link
                         href={`/matchup-prep?matchId=${matchId}`}
-                        className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-bold rounded-lg bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/30 hover:bg-[var(--accent)]/30 transition-colors uppercase"
+                        className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/20 px-3 text-[10px] font-bold uppercase text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/30 sm:gap-1.5 sm:px-4"
                       >
                         <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -958,6 +1053,11 @@ export default async function MatchDetailPage({ params }: PageProps) {
                   {coach2?.teamName}
                 </h2>
                 <p className="text-[10px] sm:text-sm text-[var(--foreground-muted)] truncate">{coach2?.coach?.name}</p>
+                {teamRecords && (
+                  <p className="mt-0.5 text-[9px] sm:text-xs font-mono font-semibold text-[var(--accent)]" aria-label={`Season record: ${teamRecords.team2.wins} wins, ${teamRecords.team2.losses} losses`}>
+                    Record: {teamRecords.team2.wins}-{teamRecords.team2.losses}
+                  </p>
+                )}
                 {isPlayed && eloChanges.coach2 ? (
                   <div className="flex items-center justify-center gap-1 sm:gap-1.5 mt-1 flex-wrap">
                     <span className="text-[10px] sm:text-xs text-[var(--foreground-muted)]">
@@ -999,6 +1099,18 @@ export default async function MatchDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      <LeagueJourney context={{
+        seasonId: match.seasonId,
+        seasonName: match.season?.name,
+        divisionId: match.divisionId,
+        divisionName: match.division?.name,
+        week: match.week,
+        teamId: session?.type === "coach"
+          ? session.id === coach1?.coachId ? coach1.id : session.id === coach2?.coachId ? coach2.id : undefined
+          : undefined,
+        matchId: match.id,
+      }} />
 
       {/* Match Content */}
       {isPlayed ? (

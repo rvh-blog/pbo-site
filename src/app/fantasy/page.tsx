@@ -1065,7 +1065,11 @@ export default async function FantasyPage({ searchParams }: { searchParams: Sear
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold text-white">{team.teamName}</div>
-                    <div className="text-[10px] font-bold uppercase" style={{ color: color ?? "var(--foreground-subtle)" }}>
+                    <div
+                      className="theme-aware-division-label text-[10px] font-bold uppercase"
+                      data-division-label={team.divisionName.trim().toLowerCase().replace("infinty", "infinity")}
+                      style={{ color: color ?? "var(--foreground-subtle)" }}
+                    >
                       {team.divisionName}
                     </div>
                   </div>

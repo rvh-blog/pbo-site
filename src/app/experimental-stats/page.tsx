@@ -16,6 +16,7 @@ import { and, eq, isNotNull, ne, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { matches } from "@/lib/schema";
 import { getSiteFeatureSettings } from "@/lib/site-settings";
+import { LocalTime } from "@/components/local-time";
 
 export const dynamic = "force-dynamic";
 
@@ -111,9 +112,13 @@ export default async function ExperimentalStatsPage() {
       or(eq(matches.winnerId, matches.coach1SeasonId), eq(matches.winnerId, matches.coach2SeasonId)),
       eq(matches.isForfeit, false),
     ),
-    columns: { id: true, seasonId: true, turnSnapshots: true },
+    columns: { id: true, seasonId: true, turnSnapshots: true, playedAt: true },
   });
   const seasonCount = new Set(replayRows.map((match) => match.seasonId)).size;
+  const latestReplayAt = replayRows
+    .map((match) => match.playedAt)
+    .filter((playedAt): playedAt is string => typeof playedAt === "string" && !Number.isNaN(new Date(playedAt).getTime()))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
   const timelineCount = replayRows.filter((match) => {
     if (!match.turnSnapshots) return false;
     try {
@@ -145,10 +150,11 @@ export default async function ExperimentalStatsPage() {
               </div>
               <Link href="/experimental-stats/pokemon?demo=1" className="btn-retro-primary mt-6 inline-flex items-center gap-2 px-4 py-3 text-[10px]"><Sparkles className="h-4 w-4" />Preview with demo stats</Link>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <div className="rounded-xl border border-violet-400/20 bg-[var(--background)]/75 p-4 backdrop-blur"><div className="font-mono text-2xl font-black text-white">{replayRows.length}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Official replays</div></div>
               <div className="rounded-xl border border-cyan-400/20 bg-[var(--background)]/75 p-4 backdrop-blur"><div className="font-mono text-2xl font-black text-white">{seasonCount}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Seasons covered</div></div>
-              <div className="col-span-2 rounded-xl border border-emerald-400/20 bg-[var(--background)]/75 p-4 backdrop-blur sm:col-span-1" title="Official non-forfeit replays with saved turn-by-turn team HP snapshots."><div className="font-mono text-2xl font-black text-white">{timelineCount}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">HP timeline replays</div><div className="mt-2 text-[9px] leading-3 text-[var(--foreground-subtle)]">Replays with saved turn-by-turn team HP data</div></div>
+              <div className="col-span-2 rounded-xl border border-emerald-400/20 bg-[var(--background)]/75 p-4 backdrop-blur lg:col-span-1" title="Official non-forfeit replays with saved turn-by-turn team HP snapshots."><div className="font-mono text-2xl font-black text-white">{timelineCount}</div><div className="mt-1 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">HP timeline replays</div><div className="mt-2 text-[9px] leading-3 text-[var(--foreground-subtle)]">Replays with saved turn-by-turn team HP data</div></div>
+              <div className="col-span-2 rounded-xl border border-amber-400/20 bg-[var(--background)]/75 p-4 backdrop-blur lg:col-span-1" title="Most recent official match with a saved replay URL and recorded result."><div className="text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Latest official replay</div><div className="mt-2 text-sm font-bold text-white">{latestReplayAt ? <LocalTime dateString={latestReplayAt} /> : "No match date recorded"}</div><div className="mt-1 text-[9px] leading-3 text-[var(--foreground-subtle)]">This reflects the latest recorded match date, not a data sync timestamp.</div></div>
             </div>
           </div>
         </div>

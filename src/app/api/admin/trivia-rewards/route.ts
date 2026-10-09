@@ -29,7 +29,8 @@ export async function GET() {
       with: {
         coach: { columns: { id: true, name: true, pboCoin: true } },
       },
-      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      orderBy: (t, { desc }) => [desc(t.createdAt), desc(t.id)],
+      limit: MAX_COACHES_PER_PAYOUT,
     });
 
     return NextResponse.json({ rewards });
