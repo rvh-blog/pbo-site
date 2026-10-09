@@ -1,5 +1,17 @@
 [
   {
+    "sourceKey": "2026-10-08-theme-hover-text-color-fix",
+    "title": "Theme Text Color Fix",
+    "summary": "Prevent hover accent styles from recoloring regular page text.",
+    "publishedAt": "2026-10-08",
+    "changes": [
+      {
+        "type": "fixed",
+        "text": "Fixed text colors so link and hover accents no longer recolor regular page text."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-10-08-match-context-stats-and-theme-contrast",
     "title": "Match Context, Stats Filters, and Theme Contrast",
     "summary": "Show team records in upcoming match previews, keep experimental reports scoped to user choices, improve payout activity refresh, and strengthen readability across themes.",
