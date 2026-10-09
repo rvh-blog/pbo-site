@@ -177,15 +177,15 @@ html[data-theme="light"] :is(
   color: #fff;
 }
 
-[class*="text-[var(--accent)]"] {
+[class~="text-[var(--accent)]"] {
   color: var(--accent-text);
 }
 
-[class*="text-[var(--primary)]"] {
+[class~="text-[var(--primary)]"] {
   color: var(--primary-text);
 }
 
-[class*="text-[var(--secondary)]"] {
+[class~="text-[var(--secondary)]"] {
   color: var(--secondary-text);
 }
 
