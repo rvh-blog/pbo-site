@@ -217,7 +217,8 @@ export function BattleRecordView({
           <div>
             <div className="border-b-2 border-[var(--background-tertiary)] p-3 sm:p-4">
               <div
-                className="mx-auto mb-3 max-w-4xl rounded-lg border px-4 py-3 text-center text-xs font-bold uppercase tracking-widest"
+                className="theme-aware-division-label mx-auto mb-3 max-w-4xl rounded-lg border px-4 py-3 text-center text-xs font-bold uppercase tracking-widest"
+                data-division-label={(divisionRecordName || "").trim().toLowerCase().replace("infinty", "infinity")}
                 style={{
                   borderColor: `${activeDivisionColor}80`,
                   backgroundColor: `${activeDivisionColor}12`,
@@ -237,7 +238,8 @@ export function BattleRecordView({
                       type="button"
                       onClick={() => setDivisionRecordName(division.divisionName)}
                       aria-pressed={active}
-                      className={`rounded-lg border-2 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest transition-colors sm:text-xs ${
+                      data-division-label={division.divisionName.trim().toLowerCase().replace("infinty", "infinity")}
+                      className={`theme-aware-division-label theme-aware-division-surface rounded-lg border-2 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest transition-colors sm:text-xs ${
                         active
                           ? "text-black"
                           : "bg-[var(--background-secondary)] hover:text-white"

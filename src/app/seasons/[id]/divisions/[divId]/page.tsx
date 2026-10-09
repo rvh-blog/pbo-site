@@ -435,6 +435,7 @@ export default async function DivisionPage({ params }: PageProps) {
 
   const divisionColor = getDivisionColor(division.name);
   const divisionShadow = getDivisionShadowColor(division.name);
+  const normalizedDivisionLabel = division.name.trim().toLowerCase().replace("infinty", "infinity");
 
   return (
     <div className="space-y-6">
@@ -464,7 +465,7 @@ export default async function DivisionPage({ params }: PageProps) {
                 {division.season?.name}
               </Link>
               <span className="text-[var(--foreground-subtle)]">/</span>
-              <span style={{ color: divisionColor }}>{division.name}</span>
+              <span className="theme-aware-division-label" data-division-label={normalizedDivisionLabel} style={{ color: divisionColor }}>{division.name}</span>
             </div>
 
             {/* Title */}
@@ -484,7 +485,8 @@ export default async function DivisionPage({ params }: PageProps) {
                 </div>
               )}
               <h1
-                className="font-pixel text-lg sm:text-xl md:text-2xl leading-relaxed"
+                className="theme-aware-division-label font-pixel text-lg sm:text-xl md:text-2xl leading-relaxed"
+                data-division-label={normalizedDivisionLabel}
                 style={{ color: divisionColor }}
               >
                 {division.name} Division
@@ -597,7 +599,7 @@ export default async function DivisionPage({ params }: PageProps) {
                         {index === 8 && standings.length > 8 && (
                           <div className="flex items-center gap-2 py-2">
                             <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, transparent, ${divisionColor}, transparent)` }} />
-                            <span className="text-[10px] font-bold uppercase tracking-wider whitespace-nowrap px-2" style={{ color: divisionColor }}>
+                            <span className="theme-aware-division-label text-[10px] font-bold uppercase tracking-wider whitespace-nowrap px-2" data-division-label={normalizedDivisionLabel} style={{ color: divisionColor }}>
                               Playoff Cutoff
                             </span>
                             <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, transparent, ${divisionColor}, transparent)` }} />

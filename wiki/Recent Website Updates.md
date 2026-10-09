@@ -1,4 +1,16 @@
-# Recent Website Updates
+## October 8, 2026 - Match Context, Experimental Stats, and Theme Readability
+
+- Upcoming match previews now show each team's current-season win-loss record.
+- Experimental Stats reports that need a scope now stay in a prompt state until a search, filter, or selection is made. Rare Events, Signature Stats, and Visual Lab keep their default views. The stats page also shows the latest official replay date and exports Pokémon damage summaries by team and across the season.
+- Multi-recipient PBO Coin payouts now refresh Recent Awards immediately and return results in stable newest-first order. Coach selection supports searching, checking multiple people, and selecting or clearing visible results.
+- Division labels use theme-aware colors across the homepage, season pages, Battle Record, Power Rankings, and Fantasy. Infinity spelling is normalized for its accent color, champion cards fit five across on wide layouts, and light/dark text, charts, selected states, and focus indicators have improved contrast.
+- Match and Pick-Ems pages provide League Journey links to related league views and larger touch targets.
+
+Verification: TypeScript, targeted ESLint, production build, and whitespace checks pass. No production database writes are required.
+
+## October 2, 2026 - Retired Coach Profile Cleanup
+
+- Removed the retired Project MEW confirmation prompt from coach profiles, along with its update API and state handling.
 
 ## September 25, 2026 - Mega Stone Name Corrections and Season 11 Backfill
 
@@ -8,6 +20,15 @@
 - Updated the shared Season 11 backfill to remove stale generated Mega review notes and flag only remaining explicit conflicts.
 
 Verification: TypeScript, targeted ESLint, overlay sync, Mega roster matching, and a copied-database backfill fixture pass. No production database write was included in this release.
+
+## September 23, 2026 - API Data Safety and Match Pokémon Review
+
+- Public API responses return only the coach and user fields each route needs.
+- Pick-Ems writes use the signed-in participant identity and validate ownership, season, and match-team relationships.
+- Admin Match Management warns about completed non-forfeit matches where a team has other than six recorded Pokémon; the warning does not change results or review notes.
+- Match season, division, and public visibility filters run in the database query.
+
+# Recent Website Updates
 
 ## September 18, 2026 - Speed Tour Registration and Draft Flow
 

@@ -40,6 +40,11 @@ function getDivisionColor(name: string | null | undefined) {
   return colorKey ? DIVISION_COLORS[colorKey] : "#64748b";
 }
 
+function normalizeDivisionLabel(name: string | null | undefined) {
+  const normalizedName = name?.trim().toLowerCase() || "";
+  return normalizedName === "infinty" ? "infinity" : normalizedName;
+}
+
 interface Season {
   id: number;
   name: string;
@@ -84,10 +89,12 @@ function SortableTeam({
   team,
   index,
   divisionColor,
+  divisionName,
 }: {
   team: RankingTeam;
   index: number;
   divisionColor: string;
+  divisionName: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: team.id });
@@ -122,7 +129,8 @@ function SortableTeam({
 
       {/* Rank Number */}
       <div
-        className="shrink-0 w-6 h-6 rounded flex items-center justify-center font-pixel text-[10px] font-bold"
+        className="theme-aware-division-label shrink-0 w-6 h-6 rounded flex items-center justify-center font-pixel text-[10px] font-bold"
+        data-division-label={normalizeDivisionLabel(divisionName)}
         style={{
           backgroundColor: `${divisionColor}20`,
           color: divisionColor,
@@ -286,11 +294,13 @@ export function PowerRankingsClient({ seasons, preloadedData }: Props) {
               return (
                 <button
                   key={div.id}
+                  data-division-label={normalizeDivisionLabel(div.name)}
+                  aria-pressed={isSelected}
                   onClick={() => {
                     setSelectedDivisionId(div.id);
                     setTeams(preloadedData[div.id] || []);
                   }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all border-2 ${
+                  className={`theme-aware-division-label flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all border-2 ${
                     isSelected
                       ? "text-white shadow-lg"
                       : "text-[var(--foreground-muted)] hover:text-white"
@@ -368,6 +378,7 @@ export function PowerRankingsClient({ seasons, preloadedData }: Props) {
                     team={team}
                     index={index}
                     divisionColor={divisionColor}
+                    divisionName={selectedDivision?.name || ""}
                   />
                 ))}
               </div>

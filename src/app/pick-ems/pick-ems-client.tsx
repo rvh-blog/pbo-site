@@ -8,6 +8,7 @@ import Image from "next/image";
 import { AuthModal } from "@/components/auth-modal";
 import { StoreModal } from "@/components/store-modal";
 import { MobileTooltip } from "@/components/mobile-tooltip";
+import { LeagueJourney } from "@/components/league-context";
 import { compareDivisions } from "@/lib/division-order";
 import { isCompletedMatchResult, isDoubleForfeitResult } from "@/lib/match-result-utils";
 import type { CoachOption } from "./page";
@@ -1313,6 +1314,14 @@ export function PickEmsClient({ season, coachOptions, initialWeek, initialDivisi
         </div>
       </div>
 
+      <LeagueJourney context={{
+        seasonId: season.id,
+        seasonName: season.name,
+        divisionId: selectedDivision ?? undefined,
+        divisionName: allDivisions.find((division) => division.id === selectedDivision)?.name,
+        week: selectedWeek ?? undefined,
+      }} />
+
       <div className="poke-card p-4 sm:p-5">
         <div className="section-title">
           <div className="section-title-icon">
@@ -1361,7 +1370,7 @@ export function PickEmsClient({ season, coachOptions, initialWeek, initialDivisi
           </p>
           <button
             onClick={() => setShowAuthModal(true)}
-            className="px-4 py-2 bg-[var(--primary)] text-white rounded-md hover:bg-[var(--primary)]/80"
+            className="min-h-11 rounded-md bg-[var(--primary)] px-4 py-2 text-white hover:bg-[var(--primary)]/80"
           >
             Sign In / Create Account
           </button>
@@ -2156,7 +2165,7 @@ export function PickEmsClient({ season, coachOptions, initialWeek, initialDivisi
                   <button
                     onClick={submitPicks}
                     disabled={submitting}
-                    className="px-4 py-2 bg-[var(--success)] text-white rounded-md hover:bg-[var(--success)]/80 disabled:opacity-50 text-sm font-bold shrink-0"
+                    className="min-h-11 shrink-0 rounded-md bg-[var(--success)] px-4 py-2 text-sm font-bold text-white hover:bg-[var(--success)]/80 disabled:opacity-50"
                   >
                     {submitting ? "Saving..." : "Save Picks"}
                   </button>
@@ -2176,7 +2185,7 @@ export function PickEmsClient({ season, coachOptions, initialWeek, initialDivisi
                         onClick={() => !locked && setSelectedWeek(week.week)}
                         disabled={locked}
                         title={locked ? "Opens when previous week has results" : undefined}
-                        className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${
+                        className={`min-h-11 rounded-md px-3 py-2 text-[10px] font-bold transition-all flex items-center gap-1.5 sm:px-3 sm:text-xs ${
                           locked
                             ? "bg-[var(--background-tertiary)]/50 text-[var(--foreground-muted)]/50 cursor-not-allowed"
                             : selectedWeek === week.week
@@ -2231,7 +2240,7 @@ export function PickEmsClient({ season, coachOptions, initialWeek, initialDivisi
                             <button
                               key={div.id}
                               onClick={() => setSelectedDivision(div.id)}
-                              className={`px-2 sm:px-3 py-1 rounded text-[10px] sm:text-xs font-medium transition-all flex items-center gap-1 sm:gap-1.5 whitespace-nowrap ${
+                              className={`min-h-11 whitespace-nowrap rounded px-3 py-2 text-[10px] font-medium transition-all flex items-center gap-1.5 sm:text-xs ${
                                 selectedDivision === div.id
                                   ? "bg-[var(--accent)] text-white"
                                   : "bg-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:text-white"
@@ -3505,7 +3514,7 @@ export function PickEmsClient({ season, coachOptions, initialWeek, initialDivisi
                   <button
                     onClick={submitPicks}
                     disabled={submitting}
-                    className="w-full px-4 py-3 bg-[var(--success)] text-white rounded-md hover:bg-[var(--success)]/80 disabled:opacity-50 font-bold"
+                     className="min-h-11 w-full rounded-md bg-[var(--success)] px-4 py-3 font-bold text-white hover:bg-[var(--success)]/80 disabled:opacity-50"
                   >
                     {submitting ? "Saving..." : "Save All Picks"}
                   </button>
