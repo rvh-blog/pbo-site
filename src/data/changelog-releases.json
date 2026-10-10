@@ -1,5 +1,21 @@
 [
   {
+    "sourceKey": "2026-10-10-experimental-stats-protocol-reports",
+    "title": "Season 5+ Protocol Reports in Experimental Stats",
+    "summary": "Added replay-derived switching, lead, and field-condition reports to Team Stats, with explicit coverage for saved protocol events.",
+    "publishedAt": "2026-10-10",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added Season 5 onward reports for opening leads, first appearances, switch-ins, revealed teams, weather, terrain, entry hazards, screens, Tailwind, Trick Room, and field-condition duration."
+      },
+      {
+        "type": "improved",
+        "text": "Added event coverage and glossary links so readers can see which saved replay events support each report. Reports recalculate from current saved events, so corrected match data is reflected on reload; missing historical events are not backfilled automatically."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-10-08-theme-hover-text-color-fix",
     "title": "Theme Text Color Fix",
     "summary": "Prevent hover accent styles from recoloring regular page text.",

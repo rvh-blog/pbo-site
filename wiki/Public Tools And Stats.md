@@ -218,6 +218,14 @@ Metric Glossary). The same group order is preserved when cards stack on mobile.
   one team side of the currently filtered matchup set, with values summarized
   across those matchups. Coach or team searches narrow the matchups first while
   keeping the opponent as a separate comparison row.
+- Team Stats also includes Season 5 onward protocol reports for opening leads,
+  lead matchups, first appearances, switch-ins, revealed teams, weather, terrain,
+  hazards, screens, Tailwind, Trick Room, and field-condition duration. Each
+  report shows its covered matches or event rows. These summaries are calculated
+  from the normalized events currently saved for each match and refresh on page
+  load, so correcting saved match events is reflected on the next load. Historical
+  coverage depends on which normalized event rows exist; enabling a report does
+  not backfill missing replay events.
 - Top Plays: replay-linked HP swings, comeback deficits, latest faint turns,
   and longest active appearances. Pokémon-specific records show the saved
   sprite(s) before the relevant Pokémon names when sprite evidence is available.
@@ -251,8 +259,10 @@ Visual Lab notes:
 Reports show sample size and field coverage. Profiles and rankings require at
 least three qualifying games; replay evidence remains searchable below that
 threshold. Missing saved fields are shown as unknown rather than treated as
-zero, and protocol-derived metrics remain marked pending until their
-calculation and backfill coverage are validated.
+zero. Available metrics have a defined report calculated from saved evidence
+and show coverage; partial metrics use a narrower saved proxy; protocol reports
+remain pending until their calculation and supporting event coverage are
+validated.
 
 On phones, the module selector and report controls stack to the available
 width. Dense tables keep their full columns inside an independent touch

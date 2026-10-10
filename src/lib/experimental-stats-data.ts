@@ -279,7 +279,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   const eventMatchIds = module === "battle-visualizer"
     ? selectedEventMatch ? [selectedEventMatch.id] : []
     : replayMatches.map((match) => match.id);
-  const totalTurnRows = module === "coaches" && eventMatchIds.length
+  const totalTurnRows = (module === "coaches" || module === "team-stats") && eventMatchIds.length
     ? await db.select({
       matchId: battleEvents.matchId,
       totalTurns: sql<number>`max(${battleEvents.turn})`,
@@ -297,7 +297,32 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         ...rareCounts.map((row) => ({ matchId: row.matchId, turn: 0, sequence: 0, eventType: row.eventType === "terastallize" ? "__tera_count" : "__switch_count", value: Number(row.count) })),
       ];
     })()
-    : includeTeamEventSummary
+    : module === "team-stats"
+      ? db.select({
+        matchId: battleEvents.matchId,
+        turn: battleEvents.turn,
+        sequence: battleEvents.sequence,
+        eventType: battleEvents.eventType,
+        player: battleEvents.player,
+        actorNickname: battleEvents.actorNickname,
+        pokemonName: battleEvents.pokemonName,
+        fieldName: battleEvents.fieldName,
+        rawLine: battleEvents.rawLine,
+      }).from(battleEvents).where(and(
+        inArray(battleEvents.matchId, eventMatchIds),
+        or(
+          eq(battleEvents.eventType, "switch"),
+          eq(battleEvents.eventType, "drag"),
+          eq(battleEvents.eventType, "faint"),
+          eq(battleEvents.eventType, "terastallize"),
+          eq(battleEvents.eventType, "weather"),
+          eq(battleEvents.eventType, "fieldstart"),
+          eq(battleEvents.eventType, "fieldend"),
+          eq(battleEvents.eventType, "sidestart"),
+          eq(battleEvents.eventType, "sideend"),
+        ),
+      )).orderBy(battleEvents.matchId, battleEvents.sequence).catch(() => [])
+      : includeTeamEventSummary
       ? db.select({
         matchId: battleEvents.matchId,
         turn: sql<number>`0`,
@@ -337,6 +362,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   }
 
   const seasonNames = new Map(seasons.map((season) => [season.id, season.name]));
+  const seasonNumbers = new Map(seasons.map((season) => [season.id, season.seasonNumber]));
   const divisionNames = new Map(divisions.map((division) => [division.id, division.name]));
   const dataset: ExperimentalStatsDataset = {
     currentSeasonId,
@@ -377,6 +403,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
       return {
         id: match.id,
         seasonId: match.seasonId,
+        seasonNumber: seasonNumbers.get(match.seasonId),
         seasonName: seasonNames.get(match.seasonId) ?? `Season ${match.seasonId}`,
         divisionId: match.divisionId,
         divisionName: divisionNames.get(match.divisionId) ?? "Unknown Division",
