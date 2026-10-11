@@ -25,6 +25,9 @@ import { getDistinctHeldItemNames, isTransferredItemReveal } from "@/lib/reveale
 import { isAssumedItemReveal } from "@/lib/mega-item-inference";
 import { countFavorableEvents, hasFavorableEventData, type FavorableEvent } from "@/lib/favorable-events";
 import { ExperimentalInsights } from "./experimental-insights";
+import { MoveOutcomesReport } from "./experimental-move-outcomes";
+import { StatusEventsReport } from "./experimental-status-events";
+import { ItemAbilityEventsReport } from "./experimental-item-ability-events";
 import { SignatureStatsReport } from "./experimental-signature-stats";
 import { TeamStatsReport, TopPlaysReport } from "./experimental-team-reports";
 import { ExperimentalVisualsReport } from "./experimental-visuals";
@@ -85,7 +88,7 @@ export interface ExperimentalMatch {
   p1IsCoach1: boolean | null;
   totalTurns?: number | null;
   turnSnapshots: Array<{ turn: number; p1TotalHp: number; p2TotalHp: number }>;
-  keyEvents: Array<{ turn: number; type: string; player?: "p1" | "p2"; pokemon?: string; cause?: string; killer?: string; move?: string }>;
+  keyEvents: Array<{ turn: number; type: string; player?: "p1" | "p2"; pokemon?: string; cause?: string; killer?: string; killerPlayer?: "p1" | "p2"; move?: string }>;
   battleEvents: ExperimentalBattleEvent[];
   coach1: { seasonCoachId: number; coachId: number; coachName: string; teamName: string; isActive: boolean; replacedById: number | null };
   coach2: { seasonCoachId: number; coachId: number; coachName: string; teamName: string; isActive: boolean; replacedById: number | null };
@@ -126,7 +129,7 @@ export interface ExperimentalStatsDataset {
   matches: ExperimentalMatch[];
 }
 
-export type ExperimentalClientModule = "pokemon" | "coaches" | "compare" | "insights" | "rolling" | "leaderboard" | "replays" | "visualizer" | "rare" | "signature-stats" | "team-stats" | "top-plays" | "visuals" | "glossary";
+export type ExperimentalClientModule = "pokemon" | "coaches" | "compare" | "insights" | "rolling" | "leaderboard" | "replays" | "visualizer" | "rare" | "move-outcomes" | "status-events" | "item-ability-events" | "signature-stats" | "team-stats" | "top-plays" | "visuals" | "glossary";
 type ModuleId = ExperimentalClientModule;
 type ResultFilter = "all" | "wins" | "losses";
 type StageFilter = "all" | "regular" | "playoffs";
@@ -195,6 +198,9 @@ const MODULES: Array<{ id: ModuleId; label: string; icon: typeof BarChart3 }> = 
   { id: "replays", label: "Replay Search", icon: Search },
   { id: "visualizer", label: "Battle Visualizer", icon: BarChart3 },
   { id: "rare", label: "Rare Events", icon: FlaskConical },
+  { id: "move-outcomes", label: "Move Outcomes", icon: BarChart3 },
+  { id: "status-events", label: "Status Events", icon: FlaskConical },
+  { id: "item-ability-events", label: "Item & Ability Events", icon: FlaskConical },
   { id: "signature-stats", label: "Signature Stats", icon: Sparkles },
   { id: "team-stats", label: "Team Stats", icon: BarChart3 },
   { id: "top-plays", label: "Top Plays", icon: Sparkles },
@@ -834,7 +840,9 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
     if (module === "compare") return selectedCompareA && selectedCompareB;
     if (module === "visualizer") return selectedVisualMatch;
     if (module === "replays") return hasAppliedSharedFilter;
-    if (module === "insights" || module === "leaderboard" || module === "team-stats" || module === "top-plays") return hasAppliedSharedFilter;
+    if (module === "status-events") return true;
+    if (module === "item-ability-events") return true;
+    if (module === "insights" || module === "leaderboard" || module === "move-outcomes" || module === "team-stats" || module === "top-plays") return hasAppliedSharedFilter;
     return true;
   })();
 
@@ -976,8 +984,11 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           {module === "rolling" && <ExpandedRollingModule pokemon={activePokemon} appearances={activePokemonAppearances} rows={pokemonRows} onSelect={setProfilePokemonId} />}
           {module === "leaderboard" && (hasAppliedSharedFilter ? <PresetLeaderboardModule rows={leaderboardEntity === "pokemon" ? pokemonRows : coachRows} entity={leaderboardEntity} setEntity={setLeaderboardEntity} perAppearance={leaderboardRate} setPerAppearance={setLeaderboardRate} minimumAppearances={deferredFilters.minimumAppearances} matches={filteredMatches} appearances={filteredAppearances} /> : <FilterPrompt />)}
           {module === "replays" && <ReplaySearchModule matches={filteredMatches} hasAppliedSharedFilter={hasAppliedSharedFilter} />}
-          {module === "visualizer" && <><div className="space-y-2"><BattleVisualizer matches={filteredMatches} selectedId={visualMatchId} onSelect={selectVisualMatch} />{selectedVisualMatch ? <div className="poke-card px-4 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Timeline axes: Turn / saved turn snapshots · Probability / win % · Item reveals / team HP remaining (%)</div> : null}</div>{selectedVisualMatch ? <EventAnalytics matches={filteredMatches} selectedId={visualMatchId} /> : null}</>}
+          {module === "visualizer" && <><div className="space-y-2"><BattleVisualizer matches={filteredMatches} selectedId={visualMatchId} onSelect={selectVisualMatch} />{selectedVisualMatch ? <div className="poke-card px-4 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">Timeline axes: Turn / saved turn snapshots · Probability / win % · Item reveals / team HP remaining (%)</div> : null}</div>{selectedVisualMatch ? <EventAnalytics matches={filteredMatches} selectedId={visualMatchId} /> : null}<ProtocolEventReports matches={filteredMatches} /></>}
           {module === "rare" && <><RareEventsModule matches={filteredMatches} appearances={filteredAppearances} /><EventRareRecords matches={filteredMatches} /></>}
+          {module === "move-outcomes" && (hasAppliedSharedFilter ? <MoveOutcomesReport matches={filteredMatches} seasons={dataset.seasons} selectedSeasonId={deferredFilters.seasonId} /> : <FilterPrompt />)}
+          {module === "status-events" && <StatusEventsReport matches={filteredMatches} seasons={dataset.seasons} selectedSeasonId={deferredFilters.seasonId} />}
+          {module === "item-ability-events" && <ItemAbilityEventsReport matches={filteredMatches} seasons={dataset.seasons} divisions={dataset.divisions} selectedSeasonId={deferredFilters.seasonId} selectedDivisionId={deferredFilters.divisionId} />}
           {module === "signature-stats" && <SignatureStatsReport appearances={filteredAppearances} minimumAppearances={deferredFilters.minimumAppearances} />}
           {module === "team-stats" && (hasAppliedSharedFilter ? <TeamStatsReport matches={filteredMatches} selectedTeamIds={selectedTeamIds} seasonTeams={dataset.seasonTeams ?? []} /> : <FilterPrompt />)}
           {module === "top-plays" && (hasAppliedSharedFilter ? <TopPlaysReport matches={filteredMatches} /> : <FilterPrompt />)}
@@ -1768,6 +1779,59 @@ function BattleImpactPanel({ match, series }: { match: ExperimentalMatch; series
   </div>;
 }
 
+function replaySideLabel(match: ExperimentalMatch, player: "p1" | "p2") {
+  if (match.p1IsCoach1 === null) return player === "p1" ? "Replay Player 1" : "Replay Player 2";
+  const isCoach1 = player === "p1" ? match.p1IsCoach1 : !match.p1IsCoach1;
+  return isCoach1 ? match.coach1.teamName : match.coach2.teamName;
+}
+
+function replayTurnLabel(turn: number) {
+  return turn > 0 ? `T${turn}` : "Before turn 1";
+}
+
+function SwitchSequenceNetwork({ match }: { match: ExperimentalMatch }) {
+  const sides = (["p1", "p2"] as const).map((player) => ({
+    player,
+    label: replaySideLabel(match, player),
+    entries: match.battleEvents
+      .filter((event) => event.player === player && (event.eventType === "switch" || event.eventType === "drag"))
+      .sort((a, b) => a.sequence - b.sequence || a.turn - b.turn),
+  }));
+  const totalEntries = sides.reduce((sum, side) => sum + side.entries.length, 0);
+
+  return <section className="poke-card p-5 md:p-6">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-pixel text-xs text-white">Switch sequence network</h3><p className="mt-1 max-w-3xl text-[10px] leading-4 text-[var(--foreground-muted)]">Each arrow connects consecutive explicit switch or forced-entry records for one replay side. The sequence reports recorded events without inferring strategy or unseen Pokémon.</p></div><span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wide text-cyan-200">{match.battleEvents.length ? `${totalEntries} recorded entries` : "Protocol data unavailable"}</span></div>
+    {!match.battleEvents.length ? <p className="mt-4 rounded-lg border border-amber-400/25 bg-amber-500/[0.06] p-3 text-[10px] text-amber-100/90">No normalized protocol events are saved for this replay, so the switch sequence is unknown.</p> : <div className="mt-4 grid gap-3 xl:grid-cols-2">{sides.map((side) => <div key={side.player} className="min-w-0 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><div className="mb-3 flex items-center justify-between gap-2"><h4 className="truncate text-[10px] font-black uppercase tracking-wide text-white">{side.label}</h4><span className="shrink-0 text-[9px] font-mono text-[var(--foreground-muted)]">{side.entries.length} entries</span></div>{side.entries.length ? <ol aria-label={`${side.label} recorded switch sequence`} className="flex flex-wrap items-center gap-x-2 gap-y-2">{side.entries.map((entry, index) => <li key={`${entry.sequence}-${index}`} className="flex max-w-full items-center gap-2"><span aria-hidden="true" className={`font-mono text-sm ${index ? "text-cyan-300" : "text-[var(--foreground-subtle)]"}`}>{index ? "→" : ""}</span><div className="min-w-28 max-w-full rounded-lg border border-cyan-400/20 bg-cyan-500/[0.06] px-2.5 py-2"><div className="text-[8px] font-black uppercase text-cyan-200">{replayTurnLabel(entry.turn)} · {entry.eventType === "drag" ? "Forced entry" : index === 0 ? "Opening lead" : "Switch-in"}</div><div className="mt-1 truncate text-[10px] font-bold text-white">{entry.pokemonName?.trim() || entry.actorNickname?.trim() || "Unknown Pokémon"}</div></div></li>)}</ol> : <p className="text-[10px] text-[var(--foreground-muted)]">No switch or drag entries were recorded for this side in the saved stream.</p>}</div>)}</div>}
+    <p className="mt-3 text-[9px] leading-4 text-[var(--foreground-subtle)]">Coverage is limited to the selected replay’s saved protocol events. An empty event stream is shown as unknown.</p>
+  </section>;
+}
+
+function FieldConditionTimeline({ match }: { match: ExperimentalMatch }) {
+  const transitions = [...match.battleEvents]
+    .filter((event) => ["weather", "fieldstart", "fieldend", "sidestart", "sideend"].includes(event.eventType))
+    .filter((event) => event.eventType !== "weather" || !/\[upkeep\]/i.test(event.rawLine))
+    .sort((a, b) => a.sequence - b.sequence || a.turn - b.turn)
+    .map((event) => {
+      const parts = event.rawLine.split("|");
+      const rawName = event.fieldName?.trim() || (event.eventType === "weather" ? parts[2] : parts[3])?.trim() || "Unknown condition";
+      const condition = rawName.replace(/^(?:move|ability):\s*/i, "");
+      const category = event.eventType === "weather" ? "Weather" : event.eventType === "fieldstart" || event.eventType === "fieldend" ? "Terrain / room" : "Screen / hazard / side condition";
+      const action = event.eventType === "weather"
+        ? condition.toLocaleLowerCase().replace(/[^a-z0-9]/g, "") === "none" ? "Cleared" : "Set or changed"
+        : event.eventType === "fieldstart" || event.eventType === "sidestart" ? "Started" : "Ended";
+      const side = (event.eventType === "sidestart" || event.eventType === "sideend") && event.player ? replaySideLabel(match, event.player) : null;
+      return { event, condition, category, action, side };
+    });
+  const visibleTransitions = transitions.slice(0, 160);
+
+  return <section className="poke-card p-5 md:p-6">
+    <div><h3 className="font-pixel text-xs text-white">Field-condition timeline</h3><p className="mt-1 max-w-3xl text-[10px] leading-4 text-[var(--foreground-muted)]">Recorded weather changes, terrain and room starts or ends, and side-condition transitions such as screens, Tailwind, and entry hazards. Weather upkeep ticks are omitted.</p></div>
+    {!match.battleEvents.length ? <p className="mt-4 rounded-lg border border-amber-400/25 bg-amber-500/[0.06] p-3 text-[10px] text-amber-100/90">No normalized protocol events are saved for this replay, so field-condition coverage is unknown.</p> : transitions.length ? <ol aria-label="Recorded field-condition transitions" className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">{visibleTransitions.map(({ event, condition, category, action, side }) => <li key={event.sequence} className="grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 sm:grid-cols-[90px_minmax(120px,0.7fr)_minmax(160px,1fr)_minmax(120px,0.8fr)] sm:items-center"><span className="font-mono text-[9px] text-cyan-200">{replayTurnLabel(event.turn)}</span><span className="text-[8px] font-black uppercase tracking-wide text-[var(--foreground-muted)]">{category}</span><span className="text-[10px] font-bold text-white">{condition}{side ? <span className="ml-1 font-normal text-[var(--foreground-muted)]">· {side}</span> : null}</span><span className={`text-[9px] font-black uppercase ${action === "Ended" || action === "Cleared" ? "text-amber-200" : "text-emerald-200"}`}>{action}</span><code className="break-all text-[8px] leading-4 text-[var(--foreground-subtle)] sm:col-span-4">{event.rawLine}</code></li>)}</ol> : <p className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 text-[10px] text-[var(--foreground-muted)]">No supported field-condition transitions were recorded in this saved protocol stream.</p>}
+    {transitions.length > visibleTransitions.length ? <p className="mt-3 text-[9px] text-[var(--foreground-muted)]">Showing the first {visibleTransitions.length} of {transitions.length} recorded transitions.</p> : null}
+    <p className="mt-3 text-[9px] leading-4 text-[var(--foreground-subtle)]">This timeline lists explicit protocol changes. It does not infer durations between events.</p>
+  </section>;
+}
+
 function BattleVisualizer({ matches, selectedId, onSelect }: { matches: ExperimentalMatch[]; selectedId: number | null; onSelect: (id: number) => void }) {
   const searchParams = useSearchParams();
   const requestedTurn = Number(searchParams.get("turn"));
@@ -1780,7 +1844,234 @@ function BattleVisualizer({ matches, selectedId, onSelect }: { matches: Experime
   const itemBuckets = [{ label: "1–5", min: 1, max: 5 }, { label: "6–10", min: 6, max: 10 }, { label: "11–15", min: 11, max: 15 }, { label: "16+", min: 16, max: 999 }].map((bucket) => ({ turn: bucket.label, reveals: heldItemRevealTurns.filter((turn) => turn >= bucket.min && turn <= bucket.max).length }));
   const chartEvents = match.keyEvents.filter((event): event is typeof event & { player: "p1" | "p2" } => (event.type === "faint" || event.type === "win") && Boolean(event.player)).map((event) => ({ ...event, type: event.type as "faint" | "win" }));
   const orientationKnown = match.p1IsCoach1 !== null;
-  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Battle visualizer</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Win probability, WPA key plays, clutch context, team HP, faint order, and item timing from saved replay evidence.</p></div><div className="flex max-w-full flex-wrap items-center justify-end gap-2"><select value={match.id} onChange={(event) => onSelect(Number(event.target.value))} className="max-w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{eligible.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.coach1.teamName} vs {candidate.coach2.teamName} · {candidate.seasonName} · {candidate.divisionName} · W{candidate.week}</option>)}</select>{!match.isDemo && match.replayUrl ? <Link href={match.replayUrl} target="_blank" rel="noopener noreferrer" className="btn-retro-secondary shrink-0 px-3 py-2 text-center text-[9px]">Open replay</Link> : null}</div></div>{!orientationKnown ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">The saved replay lacks a winner-to-player mapping event, so the HP lines are labeled by replay player rather than attributed to teams.</div> : null}<BattleProbabilityPanel match={match} /><div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><HpChart turnSnapshots={match.turnSnapshots} keyEvents={chartEvents} team1Name={orientationKnown ? match.coach1.teamName : "Replay Player 1"} team2Name={orientationKnown ? match.coach2.teamName : "Replay Player 2"} team1Color="#22d3ee" team2Color="#e879f9" p1IsCoach1={match.p1IsCoach1 ?? true} /></div><div className="mt-4 flex flex-wrap gap-2">{match.keyEvents.filter((event) => event.type === "faint").sort((a, b) => a.turn - b.turn).map((event, index) => <span key={`${event.turn}-${index}`} className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] text-red-200">T{event.turn} · {event.pokemon ?? "Unknown"} fainted</span>)}</div></div>{focusedSnapshot ? <div id="battle-turn" className="poke-card scroll-mt-24 p-5"><h3 className="font-pixel text-xs text-white">Selected play · Turn {focusedSnapshot.turn}</h3><p className="mt-3 text-sm">Replay Player 1: {number(focusedSnapshot.p1TotalHp / 6, 1)}% team HP · Replay Player 2: {number(focusedSnapshot.p2TotalHp / 6, 1)}% team HP</p><p className="mt-2 text-xs text-[var(--foreground-muted)]">Saved end-of-turn HP, normalized to a six-Pokémon team. See the full timeline above.</p></div> : null}<MatchPokemonBoxScore match={match} /><div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Item reveal timeline</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">First explicit saved held-item reveals; transferred Trick and Switcheroo items are excluded and unrevealed items remain unknown.</p><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={itemBuckets} margin={{ bottom: 24, left: 18 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis dataKey="turn" stroke="var(--foreground-muted)" label={{ value: "Turn", position: "insideBottom", offset: -16, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis allowDecimals={false} stroke="var(--foreground-muted)" label={{ value: "Item reveals", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="reveals" fill="#a78bfa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div></section>;
+  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-pixel text-sm text-white">Battle visualizer</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">Win probability, WPA key plays, clutch context, team HP, switch sequences, field conditions, faint timing, and item timing from saved replay evidence.</p></div><div className="flex max-w-full flex-wrap items-center justify-end gap-2"><select value={match.id} onChange={(event) => onSelect(Number(event.target.value))} className="max-w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] px-3 py-2 text-xs font-bold">{eligible.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.coach1.teamName} vs {candidate.coach2.teamName} · {candidate.seasonName} · {candidate.divisionName} · W{candidate.week}</option>)}</select>{!match.isDemo && match.replayUrl ? <Link href={match.replayUrl} target="_blank" rel="noopener noreferrer" className="btn-retro-secondary shrink-0 px-3 py-2 text-center text-[9px]">Open replay</Link> : null}</div></div>{!orientationKnown ? <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">The saved replay lacks a winner-to-player mapping event, so the HP lines are labeled by replay player rather than attributed to teams.</div> : null}<BattleProbabilityPanel match={match} /><div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3"><HpChart turnSnapshots={match.turnSnapshots} keyEvents={chartEvents} team1Name={orientationKnown ? match.coach1.teamName : "Replay Player 1"} team2Name={orientationKnown ? match.coach2.teamName : "Replay Player 2"} team1Color="#22d3ee" team2Color="#e879f9" p1IsCoach1={match.p1IsCoach1 ?? true} /></div><div className="mt-4 flex flex-wrap gap-2">{match.keyEvents.filter((event) => event.type === "faint").sort((a, b) => a.turn - b.turn).map((event, index) => <span key={`${event.turn}-${index}`} className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] text-red-200">T{event.turn} · {event.pokemon ?? "Unknown"} fainted</span>)}</div></div>{focusedSnapshot ? <div id="battle-turn" className="poke-card scroll-mt-24 p-5"><h3 className="font-pixel text-xs text-white">Selected play · Turn {focusedSnapshot.turn}</h3><p className="mt-3 text-sm">Replay Player 1: {number(focusedSnapshot.p1TotalHp / 6, 1)}% team HP · Replay Player 2: {number(focusedSnapshot.p2TotalHp / 6, 1)}% team HP</p><p className="mt-2 text-xs text-[var(--foreground-muted)]">Saved end-of-turn HP, normalized to a six-Pokémon team. See the full timeline above.</p></div> : null}<MatchPokemonBoxScore match={match} /><div className="poke-card p-5 md:p-6"><h3 className="font-pixel text-xs text-white">Item reveal timeline</h3><p className="mt-1 text-[10px] text-[var(--foreground-muted)]">First explicit saved held-item reveals; transferred Trick and Switcheroo items are excluded and unrevealed items remain unknown.</p><div className="mt-4 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={itemBuckets} margin={{ bottom: 24, left: 18 }}><CartesianGrid strokeDasharray="3 3" stroke="var(--background-tertiary)" /><XAxis dataKey="turn" stroke="var(--foreground-muted)" label={{ value: "Turn", position: "insideBottom", offset: -16, fill: "var(--foreground-muted)", fontSize: 10 }} /><YAxis allowDecimals={false} stroke="var(--foreground-muted)" label={{ value: "Item reveals", angle: -90, position: "insideLeft", fill: "var(--foreground-muted)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }} /><Bar dataKey="reveals" fill="#a78bfa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div><SwitchSequenceNetwork match={match} /><FieldConditionTimeline match={match} /></section>;
+}
+
+function protocolKey(value: string) {
+  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function protocolActorNickname(event: ExperimentalBattleEvent) {
+  if (event.actorNickname?.trim()) return event.actorNickname.trim();
+  return event.rawLine.split("|")[2]?.match(/^p[12][a-z]?:\s*(.+)$/i)?.[1]?.trim() ?? "";
+}
+
+function protocolAbilityName(event: ExperimentalBattleEvent) {
+  if (event.abilityName?.trim()) return event.abilityName.trim();
+  const taggedAbility = event.rawLine.split("|").slice(3).map((part) => part.match(/^ability:\s*(.+)$/i)?.[1]?.trim()).find(Boolean);
+  if (taggedAbility) return taggedAbility;
+  return event.eventType === "ability" ? event.rawLine.split("|")[3]?.trim() ?? "" : "";
+}
+
+function protocolStatusLabel(value: string) {
+  const labels: Record<string, string> = { brn: "Burn", frz: "Freeze", par: "Paralysis", psn: "Poison", slp: "Sleep", tox: "Toxic poison", confusion: "Confusion" };
+  return labels[protocolKey(value)] ?? value;
+}
+
+function protocolStatusName(event: ExperimentalBattleEvent) {
+  const value = event.statusName?.trim() || (event.eventType === "startEffect" ? event.fieldName?.trim() || event.rawLine.split("|")[3]?.trim() : event.rawLine.split("|")[3]?.trim()) || "";
+  return value.replace(/^(?:move|ability):\s*/i, "") ? protocolStatusLabel(value.replace(/^(?:move|ability):\s*/i, "")) : "";
+}
+
+function protocolFieldName(event: ExperimentalBattleEvent) {
+  const parts = event.rawLine.split("|");
+  const name = event.fieldName?.trim() || (event.eventType === "weather" ? parts[2] : parts[3])?.trim() || "Unknown condition";
+  return name.replace(/^(?:move|ability):\s*/i, "");
+}
+
+function protocolEventSignature(event: ExperimentalBattleEvent) {
+  if (["turn", "player", "poke", "start", "win", "chat", "timestamp"].includes(event.eventType)) return null;
+  const typeLabel = eventTypeLabel(event.eventType);
+  if (typeLabel === "Other protocol line") return null;
+  let detail = "";
+  if (event.eventType === "move") detail = event.moveName?.trim() || event.rawLine.split("|")[3]?.trim() || "";
+  else if (event.eventType === "item" || event.eventType === "enditem") detail = event.itemName?.trim() || event.rawLine.split("|")[3]?.trim() || "";
+  else if (["ability", "endability"].includes(event.eventType)) detail = protocolAbilityName(event);
+  else if (["status", "curestatus", "startEffect"].includes(event.eventType)) detail = protocolStatusName(event);
+  else if (["weather", "fieldstart", "fieldend", "sidestart", "sideend"].includes(event.eventType)) detail = protocolFieldName(event);
+  else if (["switch", "drag", "faint", "replace"].includes(event.eventType)) detail = event.pokemonName?.trim() || protocolActorNickname(event);
+  else if (event.eventType === "activate") detail = protocolAbilityName(event) || event.fieldName?.trim() || "";
+  const normalizedDetail = protocolKey(detail || typeLabel);
+  return { key: `${event.eventType}:${normalizedDetail}`, label: detail ? `${typeLabel} · ${detail}` : typeLabel };
+}
+
+function protocolSeasonNumber(match: ExperimentalMatch) {
+  if (typeof match.seasonNumber === "number") return match.seasonNumber;
+  return Number(match.seasonName.match(/(?:season|s)\s*(\d+)/i)?.[1] ?? 0);
+}
+
+function ProtocolEventReports({ matches }: { matches: ExperimentalMatch[] }) {
+  const [combinationSearch, setCombinationSearch] = useState("");
+  const [combinationLimit, setCombinationLimit] = useState(100);
+  const report = useMemo(() => {
+    type FailureRow = { match: ExperimentalMatch; team: string; failures: number; examples: string[] };
+    type ConditionPeak = { match: ExperimentalMatch; maximum: number; turn: number; conditions: string[] };
+    type StatusPeak = { match: ExperimentalMatch; status: string; affected: string[] };
+    type RareRecord = { key: string; label: string; occurrences: number; battles: Set<number>; examples: ExperimentalMatch[] };
+    type CombinationRecord = { key: string; category: string; pokemon: string; name: string; occurrences: number; battles: Set<number> };
+
+    const seasonMatches = matches.filter((match) => protocolSeasonNumber(match) >= 5);
+    const coveredMatches = seasonMatches.filter((match) => match.battleEvents.length > 0);
+    const failureRows: FailureRow[] = [];
+    const conditionPeaks: ConditionPeak[] = [];
+    const statusPeaks: StatusPeak[] = [];
+    const rareRecords = new Map<string, RareRecord>();
+    const combinations = new Map<string, CombinationRecord>();
+    const rareCoveredMatches = new Set<number>();
+    const combinationCoveredMatches = new Set<number>();
+    let failureEligibleMatches = 0;
+    let conditionCoveredMatches = 0;
+    let statusCoveredMatches = 0;
+
+    const addCombination = (match: ExperimentalMatch, category: string, pokemon: string, name: string) => {
+      if (!name.trim()) return;
+      const cleanPokemon = pokemon.trim() || "Unknown Pokémon";
+      const cleanName = name.trim();
+      const key = `${category}::${protocolKey(cleanPokemon)}::${protocolKey(cleanName)}`;
+      const record = combinations.get(key) ?? { key, category, pokemon: cleanPokemon, name: cleanName, occurrences: 0, battles: new Set<number>() };
+      record.occurrences += 1;
+      record.battles.add(match.id);
+      combinations.set(key, record);
+      combinationCoveredMatches.add(match.id);
+    };
+
+    for (const match of coveredMatches) {
+      const events = [...match.battleEvents].sort((a, b) => a.sequence - b.sequence || a.turn - b.turn);
+      if (match.winnerId !== null && match.p1IsCoach1 !== null) {
+        const winnerIsCoach1 = match.winnerId === match.coach1.seasonCoachId;
+        const winnerIsCoach2 = match.winnerId === match.coach2.seasonCoachId;
+        if (winnerIsCoach1 || winnerIsCoach2) {
+          failureEligibleMatches += 1;
+          const winningPlayer = winnerIsCoach1 === match.p1IsCoach1 ? "p1" : "p2";
+          const failures = events.filter((event) => event.eventType === "fail" && event.player === winningPlayer);
+          if (failures.length) {
+            const examples = [...new Set(failures.map((event) => event.rawLine.match(/move:\s*([^|\]]+)/i)?.[1]?.trim() || "Unnamed failure"))];
+            failureRows.push({ match, team: winnerIsCoach1 ? match.coach1.teamName : match.coach2.teamName, failures: failures.length, examples: examples.slice(0, 3) });
+          }
+        }
+      }
+
+      const conditionEvents = events.filter((event) => ["weather", "fieldstart", "fieldend", "sidestart", "sideend"].includes(event.eventType) && (event.eventType !== "weather" || !/\[upkeep\]/i.test(event.rawLine)));
+      if (conditionEvents.length) {
+        conditionCoveredMatches += 1;
+        const active = new Map<string, string>();
+        let maximum = 0;
+        let peakTurn = conditionEvents[0].turn;
+        let peakConditions: string[] = [];
+        for (const event of conditionEvents) {
+          const name = protocolFieldName(event);
+          const keyName = protocolKey(name);
+          if (event.eventType === "weather") {
+            if (keyName === "none") active.delete("weather");
+            else active.set("weather", `Weather · ${name}`);
+          } else if (event.eventType === "fieldstart") {
+            active.set(`field:${keyName}`, name);
+          } else if (event.eventType === "fieldend") {
+            active.delete(`field:${keyName}`);
+          } else {
+            const side = event.player ?? event.rawLine.split("|")[2]?.match(/^(p[12]):/i)?.[1]?.toLowerCase() ?? "unknown-side";
+            const key = `side:${side}:${keyName}`;
+            if (event.eventType === "sidestart") active.set(key, `${name} · ${side === "unknown-side" ? "side unknown" : replaySideLabel(match, side as "p1" | "p2")}`);
+            else active.delete(key);
+          }
+          if (active.size > maximum) {
+            maximum = active.size;
+            peakTurn = event.turn;
+            peakConditions = [...active.values()];
+          }
+        }
+        conditionPeaks.push({ match, maximum, turn: peakTurn, conditions: peakConditions });
+      }
+
+      const speciesByActor = new Map<string, string>();
+      const actorsByStatus = new Map<string, { name: string; actors: Map<string, string> }>();
+      for (const event of events) {
+        const actor = protocolActorNickname(event);
+        const actorKey = event.player && actor ? `${event.player}:${actor.toLocaleLowerCase()}` : null;
+        if (actorKey && ["switch", "drag", "replace", "formechange", "detailschange"].includes(event.eventType) && event.pokemonName) speciesByActor.set(actorKey, event.pokemonName);
+
+        let statusName = "";
+        if (event.eventType === "status") statusName = protocolStatusName(event);
+        else if (event.eventType === "startEffect" && protocolKey(protocolStatusName(event)) === "confusion") statusName = "Confusion";
+        if (statusName) {
+          const statusKey = protocolKey(statusName);
+          const status = actorsByStatus.get(statusKey) ?? { name: statusName, actors: new Map<string, string>() };
+          const actorIdentity = actorKey ?? `unknown:${event.sequence}`;
+          const pokemonName = (actorKey ? speciesByActor.get(actorKey) : null) || event.pokemonName || actor || `Unknown actor at ${replayTurnLabel(event.turn)}`;
+          status.actors.set(actorIdentity, pokemonName);
+          actorsByStatus.set(statusKey, status);
+        }
+
+        const pokemonName = (actorKey ? speciesByActor.get(actorKey) : null) || event.pokemonName || actor || "Unknown Pokémon";
+        if (event.eventType === "move") addCombination(match, "Move use", pokemonName, event.moveName || event.rawLine.split("|")[3]?.trim() || "");
+        if (event.eventType === "item") addCombination(match, "Item revealed", pokemonName, event.itemName || event.rawLine.split("|")[3]?.trim() || "");
+        if (event.eventType === "enditem") addCombination(match, "Item removed", pokemonName, event.itemName || event.rawLine.split("|")[3]?.trim() || "");
+        if (event.eventType === "ability") addCombination(match, "Ability announced", pokemonName, protocolAbilityName(event));
+        if (event.eventType === "activate" && protocolAbilityName(event)) addCombination(match, "Ability activation", pokemonName, protocolAbilityName(event));
+        if (event.eventType === "status") addCombination(match, "Status applied", pokemonName, protocolStatusName(event));
+        if (event.eventType === "curestatus") addCombination(match, "Status cured", pokemonName, protocolStatusName(event));
+        if (event.eventType === "startEffect" && protocolKey(protocolStatusName(event)) === "confusion") addCombination(match, "Confusion started", pokemonName, "Confusion");
+
+        if (event.eventType === "weather" && /\[upkeep\]/i.test(event.rawLine)) continue;
+        const signature = protocolEventSignature(event);
+        if (!signature) continue;
+        const record = rareRecords.get(signature.key) ?? { ...signature, occurrences: 0, battles: new Set<number>(), examples: [] };
+        record.occurrences += 1;
+        record.battles.add(match.id);
+        if (record.examples.length < 3 && !record.examples.some((example) => example.id === match.id)) record.examples.push(match);
+        rareRecords.set(signature.key, record);
+        rareCoveredMatches.add(match.id);
+      }
+      if (actorsByStatus.size) statusCoveredMatches += 1;
+      for (const status of actorsByStatus.values()) {
+        statusPeaks.push({ match, status: status.name, affected: [...status.actors.values()] });
+      }
+    }
+
+    const rareSorted = [...rareRecords.values()].map((record) => ({ ...record, battleCount: record.battles.size })).sort((a, b) => a.battleCount - b.battleCount || a.occurrences - b.occurrences || a.label.localeCompare(b.label));
+    const minimumRareBattleCount = rareSorted[0]?.battleCount ?? null;
+    const rarestTies = minimumRareBattleCount === null ? [] : rareSorted.filter((record) => record.battleCount === minimumRareBattleCount);
+    const combinationsSorted = [...combinations.values()].map((record) => ({ ...record, battleCount: record.battles.size })).sort((a, b) => b.occurrences - a.occurrences || a.category.localeCompare(b.category) || a.pokemon.localeCompare(b.pokemon) || a.name.localeCompare(b.name));
+    return {
+      seasonMatchCount: seasonMatches.length,
+      coveredMatchCount: coveredMatches.length,
+      failureEligibleMatches,
+      failureRows: failureRows.sort((a, b) => b.failures - a.failures || b.match.id - a.match.id),
+      conditionCoveredMatches,
+      conditionPeaks: conditionPeaks.sort((a, b) => b.maximum - a.maximum || b.match.id - a.match.id),
+      statusCoveredMatches,
+      statusPeaks: statusPeaks.sort((a, b) => b.affected.length - a.affected.length || a.status.localeCompare(b.status) || b.match.id - a.match.id),
+      rareCoveredMatches: rareCoveredMatches.size,
+      minimumRareBattleCount,
+      rarestSignatureCount: rarestTies.length,
+      rarestEvents: rarestTies.slice(0, 12),
+      combinationCoveredMatches: combinationCoveredMatches.size,
+      combinations: combinationsSorted,
+    };
+  }, [matches]);
+
+  const filteredCombinations = report.combinations.filter((record) => !combinationSearch || `${record.category} ${record.pokemon} ${record.name}`.toLocaleLowerCase().includes(combinationSearch.toLocaleLowerCase()));
+  const csvRows: Array<Array<string | number>> = [
+    ["Event record", "Pokemon", "Name", "Occurrences", "Battles"],
+    ...report.combinations.map((record) => [record.category, record.pokemon, record.name, record.occurrences, record.battleCount]),
+  ];
+
+  return <section className="poke-card space-y-5 p-5 md:p-6">
+    <div><h2 className="font-pixel text-sm text-white">Protocol pattern reports</h2><p className="mt-1 max-w-4xl text-xs leading-5 text-[var(--foreground-muted)]">These reports use explicit normalized events from the active filters and Season 5 onward. {report.coveredMatchCount.toLocaleString()} of {report.seasonMatchCount.toLocaleString()} matching replays have saved protocol rows; a missing event stream is unknown, not a zero.</p></div>
+
+    <div className="grid gap-4 xl:grid-cols-2">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-pixel text-[10px] text-white">Most explicit failures in a win</h3><span className="text-[9px] text-[var(--foreground-muted)]">{report.failureEligibleMatches} winner-mapped streams</span></div><p className="mt-2 text-[10px] leading-4 text-[var(--foreground-muted)]">Counts explicit |fail| records attributed to the winning replay side.</p>{report.failureRows.length ? <div className="mobile-scroll-region mt-3 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-[10px]"><thead className="text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="px-2 py-2">Winning match</th><th className="px-2 py-2">Team</th><th className="px-2 py-2">Failures</th><th className="px-2 py-2">Failure details</th></tr></thead><tbody>{report.failureRows.slice(0, 12).map((row) => <tr key={row.match.id} className="border-t border-[var(--border)]"><td className="px-2 py-2"><Link href={matchHref(row.match)} className="text-cyan-200 underline">{row.match.seasonName} W{row.match.week}</Link></td><td className="px-2 py-2 font-bold text-white">{row.team}</td><td className="px-2 py-2 font-mono">{row.failures}</td><td className="px-2 py-2 text-[var(--foreground-muted)]">{row.examples.join(", ")}</td></tr>)}</tbody></table></div> : <p className="mt-3 text-[10px] text-[var(--foreground-muted)]">No winning-side |fail| records were found in the mapped event streams.</p>}</div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-pixel text-[10px] text-white">Most simultaneous active conditions</h3><span className="text-[9px] text-[var(--foreground-muted)]">{report.conditionCoveredMatches} streams with condition transitions</span></div><p className="mt-2 text-[10px] leading-4 text-[var(--foreground-muted)]">Peak count of explicit weather, terrain/room, and side-condition tracks active at once; hazard layers of the same name on one side count as one track.</p>{report.conditionPeaks.length ? <div className="mobile-scroll-region mt-3 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-[10px]"><thead className="text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="px-2 py-2">Match</th><th className="px-2 py-2">Peak</th><th className="px-2 py-2">Turn</th><th className="px-2 py-2">Conditions recorded at peak</th></tr></thead><tbody>{report.conditionPeaks.slice(0, 12).map((row) => <tr key={row.match.id} className="border-t border-[var(--border)]"><td className="px-2 py-2"><Link href={matchHref(row.match)} className="text-cyan-200 underline">{row.match.seasonName} W{row.match.week}</Link></td><td className="px-2 py-2 font-mono text-white">{row.maximum}</td><td className="px-2 py-2 font-mono">{replayTurnLabel(row.turn)}</td><td className="px-2 py-2 text-[var(--foreground-muted)]">{row.conditions.length ? row.conditions.join(" · ") : "No active condition recorded at the observed peak"}</td></tr>)}</tbody></table></div> : <p className="mt-3 text-[10px] text-[var(--foreground-muted)]">No explicit field or side-condition transitions were found in covered streams.</p>}</div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-pixel text-[10px] text-white">Most Pokémon affected by the same status</h3><span className="text-[9px] text-[var(--foreground-muted)]">{report.statusCoveredMatches} streams with status applications</span></div><p className="mt-2 text-[10px] leading-4 text-[var(--foreground-muted)]">Counts distinct recorded Pokémon actors with the same explicit status application or confusion start in one replay.</p>{report.statusPeaks.length ? <div className="mobile-scroll-region mt-3 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-[10px]"><thead className="text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="px-2 py-2">Match</th><th className="px-2 py-2">Status</th><th className="px-2 py-2">Pokémon</th><th className="px-2 py-2">Recorded actors</th></tr></thead><tbody>{report.statusPeaks.slice(0, 12).map((row, index) => <tr key={`${row.match.id}-${protocolKey(row.status)}-${index}`} className="border-t border-[var(--border)]"><td className="px-2 py-2"><Link href={matchHref(row.match)} className="text-cyan-200 underline">{row.match.seasonName} W{row.match.week}</Link></td><td className="px-2 py-2 font-bold text-white">{row.status}</td><td className="px-2 py-2 font-mono">{row.affected.length}</td><td className="px-2 py-2 text-[var(--foreground-muted)]">{row.affected.slice(0, 6).join(", ")}{row.affected.length > 6 ? ` +${row.affected.length - 6} more` : ""}</td></tr>)}</tbody></table></div> : <p className="mt-3 text-[10px] text-[var(--foreground-muted)]">No explicit status applications or confusion starts were found in covered streams.</p>}</div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-pixel text-[10px] text-white">Battles containing the rarest explicit event</h3><span className="text-[9px] text-[var(--foreground-muted)]">{report.rareCoveredMatches} streams with recognized events</span></div><p className="mt-2 text-[10px] leading-4 text-[var(--foreground-muted)]">Rarity is measured by the number of filtered covered battles containing each normalized event signature. Tied rarest signatures: {report.rarestSignatureCount || 0}.</p>{report.rarestEvents.length ? <div className="mt-3 space-y-2">{report.rarestEvents.map((row) => <div key={row.key} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] px-3 py-2"><span className="text-[10px] font-bold text-white">{row.label}</span><span className="text-[9px] font-mono text-[var(--foreground-muted)]">{row.battleCount} battle{row.battleCount === 1 ? "" : "s"} · {row.occurrences} occurrence{row.occurrences === 1 ? "" : "s"}</span>{row.examples[0] ? <Link href={matchHref(row.examples[0])} className="text-[9px] text-cyan-200 underline">Example: {row.examples[0].seasonName} W{row.examples[0].week}</Link> : null}</div>)}</div> : <p className="mt-3 text-[10px] text-[var(--foreground-muted)]">No recognized explicit events were found in covered streams.</p>}{report.rarestSignatureCount > report.rarestEvents.length ? <p className="mt-2 text-[9px] text-[var(--foreground-subtle)]">Showing {report.rarestEvents.length} of {report.rarestSignatureCount} tied rarest signatures.</p> : null}</div>
+    </div>
+
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="font-pixel text-[10px] text-white">Exact frequency of recorded event combinations</h3><p className="mt-1 text-[10px] leading-4 text-[var(--foreground-muted)]">Counts explicit Pokémon × move, item reveal/removal, ability, and status records. CSV exports every combination in the active filtered scope.</p><p className="mt-1 text-[9px] text-[var(--foreground-subtle)]">{report.combinationCoveredMatches} matching replays contain at least one supported combination.</p></div><div className="flex flex-wrap gap-2"><input value={combinationSearch} onChange={(event) => { setCombinationSearch(event.target.value); setCombinationLimit(100); }} aria-label="Search event combinations" placeholder="Search Pokémon or event…" className="min-w-48 rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] px-3 py-2 text-[10px] text-white outline-none focus:border-cyan-300" /><button type="button" onClick={() => downloadCsv("pbo-protocol-event-combinations.csv", csvRows)} className="btn-retro-secondary px-3 py-2 text-[9px]">CSV</button></div></div>{filteredCombinations.length ? <div className="mobile-scroll-region mt-3 overflow-x-auto"><table className="w-full min-w-[620px] text-left text-[10px]"><thead className="text-[8px] uppercase text-[var(--foreground-muted)]"><tr><th className="px-2 py-2">Record type</th><th className="px-2 py-2">Pokémon</th><th className="px-2 py-2">Recorded name</th><th className="px-2 py-2">Occurrences</th><th className="px-2 py-2">Battles</th></tr></thead><tbody>{filteredCombinations.slice(0, combinationLimit).map((row) => <tr key={row.key} className="border-t border-[var(--border)]"><td className="px-2 py-2 text-violet-200">{row.category}</td><td className="px-2 py-2 font-bold text-white">{row.pokemon}</td><td className="px-2 py-2">{row.name}</td><td className="px-2 py-2 font-mono">{row.occurrences}</td><td className="px-2 py-2 font-mono">{row.battleCount}</td></tr>)}</tbody></table>{filteredCombinations.length > combinationLimit ? <button type="button" onClick={() => setCombinationLimit((limit) => limit + 100)} className="mt-3 text-[10px] font-bold text-cyan-200 underline">Show next 100 records</button> : null}<p className="mt-2 text-[9px] text-[var(--foreground-subtle)]">Showing {Math.min(filteredCombinations.length, combinationLimit)} of {filteredCombinations.length} matching combinations.</p></div> : <p className="mt-3 text-[10px] text-[var(--foreground-muted)]">No recorded move, item, ability, or status combinations match the current search.</p>}</div>
+    <p className="text-[9px] leading-4 text-[var(--foreground-subtle)]">All five reports are independent of Favorable Events. Missing protocol records remain unknown; the frequency catalog counts only names explicitly present in saved logs.</p>
+  </section>;
 }
 
 function RareEventsModule({ matches, appearances }: { matches: ExperimentalMatch[]; appearances: EnrichedAppearance[] }) {
@@ -1959,10 +2250,14 @@ const glossaryReports: Record<string, string> = {
   "Team and top-play reports": "team-stats",
 };
 
+const moveOutcomeReportMetrics = new Set(["Consecutive uses of the same move", "Failed moves", "Moves with no target", "Super-effective hits", "Resisted hits", "Immunities", "Multi-hit move hit counts", "Protect-family successes", "Protect-family failures", "Substitute creations", "Substitute breaks", "Recoil activations", "Drain activations"]);
+const statusEventReportMetrics = new Set(["Paralysis inflicted", "Poison and toxic poison inflicted", "Confusion activations", "Turns asleep", "Turns frozen", "Status cures", "Distinct statuses experienced by one Pokémon"]);
+const itemAbilityReportMetrics = new Set(["Items consumed", "Items knocked off", "Items stolen", "Items exchanged", "Berries activated", "Focus Sash activations", "Air Balloon pops", "Leftovers recovery activations", "Abilities revealed", "Ability reveal turn", "Ability activations", "Abilities copied", "Abilities swapped", "Intimidate activations"]);
 const battleGlossaryMetrics = new Set(["Battle win probability", "Win probability added", "Expected versus actual result", "Clutch / comeback indicator", "Key-play highlights", "Play-by-play center"]);
-const battleGlossaryVisuals = new Set(["Battle win probability", "Win probability added", "Key-play highlights", "Expected versus actual result", "Clutch / comeback card", "Play-by-play center"]);
+const battleGlossaryVisuals = new Set(["Battle win probability", "Win probability added", "Key-play highlights", "Expected versus actual result", "Clutch / comeback card", "Play-by-play center", "Switch sequence network", "Field-condition timeline"]);
+const protocolPatternReportMetrics = new Set(["Most explicit failures in a win", "Most simultaneous active conditions", "Most Pokémon affected by the same status", "Battles containing the rarest explicit event", "Exact frequency of every move/item/ability/status combination publicly revealed"]);
 const protocolTeamReportMetrics = new Set(["First Pokémon sent out", "Most common lead", "Lead matchup frequency", "Turn of each Pokémon's first appearance", "Latest Pokémon revealed", "Total switch-ins", "Most switch-ins by one Pokémon", "Pokémon that never switched out", "All six Pokémon revealed", "Weather activations", "Weather changes", "Weather duration", "Terrain activations", "Terrain duration", "Entry hazards placed", "Maximum hazard layers", "Hazards removed", "Reflect activations", "Light Screen activations", "Aurora Veil activations", "Tailwind activations", "Trick Room activations", "Field-condition duration"]);
-const relatedGlossaryReport = (metricName: string, groupName: string) => protocolTeamReportMetrics.has(metricName) ? "team-stats" : battleGlossaryMetrics.has(metricName) ? "battle-visualizer" : metricName === "Largest comeback deficit" || metricName === "Longest active Pokemon appearance" ? "top-plays" : glossaryReports[groupName];
+const relatedGlossaryReport = (metricName: string, groupName: string) => moveOutcomeReportMetrics.has(metricName) ? "move-outcomes" : statusEventReportMetrics.has(metricName) ? "status-events" : itemAbilityReportMetrics.has(metricName) ? "item-ability-events" : protocolTeamReportMetrics.has(metricName) ? "team-stats" : protocolPatternReportMetrics.has(metricName) || battleGlossaryMetrics.has(metricName) ? "battle-visualizer" : metricName === "Largest comeback deficit" || metricName === "Longest active Pokemon appearance" ? "top-plays" : glossaryReports[groupName];
 const relatedGlossaryVisual = (visualName: string) => visualName === "Rare Event Explorer" ? "rare-events" : battleGlossaryVisuals.has(visualName) || ["Item reveal timeline", "Battle event timeline"].includes(visualName) ? "battle-visualizer" : visualName === "Status dashboard" ? "pokemon" : "visuals";
 
 type GlossaryModuleProps = { search: string; setSearch: (value: string) => void };
@@ -1973,7 +2268,7 @@ function GlossaryModuleLegacy({ search, setSearch }: GlossaryModuleProps) {
   const visuals = experimentalVisualDefinitions.filter((visual) => !query || `${visual.name} ${visual.description}`.toLowerCase().includes(query));
   const counts = experimentalMetricGroups.flatMap((group) => group.metrics).reduce((result, metric) => ({ ...result, [metric.availability]: result[metric.availability] + 1 }), { available: 0, partial: 0, "event-storage": 0 });
   const badge = (availability: "available" | "partial" | "event-storage") => availability === "available" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : availability === "partial" ? "bg-amber-500/10 text-amber-200 border-amber-500/30" : "bg-slate-500/10 text-slate-300 border-slate-500/30";
-  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Metric glossary and coverage</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">“Available” has a report calculated from saved replay evidence, and its coverage is shown in that report. “Partial” uses a narrower saved proxy. “Protocol report pending” means normalized events may support it, but the calculation or backfill coverage has not yet been validated for an official report.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><StatCard label="Available" value={String(counts.available)} /><StatCard label="Partial" value={String(counts.partial)} /><StatCard label="Protocol reports pending" value={String(counts["event-storage"])} /></div><div className="relative mt-5"><Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--foreground-muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search metrics and visuals" placeholder="Search metrics and visuals…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] py-2 pl-10 pr-3 text-sm outline-none focus:border-[var(--primary)]" /></div></div>{!groups.length && !visuals.length ? <div role="status" className="poke-card p-5 text-sm">No metrics or visuals match “{search}”. <button type="button" onClick={() => setSearch("")} className="text-cyan-300 underline">Clear search</button></div> : null}{groups.map((group) => <div key={group.label} data-glossary-group={group.label} className="poke-card p-5"><h3 className="font-pixel text-xs text-white">{group.label}</h3><div className="mt-4 grid gap-2">{group.metrics.map((metric) => <div key={metric.name} id={glossaryId(metric.name)} className="scroll-mt-24 grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 md:grid-cols-[minmax(190px,0.8fr)_auto_minmax(260px,1.2fr)] md:items-center"><span className="text-xs font-bold text-white">{metric.name}</span><span className={`w-fit rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide ${badge(metric.availability)}`}>{metric.availability === "event-storage" ? "Protocol report pending" : metric.availability}</span><span className="text-[10px] leading-4 text-[var(--foreground-muted)]">{metric.definition}{metric.availability !== "event-storage" && (glossaryReports[group.label] || protocolTeamReportMetrics.has(metric.name)) ? <Link href={`/experimental-stats/${relatedGlossaryReport(metric.name, group.label)}`} className="mt-2 block text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</span></div>)}</div></div>)}<div className="poke-card p-5"><h3 className="font-pixel text-xs text-white">Niche visuals</h3>{!visuals.length ? <p className="mt-3 text-xs text-[var(--foreground-muted)]">No visuals match this search.</p> : null}<div className="mt-4 grid gap-3 md:grid-cols-2">{visuals.map((visual) => <div key={visual.name} className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex items-center justify-between gap-2"><strong className="text-sm text-white">{visual.name}</strong><span className={`rounded-full border px-2 py-1 text-[8px] font-black uppercase ${badge(visual.availability)}`}>{visual.availability === "event-storage" ? "Protocol report pending" : visual.availability}</span></div><p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">{visual.description}</p>{visual.availability !== "event-storage" ? <Link href={`/experimental-stats/${relatedGlossaryVisual(visual.name)}`} className="mt-3 inline-block text-xs text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</div>)}</div></div></section>;
+  return <section className="space-y-6"><div className="poke-card p-5 md:p-6"><h2 className="font-pixel text-sm text-white">Metric glossary and coverage</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--foreground-muted)]">“Available” has a report calculated from saved replay evidence, and its coverage is shown in that report. “Partial” uses a narrower saved proxy. “Protocol report pending” means normalized events may support it, but the calculation or backfill coverage has not yet been validated for an official report.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><StatCard label="Available" value={String(counts.available)} /><StatCard label="Partial" value={String(counts.partial)} /><StatCard label="Protocol reports pending" value={String(counts["event-storage"])} /></div><div className="relative mt-5"><Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--foreground-muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search metrics and visuals" placeholder="Search metrics and visuals…" className="w-full rounded-lg border-2 border-[var(--background-tertiary)] bg-[var(--background)] py-2 pl-10 pr-3 text-sm outline-none focus:border-[var(--primary)]" /></div></div>{!groups.length && !visuals.length ? <div role="status" className="poke-card p-5 text-sm">No metrics or visuals match “{search}”. <button type="button" onClick={() => setSearch("")} className="text-cyan-300 underline">Clear search</button></div> : null}{groups.map((group) => <div key={group.label} data-glossary-group={group.label} className="poke-card p-5"><h3 className="font-pixel text-xs text-white">{group.label}</h3><div className="mt-4 grid gap-2">{group.metrics.map((metric) => <div key={metric.name} id={glossaryId(metric.name)} className="scroll-mt-24 grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3 md:grid-cols-[minmax(190px,0.8fr)_auto_minmax(260px,1.2fr)] md:items-center"><span className="text-xs font-bold text-white">{metric.name}</span><span className={`w-fit rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide ${badge(metric.availability)}`}>{metric.availability === "event-storage" ? "Protocol report pending" : metric.availability}</span><span className="text-[10px] leading-4 text-[var(--foreground-muted)]">{metric.definition}{metric.availability !== "event-storage" && (glossaryReports[group.label] || protocolTeamReportMetrics.has(metric.name) || statusEventReportMetrics.has(metric.name)) ? <Link href={`/experimental-stats/${relatedGlossaryReport(metric.name, group.label)}`} className="mt-2 block text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</span></div>)}</div></div>)}<div className="poke-card p-5"><h3 className="font-pixel text-xs text-white">Niche visuals</h3>{!visuals.length ? <p className="mt-3 text-xs text-[var(--foreground-muted)]">No visuals match this search.</p> : null}<div className="mt-4 grid gap-3 md:grid-cols-2">{visuals.map((visual) => <div key={visual.name} className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"><div className="flex items-center justify-between gap-2"><strong className="text-sm text-white">{visual.name}</strong><span className={`rounded-full border px-2 py-1 text-[8px] font-black uppercase ${badge(visual.availability)}`}>{visual.availability === "event-storage" ? "Protocol report pending" : visual.availability}</span></div><p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">{visual.description}</p>{visual.availability !== "event-storage" ? <Link href={`/experimental-stats/${relatedGlossaryVisual(visual.name)}`} className="mt-3 inline-block text-xs text-cyan-300 underline underline-offset-4">Open related report →</Link> : null}</div>)}</div></div></section>;
 }
 
 function GlossaryModule(props: GlossaryModuleProps) {
