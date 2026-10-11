@@ -7,7 +7,7 @@ import type { ExperimentalStatsDataset } from "@/app/experimental-stats/experime
 import { createExperimentalDemoDataset } from "@/lib/experimental-stats-demo";
 import { inferRequiredItemForRosterPokemon } from "@/lib/mega-item-inference";
 
-export type ExperimentalModuleSlug = "pokemon" | "coaches" | "compare" | "insights" | "trends" | "leaderboards" | "replays" | "battle-visualizer" | "rare-events" | "signature-stats" | "team-stats" | "top-plays" | "visuals" | "glossary";
+export type ExperimentalModuleSlug = "pokemon" | "coaches" | "compare" | "insights" | "trends" | "leaderboards" | "replays" | "battle-visualizer" | "rare-events" | "move-outcomes" | "status-events" | "item-ability-events" | "signature-stats" | "team-stats" | "top-plays" | "visuals" | "glossary";
 
 export interface ExperimentalUrlFilters {
   seasonId: number | "all";
@@ -26,7 +26,7 @@ export interface ExperimentalUrlFilters {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 type TurnSnapshot = { turn: number; p1TotalHp: number; p2TotalHp: number };
-type KeyEvent = { turn: number; type: string; player?: "p1" | "p2"; pokemon?: string; cause?: string; killer?: string; move?: string };
+type KeyEvent = { turn: number; type: string; player?: "p1" | "p2"; pokemon?: string; cause?: string; killer?: string; killerPlayer?: "p1" | "p2"; move?: string };
 type EventQueryRow = {
   matchId: number;
   turn: number;
@@ -157,7 +157,7 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   const filters = parseExperimentalFilters(searchParams, currentSeasonId);
   const requestedMatchId = positiveNumber(first(searchParams.match), 0);
   if (module === "coaches" && first(searchParams.forfeits) === undefined) filters.includeForfeits = true;
-  if (!first(searchParams.season) && (module === "pokemon" || module === "coaches" || module === "insights" || module === "signature-stats" || module === "team-stats" || module === "top-plays" || module === "visuals")) {
+  if (!first(searchParams.season) && (module === "pokemon" || module === "coaches" || module === "insights" || module === "move-outcomes" || module === "status-events" || module === "item-ability-events" || module === "signature-stats" || module === "team-stats" || module === "top-plays" || module === "visuals")) {
     filters.seasonId = "all";
   }
   const demoMode = first(searchParams.demo) === "1";
@@ -193,8 +193,8 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
   // Full timelines are large, so only send them to reports that draw or inspect
   // them. Other modules still receive a compact final-turn value.
   const includeTimeline = module === "insights" || module === "battle-visualizer" || module === "rare-events" || module === "top-plays" || module === "visuals";
-  const includeKeyEvents = includeTimeline || module === "leaderboards" || module === "team-stats" || module === "coaches";
-  const includeProtocolEvents = module === "battle-visualizer" || module === "rare-events" || module === "team-stats" || module === "visuals" || module === "coaches";
+  const includeKeyEvents = includeTimeline || module === "leaderboards" || module === "move-outcomes" || module === "team-stats" || module === "coaches";
+  const includeProtocolEvents = module === "battle-visualizer" || module === "rare-events" || module === "move-outcomes" || module === "status-events" || module === "item-ability-events" || module === "team-stats" || module === "visuals" || module === "coaches";
   const includeTeamEventSummary = module === "team-stats" || module === "visuals" || module === "coaches";
   if (demoMode) {
     return {
@@ -297,7 +297,74 @@ export async function getExperimentalStatsPageData(module: ExperimentalModuleSlu
         ...rareCounts.map((row) => ({ matchId: row.matchId, turn: 0, sequence: 0, eventType: row.eventType === "terastallize" ? "__tera_count" : "__switch_count", value: Number(row.count) })),
       ];
     })()
-    : module === "team-stats"
+    : module === "move-outcomes"
+      ? db.select({
+        matchId: battleEvents.matchId,
+        turn: battleEvents.turn,
+        sequence: battleEvents.sequence,
+        eventType: battleEvents.eventType,
+        player: battleEvents.player,
+        actorNickname: battleEvents.actorNickname,
+        targetPlayer: battleEvents.targetPlayer,
+        targetNickname: battleEvents.targetNickname,
+        pokemonName: battleEvents.pokemonName,
+        moveName: battleEvents.moveName,
+        rawLine: battleEvents.rawLine,
+      }).from(battleEvents).where(and(
+        inArray(battleEvents.matchId, eventMatchIds),
+        or(
+          eq(battleEvents.eventType, "move"),
+          eq(battleEvents.eventType, "fail"),
+          eq(battleEvents.eventType, "cant"),
+          eq(battleEvents.eventType, "switch"),
+          eq(battleEvents.eventType, "drag"),
+          eq(battleEvents.eventType, "replace"),
+          eq(battleEvents.eventType, "faint"),
+          eq(battleEvents.eventType, "supereffective"),
+          eq(battleEvents.eventType, "resisted"),
+          eq(battleEvents.eventType, "immune"),
+          eq(battleEvents.eventType, "hitcount"),
+          eq(battleEvents.eventType, "singleturn"),
+          eq(battleEvents.eventType, "singlemove"),
+          eq(battleEvents.eventType, "startEffect"),
+          eq(battleEvents.eventType, "endEffect"),
+          eq(battleEvents.eventType, "damage"),
+          eq(battleEvents.eventType, "heal"),
+        ),
+      )).orderBy(battleEvents.matchId, battleEvents.sequence).catch(() => [])
+      : module === "status-events"
+      ? db.select({
+        matchId: battleEvents.matchId,
+        turn: battleEvents.turn,
+        sequence: battleEvents.sequence,
+        eventType: battleEvents.eventType,
+        player: battleEvents.player,
+        actorNickname: battleEvents.actorNickname,
+        pokemonName: battleEvents.pokemonName,
+        statusName: battleEvents.statusName,
+        fieldName: battleEvents.fieldName,
+        rawLine: battleEvents.rawLine,
+      }).from(battleEvents).where(and(
+        inArray(battleEvents.matchId, eventMatchIds),
+        inArray(battleEvents.eventType, ["move", "status", "curestatus", "startEffect", "cant", "switch", "drag", "replace", "formechange", "detailschange"]),
+      )).orderBy(battleEvents.matchId, battleEvents.sequence).catch(() => [])
+      : module === "item-ability-events"
+      ? db.select({
+        matchId: battleEvents.matchId,
+        turn: battleEvents.turn,
+        sequence: battleEvents.sequence,
+        eventType: battleEvents.eventType,
+        player: battleEvents.player,
+        actorNickname: battleEvents.actorNickname,
+        pokemonName: battleEvents.pokemonName,
+        itemName: battleEvents.itemName,
+        abilityName: battleEvents.abilityName,
+        rawLine: battleEvents.rawLine,
+      }).from(battleEvents).where(and(
+        inArray(battleEvents.matchId, eventMatchIds),
+        inArray(battleEvents.eventType, ["move", "switch", "drag", "replace", "formechange", "detailschange", "item", "enditem", "heal", "ability", "activate"]),
+      )).orderBy(battleEvents.matchId, battleEvents.sequence).catch(() => [])
+      : module === "team-stats"
       ? db.select({
         matchId: battleEvents.matchId,
         turn: battleEvents.turn,

@@ -1,3 +1,15 @@
+## October 10, 2026 - Expanded Experimental Stats Protocol Reports
+
+- Added Season 5+ Move Outcomes, Status Events, and Item & Ability Events reports
+  with event evidence and coverage. The item and ability report includes a
+  chart grouped by season or division.
+- Added an explicit switch-sequence network, field-condition timeline, and
+  Protocol Pattern Reports for recorded failures, simultaneous conditions,
+  status impact, rare events, and exact Pokémon/event-name frequencies.
+- Kept the Favorable Events counter unchanged. Metrics that lack a reliable
+  event definition remain pending, and missing replay event streams remain
+  unknown.
+
 ## October 8, 2026 - Match Context, Experimental Stats, and Theme Readability
 
 - Upcoming match previews now show each team's current-season win-loss record.

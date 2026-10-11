@@ -168,9 +168,10 @@ The current modules are:
 The landing page presents them in five purpose-based groups: Team and league
 performance (Coach Profiles, Team Stats, Leaderboards), Pokémon performance
 (Pokémon Profiles, Signature Stats, Compare), Patterns and trends (Insights,
-Rolling Trends, Visual Lab), Replay evidence (Replay Search, Top Plays, Battle
-Visualizer), and Specialized reports and reference (Rare Event Explorer and
-Metric Glossary). The same group order is preserved when cards stack on mobile.
+Rolling Trends, Visual Lab), Replay evidence (Replay Search, Move Outcomes,
+Status Events, Item & Ability Events, Top Plays, Battle Visualizer), and
+Specialized reports and reference (Rare Event Explorer and Metric Glossary). The
+same group order is preserved when cards stack on mobile.
 
 - Insights: momentum, pace, matchups, first-faint and comeback records, KO
   conversion, team damage share, item coverage, team cores, coach tendencies,
@@ -192,6 +193,22 @@ Metric Glossary). The same group order is preserved when cards stack on mobile.
   damage, minimum Pokémon KOs, and survived-battle filters. Search scope
   defaults to Pokémon; each result is one Pokémon appearance in one replay,
   so team searches can return up to twelve rows per match.
+- Move Outcomes: Season 5+ normalized replay counts for repeated same-move
+  choices, explicit failures, moves without a named target,
+  super-effective/resisted/immune outcomes, hit counts, Protect and Substitute
+  outcomes, recoil, and drain. The report shows seasonal coverage and evidence;
+  missing event streams remain unknown.
+- Status Events: Season 5+ counts for paralysis and poison applications,
+  confusion starts, sleep and freeze blocked turns, status cures, and distinct
+  major statuses on one Pokémon in a match. These protocol counts are separate
+  from the saved Favorable Events counter.
+- Item & Ability Events: Season 5+ counts for explicit item use, Knock Off,
+  item theft and exchanges, berry use, Focus Sash and Air Balloon removals,
+  Leftovers recovery, ability announcements and activations, copied/swapped
+  abilities, and Intimidate. A chart groups results by season or division;
+  division comparisons use the selected season and configured division order.
+  Abilities suppressed remains pending because the protocol does not identify
+  every affected Pokémon. These counts do not change Favorable Events.
 - Coach Profiles: official records stay separate from replay-derived evidence.
   The report includes a clearly labeled average recorded battle length, a
   compact tendencies summary (turns, switches, Tera, setup, item reveals, and
@@ -204,7 +221,12 @@ Metric Glossary). The same group order is preserved when cards stack on mobile.
   reveals, event-density views, and an Open replay link. The Pokémon box score
   uses a color key for KOs, deaths, damage, healing, turns, and item evidence
   while keeping the text labels visible. Average battle length uses saved
-  timeline or normalized event-turn evidence and shows its covered sample.
+  timeline or normalized event-turn evidence and shows its covered sample. It
+  also includes an explicit switch-sequence network and field-condition timeline
+  for saved switches, weather, terrain/room, screens, Tailwind, and hazards.
+  Protocol Pattern Reports rank explicit failures in wins, simultaneous active
+  conditions, Pokémon affected by a status, rare recorded events, and exact
+  Pokémon/event-name frequencies.
 - Signature Stats: opportunity-normalized damage, KO, healing, setup, and
   favorable-event rates with season-aware context and coverage. Favorable
   events are explicitly saved crits, misses, flinches, opponent-applied
@@ -260,9 +282,10 @@ Reports show sample size and field coverage. Profiles and rankings require at
 least three qualifying games; replay evidence remains searchable below that
 threshold. Missing saved fields are shown as unknown rather than treated as
 zero. Available metrics have a defined report calculated from saved evidence
-and show coverage; partial metrics use a narrower saved proxy; protocol reports
-remain pending until their calculation and supporting event coverage are
-validated.
+and show coverage; partial metrics use a narrower saved proxy. Available
+protocol reports count explicit saved events and show coverage, while metrics
+without a reliable event definition remain pending. Protocol event counts do
+not alter the saved Favorable Events counter.
 
 On phones, the module selector and report controls stack to the available
 width. Dense tables keep their full columns inside an independent touch

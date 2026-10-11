@@ -1,5 +1,25 @@
 [
   {
+    "sourceKey": "2026-10-10-experimental-stats-event-report-availability",
+    "title": "Expanded Experimental Stats Protocol Reports",
+    "summary": "Make normalized replay outcome, status, item and ability events, and battle patterns available with visual comparisons and coverage.",
+    "publishedAt": "2026-10-10",
+    "changes": [
+      {
+        "type": "added",
+        "text": "Added Season 5+ Move Outcomes, Status Events, and Item & Ability Events reports with replay evidence and event coverage, plus a season/division comparison chart."
+      },
+      {
+        "type": "added",
+        "text": "Added a switch-sequence network, field-condition timeline, and Protocol Pattern Reports for explicit failures, simultaneous conditions, status impact, rare events, and exact Pokémon/event-name frequencies."
+      },
+      {
+        "type": "improved",
+        "text": "Kept the Favorable Events counter unchanged. Missing replay event streams remain unknown, and abilities suppressed remains pending because the protocol does not identify every affected Pokémon."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-10-10-experimental-stats-protocol-reports",
     "title": "Season 5+ Protocol Reports in Experimental Stats",
     "summary": "Added replay-derived switching, lead, and field-condition reports to Team Stats, with explicit coverage for saved protocol events.",

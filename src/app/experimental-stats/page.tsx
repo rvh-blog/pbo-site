@@ -32,8 +32,11 @@ const modules = [
   { href: "/experimental-stats/insights", title: "Insights", description: "Momentum, matchups, pace, coverage, and other replay-backed patterns across the active filters.", icon: BarChart3, accent: "from-emerald-500/20 to-teal-500/5", color: "text-emerald-300" },
   { href: "/experimental-stats/trends", title: "Rolling Trends", description: "Compare a Pokémon's recent 3-, 5-, or 10-game window with the immediately preceding window.", icon: LineChart, accent: "from-emerald-500/20 to-teal-500/5", color: "text-emerald-300" },
   { href: "/experimental-stats/leaderboards", title: "Leaderboards", description: "Preset Pokémon or coach rankings, totals or rates, report filters, and downloadable CSV output.", icon: ListFilter, accent: "from-amber-500/20 to-orange-500/5", color: "text-amber-300" },
+  { href: "/experimental-stats/move-outcomes", title: "Move Outcomes", description: "Track repeated moves, effectiveness, Protect and Substitute outcomes, recoil, drain, and replay coverage by season.", icon: BarChart3, accent: "from-violet-500/20 to-indigo-500/5", color: "text-violet-300" },
+  { href: "/experimental-stats/status-events", title: "Status Events", description: "Count recorded status applications, confusion starts, sleep and freeze blocked turns, cures, and replay coverage.", icon: FlaskConical, accent: "from-violet-500/20 to-indigo-500/5", color: "text-violet-300" },
+  { href: "/experimental-stats/item-ability-events", title: "Item & Ability Events", description: "Count logged item use, item transfers, item activations, ability reveals, and ability triggers with replay coverage.", icon: FlaskConical, accent: "from-cyan-500/20 to-blue-500/5", color: "text-cyan-300" },
   { href: "/experimental-stats/replays", title: "Replay Search", description: "Find filtered battles and jump directly to the match page or official replay evidence.", icon: Search, accent: "from-blue-500/20 to-indigo-500/5", color: "text-blue-300" },
-  { href: "/experimental-stats/battle-visualizer", title: "Battle Visualizer", description: "Explore win probability, WPA key plays, clutch context, team HP, faint order, and item timing.", icon: BarChart3, accent: "from-red-500/20 to-pink-500/5", color: "text-red-300" },
+  { href: "/experimental-stats/battle-visualizer", title: "Battle Visualizer", description: "Replay timelines plus filtered reports for failures, active conditions, rare events, and exact event frequencies.", icon: BarChart3, accent: "from-red-500/20 to-pink-500/5", color: "text-red-300" },
   { href: "/experimental-stats/rare-events", title: "Rare Event Explorer", description: "Evidence-linked records for long battles, late reveals, distinct moves, damage, healing, and faints.", icon: FlaskConical, accent: "from-purple-500/20 to-violet-500/5", color: "text-purple-300" },
   { href: "/experimental-stats/signature-stats", title: "Signature Stats", description: "Opportunity-normalized Pokémon rates for damage, KOs, healing, setup, and favorable replay events.", icon: Sparkles, accent: "from-violet-500/20 to-fuchsia-500/5", color: "text-violet-300" },
   { href: "/experimental-stats/team-stats", title: "Team Stats", description: "Team rows for season/division records, damage differentials, KOs, and replay control coverage.", icon: BarChart3, accent: "from-cyan-500/20 to-blue-500/5", color: "text-cyan-300" },
@@ -85,7 +88,7 @@ const moduleGroups = [
     cardAccent: "from-red-500/20 to-pink-500/5",
     iconBg: "bg-red-500/15",
     iconColor: "text-red-300",
-    hrefs: ["/experimental-stats/replays", "/experimental-stats/top-plays", "/experimental-stats/battle-visualizer"],
+    hrefs: ["/experimental-stats/replays", "/experimental-stats/move-outcomes", "/experimental-stats/status-events", "/experimental-stats/item-ability-events", "/experimental-stats/top-plays", "/experimental-stats/battle-visualizer"],
   },
   {
     id: "specialized-reference",
@@ -200,7 +203,7 @@ export default async function ExperimentalStatsPage() {
       </section>
 
       <section className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 sm:p-5">
-        <div className="flex gap-3"><BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><h2 className="text-sm font-black text-amber-100">Coverage is part of the statistic</h2><p className="mt-1 text-xs leading-5 text-amber-100/70">Older replays do not contain every saved summary field. Reports show coverage and qualification context; protocol-derived metrics remain glossary-only until their calculations and backfill coverage are validated.</p></div></div>
+        <div className="flex gap-3"><BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><h2 className="text-sm font-black text-amber-100">Coverage is part of the statistic</h2><p className="mt-1 text-xs leading-5 text-amber-100/70">Older replays do not contain every saved summary field. Reports show coverage and qualification context; protocol-derived metrics become available when their calculation and replay coverage are validated.</p></div></div>
       </section>
     </div>
   );

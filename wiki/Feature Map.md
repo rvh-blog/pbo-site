@@ -61,8 +61,10 @@ See also:
   profiles, momentum, matchup records, KO conversion, damage share, coach and
   item tendencies, team cores, replay pace, playoff comparisons, replay
   comparison, configurable leaderboards, rolling windows, replay search,
-  event-density visualizations, rare-event records, confidence labels, saved
-  browser reports, CSV exports, and the coverage glossary; advanced profile
+  move-outcome, status-event, item/ability-event, switch-network, and
+  field-condition reports, protocol-pattern reports, event-density
+  visualizations, rare-event records, confidence labels, saved browser reports,
+  CSV exports, and the coverage glossary; advanced profile
   metrics expose covered-sample qualification and direct glossary links, Top
   Plays supports expandable one-record-per-match rankings with links to saved
   Battle Visualizer turns, Compare exposes global and roster-eligible team
