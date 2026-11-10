@@ -133,7 +133,7 @@ export default async function ExperimentalStatsPage() {
   }).length;
 
   return (
-    <div className="experimental-stats-readable readable-content space-y-6">
+    <div className="experimental-stats-readable experimental-stats-home readable-content space-y-6">
       <header className="poke-card overflow-hidden p-0">
         <div className="relative overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.28),transparent_38%),linear-gradient(135deg,rgba(14,165,233,0.12),transparent_55%)] p-6 sm:p-8 lg:p-10">
           <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full border-[24px] border-violet-400/5" />
@@ -144,7 +144,7 @@ export default async function ExperimentalStatsPage() {
               </div>
               <h1 className="font-pixel text-xl leading-relaxed text-white sm:text-2xl lg:text-3xl">Experimental Stats</h1>
               <p className="mt-4 max-w-3xl text-sm leading-6 text-[var(--foreground-muted)] sm:text-base">
-                A Savant-style home for official PBO replay analytics. Choose one focused report, apply the same auditable filters everywhere, and follow every unusual result back to its match evidence.
+                A home for official PBO replay analytics. Choose a report, apply filters, and follow results back to match evidence.
               </p>
               <div className="mt-5 flex flex-wrap gap-2 text-[10px] font-bold text-[var(--foreground-muted)]">
                 <span className="rounded-full border border-[var(--border)] bg-[var(--background)]/70 px-3 py-1.5">No inferred events</span>
@@ -164,7 +164,7 @@ export default async function ExperimentalStatsPage() {
       </header>
 
       <section className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 sm:p-5" role="status">
-        <div className="flex gap-3"><FlaskConical className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><h2 className="text-sm font-black text-amber-100">Work in progress</h2><p className="mt-1 text-xs leading-5 text-amber-100/80">Experimental Stats is still under active development and will not be finished for a while. Some reports may be incomplete, and labels, calculations, or layouts may change as replay coverage and testing improve.</p></div></div>
+        <div className="flex gap-3"><FlaskConical className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><h2 className="text-sm font-black text-amber-100">In development</h2><p className="mt-1 text-xs leading-5 text-amber-100/80">Some reports are still being refined. Labels and calculations may change as replay coverage and testing improve.</p></div></div>
       </section>
 
       <section aria-labelledby="explore-the-lab-heading">

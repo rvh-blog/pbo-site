@@ -22,7 +22,8 @@ See also:
 ## Public Pages
 
 - Home: `src/app/page.tsx`
-- Seasons: `src/app/seasons`
+- Seasons: `src/app/seasons` (a season shows ENDED when each division has a
+  completed round-3 Finals match; `isCurrent` remains the default season marker)
 - Division page: `src/app/seasons/[id]/divisions/[divId]/page.tsx`
 - Match details: `src/app/matches/[id]/page.tsx`
 - Coaches: `src/app/coaches` (optional per-coach YouTube playlist preview; admin assignment is managed from `src/app/admin/coaches/page.tsx`)
@@ -71,7 +72,7 @@ See also:
   usage, and the Battle Visualizer includes replay-backed win probability,
   WPA/key-play highlights, expected-versus-recorded outcomes, clutch/comeback
   context, and a searchable play-by-play center; glossary search covers both
-  metrics and visuals; protected by the admin Experimental Stats feature toggle)
+  metrics and visuals; always available in public routes and PBO Stats navigation)
 - Normalized replay events: `src/lib/replay-events.ts`,
   `src/lib/battle-event-storage.ts`, `migrations/add-battle-events.sql`, and
   `scripts/backfill-battle-events.ts`; preserves every Showdown protocol line
@@ -83,6 +84,13 @@ See also:
 
 ## Current UI And Performance Notes
 
+- Experimental Stats uses a single report selector, clear filter controls, and
+  larger type and table spacing to keep the report pages readable. Legacy
+  `experimental_stats_enabled` database values no longer hide the public area.
+- Leaderboard logos and sprites use dimensioned `next/image` components;
+  offscreen coach-profile and Matchup Prep images load lazily.
+- The coach-profile and Pick-Ems store controls say “Shop” and are scaled up
+  slightly while keeping their existing modal behavior.
 - Coach directory record filters reuse memoized team/match indexes. Its server
   loader excludes games without winners and derives the latest season from the
   existing sorted season list. The season archive groups team counts in SQL.

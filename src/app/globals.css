@@ -1040,6 +1040,57 @@ html[data-theme="light"] .poke-card:hover {
   }
 }
 
+/* Keep replay analytics readable while preserving compact, scrollable tables. */
+.experimental-stats-readable {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.experimental-stats-readable h1,
+.experimental-stats-readable h2,
+.experimental-stats-readable h3,
+.experimental-stats-readable h4 {
+  line-height: 1.35;
+  letter-spacing: normal;
+}
+
+.experimental-stats-readable [class*="text-[8px]"],
+.experimental-stats-readable [class*="text-[9px]"],
+.experimental-stats-readable [class*="text-[10px]"],
+.experimental-stats-readable [class*="text-[11px]"] {
+  font-size: 0.75rem !important;
+  line-height: 1.45 !important;
+}
+
+.experimental-stats-readable table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.experimental-stats-readable th,
+.experimental-stats-readable td {
+  padding: 0.625rem 0.75rem;
+  vertical-align: top;
+}
+
+.experimental-stats-readable th {
+  color: var(--foreground-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.experimental-stats-readable .overflow-x-auto {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+
+.experimental-stats-readable :is(button, select, input):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .mobile-section-nav-item:hover {
   border-color: rgba(220, 38, 38, 0.65);
   color: white;

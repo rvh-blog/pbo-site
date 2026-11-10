@@ -15,7 +15,6 @@ interface AuthUser {
 }
 
 interface FeatureSettings {
-  experimentalStatsEnabled: boolean;
   tradeBlockEnabled: boolean;
   speedToursEnabled: boolean;
 }
@@ -75,7 +74,6 @@ export function Navigation() {
   const [tabletPboStatsOpen, setTabletPboStatsOpen] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<FeatureSettings>({
-    experimentalStatsEnabled: false,
     tradeBlockEnabled: true,
     speedToursEnabled: false,
   });
@@ -173,7 +171,6 @@ export function Navigation() {
         if (!res.ok) return;
         const data = await res.json();
         setFeatureSettings({
-          experimentalStatsEnabled: Boolean(data.experimentalStatsEnabled),
           tradeBlockEnabled: data.tradeBlockEnabled !== false,
           speedToursEnabled: data.speedToursEnabled === true,
         });
@@ -191,9 +188,7 @@ export function Navigation() {
   const visibleMatchPrepLinks = matchPrepLinks.filter(
     (item) => item.href !== "/trade-block" || featureSettings.tradeBlockEnabled,
   );
-  const visiblePboStatsLinks = pboStatsLinks.filter(
-    (item) => item.href !== "/experimental-stats" || featureSettings.experimentalStatsEnabled,
-  );
+  const visiblePboStatsLinks = pboStatsLinks;
   const matchPrepActive =
     pathname === "/matchup-prep" ||
     pathname.startsWith("/draft-planner") ||

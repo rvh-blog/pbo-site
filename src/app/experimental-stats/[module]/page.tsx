@@ -44,7 +44,7 @@ export default async function ExperimentalModulePage({ params, searchParams }: {
   const { dataset, filters } = await getExperimentalStatsPageData(slug, query);
 
   return (
-    <div className="experimental-stats-readable readable-content space-y-4 sm:space-y-6">
+    <div className="experimental-stats-readable experimental-stats-page readable-content space-y-4 sm:space-y-6">
       <header className="poke-card bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_45%)] p-5 sm:p-7">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)] sm:text-[10px]">
           <Link href="/leaderboards" className="hover:text-[var(--primary)]">PBO Stats</Link><span>/</span><Link href="/experimental-stats" className="hover:text-[var(--primary)]">Experimental Stats</Link><span>/</span><span className="text-violet-300">{copy.title}</span>

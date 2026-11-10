@@ -14,6 +14,7 @@ import { getSession } from "@/lib/session";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { compareDivisionNames, compareDivisions } from "@/lib/division-order";
 import { getUpcomingBattles } from "@/lib/upcoming-battles";
+import { getEndedSeasonIds } from "@/lib/season-status";
 
 const DIVISION_COLORS: Record<string, string> = {
   "Infinity": "#E2A3C7",
@@ -362,6 +363,9 @@ export default async function SeasonPage({ params }: PageProps) {
     notFound();
   }
 
+  const isEnded = (await getEndedSeasonIds([seasonData])).has(seasonId);
+  const isLive = seasonData.isCurrent && !isEnded;
+
   const season = {
     ...seasonData,
     divisions: session?.isMod
@@ -388,8 +392,8 @@ export default async function SeasonPage({ params }: PageProps) {
     .filter((id): id is number => id !== null);
 
   const [upcomingBattles, recentBattles, glowDataMap] = await Promise.all([
-    season.isCurrent ? getUpcomingBattles(seasonId, visibleDivisionIds) : Promise.resolve([]),
-    season.isCurrent ? Promise.resolve([]) : getRecentBattles(seasonId, visibleSeasonMatches, visibleDivisionIds),
+    isLive ? getUpcomingBattles(seasonId, visibleDivisionIds) : Promise.resolve([]),
+    isLive ? Promise.resolve([]) : getRecentBattles(seasonId, visibleSeasonMatches, visibleDivisionIds),
     getCoachesGlow(allCoachIds),
   ]);
 
@@ -418,9 +422,13 @@ export default async function SeasonPage({ params }: PageProps) {
               <h1 className="font-pixel text-lg sm:text-xl md:text-2xl text-white leading-relaxed">
                 {season.name}
               </h1>
-              {season.isCurrent && (
+              {isEnded ? (
+                <span className="inline-flex items-center rounded border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]">
+                  ENDED
+                </span>
+              ) : isLive ? (
                 <span className="live-badge">LIVE</span>
-              )}
+              ) : null}
             </div>
 
             <p className="text-[var(--foreground-muted)] mt-2">

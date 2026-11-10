@@ -5,6 +5,7 @@ import { seasonCoaches } from "@/lib/schema";
 import { count } from "drizzle-orm";
 import { filterPublicDivisions, getPublicVisibilityState, isPublicSeasonVisible } from "@/lib/public-visibility";
 import { compareDivisions } from "@/lib/division-order";
+import { getEndedSeasonIds } from "@/lib/season-status";
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -52,6 +53,7 @@ async function getSeasons() {
       .groupBy(seasonCoaches.divisionId),
     getPublicVisibilityState(),
   ]);
+  const endedSeasonIds = await getEndedSeasonIds(allSeasons);
 
   // Filter to only public seasons/divisions and sort divisions by displayOrder
   const seasons = allSeasons.filter(isPublicSeasonVisible);
@@ -73,6 +75,7 @@ async function getSeasons() {
     }
     return {
       ...season,
+      isEnded: endedSeasonIds.has(season.id),
       coachCount: totalCoaches,
     };
   });
@@ -124,10 +127,10 @@ export default async function SeasonsPage() {
           {modernSeasons.map((season) => (
             <Link key={season.id} href={`/seasons/${season.id}`} className="group block">
               <div className={`poke-card h-full p-6 transition-all duration-300 relative overflow-hidden ${
-                season.isCurrent ? "border-[var(--primary)]" : ""
+                season.isCurrent && !season.isEnded ? "border-[var(--primary)]" : ""
               } group-hover:border-[var(--primary)] group-hover:translate-y-[-2px]`}>
                 {/* Current season glow */}
-                {season.isCurrent && (
+                {season.isCurrent && !season.isEnded && (
                   <div className="absolute -top-20 -right-20 w-40 h-40 bg-[var(--primary)] rounded-full blur-3xl opacity-20" />
                 )}
 
@@ -137,12 +140,16 @@ export default async function SeasonsPage() {
                     <h2 className="font-pixel text-sm text-white group-hover:text-[var(--primary)] transition-colors leading-relaxed">
                       {season.name}
                     </h2>
-                    {season.isCurrent && (
+                    {season.isEnded ? (
+                      <span className="inline-flex items-center mt-3 px-3 py-1 text-[10px] font-bold rounded border border-white/10 bg-white/5 text-[var(--foreground-muted)]">
+                        ENDED
+                      </span>
+                    ) : season.isCurrent ? (
                       <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 text-[10px] font-bold rounded bg-[var(--primary)] text-white">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         LIVE
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   <div className="text-right">
                     <span className="font-pixel text-lg text-[var(--accent)]">{season.draftBudget}</span>

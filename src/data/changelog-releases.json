@@ -1,5 +1,25 @@
 [
   {
+    "sourceKey": "2026-11-09-season-stats-shop-usability",
+    "title": "Season Status and Stats Readability Improvements",
+    "summary": "Show season completion from Finals results, make store controls easier to spot, and improve Experimental Stats readability and image loading.",
+    "publishedAt": "2026-11-09",
+    "changes": [
+      {
+        "type": "improved",
+        "text": "Season pages now show ENDED when every division's Finals match has a recorded winner, while keeping the current-season default for league workflows."
+      },
+      {
+        "type": "improved",
+        "text": "Leaderboard images use sized image components and offscreen coach-profile and Matchup Prep images load lazily."
+      },
+      {
+        "type": "improved",
+        "text": "Store controls now read Shop and are slightly larger. Experimental Stats is always publicly available and uses a report selector, clearer filter controls, and more readable text and tables."
+      }
+    ]
+  },
+  {
     "sourceKey": "2026-10-10-experimental-stats-event-report-availability",
     "title": "Expanded Experimental Stats Protocol Reports",
     "summary": "Make normalized replay outcome, status, item and ability events, and battle patterns available with visual comparisons and coverage.",
