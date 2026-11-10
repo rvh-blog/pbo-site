@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
       pollsEnabled,
       recentDraftPicksHidden,
       playoffCalculatorSearchEnabled,
-      experimentalStatsEnabled,
       tradeBlockEnabled,
       speedToursEnabled,
     } = body;
@@ -60,10 +59,6 @@ export async function POST(request: NextRequest) {
 
     if (playoffCalculatorSearchEnabled !== undefined) {
       updates.push({ key: SITE_SETTING_KEYS.playoffCalculatorSearchEnabled, value: String(playoffCalculatorSearchEnabled) });
-    }
-
-    if (experimentalStatsEnabled !== undefined) {
-      updates.push({ key: SITE_SETTING_KEYS.experimentalStatsEnabled, value: String(experimentalStatsEnabled) });
     }
 
     if (tradeBlockEnabled !== undefined) {

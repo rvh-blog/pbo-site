@@ -593,8 +593,8 @@ function downloadPokemonDamageCsvs(matches: ExperimentalMatch[], seasonName: str
 function FilterSelect({ label, value, onChange, children }: { label: string; value: string | number; onChange: (value: string) => void; children: React.ReactNode }) {
   return (
     <label className="space-y-1">
-      <span className="block text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-xs font-bold text-[var(--foreground)] shadow-inner shadow-black/20 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-500/15">
+      <span className="block text-xs font-bold text-[var(--foreground-muted)]">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm font-semibold text-[var(--foreground)] shadow-inner shadow-black/20 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-500/15">
         {children}
       </select>
     </label>
@@ -605,7 +605,7 @@ function StatCard({ label, value, detail }: { label: string; value: string; deta
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-slate-700/70 bg-gradient-to-br from-slate-950/95 to-slate-900/70 p-4 text-center shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-400/45">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/55 to-transparent opacity-70" />
-      <div className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
+      <div className="text-xs font-bold text-[var(--foreground-muted)]">{label}</div>
       <div className="mt-2 break-words font-mono text-lg font-black text-white sm:text-xl">{value}</div>
       {detail ? <div className="mt-1 text-[10px] text-[var(--foreground-subtle)]">{detail}</div> : null}
     </div>
@@ -940,11 +940,11 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
               const seasonMatches = dataset.matches.filter((match) => match.seasonId === filters.seasonId && !match.isForfeit);
               downloadPokemonDamageCsvs(seasonMatches, (season?.name ?? "season").toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, ""));
             }} className="btn-retro-primary inline-flex items-center gap-1 px-3 py-2 text-[9px] disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3 w-3" />Download season Pokémon CSVs</button> : null}
-            <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="btn-retro-secondary px-3 py-2 text-[9px]">{filtersOpen ? "Close filters" : "Filters"}</button>
+            <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="experimental-stats-filters" className="btn-retro-secondary min-h-11 px-4 py-2 text-sm">{filtersOpen ? "Hide filters" : "Show filters"}</button>
             <button type="button" onClick={shareView} className="btn-retro-secondary inline-flex items-center gap-1 px-3 py-2 text-[9px]"><Share2 className="h-3 w-3" />{shareMessage || "Share"}</button>
           </div>
         </div>
-        <div className={`${filtersOpen ? "grid" : "hidden"} gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6`}>
+        <div id="experimental-stats-filters" className={`${filtersOpen ? "grid" : "hidden"} gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`}>
           <FilterSelect label="Season" value={filters.seasonId} onChange={(value) => { const seasonId = value === "all" ? "all" : Number(value); updateFilters({ seasonId, divisionId: "all", weekEnd: highestWeekForSeason(seasonId) }); }}><option value="all">All seasons</option>{dataset.seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</FilterSelect>
           <FilterSelect label="Division" value={filters.divisionId} onChange={(value) => updateFilter("divisionId", value === "all" ? "all" : Number(value))}><option value="all">All divisions</option>{filters.seasonId === "all" ? dataset.seasons.map((season) => { const seasonDivisions = visibleDivisions.filter((division) => division.seasonId === season.id).sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name)); return seasonDivisions.length ? <optgroup key={season.id} label={season.name}>{seasonDivisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</optgroup> : null; }) : [...visibleDivisions].sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name)).map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</FilterSelect>
           <FilterSelect label="Coach" value={filters.coachId} onChange={(value) => updateFilter("coachId", value === "all" ? "all" : Number(value))}><option value="all">All coaches</option>{optionData.coaches.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</FilterSelect>
@@ -957,7 +957,7 @@ export function ExperimentalStatsClient({ dataset, initialModule = "pokemon", in
           <FilterSelect label="Stage" value={filters.stage} onChange={(value) => updateFilter("stage", value as StageFilter)}><option value="all">Regular & playoffs</option><option value="regular">Regular season</option><option value="playoffs">Playoffs</option></FilterSelect>
           <label className="flex items-end gap-2 pb-2 text-xs font-bold text-[var(--foreground-muted)]"><input type="checkbox" checked={filters.includeForfeits} onChange={(event) => updateFilter("includeForfeits", event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Include forfeits</label>
         </div>
-        <label className="relative mt-4 block max-w-3xl"><span className="mb-1 block text-[9px] font-black uppercase tracking-wider text-[var(--foreground-muted)]">Search this report</span><Search className="pointer-events-none absolute left-3 top-8 h-4 w-4 text-[var(--foreground-muted)]" /><input value={globalSearch} onChange={(event) => updateGlobalSearch(event.target.value)} placeholder="Search Pokémon, coaches, teams, moves, items, or replay details…" aria-label="Search Pokémon, coaches, teams, moves, items, or replay details" className="h-11 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 pl-10 pr-3 text-xs font-bold text-[var(--foreground)] shadow-inner shadow-black/20 outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/15" /><span className="mt-1 block text-[8px] leading-3 text-[var(--foreground-subtle)]">Matches all typed words across the active replay scope. Results refresh as you type; URL sharing updates after a brief pause. Existing dropdowns still provide exact filters.</span></label>
+        <label className="relative mt-4 block max-w-3xl"><span className="mb-1 block text-xs font-bold text-[var(--foreground-muted)]">Search this report</span><Search className="pointer-events-none absolute left-3 top-9 h-4 w-4 text-[var(--foreground-muted)]" /><input value={globalSearch} onChange={(event) => updateGlobalSearch(event.target.value)} placeholder="Search Pokémon, coaches, teams, moves, items, or replay details…" aria-label="Search Pokémon, coaches, teams, moves, items, or replay details" className="min-h-11 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 pl-10 pr-3 text-sm font-semibold text-[var(--foreground)] shadow-inner shadow-black/20 outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/15" /><span className="mt-1 block text-xs leading-5 text-[var(--foreground-muted)]">Matches all typed words across the active replay scope. Results refresh as you type; URL sharing updates after a brief pause. Existing dropdowns still provide exact filters.</span></label>
       </section> : null}
 
       <div className={standalone ? "" : "grid gap-6 xl:grid-cols-[230px_minmax(0,1fr)]"}>

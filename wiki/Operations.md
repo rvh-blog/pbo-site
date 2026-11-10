@@ -86,6 +86,13 @@ The deployment command verifies the same-day entry in
 `src/data/changelog-releases.json` before deploying the merged `main` branch
 to Fly.
 
+### Season completion status
+
+Public season pages report a season as ended when every division has a
+round-3 Finals playoff match with a recorded winner. The `isCurrent` setting
+continues to choose the default season for active workflows; it does not
+override the completed-Finals status shown to visitors.
+
 The Docker build:
 
 1. Runs `npm ci`.

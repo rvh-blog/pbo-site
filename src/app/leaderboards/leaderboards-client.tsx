@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { LeagueLink as Link } from "@/components/league-context";
 import { useState, useEffect, useRef } from "react";
 
@@ -217,7 +218,7 @@ export function LeaderboardsClient({
             </h1>
             <p className="text-sm text-[var(--foreground-muted)] mt-1">
               {scope === "current" && currentSeasonName
-                ? `${currentSeasonName} active-player rankings and statistics`
+                ? `${currentSeasonName} rankings and statistics`
                 : "All-time rankings and statistics"}
             </p>
           </div>
@@ -327,9 +328,12 @@ export function LeaderboardsClient({
             <div className="flex flex-col md:flex-row items-center gap-6">
               <Link href={`/coaches/${displayedTopEloCoach.coach.id}`} className="flex-shrink-0 group">
                 {displayedTopEloCoach.teamLogoUrl ? (
-                  <img
+                  <Image
                     src={displayedTopEloCoach.teamLogoUrl}
                     alt={displayedTopEloCoach.teamName}
+                    width={80}
+                    height={80}
+                    unoptimized
                     className="w-20 h-20 rounded-lg border-2 border-[var(--background-tertiary)] group-hover:scale-105 transition-transform object-cover"
                   />
                 ) : (
@@ -618,9 +622,12 @@ export function LeaderboardsClient({
                       </div>
                       <div className="w-8 h-8 flex-shrink-0">
                         {pokemon.spriteUrl ? (
-                          <img
+                          <Image
                             src={pokemon.spriteUrl}
                             alt={pokemon.displayName || pokemon.name}
+                            width={32}
+                            height={32}
+                            unoptimized
                             className="w-8 h-8 object-contain"
                           />
                         ) : (
@@ -718,9 +725,12 @@ export function LeaderboardsClient({
                   <div className="flex-1 min-w-0 sm:hidden">
                     <div className="flex items-center gap-1.5">
                       {pair.teamLogoUrl ? (
-                        <img
+                        <Image
                           src={pair.teamLogoUrl}
                           alt={pair.coachName}
+                          width={16}
+                          height={16}
+                          unoptimized
                           className="w-4 h-4 object-contain rounded shrink-0"
                         />
                       ) : (
@@ -737,9 +747,12 @@ export function LeaderboardsClient({
                         <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                       </svg>
                       {pair.pokemonSpriteUrl ? (
-                        <img
+                        <Image
                           src={pair.pokemonSpriteUrl}
                           alt={pair.pokemonDisplayName || pair.pokemonName}
+                          width={16}
+                          height={16}
+                          unoptimized
                           className="w-4 h-4 object-contain shrink-0"
                         />
                       ) : (
@@ -763,9 +776,12 @@ export function LeaderboardsClient({
                     </Link>
                     <div className="flex items-center gap-1 ml-1">
                       {pair.teamLogoUrl ? (
-                        <img
+                        <Image
                           src={pair.teamLogoUrl}
                           alt={pair.coachName}
+                          width={20}
+                          height={20}
+                          unoptimized
                           className="w-5 h-5 object-contain rounded"
                         />
                       ) : (
@@ -779,9 +795,12 @@ export function LeaderboardsClient({
                         <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                       </svg>
                       {pair.pokemonSpriteUrl ? (
-                        <img
+                        <Image
                           src={pair.pokemonSpriteUrl}
                           alt={pair.pokemonDisplayName || pair.pokemonName}
+                          width={20}
+                          height={20}
+                          unoptimized
                           className="w-5 h-5 object-contain"
                         />
                       ) : (

@@ -4,6 +4,9 @@ Parent index: [[Home|PBO Site Wiki]]
 
 The store controls cosmetic purchases, previews, and equipped coach/team styling.
 
+Store buttons on coach profiles and Pick-Ems are labeled “Shop” and open the
+existing store modal. Their size is slightly increased for visibility.
+
 ## Preview Behavior
 
 Users should be able to preview cosmetics whether or not they already own the cosmetic. Purchase ownership controls whether they can equip or persist the cosmetic, not whether the preview can render.

@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface BettingSettings {
   bettingClosed: boolean;
   bettingUiHidden: boolean;
-  experimentalStatsEnabled: boolean;
 }
 
 interface Division {
@@ -59,7 +58,6 @@ export default function AdminBettingPage() {
   const [settings, setSettings] = useState<BettingSettings>({
     bettingClosed: false,
     bettingUiHidden: false,
-    experimentalStatsEnabled: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -782,29 +780,6 @@ export default function AdminBettingPage() {
             </button>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-[var(--background-secondary)] rounded-lg">
-            <div>
-              <h3 className="font-bold text-white">Enable Experimental Stats</h3>
-              <p className="text-sm text-[var(--foreground-muted)] mt-1">
-                Makes Experimental Stats available in the public PBO Stats menu and allows the public routes to load.
-              </p>
-            </div>
-            <button
-              onClick={() => updateSetting("experimentalStatsEnabled", !settings.experimentalStatsEnabled)}
-              disabled={saving}
-              aria-pressed={settings.experimentalStatsEnabled}
-              className={`relative w-14 h-8 rounded-full transition-colors ${
-                settings.experimentalStatsEnabled ? "bg-green-600" : "bg-gray-600"
-              }`}
-            >
-              <span
-                className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${
-                  settings.experimentalStatsEnabled ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
-          </div>
-
           {/* Status Summary */}
           <div className="p-4 border border-[var(--background-tertiary)] rounded-lg">
             <h4 className="font-bold text-sm text-[var(--foreground-muted)] mb-2">Current Status</h4>
@@ -823,12 +798,8 @@ export default function AdminBettingPage() {
               }`}>
                 Betting UI: {settings.bettingUiHidden ? "HIDDEN" : "VISIBLE"}
               </span>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                settings.experimentalStatsEnabled
-                  ? "bg-green-600/20 text-green-400"
-                  : "bg-red-600/20 text-red-400"
-              }`}>
-                Experimental Stats: {settings.experimentalStatsEnabled ? "VISIBLE" : "HIDDEN"}
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-600/20 text-green-400">
+                Experimental Stats: VISIBLE
               </span>
             </div>
           </div>

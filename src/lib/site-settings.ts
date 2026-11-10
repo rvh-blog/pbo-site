@@ -8,7 +8,6 @@ export const SITE_SETTING_KEYS = {
   pollsEnabled: "polls_enabled",
   recentDraftPicksHidden: "recent_draft_picks_hidden",
   playoffCalculatorSearchEnabled: "playoff_calculator_search_enabled",
-  experimentalStatsEnabled: "experimental_stats_enabled",
   tradeBlockEnabled: "trade_block_enabled",
   speedToursEnabled: "speed_tours_enabled",
   infinityDivisionReleased: "infinity_division_released",
@@ -40,7 +39,8 @@ async function loadSiteFeatureSettings() {
     pollsEnabled: settingsMap.get(SITE_SETTING_KEYS.pollsEnabled) !== "false",
     recentDraftPicksHidden: settingsMap.get(SITE_SETTING_KEYS.recentDraftPicksHidden) === "true",
     playoffCalculatorSearchEnabled: settingsMap.get(SITE_SETTING_KEYS.playoffCalculatorSearchEnabled) === "true",
-    experimentalStatsEnabled: settingsMap.get(SITE_SETTING_KEYS.experimentalStatsEnabled) === "true",
+    // Experimental Stats is a public feature now; ignore legacy database values.
+    experimentalStatsEnabled: true,
     tradeBlockEnabled: settingsMap.get(SITE_SETTING_KEYS.tradeBlockEnabled) !== "false",
     speedToursEnabled: settingsMap.get(SITE_SETTING_KEYS.speedToursEnabled) === "true",
   };

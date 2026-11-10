@@ -20,6 +20,7 @@ import { eq, desc, asc, count, and, gt, or, isNotNull, isNull, inArray } from "d
 import { compareDivisionNames, DIVISION_HIERARCHY } from "@/lib/division-order";
 import { getUpcomingBattles, UpcomingBattleItem } from "@/lib/upcoming-battles";
 import { isCompletedMatchResult } from "@/lib/match-result-utils";
+import { getEndedSeasonIds } from "@/lib/season-status";
 
 export const dynamic = 'force-dynamic';
 
@@ -1068,18 +1069,22 @@ function PreviousChampionsPanel({ champions }: { champions: OffseasonChampion[] 
 const getCachedPublicHomeData = unstable_cache(
   async () => {
     const currentSeasonPromise = getCurrentSeason();
+    const currentSeasonEndedPromise = currentSeasonPromise.then(async (season) =>
+      season ? (await getEndedSeasonIds([season])).has(season.id) : false
+    );
     const featureSettingsPromise = getSiteFeatureSettings();
     const recentDraftPicksPromise = featureSettingsPromise.then((settings) =>
       settings.recentDraftPicksHidden
         ? []
         : getRecentDraftPicksByDivision(currentSeasonPromise)
     );
-    const upcomingBattlesPromise = currentSeasonPromise.then((season) =>
-      season?.isCurrent ? getUpcomingBattles(season.id, undefined, null) : []
+    const upcomingBattlesPromise = Promise.all([currentSeasonPromise, currentSeasonEndedPromise]).then(([season, isEnded]) =>
+      season?.isCurrent && !isEnded ? getUpcomingBattles(season.id, undefined, null) : []
     );
 
     const [
       currentSeason,
+      currentSeasonEnded,
       previousSeasonChampions,
       recentBattles,
       upcomingBattles,
@@ -1090,6 +1095,7 @@ const getCachedPublicHomeData = unstable_cache(
       currentPlayoffsActive,
     ] = await Promise.all([
       currentSeasonPromise,
+      currentSeasonEndedPromise,
       getPreviousSeasonChampions(),
       getRecentBattles(),
       upcomingBattlesPromise,
@@ -1102,6 +1108,7 @@ const getCachedPublicHomeData = unstable_cache(
 
     return {
       currentSeason,
+      currentSeasonEnded,
       previousSeasonChampions,
       recentBattles,
       upcomingBattles,
@@ -1125,6 +1132,7 @@ export default async function Home() {
   ]);
   const {
     currentSeason,
+    currentSeasonEnded,
     previousSeasonChampions,
     recentBattles,
     upcomingBattles,
@@ -1173,8 +1181,8 @@ export default async function Home() {
         <div className="relative flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--foreground-muted)]">
-              <span className={`h-2 w-2 rounded-full ${currentSeason ? "bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.9)]" : "bg-amber-300"}`} />
-              {currentSeason ? "Live league dashboard" : "Offseason hub"}
+              <span className={`h-2 w-2 rounded-full ${currentSeason && !currentSeasonEnded ? "bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.9)]" : "bg-amber-300"}`} />
+              {currentSeasonEnded ? "Season complete" : currentSeason ? "Live league dashboard" : "Offseason hub"}
             </div>
             <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--primary-light)]">
               {currentSeason ? `Season ${currentSeason.seasonNumber}` : "PBO"}
@@ -1201,7 +1209,9 @@ export default async function Home() {
               </div>
               <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 lg:flex lg:items-center lg:justify-between lg:gap-5">
                 <span className="block text-[9px] font-bold uppercase tracking-widest text-[var(--foreground-subtle)]">Status</span>
-                <span className="mt-1 block font-mono text-lg font-bold text-emerald-300 lg:mt-0">{currentSeason ? "LIVE" : "REST"}</span>
+                <span className={`mt-1 block font-mono text-lg font-bold lg:mt-0 ${currentSeasonEnded ? "text-amber-300" : "text-emerald-300"}`}>
+                  {currentSeasonEnded ? "ENDED" : currentSeason ? "LIVE" : "REST"}
+                </span>
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
