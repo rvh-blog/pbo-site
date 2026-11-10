@@ -2629,7 +2629,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                             const wasTC = tx.type === "P2P_TRADE" ? !!p.isTeraCaptain : tx.oldTeraCaptainId === p.id;
                             return (
                               <div key={p.id} className="flex items-center gap-0.5 sm:gap-1">
-                                {p.spriteUrl && <img src={p.spriteUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6"  loading="lazy" decoding="async" />}
+                                {p.spriteUrl && <img src={p.spriteUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6" loading="lazy" decoding="async" />}
                                 <span className="text-xs sm:text-sm text-[var(--error)] font-bold">
                                   -{p.displayName || p.name}{wasTC ? " [TC]" : ""}
                                 </span>
@@ -2643,7 +2643,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                             const isTC = tx.type === "P2P_TRADE" ? !!p.isTeraCaptain : tx.newTeraCaptainId === p.id;
                             return (
                               <div key={p.id} className="flex items-center gap-0.5 sm:gap-1">
-                                {p.spriteUrl && <img src={p.spriteUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6"  loading="lazy" decoding="async" />}
+                                {p.spriteUrl && <img src={p.spriteUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6" loading="lazy" decoding="async" />}
                                 <span className="text-xs sm:text-sm text-[var(--success)] font-bold">
                                   +{p.displayName || p.name}{isTC ? " [TC]" : ""}
                                 </span>
@@ -2660,7 +2660,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                                   src={tradingPartner.teamLogoUrl}
                                   alt={tradingPartner.teamName}
                                   className="w-4 h-4 sm:w-5 sm:h-5 object-contain"
-                                 loading="lazy" decoding="async" />
+                                loading="lazy" decoding="async" />
                               )}
                               <span className="text-[10px] sm:text-xs text-[var(--foreground-muted)]">
                                 w/ {tradingPartner.teamAbbreviation || tradingPartner.teamName?.substring(0, 3).toUpperCase()}
@@ -2672,7 +2672,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                               {tx.oldTeraCaptainDetails && (
                                 <div className="flex items-center gap-0.5 sm:gap-1">
                                   {tx.oldTeraCaptainDetails.spriteUrl && (
-                                    <img src={tx.oldTeraCaptainDetails.spriteUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6"  loading="lazy" decoding="async" />
+                                    <img src={tx.oldTeraCaptainDetails.spriteUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6" loading="lazy" decoding="async" />
                                   )}
                                   <span className="text-xs sm:text-sm text-[var(--error)] font-bold">
                                     -{tx.oldTeraCaptainDetails.displayName || tx.oldTeraCaptainDetails.name} [TC]
@@ -2685,7 +2685,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                               {tx.newTeraCaptainDetails && (
                                 <div className="flex items-center gap-0.5 sm:gap-1">
                                   {tx.newTeraCaptainDetails.spriteUrl && (
-                                    <img src={tx.newTeraCaptainDetails.spriteUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6"  loading="lazy" decoding="async" />
+                                    <img src={tx.newTeraCaptainDetails.spriteUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6" loading="lazy" decoding="async" />
                                   )}
                                   <span className="text-xs sm:text-sm text-[var(--success)] font-bold">
                                     +{tx.newTeraCaptainDetails.displayName || tx.newTeraCaptainDetails.name} [TC]
@@ -2760,7 +2760,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                               src={match.opponentLogoUrl}
                               alt=""
                               className="w-8 h-8 object-contain shrink-0"
-                             loading="lazy" decoding="async" />
+                            loading="lazy" decoding="async" />
                           )}
                           <div className="min-w-0">
                             <p className="font-bold text-sm truncate group-hover:text-[var(--primary)] transition-colors">
@@ -2856,7 +2856,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                               src={pkmn.spriteUrl}
                               alt={pkmn.pokemonDisplayName}
                               className="w-6 h-6 sm:w-7 sm:h-7 object-contain"
-                             loading="lazy" decoding="async" />
+                            loading="lazy" decoding="async" />
                           ) : (
                             <div className="w-6 h-6 sm:w-7 sm:h-7 rounded bg-[var(--background-tertiary)] flex items-center justify-center">
                               <span className="text-xs">?</span>
@@ -2915,7 +2915,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                             src={pkmn.spriteUrl}
                             alt={pkmn.pokemonDisplayName}
                             className="w-6 h-6 sm:w-7 sm:h-7 object-contain"
-                           loading="lazy" decoding="async" />
+                          loading="lazy" decoding="async" />
                         ) : (
                           <div className="w-6 h-6 sm:w-7 sm:h-7 rounded bg-[var(--background-tertiary)] flex items-center justify-center">
                             <span className="text-xs">?</span>
@@ -2970,7 +2970,7 @@ export default async function CoachProfilePage({ params, searchParams }: PagePro
                     src={trend.spriteUrl}
                     alt={trend.pokemonDisplayName}
                     className="h-9 w-9 shrink-0 object-contain"
-                   loading="lazy" decoding="async" />
+                  loading="lazy" decoding="async" />
                 ) : null}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold group-hover:text-[var(--primary)]">

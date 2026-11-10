@@ -218,7 +218,7 @@ export function LeaderboardsClient({
             </h1>
             <p className="text-sm text-[var(--foreground-muted)] mt-1">
               {scope === "current" && currentSeasonName
-                ? `${currentSeasonName} active-player rankings and statistics`
+                ? `${currentSeasonName} rankings and statistics`
                 : "All-time rankings and statistics"}
             </p>
           </div>

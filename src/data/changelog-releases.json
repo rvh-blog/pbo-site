@@ -7,7 +7,7 @@
     "changes": [
       {
         "type": "improved",
-        "text": "Season pages now show ENDED when every division's Finals match has a recorded winner, while keeping the current-season default for league workflows."
+        "text": "Season pages now show ENDED when every division's Finals match has a recorded winner, and season leaderboard labels no longer imply that players must still be active. The current-season default for league workflows is preserved."
       },
       {
         "type": "improved",

@@ -24,6 +24,8 @@ See also:
 - Home: `src/app/page.tsx`
 - Seasons: `src/app/seasons` (a season shows ENDED when each division has a
   completed round-3 Finals match; `isCurrent` remains the default season marker)
+- Season leaderboards use a neutral rankings label so completed seasons do not
+  appear to require currently active players.
 - Division page: `src/app/seasons/[id]/divisions/[divId]/page.tsx`
 - Match details: `src/app/matches/[id]/page.tsx`
 - Coaches: `src/app/coaches` (optional per-coach YouTube playlist preview; admin assignment is managed from `src/app/admin/coaches/page.tsx`)

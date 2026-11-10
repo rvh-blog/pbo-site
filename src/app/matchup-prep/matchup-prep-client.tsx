@@ -985,7 +985,7 @@ export function MatchupPrepClient({
                     src={leftTeam.teamLogoUrl}
                     alt={leftTeam.teamName}
                     className="w-16 h-16 object-contain"
-                   loading="lazy" decoding="async" />
+                  loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-16 h-16 rounded-lg bg-[#2563eb] flex items-center justify-center shadow-[0_4px_0_#1d4ed8]">
                     <span className="text-white text-xl font-bold">
@@ -1073,7 +1073,7 @@ export function MatchupPrepClient({
                     src={rightTeam.teamLogoUrl}
                     alt={rightTeam.teamName}
                     className="w-16 h-16 object-contain"
-                   loading="lazy" decoding="async" />
+                  loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-16 h-16 rounded-lg bg-[#dc2626] flex items-center justify-center shadow-[0_4px_0_#991b1b]">
                     <span className="text-white text-xl font-bold">
@@ -1126,7 +1126,7 @@ export function MatchupPrepClient({
                         {entries.map((entry) => (
                           <div key={entry.pokemonId} className="flex items-center gap-3 rounded-md bg-[var(--background)] p-2">
                             {entry.spriteUrl ? (
-                              <img src={entry.spriteUrl} alt="" className="h-9 w-9 shrink-0 object-contain"  loading="lazy" decoding="async" />
+                              <img src={entry.spriteUrl} alt="" className="h-9 w-9 shrink-0 object-contain" loading="lazy" decoding="async" />
                             ) : null}
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-xs font-bold text-white">{entry.pokemonName}</div>
@@ -1218,7 +1218,7 @@ export function MatchupPrepClient({
                               <span className="text-[7px] px-1 py-0.5 rounded font-bold bg-[var(--error)]/20 text-[var(--error)]">Drop</span>
                             </div>
                           )}
-                          <img src={topP.spriteUrl || ""} alt="" className="h-10 w-10 shrink-0 scale-110 object-contain"  loading="lazy" decoding="async" />
+                          <img src={topP.spriteUrl || ""} alt="" className="h-10 w-10 shrink-0 scale-110 object-contain" loading="lazy" decoding="async" />
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-[10px] font-bold leading-tight text-white">{topP.displayName || topP.name}</div>
                             <div className="mt-0.5 flex flex-wrap gap-0.5">
@@ -1259,7 +1259,7 @@ export function MatchupPrepClient({
                               <span className="text-[7px] px-1 py-0.5 rounded font-bold bg-[var(--error)]/20 text-[var(--error)]">Drop</span>
                             </div>
                           )}
-                          <img src={bottomP.spriteUrl || ""} alt="" className="h-10 w-10 shrink-0 scale-110 object-contain"  loading="lazy" decoding="async" />
+                          <img src={bottomP.spriteUrl || ""} alt="" className="h-10 w-10 shrink-0 scale-110 object-contain" loading="lazy" decoding="async" />
                           <div className="min-w-0 flex-1 text-right">
                             <div className="truncate text-[10px] font-bold leading-tight text-white">{bottomP.displayName || bottomP.name}</div>
                             <div className="mt-0.5 flex flex-wrap justify-end gap-0.5">
@@ -1329,7 +1329,7 @@ export function MatchupPrepClient({
                         alt=""
                         className="object-contain mx-auto"
                         style={{ width: "clamp(40px, 4vw, 64px)", height: "clamp(40px, 4vw, 64px)", transform: "scale(1.4)" }}
-                       loading="lazy" decoding="async" />
+                      loading="lazy" decoding="async" />
                       <div className="text-white text-center font-medium mt-1 truncate" style={{ fontSize: "clamp(10px, 0.7vw, 14px)" }}>
                         {p.displayName || p.name}
                       </div>
@@ -1421,7 +1421,7 @@ export function MatchupPrepClient({
                         alt=""
                         className="object-contain mx-auto"
                         style={{ width: "clamp(40px, 4vw, 64px)", height: "clamp(40px, 4vw, 64px)", transform: "scale(1.4)" }}
-                       loading="lazy" decoding="async" />
+                      loading="lazy" decoding="async" />
                       <div className="text-white text-center font-medium mt-1 truncate" style={{ fontSize: "clamp(10px, 0.7vw, 14px)" }}>
                         {p.displayName || p.name}
                       </div>
@@ -1485,7 +1485,7 @@ export function MatchupPrepClient({
                 {(() => {
                   const logo = isSwapped ? matchData?.coach2.teamLogoUrl : matchData?.coach1.teamLogoUrl;
                   return logo ? (
-                    <img src={logo} alt="" className="w-5 h-5 object-contain"  loading="lazy" decoding="async" />
+                    <img src={logo} alt="" className="w-5 h-5 object-contain" loading="lazy" decoding="async" />
                   ) : (
                     <div className="w-5 h-5 rounded bg-[#2563eb] flex items-center justify-center shadow-[0_2px_0_#1d4ed8]">
                       <span className="text-white text-[8px] font-bold">{topTeamName.charAt(0)}</span>
@@ -1531,7 +1531,7 @@ export function MatchupPrepClient({
                         const p = row.top;
                         return (
                           <td key={idx} className={`p-0.5 bg-[var(--background-secondary)] rounded text-center ${p?.isDropped ? "opacity-50" : ""}`} style={{ borderTop: p?.isTeraCaptain ? "3px solid #facc15" : "3px solid transparent", borderTopLeftRadius: "4px", borderTopRightRadius: "4px" }}>
-                            {p?.spriteUrl && <img src={p.spriteUrl} alt={p.displayName || p.name} title={p.displayName || p.name} className="w-6 h-6 object-contain mx-auto"  loading="lazy" decoding="async" />}
+                            {p?.spriteUrl && <img src={p.spriteUrl} alt={p.displayName || p.name} title={p.displayName || p.name} className="w-6 h-6 object-contain mx-auto" loading="lazy" decoding="async" />}
                           </td>
                         );
                       })}
@@ -1566,7 +1566,7 @@ export function MatchupPrepClient({
                         const p = row.bottom;
                         return (
                           <td key={idx} className={`p-0.5 bg-[var(--background-secondary)] rounded text-center ${p?.isDropped ? "opacity-50" : ""}`} style={{ borderBottom: p?.isTeraCaptain ? "3px solid #facc15" : "3px solid transparent", borderBottomLeftRadius: "4px", borderBottomRightRadius: "4px" }}>
-                            {p?.spriteUrl && <img src={p.spriteUrl} alt={p.displayName || p.name} title={p.displayName || p.name} className="w-6 h-6 object-contain mx-auto"  loading="lazy" decoding="async" />}
+                            {p?.spriteUrl && <img src={p.spriteUrl} alt={p.displayName || p.name} title={p.displayName || p.name} className="w-6 h-6 object-contain mx-auto" loading="lazy" decoding="async" />}
                           </td>
                         );
                       })}
@@ -1607,7 +1607,7 @@ export function MatchupPrepClient({
                 {(() => {
                   const logo = isSwapped ? matchData?.coach1.teamLogoUrl : matchData?.coach2.teamLogoUrl;
                   return logo ? (
-                    <img src={logo} alt="" className="w-5 h-5 object-contain"  loading="lazy" decoding="async" />
+                    <img src={logo} alt="" className="w-5 h-5 object-contain" loading="lazy" decoding="async" />
                   ) : (
                     <div className="w-5 h-5 rounded bg-[#dc2626] flex items-center justify-center shadow-[0_2px_0_#991b1b]">
                       <span className="text-white text-[8px] font-bold">{bottomTeamName.charAt(0)}</span>
@@ -1627,7 +1627,7 @@ export function MatchupPrepClient({
                   {(() => {
                     const teamLogo = isSwapped ? matchData?.coach2.teamLogoUrl : matchData?.coach1.teamLogoUrl;
                     return teamLogo ? (
-                      <img src={teamLogo} alt="" className="w-6 h-6 object-contain"  loading="lazy" decoding="async" />
+                      <img src={teamLogo} alt="" className="w-6 h-6 object-contain" loading="lazy" decoding="async" />
                     ) : (
                       <div className="w-6 h-6 rounded bg-[#2563eb] flex items-center justify-center shadow-[0_2px_0_#1d4ed8]">
                         <span className="text-white text-[8px] font-bold">{topTeamName.charAt(0)}</span>
@@ -1698,7 +1698,7 @@ export function MatchupPrepClient({
                           <div className="flex items-center gap-2.5">
                             <div className="w-6 h-6 flex items-center justify-center shrink-0">
                               {row.top?.spriteUrl ? (
-                                <img src={row.top.spriteUrl} alt={row.top.displayName || row.top.name} title={row.top.displayName || row.top.name} className="w-6 h-6 object-contain scale-110"  loading="lazy" decoding="async" />
+                                <img src={row.top.spriteUrl} alt={row.top.displayName || row.top.name} title={row.top.displayName || row.top.name} className="w-6 h-6 object-contain scale-110" loading="lazy" decoding="async" />
                               ) : row.top ? (
                                 <span className="text-[var(--foreground-muted)] text-[8px]">?</span>
                               ) : null}
@@ -1711,7 +1711,7 @@ export function MatchupPrepClient({
                             <span className="text-sm font-bold tabular-nums text-white">{row.bottom ? row.bottom.speed : ""}</span>
                             <div className="w-6 h-6 flex items-center justify-center shrink-0">
                               {row.bottom?.spriteUrl ? (
-                                <img src={row.bottom.spriteUrl} alt={row.bottom.displayName || row.bottom.name} title={row.bottom.displayName || row.bottom.name} className="w-6 h-6 object-contain scale-110"  loading="lazy" decoding="async" />
+                                <img src={row.bottom.spriteUrl} alt={row.bottom.displayName || row.bottom.name} title={row.bottom.displayName || row.bottom.name} className="w-6 h-6 object-contain scale-110" loading="lazy" decoding="async" />
                               ) : row.bottom ? (
                                 <span className="text-[var(--foreground-muted)] text-[8px]">?</span>
                               ) : null}
@@ -1739,7 +1739,7 @@ export function MatchupPrepClient({
                   {(() => {
                     const teamLogo = isSwapped ? matchData?.coach1.teamLogoUrl : matchData?.coach2.teamLogoUrl;
                     return teamLogo ? (
-                      <img src={teamLogo} alt="" className="w-6 h-6 object-contain"  loading="lazy" decoding="async" />
+                      <img src={teamLogo} alt="" className="w-6 h-6 object-contain" loading="lazy" decoding="async" />
                     ) : (
                       <div className="w-6 h-6 rounded bg-[#dc2626] flex items-center justify-center shadow-[0_2px_0_#991b1b]">
                         <span className="text-white text-[8px] font-bold">{bottomTeamName.charAt(0)}</span>
@@ -2096,7 +2096,7 @@ export function MatchupPrepClient({
                           : "border-[#a83a29] bg-[#4a1c16]";
                         return (
                           <div key={`mobile-base-${pokemon.team}-${pokemon.id}-${index}`} className={`flex h-8 items-center rounded-md border px-1 ${teamClasses} ${pokemon.isDropped ? "opacity-50" : ""}`}>
-                            <img src={pokemon.spriteUrl || ""} alt={pokemon.displayName || pokemon.name} title={pokemon.displayName || pokemon.name} className="h-7 w-7 shrink-0 object-contain"  loading="lazy" decoding="async" />
+                            <img src={pokemon.spriteUrl || ""} alt={pokemon.displayName || pokemon.name} title={pokemon.displayName || pokemon.name} className="h-7 w-7 shrink-0 object-contain" loading="lazy" decoding="async" />
                             <span className="ml-auto font-mono text-[11px] font-black tabular-nums text-white">{pokemon.speed}</span>
                           </div>
                         );
@@ -2120,7 +2120,7 @@ export function MatchupPrepClient({
                           <div key={`mobile-tier-${tier.speed}-${tier.team}`} className={`flex min-h-8 items-center gap-1 rounded-md border px-1.5 py-0.5 ${teamClasses}`}>
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5">
                               {tier.entries.map((pokemon, index) => (
-                                <img key={`${pokemon.team}-${pokemon.id}-${index}`} src={pokemon.spriteUrl || ""} alt={pokemon.displayName || pokemon.name} title={pokemon.displayName || pokemon.name} className={`h-7 w-7 object-contain ${pokemon.isDropped ? "opacity-50" : ""}`}  loading="lazy" decoding="async" />
+                                <img key={`${pokemon.team}-${pokemon.id}-${index}`} src={pokemon.spriteUrl || ""} alt={pokemon.displayName || pokemon.name} title={pokemon.displayName || pokemon.name} className={`h-7 w-7 object-contain ${pokemon.isDropped ? "opacity-50" : ""}`} loading="lazy" decoding="async" />
                               ))}
                               <span className="rounded-full border border-white/20 bg-black/15 px-1 py-0.5 text-[7px] font-bold leading-none text-white/80">{mobileInvestmentLabel}</span>
                               {effectLabels.map((label) => (
@@ -2154,7 +2154,7 @@ export function MatchupPrepClient({
                   <div className={`space-y-1 ${speedSectionOpen.base ? "block" : "hidden"} lg:block`}>
                     {allPokemonByBaseSpeed.map((p, idx) => (
                       <div key={`base-${p.id}-${idx}`} className={`flex items-center gap-2 px-2 py-1 rounded bg-[var(--background-tertiary)] ${p.team === "top" ? "border-l-2 border-[#3b82f6]" : "border-l-2 border-[#ef4444]"} ${p.isDropped ? "opacity-50" : ""}`}>
-                        <img src={p.spriteUrl || ""} alt="" className="w-5 h-5 object-contain"  loading="lazy" decoding="async" />
+                        <img src={p.spriteUrl || ""} alt="" className="w-5 h-5 object-contain" loading="lazy" decoding="async" />
                         <span className="text-xs font-medium truncate flex-1 text-white">{p.displayName || p.name}</span>
                         <span className="text-xs font-bold font-mono tabular-nums text-white">{p.speed}</span>
                       </div>
@@ -2217,7 +2217,7 @@ export function MatchupPrepClient({
                     <div className="flex-1 space-y-1">
                       {speedCompare1.map((p, idx) => (
                         <div key={`c1-${p.id}-${idx}`} className={`flex items-center gap-2 px-2 py-1 rounded bg-[var(--background-tertiary)] ${p.team === "top" ? "border-l-2 border-[#3b82f6]" : "border-l-2 border-[#ef4444]"} ${p.isDropped ? "opacity-50" : ""}`}>
-                          <img src={p.spriteUrl || ""} alt="" className="w-5 h-5 object-contain"  loading="lazy" decoding="async" />
+                          <img src={p.spriteUrl || ""} alt="" className="w-5 h-5 object-contain" loading="lazy" decoding="async" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-xs font-medium text-white">{p.displayName || p.name}</span>
                             {p.activeEffect && <span className="mt-0.5 block truncate text-[8px] font-bold text-amber-300">{p.activeEffect.label}</span>}
@@ -2284,7 +2284,7 @@ export function MatchupPrepClient({
                     <div className="flex-1 space-y-1">
                       {speedCompare2.map((p, idx) => (
                         <div key={`c2-${p.id}-${idx}`} className={`flex items-center gap-2 px-2 py-1 rounded bg-[var(--background-tertiary)] ${p.team === "top" ? "border-l-2 border-[#3b82f6]" : "border-l-2 border-[#ef4444]"} ${p.isDropped ? "opacity-50" : ""}`}>
-                          <img src={p.spriteUrl || ""} alt="" className="w-5 h-5 object-contain"  loading="lazy" decoding="async" />
+                          <img src={p.spriteUrl || ""} alt="" className="w-5 h-5 object-contain" loading="lazy" decoding="async" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-xs font-medium text-white">{p.displayName || p.name}</span>
                             {p.activeEffect && <span className="mt-0.5 block truncate text-[8px] font-bold text-amber-300">{p.activeEffect.label}</span>}
@@ -2366,7 +2366,7 @@ export function MatchupPrepClient({
                                       alt={p.displayName || p.name}
                                       title={p.displayName || p.name}
                                       className={`w-5 h-5 lg:w-6 lg:h-6 object-contain scale-110 ${p.isDropped ? "opacity-50" : ""}`}
-                                     loading="lazy" decoding="async" />
+                                    loading="lazy" decoding="async" />
                                   ))
                                 ) : (
                                   <span className="text-[10px] lg:text-xs text-[var(--foreground-subtle)]">—</span>
@@ -2389,7 +2389,7 @@ export function MatchupPrepClient({
                                       alt={p.displayName || p.name}
                                       title={p.displayName || p.name}
                                       className={`w-5 h-5 lg:w-6 lg:h-6 object-contain scale-110 ${p.isDropped ? "opacity-50" : ""}`}
-                                     loading="lazy" decoding="async" />
+                                    loading="lazy" decoding="async" />
                                   ))
                                 ) : (
                                   <span className="text-[10px] lg:text-xs text-[var(--foreground-subtle)]">—</span>
